@@ -8,16 +8,14 @@ Gem::Specification.new do |spec|
   spec.authors = ["ahogappa"]
   spec.email = ["ahogappa@gmail.com"]
 
-  spec.summary = "TODO: Write a short summary, because RubyGems requires one."
-  spec.description = "TODO: Write a longer description or delete this line."
-  spec.homepage = "TODO: Put your gem's website or public repo URL here."
+  spec.summary = "A simple yet powerful Ruby task runner with static dependency resolution (in development)."
+  spec.description = "Taski is a Ruby-based task runner currently under development. It allows you to define small, composable tasks along with the outputs they depend on. Taski statically resolves dependencies and executes tasks in the correct topological order, from the most dependent tasks first. It also supports reverse execution, useful for cleaning up temporary files after a build. **Note:** Taski does not yet support circular dependencies and may change as development progresses."
+  spec.homepage = "https://github.com/ahogappa/taski"
   spec.required_ruby_version = ">= 3.1.0"
 
-  spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
-
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "TODO: Put your gem's public repo URL here."
-  spec.metadata["changelog_uri"] = "TODO: Put your gem's CHANGELOG.md URL here."
+  spec.metadata["source_code_uri"] = "https://github.com/ahogappa/taski"
+  spec.metadata["changelog_uri"] = "https://github.com/ahogappa/taski"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.

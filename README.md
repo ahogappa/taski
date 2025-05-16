@@ -1,28 +1,58 @@
 # Taski
 
-TODO: Delete this and the text below, and describe your gem
+**Taski** is a Ruby-based task runner designed for small, composable processing steps.
+With Taski, you define tasks and the outputs they depend on. Taski then statically resolves task dependencies and determines the correct execution order.
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/taski`. To experiment with that code, run `bin/console` for an interactive prompt.
+Tasks are executed in a topologically sorted order, ensuring that all dependencies are resolved before a task is run. Reverse execution is also supported, making it easy to clean up intermediate files after a build process.
+
+> **🚧 Development Status:** Taski is currently under active development and the API may change.
+
+> **⚠️ Limitation:** Circular dependencies are **not** supported at this time.
+
+### Features
+
+- Simple and declarative task definitions
+- Static dependency resolution
+- Topological execution order
+- Reverse execution for teardown or cleanup
+- Built entirely in Ruby
 
 ## Installation
-
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
 
 Install the gem and add to the application's Gemfile by executing:
 
 ```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle add taski
 ```
 
 If bundler is not being used to manage dependencies, install the gem by executing:
 
 ```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+gem install taski
 ```
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+class TaskA < Taski::Task
+  definition :task_a, -> { "Task A" }
+
+  def build
+    task_a
+  end
+end
+
+class TaskB < Taski::Task
+  definition :simple_task, -> { "Task result is #{TaskA.task_a}" }
+
+  def build
+    puts simple_task
+  end
+end
+
+TaskB.build
+# => Task result is Task A
+```
 
 ## Development
 
