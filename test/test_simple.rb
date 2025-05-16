@@ -63,7 +63,7 @@ class TestTaski < Minitest::Test
       end
     end
     Object.const_set(:TaskB, task_b)
-debugger
+
     assert_output("Task A\nTask result is Task A\n") { TaskB.build }
   end
 
@@ -201,53 +201,4 @@ debugger
       end
     end
   end
-
-  # def test_circular_dependency_detection
-  #   # Test case to verify that circular dependencies are properly handled
-
-  #   # Create two tasks that circularly depend on each other
-  #   task_a = Class.new(Taski::Task) do
-  #     definition :task_a_method, -> {
-  #       b = ref("CircularTaskB")
-  #       "Task A depends on #{b.task_b_method}"
-  #     }
-
-  #     def build
-  #       puts task_a_method
-  #     end
-  #   end
-
-  #   task_b = Class.new(Taski::Task) do
-  #     definition :task_b_method, -> {
-  #       a = ref("CircularTaskA")
-  #       "Task B depends on #{a.task_a_method}"
-  #     }
-
-  #     def build
-  #       puts task_b_method
-  #     end
-  #   end
-
-  #   begin
-  #     Object.const_set(:CircularTaskA, task_a)
-  #     Object.const_set(:CircularTaskB, task_b)
-
-  #     # With circular dependencies, we expect the system to either:
-  #     # 1. Detect and report the circular dependency, or
-  #     # 2. Enter an infinite recursion (which we'll prevent with timeout)
-
-  #     # Use a timeout to prevent test from hanging
-  #     Timeout.timeout(1) do
-  #       assert_raises(SystemStackError, "Should detect circular dependency") do
-  #         task_a.build
-  #       end
-  #     end
-  #   rescue Timeout::Error
-  #     flunk "Test timed out - likely due to unresolved circular dependency"
-  #   ensure
-  #     [:CircularTaskA, :CircularTaskB].each do |const|
-  #       Object.send(:remove_const, const) if Object.const_defined?(const)
-  #     end
-  #   end
-  # end
 end
