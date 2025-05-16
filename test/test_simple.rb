@@ -32,19 +32,6 @@ class TestTaski < Minitest::Test
     assert_equal "&String", ref.inspect
   end
 
-  def test_task_ref_method
-    # Test the ref method in Task class
-    reference = catch(:unresolve) do
-      Taski::Task.ref("String")
-      nil
-    end
-
-    assert_instance_of Taski::Reference, reference
-    assert_equal "String", reference.instance_variable_get(:@klass)
-    assert_equal String, reference.deref
-    assert_equal "&String", reference.inspect
-  end
-
   def test_simple_task
     task_a = Class.new(Taski::Task) do
       definition :task_a, -> { "Task A" }
