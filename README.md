@@ -1,21 +1,47 @@
 # Taski
 
 **Taski** is a Ruby-based task runner designed for small, composable processing steps.
-With Taski, you define tasks and the outputs they depend on. Taski then statically resolves task dependencies and determines the correct execution order.
+In Taski, you define tasks as Ruby classes that expose named values through `define`. Dependencies between tasks are established automatically when one task references the result of another—no need for explicit dependency declarations.
 
-Tasks are executed in a topologically sorted order, ensuring that all dependencies are resolved before a task is run. Reverse execution is also supported, making it easy to clean up intermediate files after a build process.
+Tasks are executed in a topologically sorted order, ensuring that tasks are built only after their inputs are available. Reverse execution is also supported, making it easy to clean up intermediate files or revert changes after a build.
 
 > **🚧 Development Status:** Taski is currently under active development and the API may change.
 
 > **⚠️ Limitation:** Circular dependencies are **not** supported at this time.
 
+> **ℹ️ Note:** Taski does **not** infer dependencies from file contents or behavior. Instead, dependencies are implicitly established via references between task definitions.
+
 ### Features
 
-- Simple and declarative task definitions
-- Static dependency resolution
+- Define tasks using Ruby classes
+- Implicit dependencies via reference to other task outputs
 - Topological execution order
-- Reverse execution for teardown or cleanup
+- Reverse execution for cleanup
 - Built entirely in Ruby
+
+### Example
+
+```ruby
+class TaskA < Taski::Task
+  define :task_a_result, -> { "Task A" }
+
+  def build
+    puts 'Processing...'
+  end
+end
+
+class TaskB < Taski::Task
+  define :simple_task, -> { "Task result is #{TaskA.task_a_result}" }
+
+  def build
+    puts simple_task
+  end
+end
+
+TaskB.build
+# => Processing...
+# => Task result is Task A
+```
 
 ## Installation
 
@@ -29,29 +55,6 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ```bash
 gem install taski
-```
-
-## Usage
-
-```ruby
-class TaskA < Taski::Task
-  definition :task_a, -> { "Task A" }
-
-  def build
-    task_a
-  end
-end
-
-class TaskB < Taski::Task
-  definition :simple_task, -> { "Task result is #{TaskA.task_a}" }
-
-  def build
-    puts simple_task
-  end
-end
-
-TaskB.build
-# => Task result is Task A
 ```
 
 ## Development

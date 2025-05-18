@@ -34,7 +34,7 @@ class TestTaski < Minitest::Test
 
   def test_simple_task
     task_a = Class.new(Taski::Task) do
-      definition :task_a, -> { "Task A" }
+      define :task_a, -> { "Task A" }
 
       def build
         puts task_a
@@ -43,7 +43,7 @@ class TestTaski < Minitest::Test
     Object.const_set(:TaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      definition :simple_task, -> { "Task result is #{TaskA.task_a}" }
+      define :simple_task, -> { "Task result is #{TaskA.task_a}" }
 
       def build
         puts simple_task
@@ -59,7 +59,7 @@ class TestTaski < Minitest::Test
 
     # Base component that others depend on
     base_component = Class.new(Taski::Task) do
-      definition :compile, -> { "Base component compiled" }
+      define :compile, -> { "Base component compiled" }
 
       def build
         # Record build order
@@ -71,7 +71,7 @@ class TestTaski < Minitest::Test
 
     # Frontend component depending on the base
     frontend = Class.new(Taski::Task) do
-      definition :build_ui, -> {
+      define :build_ui, -> {
         # Direct reference to base component
         "Frontend UI built using #{BaseComponent.compile}"
       }
@@ -85,7 +85,7 @@ class TestTaski < Minitest::Test
 
     # Backend component also depending on the base
     backend = Class.new(Taski::Task) do
-      definition :build_api, -> {
+      define :build_api, -> {
         # Direct reference to base component
         "Backend API built using #{BaseComponent.compile}"
       }
@@ -99,7 +99,7 @@ class TestTaski < Minitest::Test
 
     # Database component with no dependencies
     database = Class.new(Taski::Task) do
-      definition :setup_db, -> { "Database initialized" }
+      define :setup_db, -> { "Database initialized" }
 
       def build
         TestTaski.track_build_order("Database")
@@ -110,7 +110,7 @@ class TestTaski < Minitest::Test
 
     # Main application that depends on frontend, backend, and database
     application = Class.new(Taski::Task) do
-      definition :build_app, -> {
+      define :build_app, -> {
         # Direct references to all dependencies
         "Application built with:\n- #{Frontend.build_ui}\n- #{Backend.build_api}\n- #{Database.setup_db}"
       }
@@ -124,7 +124,7 @@ class TestTaski < Minitest::Test
 
     # Deploy task that depends on the application
     deploy = Class.new(Taski::Task) do
-      definition :deploy_app, -> {
+      define :deploy_app, -> {
         # Direct reference to application
         "Deploying: #{Application.build_app}"
       }

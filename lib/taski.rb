@@ -24,7 +24,7 @@ module Taski
         throw :unresolved, ref
       end
 
-      def definition(name, block, **options)
+      def define(name, block, **options)
         @dependencies ||= []
         @definitions ||= {}
 
@@ -80,12 +80,6 @@ module Taski
         # TODO
       end
 
-      private
-
-      def __resolve__
-        @__resolve__ ||= {}
-      end
-
       def resolve(queue, resolved)
         @dependencies.each do |task|
           if task[:klass].is_a?(Reference)
@@ -127,6 +121,12 @@ module Taski
         self
       end
 
+      private
+
+      def __resolve__
+        @__resolve__ ||= {}
+      end
+
       def resolve_dependencies
         queue = [self]
         resolved = []
@@ -137,22 +137,6 @@ module Taski
         end
 
         resolved
-      end
-    end
-
-    def exec_command(command, info = nil, ret = false)
-      puts "exec: #{info}" if info
-      puts command
-
-      if ret
-        ret = `#{command}`.chomp
-        if $?.exited?
-          ret
-        else
-          raise "Failed to execute command: #{command}"
-        end
-      else
-        system command, exception: true
       end
     end
   end
