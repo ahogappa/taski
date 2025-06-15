@@ -1,143 +1,40 @@
 # frozen_string_literal: true
 
+require 'set'
+require 'monitor'
+
+# Load core components
 require_relative "taski/version"
+require_relative "taski/exceptions"
+require_relative "taski/reference"
+require_relative "taski/dependency_analyzer"
+
+# Load Task class components
+require_relative "taski/task/base"
+require_relative "taski/task/exports_api"
+require_relative "taski/task/define_api"
+require_relative "taski/task/instance_management"
+require_relative "taski/task/dependency_resolver"
 
 module Taski
-  class Reference
-    def initialize(klass)
-      @klass = klass
-    end
-
-    def deref
-      Object.const_get(@klass)
-    end
-
-    def inspect
-      "&#{@klass}"
-    end
-  end
-
-  class Task
-    class << self
-      def ref(klass)
-        ref = Reference.new(klass)
-        throw :unresolved, ref
-      end
-
-      def define(name, block, **options)
-        @dependencies ||= []
-        @definitions ||= {}
-
-        class_eval(<<-RUBY, __FILE__, __LINE__ + 1)
-          def self.#{name}
-            __resolve__[__callee__] ||= false
-            if __resolve__[__callee__]
-              # already resolved
-            else
-              __resolve__[__callee__] = true
-              throw :unresolved, [self, __callee__]
-            end
-          end
-        RUBY
-
-        classes = []
-        loop do
-          klass, task = catch(:unresolved) do
-            block.call
-            nil
-          end
-
-          if klass.nil?
-            classes.each do |task_class|
-              task_class[:klass].class_eval(<<-RUBY, __FILE__, __LINE__ + 1)
-                __resolve__ = {}
-              RUBY
-            end
-
-            break
-          else
-            classes << { klass:, task: }
-          end
-        end
-
-        @dependencies += classes
-        @definitions[name] = { block:, options:, classes: }
-      end
-
-      def build
-        resolve_dependencies.reverse.each do |task_class|
-          task_class.new.build
-        end
-      end
-
-      def clean
-        resolve_dependencies.each do |task_class|
-          task_class.new.clean
-        end
-      end
-
-      def refresh
-        # TODO
-      end
-
-      def resolve(queue, resolved)
-        @dependencies.each do |task|
-          if task[:klass].is_a?(Reference)
-            task[:klass].deref
-          else
-            task[:klass]
-          end => task_class
-
-          # increase priority
-          if resolved.include?(task_class)
-            resolved.delete(task_class)
-          end
-          queue << task_class
-        end
-
-        # override
-        class_eval(<<-RUBY, __FILE__, __LINE__ + 1)
-          def self.ref(klass)
-            Object.const_get(klass)
-          end
-        RUBY
-
-        @definitions.each do |name, (_block, _options)|
-          # override
-          class_eval(<<-RUBY, __FILE__, __LINE__ + 1)
-            def self.#{name}
-              @__#{name} ||= @definitions[:#{name}][:block].call
-            end
-          RUBY
-
-          define_method(name) do
-            unless instance_variable_defined?("@__#{name}")
-              instance_variable_set("@__#{name}", self.class.send(name))
-            end
-            instance_variable_get("@__#{name}")
-          end
-        end
-
-        self
-      end
-
-      private
-
-      def __resolve__
-        @__resolve__ ||= {}
-      end
-
-      def resolve_dependencies
-        queue = [self]
-        resolved = []
-
-        while queue.any?
-          resolved << task_class = queue.shift
-          task_class.resolve(queue, resolved)
-        end
-
-        resolved
-      end
-    end
-  end
+  # Main module for the Taski task framework
+  # 
+  # Taski provides a framework for defining and managing task dependencies
+  # with two complementary APIs:
+  # 1. Exports API - Export instance variables as class methods (static dependencies)
+  # 2. Define API - Define lazy-evaluated values with dynamic dependency resolution
+  #
+  # Use Define API when:
+  # - Dependencies change based on runtime conditions
+  # - Environment-specific configurations  
+  # - Feature flags determine which classes to use
+  # - Complex conditional logic determines dependencies
+  #
+  # Features:
+  # - Automatic dependency resolution (static and dynamic)
+  # - Static analysis of method dependencies
+  # - Runtime dependency resolution for conditional logic
+  # - Thread-safe task building
+  # - Circular dependency detection
+  # - Memory leak prevention
 end

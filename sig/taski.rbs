@@ -1,4 +1,62 @@
 module Taski
   VERSION: String
-  # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+  # Custom exceptions
+  class CircularDependencyError < StandardError
+  end
+
+  class TaskAnalysisError < StandardError
+  end
+
+  class TaskBuildError < StandardError
+  end
+
+  # Reference class for task references
+  class Reference
+    @klass: String
+
+    def initialize: (String klass) -> void
+    def deref: () -> Class
+    def ==: (untyped other) -> bool
+    def inspect: () -> String
+  end
+
+  # Main Task class
+  class Task
+    # Constants
+    THREAD_KEY_SUFFIX: String
+    TASKI_ANALYZING_DEFINE_KEY: Symbol
+    ANALYZED_METHODS: Array[Symbol]
+
+    # Hook methods
+    def self.method_added: (Symbol method_name) -> void
+
+    # Public API methods
+    def self.exports: (*Symbol names) -> void
+    def self.define: (Symbol name, Proc block, **untyped options) -> void
+    def self.build: () -> void
+    def self.clean: () -> void
+    def self.reset!: () -> self
+    def self.refresh: () -> self
+    def self.resolve: (Array[untyped] queue, Array[untyped] resolved) -> self
+    def self.ref: (String klass) -> Reference
+    def self.ensure_instance_built: () -> Task
+
+    # Instance methods
+    def build: () -> void
+    def clean: () -> void
+
+    # Allow dynamic method definitions
+    def method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
+    def respond_to_missing?: (Symbol name, bool include_private) -> bool
+
+    # Allow dynamic class method definitions  
+    def self.method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
+    def self.respond_to_missing?: (Symbol name, bool include_private) -> bool
+  end
+
+  # Dependency analyzer module
+  module DependencyAnalyzer
+    def self.analyze_method: (Class klass, Symbol method_name) -> Array[Class]
+  end
 end
