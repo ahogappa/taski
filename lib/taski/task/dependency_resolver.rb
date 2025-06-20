@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
 require_relative "../dependency_analyzer"
 
 module Taski

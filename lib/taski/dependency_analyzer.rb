@@ -19,19 +19,19 @@ module Taski
           result = Prism.parse_file(file_path)
 
           unless result.success?
-            Taski.logger.error("Parse errors in source file", 
-                              file: file_path, 
-                              errors: result.errors.map(&:message),
-                              method: "#{klass}##{method_name}")
+            Taski.logger.error("Parse errors in source file",
+              file: file_path,
+              errors: result.errors.map(&:message),
+              method: "#{klass}##{method_name}")
             return []
           end
 
           # Handle warnings if present
           if result.warnings.any?
-            Taski.logger.warn("Parse warnings in source file", 
-                             file: file_path, 
-                             warnings: result.warnings.map(&:message),
-                             method: "#{klass}##{method_name}")
+            Taski.logger.warn("Parse warnings in source file",
+              file: file_path,
+              warnings: result.warnings.map(&:message),
+              method: "#{klass}##{method_name}")
           end
 
           dependencies = []
@@ -45,17 +45,17 @@ module Taski
 
           dependencies.uniq
         rescue IOError, SystemCallError => e
-          Taski.logger.error("Failed to read source file", 
-                            file: file_path, 
-                            error: e.message,
-                            method: "#{klass}##{method_name}")
+          Taski.logger.error("Failed to read source file",
+            file: file_path,
+            error: e.message,
+            method: "#{klass}##{method_name}")
           []
         rescue => e
-          Taski.logger.error("Failed to analyze method dependencies", 
-                            class: klass.name,
-                            method: method_name,
-                            error: e.message,
-                            error_class: e.class.name)
+          Taski.logger.error("Failed to analyze method dependencies",
+            class: klass.name,
+            method: method_name,
+            error: e.message,
+            error_class: e.class.name)
           []
         end
       end

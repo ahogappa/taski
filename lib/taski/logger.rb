@@ -5,7 +5,7 @@ module Taski
   # Provides structured logging with multiple levels and context information
   class Logger
     # Log levels in order of severity
-    LEVELS = { debug: 0, info: 1, warn: 2, error: 3 }.freeze
+    LEVELS = {debug: 0, info: 1, warn: 2, error: 3}.freeze
 
     # @param level [Symbol] Minimum log level to output (:debug, :info, :warn, :error)
     # @param output [IO] Output destination (default: $stdout)
@@ -49,17 +49,17 @@ module Taski
     # @param task_name [String] Name of the task being built
     # @param dependencies [Array] List of task dependencies
     def task_build_start(task_name, dependencies: [])
-      info("Task build started", 
-           task: task_name, 
-           dependencies: dependencies.size,
-           dependency_names: dependencies.map { |dep| dep.is_a?(Hash) ? dep[:klass].inspect : dep.inspect })
+      info("Task build started",
+        task: task_name,
+        dependencies: dependencies.size,
+        dependency_names: dependencies.map { |dep| dep.is_a?(Hash) ? dep[:klass].inspect : dep.inspect })
     end
 
     # Log task build completion event
     # @param task_name [String] Name of the task that was built
     # @param duration [Float] Build duration in seconds
     def task_build_complete(task_name, duration: nil)
-      context = { task: task_name }
+      context = {task: task_name}
       context[:duration_ms] = (duration * 1000).round(2) if duration
       info("Task build completed", **context)
     end
@@ -69,8 +69,8 @@ module Taski
     # @param error [Exception] The error that occurred
     # @param duration [Float] Duration before failure in seconds
     def task_build_failed(task_name, error:, duration: nil)
-      context = { 
-        task: task_name, 
+      context = {
+        task: task_name,
         error_class: error.class.name,
         error_message: error.message
       }
@@ -83,23 +83,17 @@ module Taski
     # @param task_name [String] Name of the task resolving dependencies
     # @param resolved_count [Integer] Number of dependencies resolved
     def dependency_resolved(task_name, resolved_count:)
-      debug("Dependencies resolved", 
-            task: task_name, 
-            resolved_dependencies: resolved_count)
+      debug("Dependencies resolved",
+        task: task_name,
+        resolved_dependencies: resolved_count)
     end
 
     # Log circular dependency detection
     # @param cycle_path [Array] The circular dependency path
     def circular_dependency_detected(cycle_path)
-      error("Circular dependency detected", 
-            cycle: cycle_path.map { |klass| klass.name || klass.inspect },
-            cycle_length: cycle_path.size)
-    end
-
-    # Log memory cleanup event
-    # @param task_name [String] Name of the task being reset
-    def task_reset(task_name)
-      debug("Task reset", task: task_name)
+      error("Circular dependency detected",
+        cycle: cycle_path.map { |klass| klass.name || klass.inspect },
+        cycle_length: cycle_path.size)
     end
 
     private
@@ -137,31 +131,31 @@ module Taski
     def log_structured(level, message, context)
       timestamp = Time.now.strftime("%Y-%m-%d %H:%M:%S.%3N")
       elapsed = ((Time.now - @start_time) * 1000).round(1)
-      
+
       line = "[#{timestamp}] [#{elapsed}ms] #{level.to_s.upcase.ljust(5)} Taski: #{message}"
-      
+
       unless context.empty?
         context_parts = context.map do |key, value|
           "#{key}=#{format_value(value)}"
         end
-        line += " (#{context_parts.join(', ')})"
+        line += " (#{context_parts.join(", ")})"
       end
-      
+
       @output.puts line
     end
 
     # JSON log format for structured logging systems
     def log_json(level, message, context)
-      require 'json'
-      
+      require "json"
+
       log_entry = {
         timestamp: Time.now.iso8601(3),
         level: level.to_s,
-        logger: 'taski',
+        logger: "taski",
         message: message,
         elapsed_ms: ((Time.now - @start_time) * 1000).round(1)
       }.merge(context)
-      
+
       @output.puts JSON.generate(log_entry)
     end
 
@@ -169,11 +163,11 @@ module Taski
     def format_value(value)
       case value
       when String
-        value.length > 50 ? "#{value[0..47]}..." : value
+        (value.length > 50) ? "#{value[0..47]}..." : value
       when Array
-        value.size > 5 ? "[#{value[0..4].join(', ')}, ...]" : value.inspect
+        (value.size > 5) ? "[#{value[0..4].join(", ")}, ...]" : value.inspect
       when Hash
-        value.size > 3 ? "{#{value.keys[0..2].join(', ')}, ...}" : value.inspect
+        (value.size > 3) ? "{#{value.keys[0..2].join(", ")}, ...}" : value.inspect
       else
         value.inspect
       end
