@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "A simple yet powerful Ruby task runner with static dependency resolution (in development)."
   spec.description = "Taski is a Ruby-based task runner currently under development. It allows you to define small, composable tasks along with the outputs they depend on. Taski statically resolves dependencies and executes tasks in the correct topological order, from the most dependent tasks first. It also supports reverse execution, useful for cleaning up temporary files after a build. **Note:** Taski does not yet support circular dependencies and may change as development progresses."
   spec.homepage = "https://github.com/ahogappa/taski"
-  spec.required_ruby_version = ">= 3.1.0"
+  spec.required_ruby_version = ">= 3.2.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/ahogappa/taski"
