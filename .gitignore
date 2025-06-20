@@ -1,8 +1,34 @@
+# Bundler
 /.bundle/
+/vendor/
+
+# Documentation
 /.yardoc
 /_yardoc/
-/coverage/
 /doc/
+
+# Coverage reports
+/coverage/
+
+# Built gems
 /pkg/
+
+# Test reports
 /spec/reports/
+
+# Temporary files
 /tmp/
+
+# IDE and editor files
+.claude
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

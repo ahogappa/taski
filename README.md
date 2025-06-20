@@ -1,68 +1,225 @@
 # Taski
 
-**Taski** is a Ruby-based task runner designed for small, composable processing steps.
-In Taski, you define tasks as Ruby classes that expose named values through `define`. Dependencies between tasks are established automatically when one task references the result of another—no need for explicit dependency declarations.
+[![CI](https://github.com/ahogappa/taski/workflows/CI/badge.svg)](https://github.com/ahogappa/taski/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/ahogappa/taski/branch/master/graph/badge.svg)](https://codecov.io/gh/ahogappa/taski)
+[![Gem Version](https://badge.fury.io/rb/taski.svg)](https://badge.fury.io/rb/taski)
 
-Tasks are executed in a topologically sorted order, ensuring that tasks are built only after their inputs are available. Reverse execution is also supported, making it easy to clean up intermediate files or revert changes after a build.
+> **🚧 Development Status:** Taski is currently under active development. Not yet recommended for production use.
 
-> **🚧 Development Status:** Taski is currently under active development and the API may change.
+**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and execution. It provides two APIs: static dependencies through **Exports** and dynamic dependencies through **Define**.
 
-> **⚠️ Limitation:** Circular dependencies are **not** supported at this time.
+> **Name Origin**: "Taski" comes from the Japanese word "襷" (tasuki), a sash used in relay races. Just like how runners pass the sash to the next teammate, tasks in Taski pass dependencies to one another in a continuous chain.
 
-> **ℹ️ Note:** Taski does **not** infer dependencies from file contents or behavior. Instead, dependencies are implicitly established via references between task definitions.
-
-### Features
-
-- Define tasks using Ruby classes
-- Implicit dependencies via reference to other task outputs
-- Topological execution order
-- Reverse execution for cleanup
-- Built entirely in Ruby
-
-### Example
+## 🚀 Quick Start
 
 ```ruby
-class TaskA < Taski::Task
-  define :task_a_result, -> { "Task A" }
+require 'taski'
+
+# Static dependency using Exports API
+class DatabaseSetup < Taski::Task
+  exports :connection_string
 
   def build
-    puts 'Processing...'
+    @connection_string = "postgresql://localhost/myapp"
+    puts "Database configured"
   end
 end
 
-class TaskB < Taski::Task
-  define :simple_task, -> { "Task result is #{TaskA.task_a_result}" }
-
+class APIServer < Taski::Task
   def build
-    puts simple_task
+    puts "Starting API with #{DatabaseSetup.connection_string}"
   end
 end
 
-TaskB.build
-# => Processing...
-# => Task result is Task A
+APIServer.build
+# => Database configured
+# => Starting API with postgresql://localhost/myapp
 ```
 
-## Installation
+## 📚 API Guide
 
-Install the gem and add to the application's Gemfile by executing:
+### Exports API - Static Dependencies
+
+For simple, predictable dependencies:
+
+```ruby
+class ConfigLoader < Taski::Task
+  exports :app_name, :version
+
+  def build
+    @app_name = "MyApp"
+    @version = "1.0.0"
+    puts "Config loaded: #{@app_name} v#{@version}"
+  end
+end
+
+class Deployment < Taski::Task
+  def build
+    @deploy_url = "https://#{ConfigLoader.app_name}.example.com"
+    puts "Deploying to #{@deploy_url}"
+  end
+end
+
+Deployment.build
+# => Config loaded: MyApp v1.0.0
+# => Deploying to https://MyApp.example.com
+```
+
+### Define API - Dynamic Dependencies
+
+For dependencies that change based on runtime conditions:
+
+```ruby
+class EnvironmentConfig < Taski::Task
+  define :database_service, -> {
+    case ENV['RAILS_ENV']
+    when 'production'
+      "production-db.example.com"
+    else
+      "localhost:5432"
+    end
+  }
+
+  def build
+    puts "Using database: #{database_service}"
+    puts "Environment: #{ENV['RAILS_ENV'] || 'development'}"
+  end
+end
+
+EnvironmentConfig.build
+# => Using database: localhost:5432
+# => Environment: development
+
+ENV['RAILS_ENV'] = 'production'
+EnvironmentConfig.reset!
+EnvironmentConfig.build
+# => Using database: production-db.example.com
+# => Environment: production
+```
+
+### When to Use Each API
+
+- **Define API**: Best for dynamic runtime dependencies. Cannot contain side effects in definition blocks.
+- **Exports API**: Ideal for static dependencies. Supports side effects in build methods.
+
+| Use Case | API | Example |
+|----------|-----|---------|
+| Configuration values | Exports | File paths, settings |
+| Environment-specific logic | Define | Different services per env |
+| Side effects | Exports | Database connections, I/O |
+| Conditional processing | Define | Algorithm selection |
+
+## ✨ Key Features
+
+- **Automatic Dependency Resolution**: Dependencies detected through static analysis
+- **Thread-Safe**: Safe for concurrent access
+- **Circular Dependency Detection**: Clear error messages with detailed paths
+- **Granular Execution**: Build individual tasks or complete graphs
+- **Memory Management**: Built-in reset mechanisms
+
+### Granular Task Execution
+
+Execute any task individually - Taski builds only required dependencies:
+
+```ruby
+# Build specific components
+AppConfig.build              # Builds only AppConfig
+# => Config loaded: MyApp v1.0.0
+
+Environment.build            # Builds Environment and its dependencies
+# => Using database: localhost:5432
+# => Environment: development
+
+# Access values (triggers build if needed)
+puts AppConfig.version       # Builds AppConfig if not built
+# => 1.0.0
+```
+
+### Lifecycle Management
+
+Tasks can define both build and clean methods. Clean operations run in reverse dependency order:
+
+```ruby
+class DatabaseSetup < Taski::Task
+  exports :connection
+
+  def build
+    @connection = "db-connection"
+    puts "Database connected"
+  end
+
+  def clean
+    puts "Database disconnected"
+  end
+end
+
+class WebServer < Taski::Task
+  def build
+    puts "Web server started with #{DatabaseSetup.connection}"
+  end
+
+  def clean
+    puts "Web server stopped"
+  end
+end
+
+WebServer.build
+# => Database connected
+# => Web server started with db-connection
+
+WebServer.clean
+# => Web server stopped
+# => Database disconnected
+```
+
+### Error Handling
+
+```ruby
+begin
+  TaskWithCircularDep.build
+rescue Taski::CircularDependencyError => e
+  puts "Circular dependency: #{e.message}"
+end
+# => Circular dependency: Circular dependency detected!
+# => Cycle: TaskA → TaskB → TaskA
+# => 
+# => The dependency chain is:
+# =>   1. TaskA is trying to build → TaskB
+# =>   2. TaskB is trying to build → TaskA
+```
+
+## 📦 Installation
+
+```ruby
+gem 'taski'
+```
 
 ```bash
-bundle add taski
+bundle install
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+## 🧪 Testing
 
 ```bash
-gem install taski
+bundle exec rake test
 ```
 
-## Development
+## 🏛️ Architecture
 
-After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+- **Task Base**: Core framework
+- **Exports API**: Static dependency resolution
+- **Define API**: Dynamic dependency resolution
+- **Instance Management**: Thread-safe lifecycle
+- **Dependency Resolver**: Topological sorting
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/taski.
+Bug reports and pull requests welcome at https://github.com/ahogappa/taski.
+
+## License
+
+MIT License
+
+---
+
+**Taski** - Build dependency graphs with elegant Ruby code. 🚀

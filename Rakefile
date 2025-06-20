@@ -10,4 +10,10 @@ Rake::TestTask.new(:test) do |t|
   t.verbose = true
 end
 
-task default: %i[test]
+begin
+  require "standard/rake"
+rescue LoadError
+  # Standard not available
+end
+
+task default: %i[test standard]
