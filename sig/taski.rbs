@@ -33,14 +33,18 @@ module Taski
 
     # Public API methods
     def self.exports: (*Symbol names) -> void
-    def self.define: (Symbol name, Proc block, **untyped options) -> void
+    def self.define: (Symbol name) { () -> untyped } -> void
     def self.build: () -> void
     def self.clean: () -> void
     def self.reset!: () -> self
     def self.refresh: () -> self
     def self.resolve: (Array[untyped] queue, Array[untyped] resolved) -> self
-    def self.ref: (String klass) -> Reference
+    def self.ref: (String | Class klass) -> (Reference | Class)
     def self.ensure_instance_built: () -> Task
+
+    # Define API methods
+    def self.__resolve__: () -> Hash[Symbol, untyped]
+    def self.resolve_dependencies: () -> void
 
     # Instance methods
     def build: () -> void
@@ -53,10 +57,43 @@ module Taski
     # Allow dynamic class method definitions  
     def self.method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
     def self.respond_to_missing?: (Symbol name, bool include_private) -> bool
+
+    private
+
+    # Private class methods for dependency resolution
+    def self.resolve_queue: (Array[Class] queue, Array[Class] resolved) -> Array[Class]
+    def self.detect_circular_dependencies: (Array[Class] queue, Array[Class] resolved) -> void
+    def self.build_instance: (Class task_class) -> void
+
+    # Private class methods for Define API
+    def self.create_defined_method: (Symbol name) { () -> untyped } -> void
+    def self.create_ref_method_if_needed: () -> void
+    def self.method_defined_for_define?: (Symbol method_name) -> bool
+    def self.mark_method_as_defined: (Symbol method_name) -> void
   end
 
   # Dependency analyzer module
   module DependencyAnalyzer
     def self.analyze_method: (Class klass, Symbol method_name) -> Array[Class]
+
+    # Task dependency visitor for AST analysis
+    class TaskDependencyVisitor < Prism::Visitor
+      @dependencies: Array[Class]
+
+      def initialize: () -> void
+      def dependencies: () -> Array[Class]
+      def visit_call_node: (Prism::CallNode node) -> void
+
+      private
+
+      def extract_class_from_constant: (String constant_name) -> Class?
+      def safe_constantize: (String name) -> Class?
+      def extract_class_from_ref_call: (Prism::CallNode node) -> Class?
+    end
+
+    private
+
+    def self.parse_method_code: (Class klass, Symbol method_name) -> Prism::ParseResult?
+    def self.extract_dependencies_from_ast: (Prism::Node ast) -> Array[Class]
   end
 end
