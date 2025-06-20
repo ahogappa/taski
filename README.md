@@ -123,15 +123,15 @@ Execute any task individually - Taski builds only required dependencies:
 
 ```ruby
 # Build specific components
-AppConfig.build              # Builds only AppConfig
+ConfigLoader.build           # Builds only ConfigLoader
 # => Config loaded: MyApp v1.0.0
 
-Environment.build            # Builds Environment and its dependencies
+EnvironmentConfig.build      # Builds EnvironmentConfig and its dependencies
 # => Using database: localhost:5432
 # => Environment: development
 
 # Access values (triggers build if needed)
-puts AppConfig.version       # Builds AppConfig if not built
+puts ConfigLoader.version    # Builds ConfigLoader if not built
 # => 1.0.0
 ```
 
