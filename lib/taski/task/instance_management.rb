@@ -93,13 +93,17 @@ module Taski
       # @return [Task] Built task instance
       def build_instance
         instance = new
+        build_start_time = Time.now
         begin
+          Taski.logger.task_build_start(name.to_s, dependencies: @dependencies || [])
           instance.build
+          duration = Time.now - build_start_time
+          Taski.logger.task_build_complete(name.to_s, duration: duration)
           instance
         rescue => e
-          # Log the error but don't let it crash the entire system
-          warn "Taski: Failed to build #{name}: #{e.message}"
-          warn "Taski: #{e.backtrace.first}" if e.backtrace
+          duration = Time.now - build_start_time
+          # Log the error with full context
+          Taski.logger.task_build_failed(name.to_s, error: e, duration: duration)
           raise TaskBuildError, "Failed to build task #{name}: #{e.message}"
         end
       end

@@ -6,6 +6,7 @@ require "monitor"
 # Load core components
 require_relative "taski/version"
 require_relative "taski/exceptions"
+require_relative "taski/logger"
 require_relative "taski/reference"
 require_relative "taski/dependency_analyzer"
 

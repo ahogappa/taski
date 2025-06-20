@@ -19,13 +19,19 @@ module Taski
           result = Prism.parse_file(file_path)
 
           unless result.success?
-            warn "Taski: Parse errors in #{file_path}: #{result.errors.map(&:message).join(", ")}"
+            Taski.logger.error("Parse errors in source file", 
+                              file: file_path, 
+                              errors: result.errors.map(&:message),
+                              method: "#{klass}##{method_name}")
             return []
           end
 
           # Handle warnings if present
           if result.warnings.any?
-            warn "Taski: Parse warnings in #{file_path}: #{result.warnings.map(&:message).join(", ")}"
+            Taski.logger.warn("Parse warnings in source file", 
+                             file: file_path, 
+                             warnings: result.warnings.map(&:message),
+                             method: "#{klass}##{method_name}")
           end
 
           dependencies = []
@@ -39,10 +45,17 @@ module Taski
 
           dependencies.uniq
         rescue IOError, SystemCallError => e
-          warn "Taski: Failed to read file #{file_path}: #{e.message}"
+          Taski.logger.error("Failed to read source file", 
+                            file: file_path, 
+                            error: e.message,
+                            method: "#{klass}##{method_name}")
           []
         rescue => e
-          warn "Taski: Failed to analyze method #{klass}##{method_name}: #{e.message}"
+          Taski.logger.error("Failed to analyze method dependencies", 
+                            class: klass.name,
+                            method: method_name,
+                            error: e.message,
+                            error_class: e.class.name)
           []
         end
       end
