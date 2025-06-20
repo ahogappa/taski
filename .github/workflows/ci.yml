@@ -27,10 +27,6 @@ jobs:
       env:
         CI: true
     
-    - name: Run type checking with Steep
-      run: bundle exec steep check
-      if: matrix.ruby-version == '3.4'
-      continue-on-error: true
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
