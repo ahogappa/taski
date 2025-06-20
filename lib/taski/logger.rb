@@ -52,7 +52,7 @@ module Taski
       info("Task build started", 
            task: task_name, 
            dependencies: dependencies.size,
-           dependency_names: dependencies.map { |dep| dep.is_a?(Hash) ? dep[:klass]&.name : dep.to_s })
+           dependency_names: dependencies.map { |dep| dep.is_a?(Hash) ? dep[:klass].inspect : dep.inspect })
     end
 
     # Log task build completion event
@@ -92,7 +92,7 @@ module Taski
     # @param cycle_path [Array] The circular dependency path
     def circular_dependency_detected(cycle_path)
       error("Circular dependency detected", 
-            cycle: cycle_path.map { |klass| klass.name || klass.to_s },
+            cycle: cycle_path.map { |klass| klass.name || klass.inspect },
             cycle_length: cycle_path.size)
     end
 
