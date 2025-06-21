@@ -37,7 +37,19 @@ module Taski
       def create_ref_method_if_needed
         return if method_defined_for_define?(:ref)
 
-        define_singleton_method(:ref) { |klass| Object.const_get(klass) }
+        define_singleton_method(:ref) do |klass_name|
+          # During dependency analysis, track as dependency but defer resolution
+          if Thread.current[TASKI_ANALYZING_DEFINE_KEY]
+            # Create Reference object for deferred resolution
+            reference = Taski::Reference.new(klass_name)
+            
+            # Track as dependency by throwing unresolved
+            throw :unresolved, [reference, :deref]
+          else
+            # At runtime, resolve to actual class
+            Object.const_get(klass_name)
+          end
+        end
         mark_method_as_defined(:ref)
       end
 
@@ -80,7 +92,11 @@ module Taski
 
         # Reset resolution state
         classes.each do |task_class|
-          task_class[:klass].instance_variable_set(:@__resolve__, {})
+          klass = task_class[:klass]
+          # Only reset Task classes, not Reference objects
+          if klass.respond_to?(:instance_variable_set) && !klass.is_a?(Taski::Reference)
+            klass.instance_variable_set(:@__resolve__, {})
+          end
         end
 
         classes

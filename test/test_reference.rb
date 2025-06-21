@@ -98,4 +98,17 @@ class TestReference < Minitest::Test
     # Note: ref() at runtime doesn't create automatic dependency
     refute_includes output[0], "Building TaskA"
   end
+
+  # TODO: These tests need to be implemented after fixing ref method
+  # def test_ref_tracks_dependencies_during_analysis
+  #   # Test that ref() properly tracks dependencies during define block analysis
+  # end
+  
+  # def test_ref_enables_forward_declaration  
+  #   # Test the main use case: defining classes in reverse dependency order
+  # end
+  
+  # def test_ref_error_handling_at_runtime
+  #   # Test that ref() handles non-existent classes gracefully at runtime
+  # end
 end

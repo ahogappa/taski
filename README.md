@@ -99,7 +99,7 @@ EnvironmentConfig.build
 
 ### When to Use Each API
 
-- **Define API**: Best for dynamic runtime dependencies. Cannot contain side effects in definition blocks.
+- **Define API**: Best for dynamic runtime dependencies. Cannot contain side effects in definition blocks. Dependencies are analyzed at class definition time, not runtime.
 - **Exports API**: Ideal for static dependencies. Supports side effects in build methods.
 
 | Use Case | API | Example |
@@ -108,6 +108,8 @@ EnvironmentConfig.build
 | Environment-specific logic | Define | Different services per env |
 | Side effects | Exports | Database connections, I/O |
 | Conditional processing | Define | Algorithm selection |
+
+**Note**: Define API analyzes dependencies when the class is defined. Conditional dependencies like `ENV['USE_NEW'] ? TaskA : TaskB` will only include the task selected at class definition time, not runtime.
 
 ## ✨ Key Features
 
