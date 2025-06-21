@@ -172,6 +172,29 @@ WebServer.clean
 # => Database disconnected
 ```
 
+### Clean Method Idempotency
+
+**Important**: The `clean` method must be idempotent - safe to call multiple times without errors.
+
+```ruby
+class FileTask < Taski::Task
+  exports :output_file
+
+  def build
+    @output_file = '/tmp/data.csv'
+    File.write(@output_file, process_data)
+  end
+
+  def clean
+    # ❌ Bad: Raises error if file doesn't exist
+    # File.delete(@output_file)
+    
+    # ✅ Good: Check before delete
+    File.delete(@output_file) if File.exist?(@output_file)
+  end
+end
+```
+
 ### Error Handling
 
 ```ruby
