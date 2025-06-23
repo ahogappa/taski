@@ -51,6 +51,12 @@ module Taski
       raise NotImplementedError, "You must implement the build method in your task class"
     end
 
+    # Access build arguments passed to parametrized builds
+    # @return [Hash] Build arguments or empty hash if none provided
+    def build_args
+      @build_args || {}
+    end
+
     # Clean method with default empty implementation
     # Subclasses can override this method to implement cleanup logic
     def clean

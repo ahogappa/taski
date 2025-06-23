@@ -8,6 +8,7 @@ require_relative "taski/exceptions"
 require_relative "taski/logger"
 require_relative "taski/reference"
 require_relative "taski/dependency_analyzer"
+require_relative "taski/utils"
 
 # Load Task class components
 require_relative "taski/task/base"

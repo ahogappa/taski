@@ -80,17 +80,7 @@ module Taski
 
       # Build detailed error message for circular dependencies
       def build_circular_dependency_message(cycle_path)
-        path_names = cycle_path.map { |klass| klass.name || klass.to_s }
-
-        message = "Circular dependency detected!\n"
-        message += "Cycle: #{path_names.join(" → ")}\n\n"
-        message += "Detailed dependency chain:\n"
-
-        cycle_path.each_cons(2).with_index do |(from, to), index|
-          message += "  #{index + 1}. #{from.name} depends on → #{to.name}\n"
-        end
-
-        message
+        Utils::CircularDependencyHelpers.build_error_message(cycle_path, "dependency")
       end
 
       public
@@ -133,6 +123,11 @@ module Taski
       def dependency_exists?(dep_class)
         (@dependencies || []).any? { |d| d[:klass] == dep_class }
       end
+
+      private
+
+      include Utils::DependencyUtils
+      private :extract_class
     end
   end
 end

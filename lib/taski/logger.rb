@@ -48,11 +48,16 @@ module Taski
     # Log task build start event
     # @param task_name [String] Name of the task being built
     # @param dependencies [Array] List of task dependencies
-    def task_build_start(task_name, dependencies: [])
-      info("Task build started",
+    # @param args [Hash] Build arguments for parametrized builds
+    def task_build_start(task_name, dependencies: [], args: nil)
+      context = {
         task: task_name,
         dependencies: dependencies.size,
-        dependency_names: dependencies.map { |dep| dep.is_a?(Hash) ? dep[:klass].inspect : dep.inspect })
+        dependency_names: dependencies.map { |dep| dep.is_a?(Hash) ? dep[:klass].inspect : dep.inspect }
+      }
+      context[:args] = args if args && !args.empty?
+
+      info("Task build started", **context)
     end
 
     # Log task build completion event

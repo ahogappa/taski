@@ -103,11 +103,11 @@ class TestReference < Minitest::Test
   # def test_ref_tracks_dependencies_during_analysis
   #   # Test that ref() properly tracks dependencies during define block analysis
   # end
-  
-  # def test_ref_enables_forward_declaration  
+
+  # def test_ref_enables_forward_declaration
   #   # Test the main use case: defining classes in reverse dependency order
   # end
-  
+
   # def test_ref_error_handling_at_runtime
   #   # Test that ref() handles non-existent classes gracefully at runtime
   # end

@@ -42,7 +42,7 @@ module Taski
           if Thread.current[TASKI_ANALYZING_DEFINE_KEY]
             # Create Reference object for deferred resolution
             reference = Taski::Reference.new(klass_name)
-            
+
             # Track as dependency by throwing unresolved
             throw :unresolved, [reference, :deref]
           else

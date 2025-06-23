@@ -8,9 +8,19 @@ module Taski
       # === Lifecycle Management ===
 
       # Build this task and all its dependencies
-      def build
-        resolve_dependencies.reverse_each do |task_class|
-          task_class.ensure_instance_built
+      # @param args [Hash] Optional arguments for parametrized builds
+      # @return [Task] Returns task instance (singleton or temporary)
+      def build(**args)
+        if args.empty?
+          # Traditional build: singleton instance with caching
+          resolve_dependencies.reverse_each do |task_class|
+            task_class.ensure_instance_built
+          end
+          # Return the singleton instance for consistency
+          instance_variable_get(:@__task_instance)
+        else
+          # Parametrized build: temporary instance without caching
+          build_with_args(args)
         end
       end
 
@@ -40,6 +50,32 @@ module Taski
       def refresh
         reset!
       end
+
+      # === Parametrized Build Support ===
+
+      # Build temporary instance with arguments
+      # @param args [Hash] Build arguments
+      # @return [Task] Temporary task instance
+      def build_with_args(args)
+        # Resolve dependencies first (same as normal build)
+        resolve_dependencies.reverse_each do |task_class|
+          task_class.ensure_instance_built
+        end
+
+        # Create temporary instance with arguments
+        temp_instance = new
+        temp_instance.instance_variable_set(:@build_args, args)
+
+        # Build with logging using common utility
+        Utils::TaskBuildHelpers.with_build_logging(name.to_s,
+          dependencies: @dependencies || [],
+          args: args) do
+          temp_instance.build
+          temp_instance
+        end
+      end
+
+      private :build_with_args
 
       # === Instance Management ===
 
@@ -93,18 +129,10 @@ module Taski
       # @return [Task] Built task instance
       def build_instance
         instance = new
-        build_start_time = Time.now
-        begin
-          Taski.logger.task_build_start(name.to_s, dependencies: @dependencies || [])
+        Utils::TaskBuildHelpers.with_build_logging(name.to_s,
+          dependencies: @dependencies || []) do
           instance.build
-          duration = Time.now - build_start_time
-          Taski.logger.task_build_complete(name.to_s, duration: duration)
           instance
-        rescue => e
-          duration = Time.now - build_start_time
-          # Log the error with full context
-          Taski.logger.task_build_failed(name.to_s, error: e, duration: duration)
-          raise TaskBuildError, "Failed to build task #{name}: #{e.message}"
         end
       end
 
@@ -129,6 +157,8 @@ module Taski
         end
       end
 
+      private
+
       # Build current dependency path from thread-local storage
       # @return [Array<Class>] Array of classes in the current build path
       def build_current_dependency_path
@@ -150,27 +180,11 @@ module Taski
       # @param cycle_path [Array<Class>] The circular dependency path
       # @return [String] Formatted error message
       def build_runtime_circular_dependency_message(cycle_path)
-        path_names = cycle_path.map { |klass| klass.name || klass.to_s }
-
-        message = "Circular dependency detected!\n"
-        message += "Cycle: #{path_names.join(" → ")}\n\n"
-        message += "The dependency chain is:\n"
-
-        cycle_path.each_cons(2).with_index do |(from, to), index|
-          message += "  #{index + 1}. #{from.name} is trying to build → #{to.name}\n"
-        end
-
-        message += "\nThis creates an infinite loop that cannot be resolved."
-        message
+        Utils::CircularDependencyHelpers.build_error_message(cycle_path, "runtime")
       end
 
-      # Extract class from dependency hash
-      # @param dep [Hash] Dependency information
-      # @return [Class] The dependency class
-      def extract_class(dep)
-        klass = dep[:klass]
-        klass.is_a?(Reference) ? klass.deref : klass
-      end
+      include Utils::DependencyUtils
+      private :extract_class
     end
   end
 end

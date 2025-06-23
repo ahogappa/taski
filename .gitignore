@@ -11,7 +11,7 @@
 /coverage/
 
 # Built gems
-/pkg/
+/pkg/*.gem
 
 # Test reports
 /spec/reports/
@@ -33,5 +33,5 @@ Thumbs.db
 # Logs
 *.log
 
-# Analysis and documentation
-/docs/
+# Development notes (create as needed)
+CLAUDE.md

@@ -84,7 +84,7 @@ class TestCircularDependencyDetail < Minitest::Test
     assert_includes error.message, "Circular dependency detected!"
     assert_includes error.message, "ComplexCircularB"
     assert_includes error.message, "→"
-    assert_includes error.message, "The dependency chain is:"
+    assert_includes error.message, "The runtime chain is:"
   end
 
   def test_circular_dependency_with_exports_api
@@ -116,6 +116,6 @@ class TestCircularDependencyDetail < Minitest::Test
     assert_includes error.message, "ExportsCircularX"
     assert_includes error.message, "ExportsCircularY"
     assert_includes error.message, "→"
-    assert_includes error.message, "infinite loop"
+    assert_includes error.message, "runtime chain"
   end
 end
