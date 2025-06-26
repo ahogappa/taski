@@ -136,9 +136,13 @@ class TestLogger < Minitest::Test
     # Test default logger
     assert_instance_of Taski::Logger, Taski.logger
 
-    # Test configuration
+    # Test configuration by verifying output behavior
     Taski.configure_logger(level: :debug, output: @output)
-    assert_equal @output, Taski.logger.instance_variable_get(:@output)
+
+    # Verify configuration by testing actual logging behavior
+    test_message = "test configuration message"
+    Taski.logger.debug(test_message)
+    assert_includes @output.string, test_message
   end
 
   def test_quiet_mode

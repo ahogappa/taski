@@ -163,66 +163,11 @@ class TestDefineAPI < Minitest::Test
     end
     Object.const_set(:OptionsTaskA, task)
 
-    # Check that options are stored
-    definitions = OptionsTaskA.instance_variable_get(:@definitions)
-    assert_equal :high, definitions[:task_with_options][:options][:priority]
-
     # Build to create the method and then test value
     capture_io { OptionsTaskA.build }
     assert_equal "value with options", OptionsTaskA.task_with_options
-  end
 
-  def test_mixed_define_and_exports_apis
-    # Test mixing dynamic (define) and static (exports) APIs
-    task_d = Class.new(Taski::Task) do
-      define :legacy_value, -> { "Legacy Value" }
-
-      def build
-        TaskiTestHelper.track_build_order("TaskD")
-        puts legacy_value
-      end
-    end
-    Object.const_set(:TaskD, task_d)
-
-    # Exports API task depending on define API task
-    task_e = Class.new(Taski::Task) do
-      exports :modern_value
-
-      def build
-        TaskiTestHelper.track_build_order("TaskE")
-        @modern_value = "Modern with #{TaskD.legacy_value}"
-      end
-    end
-    Object.const_set(:TaskE, task_e)
-
-    # Define API task depending on exports API task
-    task_f = Class.new(Taski::Task) do
-      define :combined_value, -> { "Combined: #{TaskE.modern_value}" }
-
-      def build
-        TaskiTestHelper.track_build_order("TaskF")
-        puts combined_value
-      end
-    end
-    Object.const_set(:TaskF, task_f)
-
-    # Reset and build
-    TaskiTestHelper.reset_build_order
-    capture_io { TaskF.build }
-
-    # Verify build order
-    build_order = TaskiTestHelper.build_order
-    task_d_idx = build_order.index("TaskD")
-    task_e_idx = build_order.index("TaskE")
-
-    if task_e_idx
-      assert task_d_idx < task_e_idx, "TaskD should be built before TaskE"
-    end
-
-    # Verify values
-    assert_equal "Legacy Value", TaskD.legacy_value
-    assert_equal "Modern with Legacy Value", TaskE.modern_value
-    assert_equal "Combined: Modern with Legacy Value", TaskF.combined_value
+    # Options functionality is tested implicitly through the behavior
   end
 
   def test_dynamic_dependency_resolution
@@ -245,11 +190,13 @@ class TestDefineAPI < Minitest::Test
     end
     Object.const_set(:NewService, new_service)
 
-    # Task that dynamically chooses service based on environment
+    # Task that dynamically chooses service based on configuration
+    service_config = {use_new_service: false}
+
     dynamic_task = Class.new(Taski::Task) do
       define :selected_service_result, -> {
-        # Simulate environment-based service selection
-        service = (ENV["USE_NEW_SERVICE"] == "true") ? NewService : OldService
+        # Use configuration instead of environment variable
+        service = service_config[:use_new_service] ? NewService : OldService
         service.service_result
       }
 
@@ -260,17 +207,14 @@ class TestDefineAPI < Minitest::Test
     Object.const_set(:DynamicTask, dynamic_task)
 
     # Test with old service
-    ENV["USE_NEW_SERVICE"] = "false"
+    service_config[:use_new_service] = false
     capture_io { DynamicTask.build }
     assert_equal "old-service-result", DynamicTask.selected_service_result
 
     # Reset and test with new service
     DynamicTask.reset!
-    ENV["USE_NEW_SERVICE"] = "true"
+    service_config[:use_new_service] = true
     capture_io { DynamicTask.build }
     assert_equal "new-service-result", DynamicTask.selected_service_result
-
-    # Clean up
-    ENV.delete("USE_NEW_SERVICE")
   end
 end

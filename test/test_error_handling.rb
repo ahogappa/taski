@@ -41,7 +41,7 @@ class TestErrorHandling < Minitest::Test
     assert_includes error.message, "Cannot resolve constant 'NonExistentClass'"
 
     # == should return false for non-existent class
-    refute ref == String
+    assert_equal false, (ref == String)
   end
 
   def test_task_analysis_error

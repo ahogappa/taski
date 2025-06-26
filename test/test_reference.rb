@@ -49,9 +49,7 @@ class TestReference < Minitest::Test
     Object.const_set(:RefDepTaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      # Manually add dependency using Reference
-      @dependencies = [{klass: Taski::Reference.new("RefDepTaskA")}]
-
+      # Natural dependency will be detected through RefDepTaskA.value reference
       def build
         TaskiTestHelper.track_build_order("RefDepTaskB")
         puts "B depends on #{RefDepTaskA.value}"

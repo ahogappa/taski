@@ -4,13 +4,12 @@ require_relative "test_helper"
 
 class TestParametrizedBuild < Minitest::Test
   def setup
-    # Reset all task states between tests
-    Taski::Task.send(:class_variable_set, :@@defined_tasks, []) if Taski::Task.class_variable_defined?(:@@defined_tasks)
-    reset_task_classes
+    # Each test will create isolated task classes
+    # No global state manipulation needed
   end
 
   def teardown
-    reset_task_classes
+    # Tasks created in tests are isolated and don't need cleanup
   end
 
   # Basic parametrized build functionality
@@ -96,38 +95,39 @@ class TestParametrizedBuild < Minitest::Test
   # Dependencies with parametrized builds
   def test_dependencies_resolved_with_parametrized_build
     base_task = Class.new(Taski::Task) do
+      exports :base_result
+
       def self.name
-        "BaseTask"
+        "ParametrizedBaseTask"
       end
 
       def build
         @base_result = "base_built"
       end
-
-      def self.built?
-        !instance_variable_get(:@__task_instance).nil?
-      end
     end
+    Object.const_set(:ParametrizedBaseTask, base_task)
 
     dependent_task = Class.new(Taski::Task) do
+      exports :dependent_result
+
       def self.name
-        "DependentTask"
+        "ParametrizedDependentTask"
       end
 
       def build
+        # Create natural dependency by accessing ParametrizedBaseTask
+        ParametrizedBaseTask.base_result  # This creates the dependency
         args = build_args
         @dependent_result = "dependent_built_#{args[:option] || "default"}"
       end
     end
-
-    # Add dependency using exports API
-    dependent_task.instance_variable_set(:@dependencies, [{klass: base_task}])
+    Object.const_set(:ParametrizedDependentTask, dependent_task)
 
     instance = dependent_task.build(option: "value")
 
-    # Base task should be built regardless of arguments
-    assert base_task.built?
-    assert_equal "dependent_built_value", instance.instance_variable_get(:@dependent_result)
+    # Base task should have been built through dependency resolution
+    assert_equal "base_built", ParametrizedBaseTask.base_result
+    assert_equal "dependent_built_value", instance.dependent_result
   end
 
   # Multiple parametrized builds don't interfere
@@ -207,14 +207,5 @@ class TestParametrizedBuild < Minitest::Test
 
   private
 
-  def reset_task_classes
-    # Clean up any class instance variables from test tasks
-    ObjectSpace.each_object(Class) do |klass|
-      next unless klass < Taski::Task
-
-      klass.instance_variables.each do |var|
-        klass.remove_instance_variable(var) if klass.instance_variable_defined?(var)
-      end
-    end
-  end
+  # No cleanup methods needed - tests use isolated task classes
 end

@@ -25,11 +25,8 @@ class TestIntegration < Minitest::Test
     end
     Object.const_set(:BaseTask, base_task)
 
-    # Dependent task with explicit dependency
+    # Dependent task that naturally depends on BaseTask
     dependent_task = Class.new(Taski::Task) do
-      # Explicitly set dependency
-      @dependencies = [{klass: BaseTask}]
-
       exports :result
 
       def build
@@ -70,9 +67,8 @@ class TestIntegration < Minitest::Test
     end
     Object.const_set(:DefineTask, define_task)
 
-    # Exports API task with explicit dependency
+    # Exports API task that depends on DefineTask
     exports_task = Class.new(Taski::Task) do
-      @dependencies = [{klass: DefineTask}]
       exports :combined_result
 
       def build
@@ -103,10 +99,13 @@ class TestIntegration < Minitest::Test
   def test_reset_and_rebuild_integration
     # Test that reset and rebuild works correctly
 
+    build_counter = 0
     task = Class.new(Taski::Task) do
-      exports :timestamp
+      exports :timestamp, :build_number
 
-      def build
+      define_method :build do
+        build_counter += 1
+        @build_number = build_counter
         @timestamp = Time.now.to_f
       end
     end
@@ -115,16 +114,19 @@ class TestIntegration < Minitest::Test
     # Build first time
     TimestampTask.build
     first_timestamp = TimestampTask.timestamp
-
-    # Small delay to ensure different timestamp
-    sleep 0.01
+    first_build_number = TimestampTask.build_number
 
     # Reset and build again
     TimestampTask.reset!
     TimestampTask.build
     second_timestamp = TimestampTask.timestamp
+    second_build_number = TimestampTask.build_number
 
-    # Should have different timestamps
+    # Should have different build numbers (more reliable than timestamps)
+    assert_equal 1, first_build_number
+    assert_equal 2, second_build_number
+
+    # Timestamps should also be different (but this is less critical)
     refute_equal first_timestamp, second_timestamp
   end
 
@@ -139,9 +141,10 @@ class TestIntegration < Minitest::Test
     Object.const_set(:FailingIntegrationTask, failing_task)
 
     dependent_task = Class.new(Taski::Task) do
-      @dependencies = [{klass: FailingIntegrationTask}]
-
       def build
+        # This will create a natural dependency on FailingIntegrationTask
+        # and should never execute because FailingIntegrationTask will fail first
+        FailingIntegrationTask.build
         puts "This should not execute"
       end
     end

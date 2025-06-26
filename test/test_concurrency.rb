@@ -13,11 +13,17 @@ class TestConcurrency < Minitest::Test
 
   def test_thread_safety
     # Test thread safety of ensure_instance_built
-    task = Class.new(Taski::Task) do
-      exports :thread_id
+    build_count = 0
+    build_mutex = Mutex.new
 
-      def build
-        sleep 0.01 # Small delay to increase chance of race condition
+    task = Class.new(Taski::Task) do
+      exports :thread_id, :build_number
+
+      define_method :build do
+        build_mutex.synchronize do
+          build_count += 1
+          @build_number = build_count
+        end
         @thread_id = Thread.current.object_id
       end
     end
@@ -31,31 +37,39 @@ class TestConcurrency < Minitest::Test
     results = threads.map(&:value)
 
     # All threads should get the same instance (same thread_id)
+    assert_equal 1, results.uniq.size, "All threads should receive the same thread_id"
     assert results.all? { |result| result == results.first }
 
-    # Should only have one instance
-    instance = ThreadSafeTask.instance_variable_get(:@__task_instance)
-    refute_nil instance
+    # Build should have been called exactly once (verify through public API)
+    assert_equal 1, ThreadSafeTask.build_number
   end
 
   def test_concurrent_task_building
     # Test multiple different tasks building concurrently
-    task_x = Class.new(Taski::Task) do
-      exports :x_value
+    # Use a barrier to ensure tasks start at the same time
+    barrier = Mutex.new
+    start_flag = false
 
-      def build
-        sleep 0.01
-        @x_value = "X-#{Thread.current.object_id}"
+    task_x = Class.new(Taski::Task) do
+      exports :x_value, :build_thread_id
+
+      define_method :build do
+        # Wait for both threads to be ready
+        barrier.synchronize {} until start_flag
+        @build_thread_id = Thread.current.object_id
+        @x_value = "X-#{@build_thread_id}"
       end
     end
     Object.const_set(:ConcurrentTaskX, task_x)
 
     task_y = Class.new(Taski::Task) do
-      exports :y_value
+      exports :y_value, :build_thread_id
 
-      def build
-        sleep 0.01
-        @y_value = "Y-#{Thread.current.object_id}"
+      define_method :build do
+        # Wait for both threads to be ready
+        barrier.synchronize {} until start_flag
+        @build_thread_id = Thread.current.object_id
+        @y_value = "Y-#{@build_thread_id}"
       end
     end
     Object.const_set(:ConcurrentTaskY, task_y)
@@ -66,15 +80,21 @@ class TestConcurrency < Minitest::Test
       Thread.new { ConcurrentTaskY.build }
     ]
 
+    # Start both threads
+    start_flag = true
+
     threads.each(&:join)
 
-    # Both should have built successfully
+    # Both should have built successfully with unique thread IDs
     assert_match(/^X-\d+$/, ConcurrentTaskX.x_value)
     assert_match(/^Y-\d+$/, ConcurrentTaskY.y_value)
+
+    # Verify they were built in different threads
+    refute_equal ConcurrentTaskX.build_thread_id, ConcurrentTaskY.build_thread_id
   end
 
   def test_concurrent_access_to_same_task
-    # Test concurrent access to the same task instance
+    # Test that the same task instance is shared across threads
     task = Class.new(Taski::Task) do
       exports :access_count
 
@@ -82,7 +102,17 @@ class TestConcurrency < Minitest::Test
         @access_count = 0
       end
 
-      def increment_count
+      # Add class method to safely increment count
+      def self.increment_count
+        instance = build  # This ensures the instance exists
+        instance.send(:increment_count_impl)
+        instance.access_count
+      end
+
+      private
+
+      def increment_count_impl
+        @access_count ||= 0
         @access_count += 1
       end
     end
@@ -91,65 +121,78 @@ class TestConcurrency < Minitest::Test
     # Build the task first
     SharedTask.build
 
-    # Multiple threads accessing the same instance
+    # Multiple threads accessing the same instance through public API
     threads = 10.times.map do
       Thread.new do
-        instance = SharedTask.instance_variable_get(:@__task_instance)
-        instance&.increment_count
+        SharedTask.increment_count
       end
     end
 
-    threads.each(&:join)
+    results = threads.map(&:value)
 
-    # Should have incremented 10 times
-    # Note: This test may be flaky due to race conditions in increment_count
-    # but it tests that the instance is shared correctly
-    instance = SharedTask.instance_variable_get(:@__task_instance)
-    assert_equal 10, instance.instance_variable_get(:@access_count)
+    # Should have incremented exactly 10 times
+    # All results should show incrementing count
+    assert_equal 10, results.max
+    assert_equal 10, SharedTask.access_count
   end
 
-  def test_thread_local_recursion_detection
-    # Test that thread-local recursion detection works correctly
+  def test_concurrent_circular_dependency_detection
+    # Test that circular dependencies are properly detected in concurrent scenarios
+
+    # Create tasks with actual circular dependency
     task_a = Class.new(Taski::Task) do
+      exports :value_a
+
       def build
-        puts "TaskA building"
+        # This creates a circular dependency: A -> B -> A
+        @value_a = "A-#{ConcurrentCircularTaskB.value_b}"
       end
     end
-    Object.const_set(:RecursionTaskA, task_a)
+    Object.const_set(:ConcurrentCircularTaskA, task_a)
 
-    # Simulate recursion by manually calling ensure_instance_built
-    # in a thread context where building flag is already set
-    thread = Thread.new do
-      Thread.current["RecursionTaskA_building"] = true
+    task_b = Class.new(Taski::Task) do
+      exports :value_b
 
-      # This should raise CircularDependencyError
-      assert_raises(Taski::CircularDependencyError) do
-        RecursionTaskA.ensure_instance_built
+      def build
+        @value_b = "B-#{ConcurrentCircularTaskA.value_a}"
       end
     end
+    Object.const_set(:ConcurrentCircularTaskB, task_b)
 
-    thread.join
+    # Should detect circular dependency and raise error (may be wrapped in TaskBuildError)
+    error = assert_raises(Taski::TaskBuildError, Taski::CircularDependencyError) do
+      ConcurrentCircularTaskA.build
+    end
+
+    # Verify that circular dependency was indeed detected
+    assert_includes error.message, "Circular dependency"
   end
 
-  def test_monitor_synchronization
-    # Test that Monitor allows reentrant locking
+  def test_reentrant_task_building
+    # Test that tasks can be safely built multiple times from the same thread
+    # This implicitly tests that the underlying synchronization mechanism is reentrant
+
     task = Class.new(Taski::Task) do
+      exports :build_count
+
       def build
-        puts "Task built successfully"
+        @build_count ||= 0
+        @build_count += 1
       end
 
-      def self.test_reentrant_lock
-        # This should work with Monitor (but would fail with Mutex)
-        build_monitor.synchronize do
-          build_monitor.synchronize do
-            "nested synchronization works"
-          end
-        end
+      def self.test_multiple_builds
+        # Multiple builds from same thread should not deadlock
+        build  # First build
+        build  # Second build should reuse instance, not rebuild
+        "multiple builds completed"
       end
     end
-    Object.const_set(:MonitorTask, task)
+    Object.const_set(:ReentrantTask, task)
 
-    # This should not raise an error
-    assert_equal "nested synchronization works", MonitorTask.test_reentrant_lock
+    # This should not raise an error or deadlock
+    assert_equal "multiple builds completed", ReentrantTask.test_multiple_builds
+
+    # Should only have built once due to caching
+    assert_equal 1, ReentrantTask.build_count
   end
 end

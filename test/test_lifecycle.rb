@@ -61,7 +61,6 @@ class TestLifecycle < Minitest::Test
 
     # Build the task
     first_value = RefreshTaskA.value
-    first_instance = RefreshTaskA.instance_variable_get(:@__task_instance)
 
     # Refresh the task
     result = RefreshTaskA.refresh
@@ -69,13 +68,11 @@ class TestLifecycle < Minitest::Test
     # Should return self
     assert_equal RefreshTaskA, result
 
-    # Build again - should create new instance
+    # Build again - should create new instance with different value
     second_value = RefreshTaskA.value
-    second_instance = RefreshTaskA.instance_variable_get(:@__task_instance)
 
     # Values should be different (different object_id)
     refute_equal first_value, second_value
-    refute_equal first_instance, second_instance
   end
 
   def test_task_reset_functionality
@@ -91,18 +88,15 @@ class TestLifecycle < Minitest::Test
 
     # Build the task
     first_value = ResetTaskA.value
-    first_instance = ResetTaskA.instance_variable_get(:@__task_instance)
 
     # Reset the task
     ResetTaskA.reset!
 
-    # Build again - should create new instance
+    # Build again - should create new instance with different value
     second_value = ResetTaskA.value
-    second_instance = ResetTaskA.instance_variable_get(:@__task_instance)
 
     # Values should be different (different object_id)
     refute_equal first_value, second_value
-    refute_equal first_instance, second_instance
   end
 
   def test_circular_dependency_detection
