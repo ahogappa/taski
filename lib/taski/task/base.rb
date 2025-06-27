@@ -73,7 +73,7 @@ module Taski
             fixed_first_line = first_line.sub(/^#{Regexp.escape(child_prefix)}/, prefix + connector)
             result += fixed_first_line
             # Add the rest of the lines as-is
-            result += dep_lines[1..-1].join if dep_lines.length > 1
+            result += dep_lines[1..].join if dep_lines.length > 1
           else
             result += "#{prefix}#{connector}#{dep_class.name}\n"
           end

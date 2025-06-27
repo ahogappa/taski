@@ -23,7 +23,7 @@ class TestTerminalController < Minitest::Test
   def test_puts_and_print
     @terminal.puts "test line"
     @terminal.print "test print"
-    
+
     assert_includes @output.string, "test line\n"
     assert_includes @output.string, "test print"
   end
@@ -47,13 +47,13 @@ class TestSpinnerAnimation < Minitest::Test
   def test_spinner_start_and_stop
     callback_called = false
     callback = proc { |char, name| callback_called = true }
-    
+
     @spinner.start(@terminal, "TestTask", &callback)
     assert @spinner.running?
-    
+
     sleep 0.15 # Allow animation to run
     @spinner.stop
-    
+
     refute @spinner.running?
     assert callback_called
   end
@@ -61,11 +61,11 @@ class TestSpinnerAnimation < Minitest::Test
   def test_spinner_characters_cycle
     chars_received = []
     callback = proc { |char, name| chars_received << char }
-    
+
     @spinner.start(@terminal, "TestTask", &callback)
     sleep 0.5 # Allow multiple frames
     @spinner.stop
-    
+
     # Should have received multiple different spinner characters
     assert chars_received.length > 2
     assert chars_received.uniq.length > 1
@@ -90,26 +90,26 @@ class TestOutputCapture < Minitest::Test
   def test_capture_start_and_stop
     @capture.start
     assert @capture.capturing?
-    
+
     puts "test output line"
     sleep 0.1 # Allow capture
-    
+
     @capture.stop
     refute @capture.capturing?
-    
+
     # Should have captured the output
     assert_includes @capture.last_lines, "test output line"
   end
 
   def test_output_buffer_limit
     @capture.start
-    
+
     # Output more than MAX_LINES to test buffer limit
     15.times { |i| puts "Line #{i}" }
     sleep 0.1
-    
+
     @capture.stop
-    
+
     # Should keep only last DISPLAY_LINES (5)
     lines = @capture.last_lines
     assert_equal 5, lines.length
@@ -118,13 +118,13 @@ class TestOutputCapture < Minitest::Test
 
   def test_skip_logger_lines
     @capture.start
-    
+
     puts "[2025-06-28 07:00:00.000] Logger line"
     puts "Regular output line"
     sleep 0.1
-    
+
     @capture.stop
-    
+
     lines = @capture.last_lines
     refute_includes lines, "[2025-06-28 07:00:00.000] Logger line"
     assert_includes lines, "Regular output line"
@@ -134,7 +134,7 @@ end
 class TestTaskStatus < Minitest::Test
   def test_successful_task_status
     status = Taski::TaskStatus.new(name: "TestTask", duration: 1.234)
-    
+
     assert_equal "TestTask", status.name
     assert_equal 1.234, status.duration
     assert_nil status.error
@@ -148,7 +148,7 @@ class TestTaskStatus < Minitest::Test
   def test_failed_task_status
     error = StandardError.new("Test error")
     status = Taski::TaskStatus.new(name: "FailTask", duration: 0.5, error: error)
-    
+
     assert_equal "FailTask", status.name
     assert_equal 0.5, status.duration
     assert_equal error, status.error
@@ -161,7 +161,7 @@ class TestTaskStatus < Minitest::Test
 
   def test_task_without_duration
     status = Taski::TaskStatus.new(name: "TestTask")
-    
+
     assert_nil status.duration_ms
     assert_equal "", status.format_duration
   end
@@ -171,7 +171,9 @@ class TestProgressDisplay < Minitest::Test
   def setup
     @output = StringIO.new
     # Make StringIO behave like a TTY for testing
-    def @output.tty?; true; end
+    def @output.tty?
+      true
+    end
     @progress = Taski::ProgressDisplay.new(output: @output)
   end
 
@@ -185,8 +187,10 @@ class TestProgressDisplay < Minitest::Test
 
   def test_disabled_for_non_tty
     non_tty_output = StringIO.new
-    def non_tty_output.tty?; false; end
-    
+    def non_tty_output.tty?
+      false
+    end
+
     progress = Taski::ProgressDisplay.new(output: non_tty_output)
     refute progress.enabled?
   end
@@ -195,7 +199,7 @@ class TestProgressDisplay < Minitest::Test
     @progress.start_task("TestTask")
     sleep 0.15 # Allow spinner animation
     @progress.complete_task("TestTask", duration: 0.123)
-    
+
     output_str = @output.string
     assert_includes output_str, "✅ TestTask"
     assert_includes output_str, "(123.0ms)"
@@ -205,7 +209,7 @@ class TestProgressDisplay < Minitest::Test
     @progress.start_task("FailTask")
     sleep 0.15
     @progress.fail_task("FailTask", error: StandardError.new("Test error"), duration: 0.5)
-    
+
     output_str = @output.string
     assert_includes output_str, "❌ FailTask"
     assert_includes output_str, "(500.0ms)"
@@ -216,12 +220,12 @@ class TestProgressDisplay < Minitest::Test
     @progress.start_task("Task1")
     sleep 0.1
     @progress.complete_task("Task1", duration: 0.1)
-    
-    # Second task  
+
+    # Second task
     @progress.start_task("Task2")
     sleep 0.1
     @progress.complete_task("Task2", duration: 0.2)
-    
+
     output_str = @output.string
     assert_includes output_str, "✅ Task1"
     assert_includes output_str, "✅ Task2"
@@ -229,15 +233,15 @@ class TestProgressDisplay < Minitest::Test
 
   def test_output_capture_during_task
     @progress.start_task("VerboseTask")
-    
+
     # Simulate task output
     puts "Line 1"
     puts "Line 2"
     puts "Line 3"
     sleep 0.2 # Allow capture and display
-    
+
     @progress.complete_task("VerboseTask", duration: 0.3)
-    
+
     output_str = @output.string
     # Should contain spinner animation with task name
     assert_includes output_str, "VerboseTask"
@@ -251,17 +255,17 @@ class TestProgressDisplay < Minitest::Test
     @progress.start_task("TestTask")
     sleep 0.1
     @progress.complete_task("TestTask", duration: 0.1)
-    
+
     # Verify there's output
     refute_empty @output.string
-    
+
     @progress.clear
-    
+
     # Clear doesn't affect already written output, but resets internal state
     # We test this by checking no errors occur and new tasks work properly
     @progress.start_task("NewTask")
     @progress.complete_task("NewTask", duration: 0.1)
-    
+
     output_str = @output.string
     assert_includes output_str, "✅ NewTask"
   end
@@ -270,9 +274,9 @@ class TestProgressDisplay < Minitest::Test
     @progress.start_task("AnimationTest")
     sleep 0.3 # Allow multiple animation frames
     @progress.complete_task("AnimationTest", duration: 0.3)
-    
+
     output_str = @output.string
-    
+
     # Should contain at least one spinner character
     spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     assert spinner_chars.any? { |char| output_str.include?(char) }
@@ -282,8 +286,10 @@ end
 class TestProgressDisplayIntegration < Minitest::Test
   def setup
     @output = StringIO.new
-    def @output.tty?; true; end
-    
+    def @output.tty?
+      true
+    end
+
     # Set up Taski to use our test progress display
     @original_progress = Taski.instance_variable_get(:@progress_display)
     Taski.instance_variable_set(:@progress_display, Taski::ProgressDisplay.new(output: @output))
@@ -297,7 +303,7 @@ class TestProgressDisplayIntegration < Minitest::Test
     # Create a test task that produces output
     test_task = Class.new(Taski::Task) do
       exports :result
-      
+
       def build
         puts "Building test task..."
         puts "Processing data..."
@@ -306,9 +312,9 @@ class TestProgressDisplayIntegration < Minitest::Test
       end
     end
     Object.const_set(:IntegrationTestTask, test_task)
-    
+
     IntegrationTestTask.build
-    
+
     output_str = @output.string
     assert_includes output_str, "✅ IntegrationTestTask"
     assert_includes output_str, "Building test task..."

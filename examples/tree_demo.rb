@@ -16,7 +16,7 @@ puts "=" * 40
 # Create a dependency chain for demonstration
 class Database < Taski::Task
   exports :connection_string
-  
+
   def build
     @connection_string = "postgres://localhost/myapp"
   end
@@ -24,7 +24,7 @@ end
 
 class Cache < Taski::Task
   exports :redis_url
-  
+
   def build
     @redis_url = "redis://localhost:6379"
   end
@@ -32,7 +32,7 @@ end
 
 class Config < Taski::Task
   exports :settings
-  
+
   def build
     @settings = {
       database: Database.connection_string,
@@ -44,7 +44,7 @@ end
 
 class Logger < Taski::Task
   exports :log_level
-  
+
   def build
     @log_level = "info"
   end
@@ -52,7 +52,7 @@ end
 
 class WebServer < Taski::Task
   exports :server_instance
-  
+
   def build
     @server_instance = "WebServer configured with #{Config.settings[:database]} and #{Logger.log_level}"
   end

@@ -14,7 +14,7 @@ module Taski
 
     def clear_lines(count)
       return if count == 0
-      
+
       count.times { @output.print MOVE_UP_AND_CLEAR }
     end
 
@@ -47,16 +47,16 @@ module Taski
 
       @running = true
       @frame = 0
-      
+
       @thread = Thread.new do
         while @running
           current_char = SPINNER_CHARS[@frame % SPINNER_CHARS.length]
-          display_callback.call(current_char, task_name) if display_callback
-          
+          display_callback&.call(current_char, task_name)
+
           @frame += 1
           sleep FRAME_DELAY
         end
-      rescue => e
+      rescue
         # Silently handle thread errors
       end
     end
@@ -101,10 +101,10 @@ module Taski
       return unless @capturing
 
       @capturing = false
-      
+
       # Restore stdout
       restore_stdout
-      
+
       # Clean up pipes and thread
       cleanup_capture_thread
       cleanup_pipes
@@ -128,7 +128,7 @@ module Taski
 
     def restore_stdout
       return unless @original_stdout
-      
+
       $stdout = @original_stdout
       @original_stdout = nil
     end
@@ -139,7 +139,7 @@ module Taski
           line = line.chomp
           next if line.empty?
           next if skip_line?(line)
-          
+
           add_line_to_buffer(line)
         end
       rescue IOError
@@ -178,7 +178,7 @@ module Taski
 
     def initialize(name:, duration: nil, error: nil)
       @name = name
-      @duration = duration  
+      @duration = duration
       @error = error
     end
 
@@ -210,7 +210,7 @@ module Taski
     # ANSI colors
     COLORS = {
       reset: "\033[0m",
-      bold: "\033[1m", 
+      bold: "\033[1m",
       dim: "\033[2m",
       cyan: "\033[36m",
       green: "\033[32m",
@@ -222,21 +222,21 @@ module Taski
       @terminal = TerminalController.new(output)
       @spinner = SpinnerAnimation.new
       @output_capture = OutputCapture.new(output)
-      
+
       # Enable if TTY or force enabled or environment variable set
-      @enabled = force_enable.nil? ? (output.tty? || ENV['TASKI_FORCE_PROGRESS'] == '1') : force_enable
-      
+      @enabled = force_enable.nil? ? (output.tty? || ENV["TASKI_FORCE_PROGRESS"] == "1") : force_enable
+
       @completed_tasks = []
       @current_display_lines = 0
     end
 
     def start_task(task_name, dependencies: [])
-      puts "DEBUG: start_task called for #{task_name}, enabled: #{@enabled}" if ENV['TASKI_DEBUG']
+      puts "DEBUG: start_task called for #{task_name}, enabled: #{@enabled}" if ENV["TASKI_DEBUG"]
       return unless @enabled
 
       clear_current_display
       @output_capture.start
-      
+
       start_spinner_display(task_name)
     end
 
@@ -260,7 +260,7 @@ module Taski
       @spinner.stop
       @output_capture.stop
       clear_current_display
-      
+
       # Display final summary of all completed tasks
       if @completed_tasks.any?
         @completed_tasks.each do |status|
@@ -268,7 +268,7 @@ module Taski
         end
         @terminal.flush
       end
-      
+
       @completed_tasks.clear
       @current_display_lines = 0
     end
@@ -287,19 +287,19 @@ module Taski
 
     def display_current_state(spinner_char, task_name)
       clear_current_display
-      
+
       lines_count = 0
-      
+
       # Only display current task with spinner (no past completed tasks during execution)
       @terminal.puts format_current_task(spinner_char, task_name)
       lines_count += 1
-      
+
       # Display output lines
       @output_capture.last_lines.each do |line|
         @terminal.puts format_output_line(line)
         lines_count += 1
       end
-      
+
       @current_display_lines = lines_count
       @terminal.flush
     end
@@ -308,7 +308,7 @@ module Taski
       @spinner.stop
       @output_capture.stop
       clear_current_display
-      
+
       @completed_tasks << status
       display_final_state
     end

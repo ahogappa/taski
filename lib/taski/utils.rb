@@ -51,7 +51,7 @@ module Taski
         begin
           # Traditional logging first (before any stdout redirection)
           Taski.logger.task_build_start(task_name, dependencies: dependencies, args: args)
-          
+
           # Show progress display if enabled (this may redirect stdout)
           Taski.progress_display&.start_task(task_name, dependencies: dependencies)
 
@@ -60,13 +60,13 @@ module Taski
 
           # Complete progress display first (this restores stdout)
           Taski.progress_display&.complete_task(task_name, duration: duration)
-          
+
           # Then do logging (on restored stdout)
           begin
             Taski.logger.task_build_complete(task_name, duration: duration)
           rescue IOError
             # If logger fails due to closed stream, write to STDERR instead
-            STDERR.puts "[#{Time.now.strftime('%Y-%m-%d %H:%M:%S.%3N')}] INFO  Taski: Task build completed (task=#{task_name}, duration_ms=#{(duration * 1000).round(2)})"
+            warn "[#{Time.now.strftime("%Y-%m-%d %H:%M:%S.%3N")}] INFO  Taski: Task build completed (task=#{task_name}, duration_ms=#{(duration * 1000).round(2)})"
           end
 
           result
@@ -75,13 +75,13 @@ module Taski
 
           # Complete progress display first (with error)
           Taski.progress_display&.fail_task(task_name, error: e, duration: duration)
-          
+
           # Then do error logging (on restored stdout)
           begin
             Taski.logger.task_build_failed(task_name, error: e, duration: duration)
           rescue IOError
             # If logger fails due to closed stream, write to STDERR instead
-            STDERR.puts "[#{Time.now.strftime('%Y-%m-%d %H:%M:%S.%3N')}] ERROR Taski: Task build failed (task=#{task_name}, error=#{e.message}, duration_ms=#{(duration * 1000).round(2)})"
+            warn "[#{Time.now.strftime("%Y-%m-%d %H:%M:%S.%3N")}] ERROR Taski: Task build failed (task=#{task_name}, error=#{e.message}, duration_ms=#{(duration * 1000).round(2)})"
           end
 
           error_message = "Failed to build task #{task_name}"

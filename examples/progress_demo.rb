@@ -35,7 +35,7 @@ class DatabaseTask < Taski::Task
   exports :connection
 
   def build
-    sleep 1.2 
+    sleep 1.2
     @connection = "Connected to #{ConfigTask.database_url}"
   end
 end
@@ -63,12 +63,12 @@ class VerboseTask < Taski::Task
   def build
     puts "Starting task initialization..."
     sleep 0.3
-    
+
     puts "Loading configuration files..."
     puts "Connecting to database..."
     puts "Connection established: localhost:5432"
     sleep 0.3
-    
+
     puts "Running initial checks..."
     puts "Checking schema version..."
     puts "Schema is up to date"
@@ -77,7 +77,7 @@ class VerboseTask < Taski::Task
     puts "Validating product records..."
     puts "All validations passed"
     sleep 0.4
-    
+
     puts "Task completed successfully!"
     @result = "All operations completed"
   end
@@ -126,7 +126,7 @@ class TestTask < Taski::Task
     sleep 0.2
 
     (1..8).each do |i|
-      puts "Test #{i}/8: #{['PASS', 'PASS', 'FAIL', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS'][i-1]}"
+      puts "Test #{i}/8: #{["PASS", "PASS", "FAIL", "PASS", "PASS", "PASS", "PASS", "PASS"][i - 1]}"
       sleep 0.4
     end
 

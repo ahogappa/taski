@@ -49,7 +49,7 @@ class TestTreeDisplay < Minitest::Test
       def build
         @value = "B with #{TreeTaskCompA.value}"
       end
-    end  
+    end
     Object.const_set(:TreeTaskCompB, task_b)
 
     task_c = Class.new(Taski::Task) do
@@ -123,16 +123,16 @@ class TestTreeDisplay < Minitest::Test
     # Test circular dependency detection in tree display
     task_a = Class.new(Taski::Task) do
       exports :value
-      
+
       def self.name
         "CircularTaskA"
       end
-      
+
       def build
         @value = "A"
       end
     end
-    
+
     # Simulate circular dependency by setting dependency to self
     task_a.instance_variable_set(:@dependencies, [{klass: task_a}])
     Object.const_set(:CircularTaskA, task_a)
