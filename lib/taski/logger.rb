@@ -186,6 +186,12 @@ module Taski
       @logger ||= Logger.new
     end
 
+    # Get the current progress display instance (always enabled)
+    # @return [ProgressDisplay] Current progress display instance
+    def progress_display
+      @progress_display ||= ProgressDisplay.new(force_enable: ENV['TASKI_FORCE_PROGRESS'] == '1')
+    end
+
     # Configure the logger with new settings
     # @param level [Symbol] Log level (:debug, :info, :warn, :error)
     # @param output [IO] Output destination

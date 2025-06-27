@@ -1,7 +1,21 @@
 #!/usr/bin/env ruby
-# Complex example from README showing both APIs
+# frozen_string_literal: true
+
+# Taski Advanced Patterns
+#
+# This example demonstrates advanced Taski patterns:
+# - Mixed usage of Exports API and Define API
+# - Environment-specific dependency resolution
+# - Feature flag integration with dynamic dependencies
+# - Task reset and rebuild scenarios
+# - Conditional dependency evaluation
+#
+# Run: ruby examples/advanced_patterns.rb
 
 require_relative "../lib/taski"
+
+puts "⚡ Advanced Taski Patterns"
+puts "=" * 40
 
 # Mock classes for the example
 class ProductionDB < Taski::Task
@@ -81,8 +95,6 @@ class Application < Taski::Task
 end
 
 # Test different environments
-puts "=== Complex Example ==="
-
 puts "\n1. Development Environment (default):"
 ENV.delete("RAILS_ENV")
 ENV.delete("FEATURE_REDIS_CACHE")

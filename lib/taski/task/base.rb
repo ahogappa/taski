@@ -41,6 +41,51 @@ module Taski
       def __resolve__
         @__resolve__ ||= {}
       end
+
+      # Display dependency tree for this task
+      # @param prefix [String] Current indentation prefix
+      # @param visited [Set] Set of visited classes to prevent infinite loops
+      # @return [String] Formatted dependency tree
+      def tree(prefix = "", visited = Set.new)
+        return "#{prefix}#{name} (circular)\n" if visited.include?(self)
+
+        visited = visited.dup
+        visited << self
+
+        result = "#{prefix}#{name}\n"
+
+        dependencies = (@dependencies || []).uniq { |dep| extract_class(dep) }
+        dependencies.each_with_index do |dep, index|
+          dep_class = extract_class(dep)
+          is_last = index == dependencies.length - 1
+
+          connector = is_last ? "└── " : "├── "
+          child_prefix = prefix + (is_last ? "    " : "│   ")
+
+          # For the dependency itself, we want to use the connector
+          # For its children, we want to use the child_prefix
+          dep_tree = dep_class.tree(child_prefix, visited)
+          # Replace the first line (which has child_prefix) with the proper connector
+          dep_lines = dep_tree.lines
+          if dep_lines.any?
+            # Replace the first line prefix with connector
+            first_line = dep_lines[0]
+            fixed_first_line = first_line.sub(/^#{Regexp.escape(child_prefix)}/, prefix + connector)
+            result += fixed_first_line
+            # Add the rest of the lines as-is
+            result += dep_lines[1..-1].join if dep_lines.length > 1
+          else
+            result += "#{prefix}#{connector}#{dep_class.name}\n"
+          end
+        end
+
+        result
+      end
+
+      private
+
+      include Utils::DependencyUtils
+      private :extract_class
     end
 
     # === Instance Methods ===

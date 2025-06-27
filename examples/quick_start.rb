@@ -1,7 +1,19 @@
 #!/usr/bin/env ruby
-# Quick Start example from README
+# frozen_string_literal: true
+
+# Taski Quick Start Guide
+#
+# This example demonstrates the fundamentals of Taski:
+# - Task definition with the Exports API
+# - Automatic dependency resolution
+# - Simple task execution
+#
+# Run: ruby examples/quick_start.rb
 
 require_relative "../lib/taski"
+
+puts "🚀 Taski Quick Start"
+puts "=" * 30
 
 # Simple static dependency using Exports API
 class DatabaseSetup < Taski::Task
@@ -24,7 +36,6 @@ class APIServer < Taski::Task
 end
 
 # Execute - dependencies are resolved automatically
-puts "=== Quick Start Example ==="
 APIServer.build
 
-puts "\nResult: APIServer running on port #{APIServer.port}"
+puts "\n✅ Result: APIServer running on port #{APIServer.port}"
