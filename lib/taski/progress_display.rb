@@ -135,7 +135,7 @@ module Taski
 
     def start_capture_thread
       @capture_thread = Thread.new do
-        while line = @pipe_reader.gets
+        while (line = @pipe_reader.gets)
           line = line.chomp
           next if line.empty?
           next if skip_line?(line)
