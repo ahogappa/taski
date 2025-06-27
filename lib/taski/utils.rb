@@ -39,6 +39,18 @@ module Taski
 
     # Common task build utility functions
     module TaskBuildHelpers
+      # Format arguments hash for display in error messages
+      # @param args [Hash] Arguments hash
+      # @return [String] Formatted arguments string
+      def self.format_args(args)
+        return "" if args.nil? || args.empty?
+
+        formatted_pairs = args.map do |key, value|
+          "#{key}: #{value.inspect}"
+        end
+        "{#{formatted_pairs.join(", ")}}"
+      end
+
       # Execute block with comprehensive build logging and progress display
       # @param task_name [String] Name of the task being built
       # @param dependencies [Array] List of dependencies
@@ -85,7 +97,7 @@ module Taski
           end
 
           error_message = "Failed to build task #{task_name}"
-          error_message += " with args #{args}" if args && !args.empty?
+          error_message += " with args #{format_args(args)}" if args && !args.empty?
           error_message += ": #{e.message}"
           raise TaskBuildError, error_message
         end

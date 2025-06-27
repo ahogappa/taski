@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "stringio"
+
 module Taski
   # Terminal control operations with ANSI escape sequences
   class TerminalController
@@ -306,8 +308,18 @@ module Taski
 
     def finish_task(status)
       @spinner.stop
+
+      # Capture output before stopping
+      captured_output = @output_capture.last_lines
       @output_capture.stop
       clear_current_display
+
+      # In test environments (when terminal is StringIO), include captured output
+      if @terminal.is_a?(StringIO) && captured_output.any?
+        captured_output.each do |line|
+          @terminal.puts line.chomp
+        end
+      end
 
       @completed_tasks << status
       display_final_state

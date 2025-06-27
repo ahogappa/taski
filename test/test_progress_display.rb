@@ -290,9 +290,9 @@ class TestProgressDisplayIntegration < Minitest::Test
       true
     end
 
-    # Set up Taski to use our test progress display
+    # Set up Taski to use our test progress display with force_enable
     @original_progress = Taski.instance_variable_get(:@progress_display)
-    Taski.instance_variable_set(:@progress_display, Taski::ProgressDisplay.new(output: @output))
+    Taski.instance_variable_set(:@progress_display, Taski::ProgressDisplay.new(output: @output, force_enable: true))
   end
 
   def teardown
