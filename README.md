@@ -118,6 +118,81 @@ EnvironmentConfig.build
 - **Circular Dependency Detection**: Clear error messages with detailed paths
 - **Granular Execution**: Build individual tasks or complete graphs
 - **Memory Management**: Built-in reset mechanisms
+- **Progress Display**: Visual feedback with spinners and output capture
+- **Dependency Tree Visualization**: Visual representation of task relationships
+
+### Dependency Tree Visualization
+
+Visualize task dependencies with the `tree` method:
+
+```ruby
+class Database < Taski::Task
+  exports :connection
+  def build; @connection = "db-conn"; end
+end
+
+class Cache < Taski::Task
+  exports :redis_url
+  def build; @redis_url = "redis://localhost"; end
+end
+
+class Config < Taski::Task
+  exports :settings
+  def build
+    @settings = {
+      database: Database.connection,
+      cache: Cache.redis_url
+    }
+  end
+end
+
+class WebServer < Taski::Task
+  def build
+    puts "Starting with #{Config.settings}"
+  end
+end
+
+puts WebServer.tree
+# => WebServer
+# => └── Config
+# =>     ├── Database
+# =>     └── Cache
+```
+
+### Progress Display
+
+Taski provides visual feedback during task execution with animated spinners and real-time output capture:
+
+```ruby
+class LongRunningTask < Taski::Task
+  def build
+    puts "Starting process..."
+    sleep(1.0)
+    puts "Processing data..."
+    puts "Almost done..."
+    sleep(0.5)
+    puts "Completed!"
+  end
+end
+
+LongRunningTask.build
+# During execution shows:
+# ⠧ LongRunningTask
+#   Starting process...
+#   Processing data...
+#   Almost done...
+#   Completed!
+#
+# After completion shows:
+# ✅ LongRunningTask (1500ms)
+```
+
+**Progress Display Features:**
+- **Spinner Animation**: Dots-style spinner during task execution
+- **Output Capture**: Real-time display of task output (last 5 lines)
+- **Status Indicators**: ✅ for success, ❌ for failure
+- **Execution Time**: Shows task duration after completion
+- **TTY Detection**: Clean output when redirected to files
 
 ### Granular Task Execution
 
@@ -190,7 +265,7 @@ class FileTask < Taski::Task
   def clean
     # ❌ Bad: Raises error if file doesn't exist
     # File.delete(@output_file)
-    
+
     # ✅ Good: Check before delete
     File.delete(@output_file) if File.exist?(@output_file)
   end
@@ -207,7 +282,7 @@ rescue Taski::CircularDependencyError => e
 end
 # => Circular dependency: Circular dependency detected!
 # => Cycle: TaskA → TaskB → TaskA
-# => 
+# =>
 # => The dependency chain is:
 # =>   1. TaskA is trying to build → TaskB
 # =>   2. TaskB is trying to build → TaskA
