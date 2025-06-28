@@ -53,10 +53,8 @@ module TaskiTestHelper
     # Clear build order
     TaskiTestHelper.reset_build_order
 
-    # Reset task instances
-    if Taski::Task.instance_variable_defined?(:@__task_instances)
-      Taski::Task.remove_instance_variable(:@__task_instances)
-    end
+    # Reset task instances using public API
+    Taski::Task.reset!
 
     # Clean up test modules
     Object.send(:remove_const, :TestModule) if Object.const_defined?(:TestModule)
@@ -82,7 +80,8 @@ module TaskiTestHelper
       :BaseTask, :DependentTask, :DefineTask, :ExportsTask,
       :TimestampTask, :FailingIntegrationTask, :DependentIntegrationTask,
       :RecursionTaskA, :MonitorTask, :SharedTask,
-      :OldService, :NewService, :DynamicTask
+      :OldService, :NewService, :DynamicTask,
+      :IndependentTask, :MixedTask
     ]
 
     test_constants.each do |const|

@@ -46,16 +46,17 @@ class TestConcurrency < Minitest::Test
 
   def test_concurrent_task_building
     # Test multiple different tasks building concurrently
-    # Use a barrier to ensure tasks start at the same time
-    barrier = Mutex.new
-    start_flag = false
+    # Use a simple countdown latch pattern for synchronization
+    ready_signal = Queue.new
+    start_signal = Queue.new
 
     task_x = Class.new(Taski::Task) do
       exports :x_value, :build_thread_id
 
       define_method :build do
-        # Wait for both threads to be ready
-        barrier.synchronize {} until start_flag
+        # Signal ready and wait for start
+        ready_signal.push(:ready)
+        start_signal.pop
         @build_thread_id = Thread.current.object_id
         @x_value = "X-#{@build_thread_id}"
       end
@@ -66,8 +67,9 @@ class TestConcurrency < Minitest::Test
       exports :y_value, :build_thread_id
 
       define_method :build do
-        # Wait for both threads to be ready
-        barrier.synchronize {} until start_flag
+        # Signal ready and wait for start
+        ready_signal.push(:ready)
+        start_signal.pop
         @build_thread_id = Thread.current.object_id
         @y_value = "Y-#{@build_thread_id}"
       end
@@ -80,8 +82,11 @@ class TestConcurrency < Minitest::Test
       Thread.new { ConcurrentTaskY.build }
     ]
 
-    # Start both threads
-    start_flag = true
+    # Wait for both threads to signal ready
+    2.times { ready_signal.pop }
+
+    # Signal both threads to start
+    2.times { start_signal.push(:start) }
 
     threads.each(&:join)
 
@@ -105,11 +110,9 @@ class TestConcurrency < Minitest::Test
       # Add class method to safely increment count
       def self.increment_count
         instance = build  # This ensures the instance exists
-        instance.send(:increment_count_impl)
+        instance.increment_count_impl
         instance.access_count
       end
-
-      private
 
       def increment_count_impl
         @access_count ||= 0

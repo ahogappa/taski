@@ -78,11 +78,12 @@ class TestErrorHandling < Minitest::Test
     Object.const_set(:FailingTask, failing_task)
 
     dependent_task = Class.new(Taski::Task) do
-      # Manually add dependency that will fail
-      @dependencies = [{klass: FailingTask}]
+      exports :result
 
       def build
-        puts "This should not be reached"
+        # This will fail because FailingTask.build raises an error
+        FailingTask.build
+        @result = "This should not be reached"
       end
     end
     Object.const_set(:DependentTask, dependent_task)
