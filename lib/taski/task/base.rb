@@ -46,25 +46,32 @@ module Taski
       # @param prefix [String] Current indentation prefix
       # @param visited [Set] Set of visited classes to prevent infinite loops
       # @return [String] Formatted dependency tree
-      def tree(prefix = "", visited = Set.new)
+      def tree(prefix = "", visited = Set.new, color: TreeColors.enabled?)
         return "#{prefix}#{name} (circular)\n" if visited.include?(self)
 
         visited = visited.dup
         visited << self
 
-        result = "#{prefix}#{name}\n"
+        task_name = color ? TreeColors.task(name) : name
+        result = "#{prefix}#{task_name}\n"
 
         dependencies = (@dependencies || []).uniq { |dep| extract_class(dep) }
         dependencies.each_with_index do |dep, index|
           dep_class = extract_class(dep)
           is_last = index == dependencies.length - 1
 
-          connector = is_last ? "└── " : "├── "
-          child_prefix = prefix + (is_last ? "    " : "│   ")
+          connector_text = is_last ? "└── " : "├── "
+          connector = color ? TreeColors.connector(connector_text) : connector_text
+          child_prefix_text = is_last ? "    " : "│   "
+          child_prefix = prefix + (color ? TreeColors.connector(child_prefix_text) : child_prefix_text)
 
           # For the dependency itself, we want to use the connector
           # For its children, we want to use the child_prefix
-          dep_tree = dep_class.tree(child_prefix, visited)
+          dep_tree = if dep_class.respond_to?(:tree)
+            dep_class.tree(child_prefix, visited, color: color)
+          else
+            "#{child_prefix}#{dep_class.name}\n"
+          end
           # Replace the first line (which has child_prefix) with the proper connector
           dep_lines = dep_tree.lines
           if dep_lines.any?
@@ -75,7 +82,8 @@ module Taski
             # Add the rest of the lines as-is
             result += dep_lines[1..].join if dep_lines.length > 1
           else
-            result += "#{prefix}#{connector}#{dep_class.name}\n"
+            dep_name = color ? TreeColors.task(dep_class.name) : dep_class.name
+            result += "#{prefix}#{connector}#{dep_name}\n"
           end
         end
 

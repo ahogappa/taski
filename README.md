@@ -6,7 +6,7 @@
 
 > **🚧 Development Status:** Taski is currently under active development. Not yet recommended for production use.
 
-**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and execution. It provides two APIs: static dependencies through **Exports** and dynamic dependencies through **Define**.
+**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and execution. It provides three APIs: static dependencies through **Exports**, dynamic dependencies through **Define**, and abstraction layers through **Section**.
 
 > **Name Origin**: "Taski" comes from the Japanese word "襷" (tasuki), a sash used in relay races. Just like how runners pass the sash to the next teammate, tasks in Taski pass dependencies to one another in a continuous chain.
 
@@ -97,19 +97,61 @@ EnvironmentConfig.build
 # => Environment: production
 ```
 
+### Section API - Abstraction Layers
+
+For environment-specific implementations with clean interfaces:
+
+```ruby
+class DatabaseSection < Taski::Section
+  interface :host, :port
+  
+  def impl  # No 'self' needed!
+    ENV['RAILS_ENV'] == 'production' ? Production : Development
+  end
+  
+  class Production < Taski::Task
+    def build
+      @host = "prod-db.example.com"
+      @port = 5432
+    end
+  end
+  
+  class Development < Taski::Task
+    def build
+      @host = "localhost"
+      @port = 5432
+    end
+  end
+  
+  apply_auto_exports  # DRY - auto-adds exports to nested tasks
+end
+
+# Usage is simple - Section works like any Task
+class App < Taski::Task
+  def build
+    puts "DB: #{DatabaseSection.host}:#{DatabaseSection.port}"
+  end
+end
+
+App.build  # => DB: localhost:5432
+```
+
 ### When to Use Each API
 
 - **Define API**: Best for dynamic runtime dependencies. Cannot contain side effects in definition blocks. Dependencies are analyzed at class definition time, not runtime.
 - **Exports API**: Ideal for static dependencies. Supports side effects in build methods.
+- **Section API**: Perfect for abstraction layers where you need different implementations based on runtime conditions while maintaining static analysis capabilities.
 
 | Use Case | API | Example |
 |----------|-----|---------|
 | Configuration values | Exports | File paths, settings |
-| Environment-specific logic | Define | Different services per env |
+| Environment-specific logic | Define/Section | Different services per env |
 | Side effects | Exports | Database connections, I/O |
 | Conditional processing | Define | Algorithm selection |
+| Implementation abstraction | Section | Database/API adapters |
+| Multi-environment configs | Section | Dev/Test/Prod settings |
 
-**Note**: Define API analyzes dependencies when the class is defined. Conditional dependencies like `ENV['USE_NEW'] ? TaskA : TaskB` will only include the task selected at class definition time, not runtime.
+**Note**: Define API analyzes dependencies when the class is defined. Conditional dependencies like `ENV['USE_NEW'] ? TaskA : TaskB` will only include the task selected at class definition time, not runtime. Use Section API when you need true runtime selection.
 
 ## ✨ Key Features
 
@@ -157,6 +199,11 @@ puts WebServer.tree
 # => └── Config
 # =>     ├── Database
 # =>     └── Cache
+
+# Sections also appear in dependency trees
+puts AppServer.tree
+# => AppServer
+# => └── DatabaseSection
 ```
 
 ### Progress Display
@@ -309,8 +356,9 @@ bundle exec rake test
 - **Task Base**: Core framework
 - **Exports API**: Static dependency resolution
 - **Define API**: Dynamic dependency resolution
+- **Section API**: Abstraction layer with runtime implementation selection
 - **Instance Management**: Thread-safe lifecycle
-- **Dependency Resolver**: Topological sorting
+- **Dependency Resolver**: Topological sorting with Section support
 
 ## Contributing
 

@@ -146,7 +146,7 @@ module Taski
               resolved_class = resolve_relative_constant(const_name)
             end
 
-            if resolved_class&.is_a?(Class) && resolved_class < Taski::Task
+            if resolved_class&.is_a?(Class) && (resolved_class < Taski::Task || resolved_class < Taski::Section)
               @constant_cache[const_name] = resolved_class
               @dependencies << resolved_class
             else

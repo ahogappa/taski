@@ -11,4 +11,7 @@ module Taski
 
   # Raised when task building fails during execution
   class TaskBuildError < StandardError; end
+
+  # Raised when section implementation method is missing
+  class SectionImplementationError < StandardError; end
 end

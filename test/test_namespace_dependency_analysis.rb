@@ -41,7 +41,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     assert expected_dependency, "Static analysis should detect relative reference to TaskA"
 
     # Tree should show the dependency
-    tree_output = RelativeTestNamespace::TaskB.tree
+    tree_output = RelativeTestNamespace::TaskB.tree(color: false)
     assert_includes tree_output, "RelativeTestNamespace::TaskA", "Tree should include relative dependency"
 
     expected_tree = "RelativeTestNamespace::TaskB\n└── RelativeTestNamespace::TaskA\n"
@@ -86,7 +86,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     assert conditional_dep, "Static analysis should detect ConditionalNamespace::ConditionalTask as dependency"
 
     # Tree should show the dependency
-    tree_output = ConditionalConsumerTask.tree
+    tree_output = ConditionalConsumerTask.tree(color: false)
     assert_includes tree_output, "ConditionalNamespace::ConditionalTask", "Tree should include conditional dependency"
   end
 
@@ -105,7 +105,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     UnresolvedConsumerTask.send(:analyze_dependencies_at_definition)
 
     # Currently unresolved dependencies are not shown (expected behavior)
-    tree_output = UnresolvedConsumerTask.tree
+    tree_output = UnresolvedConsumerTask.tree(color: false)
     assert_equal "UnresolvedConsumerTask\n", tree_output, "Tree shows only root task for unresolved dependencies"
 
     # Note: Future enhancement could show:
@@ -144,7 +144,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     assert aa_dependency, "User's real example - AB should detect dependency on AA"
 
     # Tree should show the dependency
-    tree_output = UserTestModule::AB.tree
+    tree_output = UserTestModule::AB.tree(color: false)
     expected_tree = "UserTestModule::AB\n└── UserTestModule::AA\n"
     assert_equal expected_tree, tree_output, "User's real example - tree should show AB -> AA dependency"
   end
@@ -180,7 +180,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     assert_empty dependencies, "Dynamic constant resolution should not be detected by static analysis"
 
     # Tree should not show dynamic dependencies
-    tree_output = DynamicConsumerTask.tree
+    tree_output = DynamicConsumerTask.tree(color: false)
     assert_equal "DynamicConsumerTask\n", tree_output, "Tree should not show dynamically resolved dependencies"
   end
 end

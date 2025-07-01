@@ -30,7 +30,17 @@ ruby examples/progress_demo.rb > build.log 2>&1
 cat build.log
 ```
 
-### 3. **[advanced_patterns.rb](advanced_patterns.rb)** - Complex Dependency Patterns
+### 3. **[section_configuration.rb](section_configuration.rb)** - Section-based Configuration Management
+- Dynamic implementation selection with Taski::Section
+- Environment-specific configuration
+- Section dependency resolution
+- Complex configuration hierarchies
+
+```bash
+ruby examples/section_configuration.rb
+```
+
+### 4. **[advanced_patterns.rb](advanced_patterns.rb)** - Complex Dependency Patterns
 - Mixed Exports API and Define API usage
 - Environment-specific dependencies
 - Feature flags and conditional logic
@@ -44,6 +54,8 @@ ruby examples/advanced_patterns.rb
 
 - **Exports API**: Static dependencies with `exports :property`
 - **Define API**: Dynamic dependencies with `define :property, -> { ... }`
+- **Section API**: Dynamic implementation selection with `Taski::Section`
+- **Dependency Resolution**: Automatic dependency detection for sections
 - **Progress Display**: Rich terminal output with spinners and colors
 - **Output Capture**: Tail-style display of task output
 - **Environment Configuration**: Different behavior based on runtime settings

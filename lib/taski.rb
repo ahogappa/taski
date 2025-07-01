@@ -10,6 +10,7 @@ require_relative "taski/progress_display"
 require_relative "taski/reference"
 require_relative "taski/dependency_analyzer"
 require_relative "taski/utils"
+require_relative "taski/tree_colors"
 
 # Load Task class components
 require_relative "taski/task/base"
@@ -17,6 +18,9 @@ require_relative "taski/task/exports_api"
 require_relative "taski/task/define_api"
 require_relative "taski/task/instance_management"
 require_relative "taski/task/dependency_resolver"
+
+# Load Section class
+require_relative "taski/section"
 
 module Taski
   # Main module for the Taski task framework

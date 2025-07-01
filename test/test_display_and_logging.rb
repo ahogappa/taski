@@ -357,7 +357,7 @@ class TestTreeDisplay < Minitest::Test
     Object.const_set(:TreeTaskB, task_b)
 
     expected = "TreeTaskB\n└── TreeTaskA\n"
-    assert_equal expected, TreeTaskB.tree
+    assert_equal expected, TreeTaskB.tree(color: false)
   end
 
   def test_tree_display_complex_hierarchy
@@ -394,7 +394,7 @@ class TestTreeDisplay < Minitest::Test
     end
     Object.const_set(:TreeTaskCompD, task_d)
 
-    result = TreeTaskCompD.tree
+    result = TreeTaskCompD.tree(color: false)
     assert_includes result, "TreeTaskCompD"
     assert_includes result, "├── TreeTaskCompB"
     assert_includes result, "└── TreeTaskCompC"
@@ -435,7 +435,7 @@ class TestTreeDisplay < Minitest::Test
     end
     Object.const_set(:DeepTreeA, task_a)
 
-    result = DeepTreeA.tree
+    result = DeepTreeA.tree(color: false)
     lines = result.lines
 
     # Verify proper tree structure
@@ -462,7 +462,7 @@ class TestTreeDisplay < Minitest::Test
     Object.const_set(:CircularTaskA, task_a)
 
     # Tree display should work (it doesn't actually build)
-    result = CircularTaskA.tree
+    result = CircularTaskA.tree(color: false)
     assert_includes result, "CircularTaskA"
 
     # But building should fail with circular dependency error
@@ -505,7 +505,7 @@ class TestTreeDisplay < Minitest::Test
     end
     Object.const_set(:RootTreeTask, root_task)
 
-    result = RootTreeTask.tree
+    result = RootTreeTask.tree(color: false)
 
     # Verify structure includes all tasks
     assert_includes result, "RootTreeTask"
@@ -528,7 +528,7 @@ class TestTreeDisplay < Minitest::Test
     end
     Object.const_set(:StandaloneTreeTask, standalone_task)
 
-    result = StandaloneTreeTask.tree
+    result = StandaloneTreeTask.tree(color: false)
     assert_equal "StandaloneTreeTask\n", result
   end
 
@@ -555,7 +555,7 @@ class TestTreeDisplay < Minitest::Test
     Object.const_set(:ConsumerTreeTask, consumer_task)
 
     # Tree should work regardless of which API is used
-    result = ConsumerTreeTask.tree
+    result = ConsumerTreeTask.tree(color: false)
     assert_includes result, "ConsumerTreeTask"
     assert_includes result, "└── DefineTreeTask"
   end
