@@ -104,25 +104,25 @@ For environment-specific implementations with clean interfaces:
 ```ruby
 class DatabaseSection < Taski::Section
   interface :host, :port
-  
+
   def impl  # No 'self' needed!
     ENV['RAILS_ENV'] == 'production' ? Production : Development
   end
-  
+
   class Production < Taski::Task
     def build
       @host = "prod-db.example.com"
       @port = 5432
     end
   end
-  
+
   class Development < Taski::Task
     def build
       @host = "localhost"
       @port = 5432
     end
   end
-  
+
   apply_auto_exports  # DRY - auto-adds exports to nested tasks
 end
 
