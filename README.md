@@ -105,7 +105,7 @@ For environment-specific implementations with clean interfaces:
 class DatabaseSection < Taski::Section
   interface :host, :port
 
-  def impl  # No 'self' needed!
+  def impl
     ENV['RAILS_ENV'] == 'production' ? Production : Development
   end
 

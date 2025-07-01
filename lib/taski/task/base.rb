@@ -20,7 +20,7 @@ module Taski
       def method_added(method_name)
         super
         return unless ANALYZED_METHODS.include?(method_name)
-        # Only call if the method is available (loaded by dependency_resolver)
+        # Avoid calling before dependency_resolver module is loaded
         analyze_dependencies_at_definition if respond_to?(:analyze_dependencies_at_definition, true)
       end
 
@@ -29,7 +29,8 @@ module Taski
       # @return [Reference] A reference object
       def ref(klass)
         reference = Reference.new(klass)
-        # If we're in a define context, throw for dependency tracking
+        # Use throw/catch mechanism for dependency collection during define API analysis
+        # This allows catching unresolved references without unwinding the entire call stack
         if Thread.current[TASKI_ANALYZING_DEFINE_KEY]
           reference.tap { |ref| throw :unresolved, ref }
         else
@@ -84,7 +85,7 @@ module Taski
     # Clean method with default empty implementation
     # Subclasses can override this method to implement cleanup logic
     def clean
-      # Default implementation does nothing
+      # Default implementation does nothing - allows optional cleanup in subclasses
     end
   end
 end

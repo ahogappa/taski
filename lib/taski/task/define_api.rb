@@ -16,7 +16,8 @@ module Taski
         @dependencies ||= []
         @definitions ||= {}
 
-        # Ensure ref method is defined first time define is called
+        # Enable forward declarations by creating ref method on first define usage
+        # This allows tasks to reference other tasks before they're defined
         create_ref_method_if_needed
 
         # Create method that tracks dependencies on first call
@@ -61,7 +62,7 @@ module Taski
           def self.#{name}
             __resolve__[__callee__] ||= false
             if __resolve__[__callee__]
-              # already resolved
+              # already resolved - prevents infinite recursion
             else
               __resolve__[__callee__] = true
               throw :unresolved, [self, __callee__]
@@ -93,7 +94,8 @@ module Taski
         # Reset resolution state
         classes.each do |task_class|
           klass = task_class[:klass]
-          # Only reset Task classes, not Reference objects
+          # Reference objects are stateless but Task classes store analysis state
+          # Selective reset prevents errors while ensuring clean state for next analysis
           if klass.respond_to?(:instance_variable_set) && !klass.is_a?(Taski::Reference)
             klass.instance_variable_set(:@__resolve__, {})
           end

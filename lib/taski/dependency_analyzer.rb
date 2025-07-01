@@ -165,10 +165,11 @@ module Taski
           begin
             resolved_class = nil
 
-            # 1. Try absolute reference first (existing logic)
+            # Try absolute reference first for performance and clarity
             if Object.const_defined?(const_name)
               resolved_class = Object.const_get(const_name)
-            # 2. Try relative reference within namespace context
+            # Fall back to relative reference for nested module support
+            # This enables tasks defined inside modules to reference siblings
             elsif @context_class
               resolved_class = resolve_relative_constant(const_name)
             end

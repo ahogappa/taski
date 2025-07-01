@@ -117,7 +117,7 @@ module Taski
         colored_section_name = color ? TreeColors.section(section_name) : section_name
         result = "#{prefix}#{colored_section_name}\n"
 
-        # Add possible implementations (一般化 - detect from nested Task classes)
+        # Add possible implementations - detect from nested Task classes
         possible_implementations = find_possible_implementations
         if possible_implementations.any?
           impl_names = possible_implementations.map { |impl| extract_implementation_name(impl) }

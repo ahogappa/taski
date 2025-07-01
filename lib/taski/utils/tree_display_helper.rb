@@ -26,15 +26,12 @@ module Taski
           child_prefix_text = is_last ? "    " : "│   "
           child_prefix = prefix + (color ? TreeColors.connector(child_prefix_text) : child_prefix_text)
 
-          # For the dependency itself, we want to use the connector
-          # For its children, we want to use the child_prefix
           dep_tree = if dep_class.respond_to?(:tree)
             dep_class.tree(child_prefix, visited, color: color)
           else
             "#{child_prefix}#{dep_class.name}\n"
           end
 
-          # Replace the first line (which has child_prefix) with the proper connector
           dep_lines = dep_tree.lines
           if dep_lines.any?
             # Replace the first line prefix with connector

@@ -26,20 +26,20 @@ module Taski
   # Main module for the Taski task framework
   #
   # Taski provides a framework for defining and managing task dependencies
-  # with two complementary APIs:
+  # with three complementary APIs:
   # 1. Exports API - Export instance variables as class methods (static dependencies)
   # 2. Define API - Define lazy-evaluated values with dynamic dependency resolution
+  # 3. Section API - Abstraction layers with runtime implementation selection
   #
-  # Use Define API when:
-  # - Dependencies change based on runtime conditions
-  # - Environment-specific configurations
-  # - Feature flags determine which classes to use
-  # - Complex conditional logic determines dependencies
+  # API Selection Guide:
+  # - Use Exports API for simple static dependencies
+  # - Use Define API for conditional dependencies analyzed at class definition time
+  # - Use Section API for environment-specific implementations with static analysis
   #
   # Features:
   # - Automatic dependency resolution (static and dynamic)
   # - Static analysis of method dependencies
-  # - Runtime dependency resolution for conditional logic
+  # - Runtime implementation selection with Section API
   # - Thread-safe task building
   # - Circular dependency detection
   # - Memory leak prevention

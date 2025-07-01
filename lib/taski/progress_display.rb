@@ -20,8 +20,6 @@ module Taski
       @spinner = Progress::SpinnerAnimation.new
       @output_capture = Progress::OutputCapture.new(output)
 
-      # Default to including captured output in test environments (when output != $stdout)
-      # This ensures test output is visible in the test output stream
       include_captured_output = include_captured_output.nil? ? (output != $stdout) : include_captured_output
       @display_manager = Progress::DisplayManager.new(@terminal, @spinner, @output_capture, include_captured_output: include_captured_output)
 

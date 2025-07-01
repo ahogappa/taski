@@ -12,14 +12,12 @@ module Taski
       # @return [Task] Returns task instance (singleton or temporary)
       def build(**args)
         if args.empty?
-          # Traditional build: singleton instance with caching
           resolve_dependencies.reverse_each do |task_class|
             task_class.ensure_instance_built
           end
           # Return the singleton instance for consistency
           instance_variable_get(:@__task_instance)
         else
-          # Parametrized build: temporary instance without caching
           build_with_args(args)
         end
       end
@@ -45,7 +43,7 @@ module Taski
         self
       end
 
-      # Refresh task state (currently just resets)
+      # Refresh task state
       # @return [self] Returns self for method chaining
       def refresh
         reset!
@@ -82,11 +80,11 @@ module Taski
       # Ensure task instance is built (public because called from build)
       # @return [Task] The built task instance
       def ensure_instance_built
-        # Use double-checked locking pattern for thread safety
+        # Double-checked locking prevents lock contention in multi-threaded builds
+        # First check avoids expensive synchronization when instance already exists
         return @__task_instance if @__task_instance
 
         build_monitor.synchronize do
-          # Check again after acquiring lock
           return @__task_instance if @__task_instance
 
           check_circular_dependency

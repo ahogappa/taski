@@ -15,12 +15,10 @@ module Taski
         names.each do |name|
           next if respond_to?(name)
 
-          # Define class method to access exported value
           define_singleton_method(name) do
             ensure_instance_built.send(name)
           end
 
-          # Define instance method getter
           define_method(name) do
             instance_variable_get("@#{name}")
           end

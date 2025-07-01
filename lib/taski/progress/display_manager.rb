@@ -63,7 +63,8 @@ module Taski
 
         lines_count = 0
 
-        # Only display current task with spinner (no past completed tasks during execution)
+        # Show only current task to maintain clean, focused UI
+        # Displaying all past completed tasks creates visual clutter and reduces readability
         @terminal.puts @formatter.format_current_task(spinner_char, task_name)
         lines_count += 1
 
@@ -85,7 +86,8 @@ module Taski
         @output_capture.stop
         clear_current_display
 
-        # Include captured output if requested (typically for test environments)
+        # Test environments need output for verification, production prefers concise display
+        # Conditional inclusion balances debugging needs with user experience
         if @include_captured_output && captured_output.any?
           captured_output.each do |line|
             @terminal.puts line.chomp

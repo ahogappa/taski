@@ -62,16 +62,13 @@ class TestCoreFunctionality < Minitest::Test
     assert task_a_idx < task_b_idx, "ExportTaskA should be built before ExportTaskB"
     assert task_b_idx < task_c_idx, "ExportTaskB should be built before ExportTaskC"
 
-    # Verify exported values
     assert_equal "Task A", ExportTaskA.task_a_result
     assert_equal "Task B with Task A", ExportTaskB.task_b_result
     assert_equal "Task C with Task A and Task B with Task A", ExportTaskC.task_c_result
   end
 
   def test_exports_with_existing_method
-    # Test exports when method already exists
     task = Class.new(Taski::Task) do
-      # Define method before exports
       def self.existing_method
         "original"
       end
@@ -85,16 +82,13 @@ class TestCoreFunctionality < Minitest::Test
     end
     Object.const_set(:ExistingMethodTask, task)
 
-    # Original method should not be overridden
     assert_equal "original", ExistingMethodTask.existing_method
 
-    # New method should work
     ExistingMethodTask.build
     assert_equal "new", ExistingMethodTask.new_method
   end
 
   def test_multiple_instance_variables_exports
-    # Test exports with multiple instance variables
     task = Class.new(Taski::Task) do
       exports :task_name, :version, :config
 

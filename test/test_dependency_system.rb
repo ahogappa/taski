@@ -42,7 +42,6 @@ class TestDependencySystem < Minitest::Test
     end
     Object.const_set(:StaticTaskB, task_b)
 
-    # Reset and build (dependency detection will be verified through build order)
     TaskiTestHelper.reset_build_order
 
     output = capture_io { StaticTaskB.build }
@@ -187,7 +186,6 @@ class TestDependencySystem < Minitest::Test
     Object.const_set(:RefDepTaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      # Natural dependency will be detected through RefDepTaskA.value reference
       def build
         TaskiTestHelper.track_build_order("RefDepTaskB")
         puts "B depends on #{RefDepTaskA.value}"

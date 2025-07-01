@@ -28,12 +28,15 @@ module Taski
             sleep FRAME_DELAY
           end
         rescue
-          # Silently handle thread errors
+          # Prevent crashes during app shutdown or forced thread termination
+          # Progress display is auxiliary - errors shouldn't affect main processing
         end
       end
 
       def stop
         @running = false
+        # 0.2s timeout prevents hanging during rapid task execution
+        # UI responsiveness is more important than perfect cleanup
         @thread&.join(0.2)
         @thread = nil
       end
