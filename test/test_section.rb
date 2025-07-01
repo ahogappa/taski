@@ -82,10 +82,31 @@ class TestSection < Minitest::Test
     end
 
     section_class.const_set(:SimpleTask, simple_task)
-    section_class.apply_auto_exports
 
     assert_equal "sqlite::memory:", section_class.connection_string
     assert_equal 1, section_class.pool_size
+  end
+
+  def test_interface_automatically_applies_exports_without_manual_call
+    section_class = Class.new(Taski::Section) do
+      def self.impl
+        self::Development
+      end
+    end
+
+    development_task = Class.new(Taski::Task) do
+      def build
+        @host = "localhost"
+        @port = 3000
+      end
+    end
+
+    section_class.const_set(:Development, development_task)
+
+    section_class.interface :host, :port
+
+    assert_equal "localhost", section_class.host
+    assert_equal 3000, section_class.port
   end
 
   def test_impl_without_self

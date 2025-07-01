@@ -58,9 +58,6 @@ class DatabaseSection < Taski::Section
       @pool_size = 5
     end
   end
-
-  # Apply auto-exports after all nested Task classes are defined
-  apply_auto_exports
 end
 
 # Example 2: API Configuration Section
@@ -98,9 +95,6 @@ class ApiSection < Taski::Section
       @retry_count = 1
     end
   end
-
-  # Apply auto-exports after all nested Task classes are defined
-  apply_auto_exports
 end
 
 # Example 3: Task that depends on multiple sections

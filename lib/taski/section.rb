@@ -174,6 +174,9 @@ module Taski
             end
           end
         end
+
+        # Automatically apply exports to existing nested Task classes
+        auto_apply_exports_to_existing_tasks
       end
 
       # Get the interface exports for this section
@@ -214,9 +217,10 @@ module Taski
         result
       end
 
-      # Apply auto-exports to all nested Task classes
-      # Call this method after defining nested Task classes to automatically add exports
-      def apply_auto_exports
+      private
+
+      # Automatically apply exports to existing nested Task classes when interface is defined
+      def auto_apply_exports_to_existing_tasks
         constants.each do |const_name|
           const_value = const_get(const_name)
           if const_value.is_a?(Class) && const_value < Taski::Task && !interface_exports.empty?

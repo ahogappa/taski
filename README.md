@@ -122,8 +122,6 @@ class DatabaseSection < Taski::Section
       @port = 5432
     end
   end
-
-  apply_auto_exports  # DRY - auto-adds exports to nested tasks
 end
 
 # Usage is simple - Section works like any Task
