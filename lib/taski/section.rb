@@ -2,6 +2,8 @@
 
 require_relative "dependency_analyzer"
 require_relative "utils"
+require_relative "utils/tree_display_helper"
+require_relative "utils/dependency_resolver_helper"
 
 module Taski
   # Section provides an interface abstraction layer for dynamic implementation selection
@@ -15,53 +17,13 @@ module Taski
       # @param resolved [Array] Array of resolved tasks
       # @return [self] Returns self for method chaining
       def resolve(queue, resolved)
-        @dependencies ||= []
-
-        @dependencies.each do |task|
-          task_class = extract_class(task)
-
-          # Reorder in resolved list for correct priority
-          resolved.delete(task_class) if resolved.include?(task_class)
-          queue << task_class
-        end
-
-        self
+        resolve_common(queue, resolved)
       end
 
       # Resolve all dependencies in topological order
       # @return [Array<Class>] Array of tasks in dependency order
       def resolve_dependencies
-        queue = [self]
-        resolved = []
-        visited = Set.new
-        resolving = Set.new
-        path_map = {self => []}
-
-        while queue.any?
-          task_class = queue.shift
-          next if visited.include?(task_class)
-
-          if resolving.include?(task_class)
-            cycle_path = build_cycle_path(task_class, path_map)
-            raise CircularDependencyError, build_circular_dependency_message(cycle_path)
-          end
-
-          resolving << task_class
-          visited << task_class
-
-          current_path = path_map[task_class] || []
-          task_class.resolve(queue, resolved)
-
-          task_class.instance_variable_get(:@dependencies)&.each do |dep|
-            dep_class = extract_class(dep)
-            path_map[dep_class] = current_path + [task_class] unless path_map.key?(dep_class)
-          end
-
-          resolving.delete(task_class)
-          resolved << task_class unless resolved.include?(task_class)
-        end
-
-        resolved
+        resolve_dependencies_common
       end
 
       # Analyze dependencies when accessing interface methods
@@ -73,17 +35,6 @@ module Taski
       end
 
       private
-
-      # Build the cycle path from path tracking information
-      def build_cycle_path(task_class, path_map)
-        path = path_map[task_class] || []
-        path + [task_class]
-      end
-
-      # Build detailed error message for circular dependencies
-      def build_circular_dependency_message(cycle_path)
-        Utils::CircularDependencyHelpers.build_error_message(cycle_path, "dependency")
-      end
 
       # Gather dependencies from interface method implementation
       def gather_static_dependencies_for_interface(interface_method)
@@ -158,10 +109,8 @@ module Taski
       # @param color [Boolean] Whether to use color output
       # @return [String] Formatted dependency tree
       def tree(prefix = "", visited = Set.new, color: TreeColors.enabled?)
-        return "#{prefix}#{name} (circular)\n" if visited.include?(self)
-
-        visited = visited.dup
-        visited << self
+        should_return_early, early_result, new_visited = handle_circular_dependency_check(visited, self, prefix)
+        return early_result if should_return_early
 
         # Get section name with fallback for anonymous classes
         section_name = name || to_s
@@ -178,34 +127,8 @@ module Taski
           result += "#{prefix}#{connector}#{colored_impl_text}\n"
         end
 
-        dependencies = (@dependencies || []).uniq { |dep| extract_class(dep) }
-        dependencies.each_with_index do |dep, index|
-          dep_class = extract_class(dep)
-          is_last = index == dependencies.length - 1
-
-          connector_text = is_last ? "└── " : "├── "
-          connector = color ? TreeColors.connector(connector_text) : connector_text
-          child_prefix_text = is_last ? "    " : "│   "
-          child_prefix = prefix + (color ? TreeColors.connector(child_prefix_text) : child_prefix_text)
-
-          # Pass color parameter to child tree calls
-          dep_tree = if dep_class.respond_to?(:tree)
-            dep_class.tree(child_prefix, visited, color: color)
-          else
-            "#{child_prefix}#{dep_class.name}\n"
-          end
-
-          dep_lines = dep_tree.lines
-          if dep_lines.any?
-            first_line = dep_lines[0]
-            fixed_first_line = first_line.sub(/^#{Regexp.escape(child_prefix)}/, prefix + connector)
-            result += fixed_first_line
-            result += dep_lines[1..].join if dep_lines.length > 1
-          else
-            dep_name = color ? TreeColors.task(dep_class.name) : dep_class.name
-            result += "#{prefix}#{connector}#{dep_name}\n"
-          end
-        end
+        dependencies = @dependencies || []
+        result += render_dependencies_tree(dependencies, prefix, new_visited, color)
 
         result
       end
@@ -332,6 +255,9 @@ module Taski
       end
 
       private
+
+      include Utils::TreeDisplayHelper
+      include Utils::DependencyResolverHelper
 
       # Subclasses should override this method to select appropriate implementation
       def impl

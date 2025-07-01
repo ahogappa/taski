@@ -58,6 +58,9 @@ module TaskiTestHelper
 
     # Clean up test modules
     Object.send(:remove_const, :TestModule) if Object.const_defined?(:TestModule)
+
+    # Disable progress display for tests that expect stdout output
+    ENV["TASKI_PROGRESS_DISABLE"] = "1"
   end
 
   private
@@ -81,7 +84,8 @@ module TaskiTestHelper
       :TimestampTask, :FailingIntegrationTask, :DependentIntegrationTask,
       :RecursionTaskA, :MonitorTask, :SharedTask,
       :OldService, :NewService, :DynamicTask,
-      :IndependentTask, :MixedTask
+      :IndependentTask, :MixedTask,
+      :SectionDepTask, :DatabaseConfigTask, :OtherTask
     ]
 
     test_constants.each do |const|

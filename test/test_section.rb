@@ -325,4 +325,285 @@ class TestSection < Minitest::Test
       Taski::TreeColors.enabled = original_enabled
     end
   end
+
+  def test_section_resolve_dependencies
+    # Test resolve_dependencies method
+    section_class = Class.new(Taski::Section) do
+      interface :value
+
+      def self.impl
+        self::TestImplementation
+      end
+    end
+
+    # Create dependencies
+    dep_task = Class.new(Taski::Task) do
+      exports :dep_value
+      def build
+        @dep_value = "dependency"
+      end
+    end
+
+    impl_task = Class.new(Taski::Task) do
+      exports :value
+      def build
+        @value = "#{dep_task.dep_value} + implementation"
+      end
+    end
+
+    Object.const_set(:SectionDepTask, dep_task)
+    section_class.const_set(:TestImplementation, impl_task)
+
+    # Test resolve_dependencies returns array of dependencies
+    dependencies = section_class.resolve_dependencies
+    assert_kind_of Array, dependencies
+    assert_includes dependencies, section_class
+  end
+
+  def test_section_resolve_method
+    # Test the resolve method used internally
+    section_class = Class.new(Taski::Section) do
+      interface :value
+      def self.impl
+        self::TestImplementation
+      end
+    end
+
+    # Create a section with dependencies
+    dep_section = Class.new(Taski::Section) do
+      interface :dep_value
+      def self.impl
+        self::DepImpl
+      end
+    end
+
+    dep_impl = Class.new(Taski::Task) do
+      exports :dep_value
+      def build
+        @dep_value = "dependency"
+      end
+    end
+
+    impl_task = Class.new(Taski::Task) do
+      exports :value
+      def build
+        @value = "test"
+      end
+    end
+
+    dep_section.const_set(:DepImpl, dep_impl)
+    section_class.const_set(:TestImplementation, impl_task)
+
+    # Manually add dependency to test resolve
+    section_class.instance_variable_set(:@dependencies, [{klass: dep_section}])
+
+    # Test resolve method with queue and resolved arrays
+    queue = []
+    resolved = []
+
+    result = section_class.resolve(queue, resolved)
+
+    # resolve should return self
+    assert_equal section_class, result
+    # resolve should add dependencies to queue
+    assert_includes queue, dep_section
+    # resolved array is not modified by resolve itself
+    assert_empty resolved
+  end
+
+  def test_section_analyze_dependencies_for_interfaces
+    # Test analyze_dependencies_for_interfaces method
+    section_class = Class.new(Taski::Section) do
+      interface :database_url, :pool_size
+
+      def self.impl
+        # Reference another task class in impl method
+        if DatabaseConfigTask.config_ready?
+          self::TestImplementation
+        else
+          self::FallbackImplementation
+        end
+      end
+    end
+
+    config_task = Class.new(Taski::Task) do
+      exports :config_ready?
+
+      def self.config_ready?
+        true
+      end
+
+      def build
+        @config_ready = true
+      end
+    end
+
+    impl_task = Class.new(Taski::Task) do
+      exports :database_url, :pool_size
+      def build
+        @database_url = "postgresql://localhost"
+        @pool_size = 5
+      end
+    end
+
+    Object.const_set(:DatabaseConfigTask, config_task)
+    section_class.const_set(:TestImplementation, impl_task)
+    section_class.const_set(:FallbackImplementation, impl_task)
+
+    # This should analyze dependencies from the impl method
+    section_class.analyze_dependencies_for_interfaces
+
+    # The method modifies internal state, so we test indirectly
+    # by checking if dependencies were added
+    assert_respond_to section_class, :database_url
+  ensure
+    Object.send(:remove_const, :DatabaseConfigTask) if defined?(DatabaseConfigTask)
+  end
+
+  def test_section_extract_class_method
+    # Test extract_class private method through public interface
+    section_class = Class.new(Taski::Section) do
+      interface :value
+
+      # Make extract_class accessible for testing
+      def self.test_extract_class(task)
+        extract_class(task)
+      end
+
+      private_class_method :extract_class
+      public_class_method :test_extract_class
+    end
+
+    # Test with different input types
+    task_class = Class.new(Taski::Task)
+
+    # Class input
+    assert_equal task_class, section_class.test_extract_class(task_class)
+
+    # Hash input
+    assert_equal task_class, section_class.test_extract_class({klass: task_class})
+
+    # Other input (returns as-is)
+    assert_equal "string", section_class.test_extract_class("string")
+  end
+
+  def test_section_add_dependency_and_dependency_exists
+    # Test add_dependency and dependency_exists? private methods
+    section_class = Class.new(Taski::Section) do
+      interface :value
+
+      # Make methods accessible for testing
+      def self.test_add_dependency(dep)
+        add_dependency(dep)
+      end
+
+      def self.test_dependency_exists?(dep)
+        dependency_exists?(dep)
+      end
+
+      private_class_method :add_dependency, :dependency_exists?
+      public_class_method :test_add_dependency, :test_dependency_exists?
+    end
+
+    dep_task = Class.new(Taski::Task)
+
+    # Initially no dependencies
+    refute section_class.test_dependency_exists?(dep_task)
+
+    # Add dependency
+    section_class.test_add_dependency(dep_task)
+
+    # Now dependency should exist
+    assert section_class.test_dependency_exists?(dep_task)
+
+    # Adding same dependency again should not duplicate
+    section_class.test_add_dependency(dep_task)
+    assert section_class.test_dependency_exists?(dep_task)
+  end
+
+  def test_section_with_instance_impl_method
+    # Test section with impl as instance method (covers impl_defined? branch)
+    section_class = Class.new(Taski::Section) do
+      interface :value
+
+      # Define impl as instance method instead of class method
+      def impl
+        self.class::TestImplementation
+      end
+    end
+
+    impl_task = Class.new(Taski::Task) do
+      exports :value
+      def build
+        @value = "instance impl"
+      end
+    end
+
+    section_class.const_set(:TestImplementation, impl_task)
+
+    # Should work with instance method impl
+    assert_equal "instance impl", section_class.value
+
+    # Test get_implementation_class with instance method
+    assert_equal impl_task, section_class.get_implementation_class
+  end
+
+  def test_section_gather_static_dependencies_for_interface
+    # Test the gather_static_dependencies_for_interface private method
+    section_class = Class.new(Taski::Section) do
+      interface :config_value
+
+      # Class method impl (can be analyzed)
+      def self.impl
+        # This references OtherTask which should be detected as dependency
+        if defined?(OtherTask)
+          OtherTask.build
+        end
+        self::TestImplementation
+      end
+
+      # Make method accessible for testing
+      def self.test_gather_deps(method_name)
+        gather_static_dependencies_for_interface(method_name)
+      end
+
+      private_class_method :gather_static_dependencies_for_interface
+      public_class_method :test_gather_deps
+    end
+
+    # For class method impl, it should try to analyze dependencies
+    deps = section_class.test_gather_deps(:config_value)
+    assert_kind_of Array, deps
+  end
+
+  def test_section_add_unique_dependencies
+    # Test add_unique_dependencies private method
+    section_class = Class.new(Taski::Section) do
+      interface :value
+
+      def self.test_add_unique_deps(deps)
+        add_unique_dependencies(deps)
+      end
+
+      def self.test_get_dependencies
+        @dependencies || []
+      end
+
+      private_class_method :add_unique_dependencies
+      public_class_method :test_add_unique_deps, :test_get_dependencies
+    end
+
+    task1 = Class.new(Taski::Task)
+    task2 = Class.new(Taski::Task)
+
+    # Add multiple dependencies including duplicates and self
+    section_class.test_add_unique_deps([task1, task2, task1, section_class])
+
+    deps = section_class.test_get_dependencies
+    # Should only have task1 and task2 (no duplicates, no self)
+    assert_equal 2, deps.size
+    assert deps.any? { |d| d[:klass] == task1 }
+    assert deps.any? { |d| d[:klass] == task2 }
+    refute deps.any? { |d| d[:klass] == section_class }
+  end
 end

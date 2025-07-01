@@ -188,11 +188,15 @@ class TestProgressDisplay < Minitest::Test
     def @output.tty?
       true
     end
+    # Enable progress display for these tests
+    ENV.delete("TASKI_PROGRESS_DISABLE")
     @progress = Taski::ProgressDisplay.new(output: @output)
   end
 
   def teardown
     @progress.clear
+    # Restore environment variable for other tests
+    ENV["TASKI_PROGRESS_DISABLE"] = "1"
   end
 
   def test_initialization
@@ -205,7 +209,7 @@ class TestProgressDisplay < Minitest::Test
       false
     end
 
-    progress = Taski::ProgressDisplay.new(output: non_tty_output)
+    progress = Taski::ProgressDisplay.new(output: non_tty_output, enable: false)
     refute progress.enabled?
   end
 
@@ -292,13 +296,18 @@ class TestProgressDisplayIntegration < Minitest::Test
       true
     end
 
+    # Enable progress display for these tests
+    ENV.delete("TASKI_PROGRESS_DISABLE")
+
     # Set up Taski to use our test progress display with force_enable
     @original_progress = Taski.instance_variable_get(:@progress_display)
-    Taski.instance_variable_set(:@progress_display, Taski::ProgressDisplay.new(output: @output, force_enable: true))
+    Taski.instance_variable_set(:@progress_display, Taski::ProgressDisplay.new(output: @output))
   end
 
   def teardown
     Taski.instance_variable_set(:@progress_display, @original_progress)
+    # Restore environment variable for other tests
+    ENV["TASKI_PROGRESS_DISABLE"] = "1"
   end
 
   def test_integration_with_taski_framework

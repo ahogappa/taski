@@ -89,27 +89,40 @@ module Taski
           # Check again after acquiring lock
           return @__task_instance if @__task_instance
 
-          # Prevent infinite recursion using thread-local storage
-          thread_key = build_thread_key
-          if Thread.current[thread_key]
-            # Build dependency path for better error message
-            cycle_path = build_current_dependency_path
-            raise CircularDependencyError, build_runtime_circular_dependency_message(cycle_path)
-          end
-
-          Thread.current[thread_key] = true
-          begin
-            build_dependencies
-            @__task_instance = build_instance
-          ensure
-            Thread.current[thread_key] = false
-          end
+          check_circular_dependency
+          create_and_build_instance
         end
 
         @__task_instance
       end
 
       private
+
+      # === Instance Management Helper Methods ===
+
+      # Check for circular dependencies and raise error if detected
+      # @raise [CircularDependencyError] If circular dependency is detected
+      def check_circular_dependency
+        thread_key = build_thread_key
+        if Thread.current[thread_key]
+          # Build dependency path for better error message
+          cycle_path = build_current_dependency_path
+          raise CircularDependencyError, build_runtime_circular_dependency_message(cycle_path)
+        end
+      end
+
+      # Create and build instance with proper thread-local state management
+      # @return [void] Sets @__task_instance
+      def create_and_build_instance
+        thread_key = build_thread_key
+        Thread.current[thread_key] = true
+        begin
+          build_dependencies
+          @__task_instance = build_instance
+        ensure
+          Thread.current[thread_key] = false
+        end
+      end
 
       # === Core Helper Methods ===
 

@@ -15,52 +15,79 @@ module Taski
         file_path, line_number = source_location
         return [] unless File.exist?(file_path)
 
-        begin
-          result = Prism.parse_file(file_path)
-
-          unless result.success?
-            Taski.logger.error("Parse errors in source file",
-              file: file_path,
-              errors: result.errors.map(&:message),
-              method: "#{klass}##{method_name}")
-            return []
-          end
-
-          # Handle warnings if present
-          if result.warnings.any?
-            Taski.logger.warn("Parse warnings in source file",
-              file: file_path,
-              warnings: result.warnings.map(&:message),
-              method: "#{klass}##{method_name}")
-          end
-
-          dependencies = []
-          method_node = find_method_node(result.value, method_name, line_number)
-
-          if method_node
-            visitor = TaskDependencyVisitor.new(klass)
-            visitor.visit(method_node)
-            dependencies = visitor.dependencies
-          end
-
-          dependencies.uniq
-        rescue IOError, SystemCallError => e
-          Taski.logger.error("Failed to read source file",
-            file: file_path,
-            error: e.message,
-            method: "#{klass}##{method_name}")
-          []
-        rescue => e
-          Taski.logger.error("Failed to analyze method dependencies",
-            class: klass.name,
-            method: method_name,
-            error: e.message,
-            error_class: e.class.name)
-          []
-        end
+        parse_source_file(file_path, line_number, klass, method_name)
       end
 
       private
+
+      # Parse source file and extract dependencies with proper error handling
+      # @param file_path [String] Path to source file
+      # @param line_number [Integer] Line number of method definition
+      # @param klass [Class] Class containing the method
+      # @param method_name [Symbol] Method name being analyzed
+      # @return [Array<Class>] Array of dependency classes
+      def parse_source_file(file_path, line_number, klass, method_name)
+        result = Prism.parse_file(file_path)
+        handle_parse_errors(result, file_path, klass, method_name)
+        extract_dependencies_from_node(result.value, line_number, klass, method_name)
+      rescue IOError, SystemCallError => e
+        Taski.logger.error("Failed to read source file",
+          file: file_path,
+          error: e.message,
+          method: "#{klass}##{method_name}")
+        []
+      rescue => e
+        Taski.logger.error("Failed to analyze method dependencies",
+          class: klass.name,
+          method: method_name,
+          error: e.message,
+          error_class: e.class.name)
+        []
+      end
+
+      # Handle parse errors and warnings from Prism parsing
+      # @param result [Prism::ParseResult] Parse result from Prism
+      # @param file_path [String] Path to source file
+      # @param klass [Class] Class containing the method
+      # @param method_name [Symbol] Method name being analyzed
+      # @return [Array] Empty array if errors found
+      # @raise [RuntimeError] If parse fails
+      def handle_parse_errors(result, file_path, klass, method_name)
+        unless result.success?
+          Taski.logger.error("Parse errors in source file",
+            file: file_path,
+            errors: result.errors.map(&:message),
+            method: "#{klass}##{method_name}")
+          return []
+        end
+
+        # Handle warnings if present
+        if result.warnings.any?
+          Taski.logger.warn("Parse warnings in source file",
+            file: file_path,
+            warnings: result.warnings.map(&:message),
+            method: "#{klass}##{method_name}")
+        end
+      end
+
+      # Extract dependencies from parsed AST node
+      # @param root_node [Prism::Node] Root AST node
+      # @param line_number [Integer] Line number of method definition
+      # @param klass [Class] Class containing the method
+      # @param method_name [Symbol] Method name being analyzed
+      # @return [Array<Class>] Array of unique dependency classes
+      def extract_dependencies_from_node(root_node, line_number, klass, method_name)
+        dependencies = []
+        method_node = find_method_node(root_node, method_name, line_number)
+
+        if method_node
+          visitor = TaskDependencyVisitor.new(klass)
+          visitor.visit(method_node)
+          dependencies = visitor.dependencies
+        end
+
+        dependencies.uniq
+      end
 
       def find_method_node(node, method_name, target_line)
         return nil unless node

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "logging/formatter_factory"
+
 module Taski
   # Enhanced logging functionality for Taski framework
   # Provides structured logging with multiple levels and context information
@@ -13,7 +15,7 @@ module Taski
     def initialize(level: :info, output: $stdout, format: :structured)
       @level = level
       @output = output
-      @format = format
+      @formatter = Logging::FormatterFactory.create(format)
       @start_time = Time.now
     end
 
@@ -103,21 +105,15 @@ module Taski
 
     private
 
-    # Core logging method
+    # Core logging method using Strategy Pattern
     # @param level [Symbol] Log level
     # @param message [String] Log message
     # @param context [Hash] Additional context
     def log(level, message, context)
       return unless should_log?(level)
 
-      case @format
-      when :simple
-        log_simple(level, message, context)
-      when :structured
-        log_structured(level, message, context)
-      when :json
-        log_json(level, message, context)
-      end
+      formatted_line = @formatter.format(level, message, context, @start_time)
+      @output.puts formatted_line
     end
 
     # Check if message should be logged based on current level
@@ -125,57 +121,6 @@ module Taski
     # @return [Boolean] True if message should be logged
     def should_log?(level)
       LEVELS[@level] <= LEVELS[level]
-    end
-
-    # Simple log format: [LEVEL] message
-    def log_simple(level, message, context)
-      @output.puts "[#{level.upcase}] #{message}"
-    end
-
-    # Structured log format with timestamp and context
-    def log_structured(level, message, context)
-      timestamp = Time.now.strftime("%Y-%m-%d %H:%M:%S.%3N")
-      elapsed = ((Time.now - @start_time) * 1000).round(1)
-
-      line = "[#{timestamp}] [#{elapsed}ms] #{level.to_s.upcase.ljust(5)} Taski: #{message}"
-
-      unless context.empty?
-        context_parts = context.map do |key, value|
-          "#{key}=#{format_value(value)}"
-        end
-        line += " (#{context_parts.join(", ")})"
-      end
-
-      @output.puts line
-    end
-
-    # JSON log format for structured logging systems
-    def log_json(level, message, context)
-      require "json"
-
-      log_entry = {
-        timestamp: Time.now.iso8601(3),
-        level: level.to_s,
-        logger: "taski",
-        message: message,
-        elapsed_ms: ((Time.now - @start_time) * 1000).round(1)
-      }.merge(context)
-
-      @output.puts JSON.generate(log_entry)
-    end
-
-    # Format values for structured logging
-    def format_value(value)
-      case value
-      when String
-        (value.length > 50) ? "#{value[0..47]}..." : value
-      when Array
-        (value.size > 5) ? "[#{value[0..4].join(", ")}, ...]" : value.inspect
-      when Hash
-        (value.size > 3) ? "{#{value.keys[0..2].join(", ")}, ...}" : value.inspect
-      else
-        value.inspect
-      end
     end
   end
 
@@ -189,7 +134,7 @@ module Taski
     # Get the current progress display instance (always enabled)
     # @return [ProgressDisplay] Current progress display instance
     def progress_display
-      @progress_display ||= ProgressDisplay.new(force_enable: ENV["TASKI_FORCE_PROGRESS"] == "1")
+      @progress_display ||= ProgressDisplay.new
     end
 
     # Configure the logger with new settings
