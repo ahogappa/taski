@@ -104,4 +104,54 @@ class TestErrorHandling < Minitest::Test
 
     assert_includes error.message, "You must implement the build method"
   end
+
+  def test_define_with_existing_ref_works_correctly
+    # Test that define with ref() works correctly (existing functionality)
+
+    # Create an existing task
+    existing_task = Class.new(Taski::Task) do
+      exports :value
+      def build
+        @value = "existing_value"
+      end
+    end
+    Object.const_set(:ExistingRefTaskWorking, existing_task)
+
+    # Create task that uses ref()
+    ref_task = Class.new(Taski::Task) do
+      define :result, -> { ref("ExistingRefTaskWorking").value }
+
+      def build
+        # Empty build method (DefineAPI doesn't require build implementation)
+      end
+    end
+    Object.const_set(:RefUsingTaskWorking, ref_task)
+
+    # Build first to trigger dependency resolution
+    ref_task.build
+
+    # This should work without error
+    result = ref_task.result
+    assert_equal "existing_value", result
+  end
+
+  def test_build_with_nonexistent_ref_fails_in_phase_2
+    # RED: Test that build with non-existent ref fails in phase 2
+
+    ref_task = Class.new(Taski::Task) do
+      define :result, -> { ref("NonExistentRefTask").value }
+
+      def build
+        # Empty build method (DefineAPI doesn't require build implementation)
+      end
+    end
+    Object.const_set(:RefFailingTask, ref_task)
+
+    # build should raise TaskAnalysisError in phase 2 (before execution)
+    error = assert_raises(Taski::TaskAnalysisError) do
+      RefFailingTask.build
+    end
+
+    assert_includes error.message, "Task 'RefFailingTask' cannot resolve ref('NonExistentRefTask')"
+  end
 end

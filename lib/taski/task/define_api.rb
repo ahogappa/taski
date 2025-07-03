@@ -16,10 +16,6 @@ module Taski
         @dependencies ||= []
         @definitions ||= {}
 
-        # Enable forward declarations by creating ref method on first define usage
-        # This allows tasks to reference other tasks before they're defined
-        create_ref_method_if_needed
-
         # Create method that tracks dependencies on first call
         create_tracking_method(name)
 
@@ -34,37 +30,17 @@ module Taski
 
       # === Define API Implementation ===
 
-      # Create ref method if needed to avoid redefinition warnings
-      def create_ref_method_if_needed
-        return if method_defined_for_define?(:ref)
-
-        define_singleton_method(:ref) do |klass_name|
-          # During dependency analysis, track as dependency but defer resolution
-          if Thread.current[TASKI_ANALYZING_DEFINE_KEY]
-            # Create Reference object for deferred resolution
-            reference = Taski::Reference.new(klass_name)
-
-            # Track as dependency by throwing unresolved
-            throw :unresolved, [reference, :deref]
-          else
-            # At runtime, resolve to actual class
-            Object.const_get(klass_name)
-          end
-        end
-        mark_method_as_defined(:ref)
-      end
-
       # Create method that tracks dependencies for define API
       # @param name [Symbol] Method name to create
       def create_tracking_method(name)
         # Only create tracking method during dependency analysis
         class_eval(<<-RUBY, __FILE__, __LINE__ + 1)
           def self.#{name}
-            __resolve__[__callee__] ||= false
-            if __resolve__[__callee__]
+            resolution_state[__callee__] ||= false
+            if resolution_state[__callee__]
               # already resolved - prevents infinite recursion
             else
-              __resolve__[__callee__] = true
+              resolution_state[__callee__] = true
               throw :unresolved, [self, __callee__]
             end
           end
@@ -76,6 +52,7 @@ module Taski
       # @return [Array<Hash>] Array of dependency information
       def analyze_define_dependencies(block)
         classes = []
+        seen_refs = Set.new
 
         # Set flag to indicate we're analyzing define dependencies
         Thread.current[TASKI_ANALYZING_DEFINE_KEY] = true
@@ -88,6 +65,17 @@ module Taski
 
           break if klass.nil?
 
+          # Track pending references for phase 2 resolution
+          if klass.is_a?(Taski::Reference)
+            ref_key = klass.klass
+
+            # Skip if we've already seen this reference
+            break if seen_refs.include?(ref_key)
+
+            seen_refs << ref_key
+            add_pending_reference(ref_key)
+          end
+
           classes << {klass:, task:}
         end
 
@@ -97,7 +85,7 @@ module Taski
           # Reference objects are stateless but Task classes store analysis state
           # Selective reset prevents errors while ensuring clean state for next analysis
           if klass.respond_to?(:instance_variable_set) && !klass.is_a?(Taski::Reference)
-            klass.instance_variable_set(:@__resolve__, {})
+            klass.instance_variable_set(:@__resolution_state, {})
           end
         end
 
@@ -150,6 +138,31 @@ module Taski
       def method_defined_for_define?(method_name)
         @__defined_for_resolve ||= Set.new
         @__defined_for_resolve.include?(method_name)
+      end
+
+      # Get all pending references for this class (public for testing)
+      def get_pending_references
+        @pending_references ||= Set.new
+      end
+
+      # Override base class implementation to validate ref() calls
+      # This is called during phase 2 before dependency resolution
+      def resolve_pending_references
+        pending_refs = get_pending_references
+        return if pending_refs.empty?
+
+        pending_refs.each do |klass_name|
+          Object.const_get(klass_name)
+        rescue NameError => e
+          task_name = name || to_s
+          raise Taski::TaskAnalysisError, "Task '#{task_name}' cannot resolve ref('#{klass_name}'): #{e.message}"
+        end
+      end
+
+      # Track pending references for phase 2 resolution (public for debugging)
+      def add_pending_reference(klass_name)
+        @pending_references ||= Set.new
+        @pending_references << klass_name
       end
     end
   end

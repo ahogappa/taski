@@ -151,6 +151,33 @@ App.build  # => DB: localhost:5432
 
 **Note**: Define API analyzes dependencies when the class is defined. Conditional dependencies like `ENV['USE_NEW'] ? TaskA : TaskB` will only include the task selected at class definition time, not runtime. Use Section API when you need true runtime selection.
 
+### ref() Method
+
+The `ref()` method enables forward declarations in Define API:
+
+```ruby
+class TaskA < Taski::Task
+  define :result, -> { ref("TaskB").value }
+end
+
+class TaskB < Taski::Task
+  exports :value
+  def build
+    @value = "B result"
+  end
+end
+```
+
+**⚠️ Important**: ref() cannot detect circular references at definition time. Use direct references when possible:
+
+```ruby
+# ✅ Preferred
+define :result, -> { TaskB.value }
+
+# ⚠️ Only when forward declaration needed
+define :result, -> { ref("TaskB").value }
+```
+
 ## ✨ Key Features
 
 - **Automatic Dependency Resolution**: Dependencies detected through static analysis
@@ -331,6 +358,38 @@ end
 # => The dependency chain is:
 # =>   1. TaskA is trying to build → TaskB
 # =>   2. TaskB is trying to build → TaskA
+```
+
+### Dependency Resolution Phases
+
+Taski resolves dependencies in three distinct phases, each with specific error detection capabilities:
+
+| Phase | Timing | Dependencies Resolved | Common Errors |
+|-------|--------|----------------------|---------------|
+| **Phase 1: Definition Time** | Class loading | Exports API static analysis | Missing method definitions, syntax errors |
+| **Phase 2: Pre-execution** | Before `.build()` call | Define API ref() validation, dependency graph | Circular dependencies, missing ref() targets |
+| **Phase 3: Execution** | During `.build()` call | Runtime method calls | Build failures, runtime exceptions |
+
+```ruby
+# Phase 1: Static analysis errors (at class definition)
+class BadTask < Taski::Task
+  exports :value
+  def build
+    @value = UndefinedTask.value  # ❌ Detected immediately
+  end
+end
+
+# Phase 2: Reference validation errors (before execution)
+class RefTask < Taski::Task
+  define :result, -> { ref("NonExistentTask").value }  # ❌ Detected at .build()
+end
+
+# Phase 3: Runtime errors (during execution)
+class RuntimeTask < Taski::Task
+  def build
+    raise "Build failed"  # ❌ Detected during task execution
+  end
+end
 ```
 
 ## 📦 Installation

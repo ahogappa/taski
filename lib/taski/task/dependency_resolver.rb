@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../dependency_analyzer"
-require_relative "../utils/dependency_resolver_helper"
+require_relative "../utils/dependency_resolver"
 
 module Taski
   class Task
@@ -66,7 +66,7 @@ module Taski
       private
 
       include Utils::DependencyUtils
-      include Utils::DependencyResolverHelper
+      include Utils::DependencyResolver
       private :extract_class
     end
   end

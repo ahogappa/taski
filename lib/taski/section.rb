@@ -2,8 +2,8 @@
 
 require_relative "dependency_analyzer"
 require_relative "utils"
-require_relative "utils/tree_display_helper"
-require_relative "utils/dependency_resolver_helper"
+require_relative "utils/tree_display"
+require_relative "utils/dependency_resolver"
 
 module Taski
   # Section provides an interface abstraction layer for dynamic implementation selection
@@ -101,6 +101,13 @@ module Taski
       # @return [self] Returns self
       def reset!
         self
+      end
+
+      # Default implementation of resolve_pending_references
+      # Sections don't use ref() in the same way as Tasks with DefineAPI,
+      # so this is a no-op implementation for compatibility
+      def resolve_pending_references
+        # No-op for sections
       end
 
       # Display dependency tree for this section
@@ -258,10 +265,8 @@ module Taski
         const_value.is_a?(Class) && const_value < Taski::Task
       end
 
-      private
-
-      include Utils::TreeDisplayHelper
-      include Utils::DependencyResolverHelper
+      include Utils::TreeDisplay
+      include Utils::DependencyResolver
 
       # Subclasses should override this method to select appropriate implementation
       def impl

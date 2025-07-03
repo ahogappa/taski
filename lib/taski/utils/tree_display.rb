@@ -2,9 +2,9 @@
 
 module Taski
   module Utils
-    # Helper module for tree display functionality
+    # Interface for tree display functionality
     # Provides common logic for displaying dependency trees
-    module TreeDisplayHelper
+    module TreeDisplay
       private
 
       # Render dependencies as tree structure

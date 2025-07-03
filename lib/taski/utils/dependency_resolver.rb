@@ -2,14 +2,18 @@
 
 module Taski
   module Utils
-    # Helper module for dependency resolution functionality
+    # Interface for dependency resolution functionality
     # Provides common logic for resolving dependencies and detecting circular dependencies
-    module DependencyResolverHelper
+    module DependencyResolver
       private
 
       # Resolve all dependencies in topological order with circular dependency detection
       # @return [Array<Class>] Array of tasks in dependency order
       def resolve_dependencies_common
+        # Phase 2: Resolve pending references before dependency resolution
+        # This is safe to call always - tasks without pending references simply do nothing
+        resolve_pending_references
+
         queue = [self]
         resolved = []
         visited = Set.new

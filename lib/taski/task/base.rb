@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../exceptions"
-require_relative "../utils/tree_display_helper"
+require_relative "../utils/tree_display"
 
 module Taski
   # Base Task class that provides the foundation for task framework
@@ -26,22 +26,38 @@ module Taski
 
       # Create a reference to a task class (can be used anywhere)
       # @param klass [String] The class name to reference
-      # @return [Reference] A reference object
-      def ref(klass)
-        reference = Reference.new(klass)
-        # Use throw/catch mechanism for dependency collection during define API analysis
-        # This allows catching unresolved references without unwinding the entire call stack
+      # @return [Reference, Class] A reference object or actual class
+      def ref(klass_name)
+        # During dependency analysis, track as dependency but defer resolution
         if Thread.current[TASKI_ANALYZING_DEFINE_KEY]
-          reference.tap { |ref| throw :unresolved, ref }
+          # Create Reference object for deferred resolution
+          reference = Reference.new(klass_name)
+          # Track as dependency by throwing unresolved
+          throw :unresolved, [reference, :deref]
         else
-          reference
+          # At runtime, try to resolve to actual class for convenience
+          # This provides better ergonomics for define API usage
+          begin
+            Object.const_get(klass_name)
+          rescue NameError
+            # Fall back to Reference object if class doesn't exist yet
+            # This maintains compatibility with forward references
+            Reference.new(klass_name)
+          end
         end
       end
 
       # Get or create resolution state for define API
       # @return [Hash] Resolution state hash
-      def __resolve__
-        @__resolve__ ||= {}
+      def resolution_state
+        @__resolution_state ||= {}
+      end
+
+      # Default implementation of resolve_pending_references
+      # This does nothing by default, but DefineAPI overrides it
+      # to validate ref() calls collected during analysis
+      def resolve_pending_references
+        # No-op for tasks that don't use DefineAPI
       end
 
       # Display dependency tree for this task
@@ -64,8 +80,7 @@ module Taski
       private
 
       include Utils::DependencyUtils
-      include Utils::TreeDisplayHelper
-      private :extract_class
+      include Utils::TreeDisplay
     end
 
     # === Instance Methods ===
