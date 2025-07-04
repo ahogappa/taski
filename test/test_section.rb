@@ -25,8 +25,8 @@ class TestSection < Minitest::Test
     section_class = Class.new(Taski::Section) do
       interface :database_url
 
-      def self.impl
-        self::TestImplementation
+      def impl
+        self.class::TestImplementation
       end
     end
 
@@ -46,8 +46,8 @@ class TestSection < Minitest::Test
     database_section = Class.new(Taski::Section) do
       interface :database_url, :timeout
 
-      def self.impl
-        self::Production
+      def impl
+        self.class::Production
       end
     end
 
@@ -69,8 +69,8 @@ class TestSection < Minitest::Test
     section_class = Class.new(Taski::Section) do
       interface :connection_string, :pool_size
 
-      def self.impl
-        self::SimpleTask
+      def impl
+        self.class::SimpleTask
       end
     end
 
@@ -89,8 +89,8 @@ class TestSection < Minitest::Test
 
   def test_interface_automatically_applies_exports_without_manual_call
     section_class = Class.new(Taski::Section) do
-      def self.impl
-        self::Development
+      def impl
+        self.class::Development
       end
     end
 
@@ -203,7 +203,7 @@ class TestSection < Minitest::Test
     database_section = Class.new(Taski::Section) do
       interface :database_url
 
-      def self.impl
+      def impl
         if ENV["DATABASE"] == "postgres"
           self::PostgresImplementation
         else
@@ -248,7 +248,7 @@ class TestSection < Minitest::Test
     cache_section = Class.new(Taski::Section) do
       interface :cache_client
 
-      def self.impl
+      def impl
         if ENV["CACHE"] == "redis"
           self::RedisCache
         else
@@ -294,7 +294,7 @@ class TestSection < Minitest::Test
     empty_section = Class.new(Taski::Section) do
       interface :value
 
-      def self.impl
+      def impl
         # impl method exists but no nested classes
         nil
       end
@@ -313,7 +313,7 @@ class TestSection < Minitest::Test
     database_section = Class.new(Taski::Section) do
       interface :database_url
 
-      def self.impl
+      def impl
         PostgresImplementation
       end
     end
@@ -352,7 +352,7 @@ class TestSection < Minitest::Test
     section_class = Class.new(Taski::Section) do
       interface :value
 
-      def self.impl
+      def impl
         self::TestImplementation
       end
     end
@@ -385,7 +385,7 @@ class TestSection < Minitest::Test
     # Test the resolve method used internally
     section_class = Class.new(Taski::Section) do
       interface :value
-      def self.impl
+      def impl
         self::TestImplementation
       end
     end
@@ -393,7 +393,7 @@ class TestSection < Minitest::Test
     # Create a section with dependencies
     dep_section = Class.new(Taski::Section) do
       interface :dep_value
-      def self.impl
+      def impl
         self::DepImpl
       end
     end
@@ -437,7 +437,7 @@ class TestSection < Minitest::Test
     section_class = Class.new(Taski::Section) do
       interface :database_url, :pool_size
 
-      def self.impl
+      def impl
         # Reference another task class in impl method
         if DatabaseConfigTask.config_ready?
           self::TestImplementation
@@ -575,7 +575,7 @@ class TestSection < Minitest::Test
       interface :config_value
 
       # Class method impl (can be analyzed)
-      def self.impl
+      def impl
         # This references OtherTask which should be detected as dependency
         if defined?(OtherTask)
           OtherTask.build

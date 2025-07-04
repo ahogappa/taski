@@ -200,7 +200,9 @@ module Taski
       def get_implementation_class
         if impl_defined?
           # Create a temporary instance to call impl method
-          allocate.impl
+          instance = allocate
+          # Call the impl method on the instance
+          instance.impl
         else
           # Fall back to class method if exists
           impl
