@@ -8,7 +8,7 @@
 # Key Features Demonstrated:
 # 1. DRY Principle: No need to duplicate 'exports' declarations in nested Task classes
 #    - interface declaration automatically adds exports to nested Task classes
-# 2. Consistent API: impl must return Task classes - .build is called automatically
+# 2. Consistent API: impl must return Task classes - .run is called automatically
 # 3. Dynamic Implementation Selection: Different implementations based on environment
 # 4. Dependency Resolution: Sections are properly detected in dependency analysis
 # 5. Tree Visualization: Sections appear in dependency trees
@@ -23,7 +23,7 @@ class DatabaseSection < Taski::Section
   interface :host, :port, :username, :password, :database_name, :pool_size
 
   # Select implementation based on environment
-  # Note: Must return a Task class - .build is automatically called
+  # Note: Must return a Task class - .run is automatically called
   # No 'self' needed - just define as instance method!
   def impl
     if ENV["RAILS_ENV"] == "production"
@@ -36,7 +36,7 @@ class DatabaseSection < Taski::Section
   # Production implementation with secure settings
   # Note: exports are automatically inherited from interface declaration
   class Production < Taski::Task
-    def build
+    def run
       @host = "prod-db.example.com"
       @port = 5432
       @username = "app_user"
@@ -49,7 +49,7 @@ class DatabaseSection < Taski::Section
   # Development implementation with local settings
   # Note: exports are automatically inherited from interface declaration
   class Development < Taski::Task
-    def build
+    def run
       @host = "localhost"
       @port = 5432
       @username = "dev_user"
@@ -68,7 +68,7 @@ class ApiSection < Taski::Section
   # No 'self' needed - just define as instance method!
   def impl
     # Select based on feature flag
-    # Note: Must return a Task class - .build is automatically called
+    # Note: Must return a Task class - .run is automatically called
     if ENV["USE_STAGING_API"] == "true"
       Staging
     else
@@ -78,7 +78,7 @@ class ApiSection < Taski::Section
 
   # Note: exports are automatically inherited from interface declaration - DRY principle!
   class Production < Taski::Task
-    def build
+    def run
       @base_url = "https://api.example.com/v1"
       @api_key = ENV["PROD_API_KEY"] || "prod-key-123"
       @timeout = 30
@@ -88,7 +88,7 @@ class ApiSection < Taski::Section
 
   # Note: exports are automatically inherited from interface declaration - DRY principle!
   class Staging < Taski::Task
-    def build
+    def run
       @base_url = "https://staging-api.example.com/v1"
       @api_key = ENV["STAGING_API_KEY"] || "staging-key-456"
       @timeout = 60
@@ -101,7 +101,7 @@ end
 class ApplicationSetup < Taski::Task
   exports :config_summary
 
-  def build
+  def run
     puts "Setting up application with configuration:"
     puts "Database: #{DatabaseSection.host}:#{DatabaseSection.port}/#{DatabaseSection.database_name}"
     puts "API: #{ApiSection.base_url}"
@@ -128,7 +128,7 @@ end
 class DatabaseConnection < Taski::Task
   exports :connection
 
-  def build
+  def run
     puts "Connecting to database..."
     # Use section configuration to create connection
     connection_string = "postgresql://#{DatabaseSection.username}:#{DatabaseSection.password}@#{DatabaseSection.host}:#{DatabaseSection.port}/#{DatabaseSection.database_name}"
@@ -140,7 +140,7 @@ end
 class ApiClient < Taski::Task
   exports :client
 
-  def build
+  def run
     puts "Initializing API client..."
     @client = "API Client: #{ApiSection.base_url} (timeout: #{ApiSection.timeout}s, retries: #{ApiSection.retry_count})"
     puts @client
@@ -148,12 +148,12 @@ class ApiClient < Taski::Task
 end
 
 class Application < Taski::Task
-  def build
+  def run
     puts "\n=== Starting Application ==="
 
     # Dependencies are automatically resolved
-    # DatabaseConnection and ApiClient will be built first
-    # which triggers building of their respective sections
+    # DatabaseConnection and ApiClient will be executed first
+    # which triggers execution of their respective sections
 
     puts "\nDatabase ready: #{DatabaseConnection.connection}"
     puts "API ready: #{ApiClient.client}"
@@ -177,7 +177,7 @@ if __FILE__ == $0
   # Reset all tasks to ensure fresh build
   [DatabaseSection, ApiSection, ApplicationSetup, DatabaseConnection, ApiClient, Application].each(&:reset!)
 
-  Application.build
+  Application.run
 
   puts "\n" + "=" * 50
   puts "\n2. Production Environment with Staging API"
@@ -187,7 +187,7 @@ if __FILE__ == $0
   # Reset all tasks to see different configuration
   [DatabaseSection, ApiSection, ApplicationSetup, DatabaseConnection, ApiClient, Application].each(&:reset!)
 
-  Application.build
+  Application.run
 
   puts "\n" + "=" * 50
   puts "\n3. Dependency Tree Visualization"

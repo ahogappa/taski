@@ -10,7 +10,7 @@ module Taski
     # Constants for thread-local keys and method tracking
     THREAD_KEY_SUFFIX = "_building"
     TASKI_ANALYZING_DEFINE_KEY = :taski_analyzing_define
-    ANALYZED_METHODS = [:build, :clean].freeze
+    ANALYZED_METHODS = [:build, :clean, :run].freeze
 
     class << self
       # === Hook Methods ===
@@ -85,17 +85,23 @@ module Taski
 
     # === Instance Methods ===
 
-    # Build method that must be implemented by subclasses
+    # Run method that must be implemented by subclasses
     # @raise [NotImplementedError] If not implemented by subclass
-    def build
-      raise NotImplementedError, "You must implement the build method in your task class"
+    def run
+      raise NotImplementedError, "You must implement the run method in your task class"
     end
 
-    # Access build arguments passed to parametrized builds
-    # @return [Hash] Build arguments or empty hash if none provided
-    def build_args
-      @build_args || {}
+    # Build method for backward compatibility
+    alias_method :build, :run
+
+    # Access run arguments passed to parametrized runs
+    # @return [Hash] Run arguments or empty hash if none provided
+    def run_args
+      @run_args || {}
     end
+
+    # Build arguments alias for backward compatibility
+    alias_method :build_args, :run_args
 
     # Clean method with default empty implementation
     # Subclasses can override this method to implement cleanup logic

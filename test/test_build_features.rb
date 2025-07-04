@@ -24,12 +24,12 @@ class TestBuildFeatures < Minitest::Test
         "TestTask"
       end
 
-      def build
+      def run
         @result = "default"
       end
     end
 
-    result = task_class.build
+    result = task_class.run
     assert_instance_of task_class, result
     assert_equal "default", result.instance_variable_get(:@result)
   end
@@ -40,19 +40,19 @@ class TestBuildFeatures < Minitest::Test
         "TestTask"
       end
 
-      def build
+      def run
         args = build_args
         @result = args[:mode] || "default"
       end
     end
 
     # Build without args - returns singleton instance
-    singleton_instance = task_class.build
+    singleton_instance = task_class.run
     assert_instance_of task_class, singleton_instance
     assert_equal "default", singleton_instance.instance_variable_get(:@result)
 
     # Build with args - returns different temporary instance
-    temp_instance = task_class.build(mode: "fast")
+    temp_instance = task_class.run(mode: "fast")
     assert_instance_of task_class, temp_instance
     assert_equal "fast", temp_instance.instance_variable_get(:@result)
 
@@ -66,7 +66,7 @@ class TestBuildFeatures < Minitest::Test
         "TestTask"
       end
 
-      def build
+      def run
         args = build_args
         @mode = args[:mode]
         @input = args[:input]
@@ -74,7 +74,7 @@ class TestBuildFeatures < Minitest::Test
       end
     end
 
-    instance = task_class.build(mode: "thorough", input: "data")
+    instance = task_class.run(mode: "thorough", input: "data")
     assert_equal "thorough", instance.instance_variable_get(:@mode)
     assert_equal "data", instance.instance_variable_get(:@input)
     assert_equal "processed_thorough_data", instance.instance_variable_get(:@result)
@@ -86,7 +86,7 @@ class TestBuildFeatures < Minitest::Test
         "TestTask"
       end
 
-      def build
+      def run
         @args_size = build_args.size
       end
 
@@ -94,7 +94,7 @@ class TestBuildFeatures < Minitest::Test
     end
 
     # Build without args - instance uses singleton pattern
-    instance = task_class.build
+    instance = task_class.run
     assert_equal 0, instance.args_size
   end
 
@@ -107,7 +107,7 @@ class TestBuildFeatures < Minitest::Test
         "ParametrizedBaseTask"
       end
 
-      def build
+      def run
         @base_result = "base_built"
       end
     end
@@ -120,7 +120,7 @@ class TestBuildFeatures < Minitest::Test
         "ParametrizedDependentTask"
       end
 
-      def build
+      def run
         # Create natural dependency by accessing ParametrizedBaseTask
         ParametrizedBaseTask.base_result  # This creates the dependency
         args = build_args
@@ -129,7 +129,7 @@ class TestBuildFeatures < Minitest::Test
     end
     Object.const_set(:ParametrizedDependentTask, dependent_task)
 
-    instance = dependent_task.build(option: "value")
+    instance = dependent_task.run(option: "value")
 
     # Base task should have been built through dependency resolution
     assert_equal "base_built", ParametrizedBaseTask.base_result
@@ -143,14 +143,14 @@ class TestBuildFeatures < Minitest::Test
         "TestTask"
       end
 
-      def build
+      def run
         args = build_args
         @result = "result_#{args[:id]}"
       end
     end
 
-    instance1 = task_class.build(id: "first")
-    instance2 = task_class.build(id: "second")
+    instance1 = task_class.run(id: "first")
+    instance2 = task_class.run(id: "second")
 
     assert_equal "result_first", instance1.instance_variable_get(:@result)
     assert_equal "result_second", instance2.instance_variable_get(:@result)
@@ -164,13 +164,13 @@ class TestBuildFeatures < Minitest::Test
         "TestTask"
       end
 
-      def build
+      def run
         @result = "original_behavior"
       end
     end
 
     # Build returns instance now instead of class
-    result = task_class.build
+    result = task_class.run
     assert_instance_of task_class, result
     assert_equal "original_behavior", result.instance_variable_get(:@result)
 
@@ -188,7 +188,7 @@ class TestBuildFeatures < Minitest::Test
         "FailingTask"
       end
 
-      def build
+      def run
         # Check if this is a parametrized build
         if build_args.any?
           raise StandardError, "parametrized build failed"
@@ -199,12 +199,12 @@ class TestBuildFeatures < Minitest::Test
     end
 
     # First ensure normal build works
-    normal_instance = task_class.build
+    normal_instance = task_class.run
     assert_equal "success", normal_instance.instance_variable_get(:@result)
 
     # Now test parametrized build failure
     error = assert_raises(Taski::TaskBuildError) do
-      task_class.build(mode: "test")
+      task_class.run(mode: "test")
     end
 
     assert_includes error.message, "FailingTask"
@@ -222,7 +222,7 @@ class TestBuildFeatures < Minitest::Test
     base_task = Class.new(Taski::Task) do
       exports :config
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("BaseTask")
         @config = "base-config"
       end
@@ -233,7 +233,7 @@ class TestBuildFeatures < Minitest::Test
     dependent_task = Class.new(Taski::Task) do
       exports :result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("DependentTask")
         @result = "result-using-#{BaseTask.config}"
       end
@@ -242,7 +242,7 @@ class TestBuildFeatures < Minitest::Test
 
     # Reset and build
     TaskiTestHelper.reset_build_order
-    DependentTask.build
+    DependentTask.run
 
     # Verify build order
     build_order = TaskiTestHelper.build_order
@@ -264,7 +264,7 @@ class TestBuildFeatures < Minitest::Test
     define_task = Class.new(Taski::Task) do
       define :shared_value, -> { "shared-data" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("DefineTask")
         puts shared_value
       end
@@ -275,7 +275,7 @@ class TestBuildFeatures < Minitest::Test
     exports_task = Class.new(Taski::Task) do
       exports :combined_result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("ExportsTask")
         @combined_result = "exports-#{DefineTask.shared_value}"
       end
@@ -284,7 +284,7 @@ class TestBuildFeatures < Minitest::Test
 
     # Reset and build
     TaskiTestHelper.reset_build_order
-    capture_io { ExportsTask.build }
+    capture_io { ExportsTask.run }
 
     # Verify build order
     build_order = TaskiTestHelper.build_order
@@ -307,7 +307,7 @@ class TestBuildFeatures < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :timestamp, :build_number
 
-      define_method :build do
+      define_method :run do
         build_counter += 1
         @build_number = build_counter
         @timestamp = Time.now.to_f
@@ -316,13 +316,13 @@ class TestBuildFeatures < Minitest::Test
     Object.const_set(:TimestampTask, task)
 
     # Build first time
-    TimestampTask.build
+    TimestampTask.run
     first_timestamp = TimestampTask.timestamp
     first_build_number = TimestampTask.build_number
 
     # Reset and build again
     TimestampTask.reset!
-    TimestampTask.build
+    TimestampTask.run
     second_timestamp = TimestampTask.timestamp
     second_build_number = TimestampTask.build_number
 
@@ -338,17 +338,17 @@ class TestBuildFeatures < Minitest::Test
     # Test error handling in integration scenario
 
     failing_task = Class.new(Taski::Task) do
-      def build
+      def run
         raise StandardError, "Integration test failure"
       end
     end
     Object.const_set(:FailingIntegrationTask, failing_task)
 
     dependent_task = Class.new(Taski::Task) do
-      def build
+      def run
         # This will create a natural dependency on FailingIntegrationTask
         # and should never execute because FailingIntegrationTask will fail first
-        FailingIntegrationTask.build
+        FailingIntegrationTask.run
         puts "This should not execute"
       end
     end
@@ -356,7 +356,7 @@ class TestBuildFeatures < Minitest::Test
 
     # Should raise TaskBuildError
     assert_raises(Taski::TaskBuildError) do
-      DependentIntegrationTask.build
+      DependentIntegrationTask.run
     end
   end
 
@@ -367,7 +367,7 @@ class TestBuildFeatures < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :value_a
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("TaskA")
         @value_a = "A"
       end
@@ -377,7 +377,7 @@ class TestBuildFeatures < Minitest::Test
     task_b = Class.new(Taski::Task) do
       exports :value_b
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("TaskB")
         @value_b = "B-#{GranularTaskA.value_a}"
       end
@@ -387,7 +387,7 @@ class TestBuildFeatures < Minitest::Test
     task_c = Class.new(Taski::Task) do
       exports :value_c
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("TaskC")
         @value_c = "C-#{GranularTaskB.value_b}"
       end
@@ -396,7 +396,7 @@ class TestBuildFeatures < Minitest::Test
 
     # Test 1: Build only TaskA
     TaskiTestHelper.reset_build_order
-    GranularTaskA.build
+    GranularTaskA.run
 
     assert_equal ["TaskA"], TaskiTestHelper.build_order
     assert_equal "A", GranularTaskA.value_a
@@ -405,7 +405,7 @@ class TestBuildFeatures < Minitest::Test
     GranularTaskA.reset!
     GranularTaskB.reset!
     TaskiTestHelper.reset_build_order
-    GranularTaskB.build
+    GranularTaskB.run
 
     assert_equal ["TaskA", "TaskB"], TaskiTestHelper.build_order
     assert_equal "B-A", GranularTaskB.value_b
@@ -450,7 +450,7 @@ class TestBuildFeatures < Minitest::Test
     PartialDatabase.reset!
 
     TaskiTestHelper.reset_build_order
-    PartialDatabase.build
+    PartialDatabase.run
 
     assert_equal ["Config", "Database"], TaskiTestHelper.build_order
     assert_equal "db-production", PartialDatabase.connection
@@ -468,7 +468,7 @@ class TestBuildFeatures < Minitest::Test
     PartialConfig.reset!
     PartialCache.reset!
     TaskiTestHelper.reset_build_order
-    PartialCache.build
+    PartialCache.run
 
     assert_equal ["Config", "Cache"], TaskiTestHelper.build_order
     assert_equal "cache-production", PartialCache.cache_url
@@ -492,7 +492,7 @@ class TestBuildFeatures < Minitest::Test
         "ParametrizedConfigTask"
       end
 
-      def build
+      def run
         args = build_args
         mode = args[:mode] || "default"
         TaskiTestHelper.track_build_order("Config-#{mode}")
@@ -509,9 +509,9 @@ class TestBuildFeatures < Minitest::Test
         "MiddleProcessorTask"
       end
 
-      def build
+      def run
         # This should trigger parametrized build of base task
-        config = ParametrizedConfigTask.build(mode: "production").config_value
+        config = ParametrizedConfigTask.run(mode: "production").config_value
         TaskiTestHelper.track_build_order("Processor")
         @processed_config = "processed-#{config}"
       end
@@ -522,7 +522,7 @@ class TestBuildFeatures < Minitest::Test
     final_task = Class.new(Taski::Task) do
       exports :final_result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Final")
         @final_result = "final-#{MiddleProcessorTask.processed_config}"
       end
@@ -530,7 +530,7 @@ class TestBuildFeatures < Minitest::Test
     Object.const_set(:FinalResultTask, final_task)
 
     TaskiTestHelper.reset_build_order
-    result = FinalResultTask.build
+    result = FinalResultTask.run
 
     # Verify build order includes parametrized build
     build_order = TaskiTestHelper.build_order
@@ -550,7 +550,7 @@ class TestBuildFeatures < Minitest::Test
         "FailingParametrizedTask"
       end
 
-      def build
+      def run
         args = build_args
         if args[:fail] == true
           raise StandardError, "Parametrized task intentionally failed"
@@ -561,16 +561,16 @@ class TestBuildFeatures < Minitest::Test
     Object.const_set(:FailingParametrizedTask, failing_param_task)
 
     dependent_task = Class.new(Taski::Task) do
-      def build
+      def run
         # This should trigger the failing parametrized build
-        FailingParametrizedTask.build(fail: true)
+        FailingParametrizedTask.run(fail: true)
       end
     end
     Object.const_set(:DependentOnFailingTask, dependent_task)
 
     # Should propagate TaskBuildError with parametrized build information
     error = assert_raises(Taski::TaskBuildError) do
-      DependentOnFailingTask.build
+      DependentOnFailingTask.run
     end
 
     assert_includes error.message, "FailingParametrizedTask"
@@ -588,7 +588,7 @@ class TestBuildFeatures < Minitest::Test
         "ResettableParametrizedTask"
       end
 
-      define_method :build do
+      define_method :run do
         counter += 1
         args = build_args
         mode = args[:mode] || "default"
@@ -598,22 +598,22 @@ class TestBuildFeatures < Minitest::Test
     Object.const_set(:ResettableParametrizedTask, resettable_task)
 
     # First build without parameters (singleton)
-    first_singleton = ResettableParametrizedTask.build
+    first_singleton = ResettableParametrizedTask.run
     assert_equal "default-1", first_singleton.value
 
     # Parametrized build (temporary instance)
-    first_param = ResettableParametrizedTask.build(mode: "test")
+    first_param = ResettableParametrizedTask.run(mode: "test")
     assert_equal "test-2", first_param.instance_variable_get(:@value)
 
     # Reset and build again
     ResettableParametrizedTask.reset!
 
     # Singleton should rebuild
-    second_singleton = ResettableParametrizedTask.build
+    second_singleton = ResettableParametrizedTask.run
     assert_equal "default-3", second_singleton.value
 
     # Parametrized build should also work after reset
-    second_param = ResettableParametrizedTask.build(mode: "test")
+    second_param = ResettableParametrizedTask.run(mode: "test")
     assert_equal "test-4", second_param.instance_variable_get(:@value)
 
     # Verify instances are different but values are as expected
@@ -649,7 +649,7 @@ class TestBuildFeatures < Minitest::Test
     config_task = Class.new(Taski::Task) do
       exports :environment
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Config")
         @environment = "production"
       end
@@ -659,7 +659,7 @@ class TestBuildFeatures < Minitest::Test
     database_task = Class.new(Taski::Task) do
       exports :connection
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Database")
         @connection = "db-#{PartialConfig.environment}"
       end
@@ -669,7 +669,7 @@ class TestBuildFeatures < Minitest::Test
     cache_task = Class.new(Taski::Task) do
       exports :cache_url
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Cache")
         @cache_url = "cache-#{PartialConfig.environment}"
       end
@@ -677,7 +677,7 @@ class TestBuildFeatures < Minitest::Test
     Object.const_set(:PartialCache, cache_task)
 
     app_task = Class.new(Taski::Task) do
-      def build
+      def run
         TaskiTestHelper.track_build_order("Application")
         # Use both database and cache
         @db = PartialDatabase.connection
@@ -695,7 +695,7 @@ class TestBuildFeatures < Minitest::Test
     root_task = Class.new(Taski::Task) do
       exports :root_value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Root")
         @root_value = "root"
       end
@@ -710,7 +710,7 @@ class TestBuildFeatures < Minitest::Test
         "MixedChainParam"
       end
 
-      def build
+      def run
         args = build_args
         mode = args[:mode] || "default"
         TaskiTestHelper.track_build_order("Param-#{mode}")
@@ -723,10 +723,10 @@ class TestBuildFeatures < Minitest::Test
     final_task = Class.new(Taski::Task) do
       exports :final_value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Final")
         # Use parametrized build of middle task
-        param_result = MixedChainParam.build(mode: "fast")
+        param_result = MixedChainParam.run(mode: "fast")
         @final_value = "final-#{param_result.param_value}"
       end
     end

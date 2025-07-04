@@ -36,8 +36,9 @@ module Taski
       # @return [Array<Class>] Array of dependency classes
       def gather_static_dependencies
         build_deps = DependencyAnalyzer.analyze_method(self, :build)
+        run_deps = DependencyAnalyzer.analyze_method(self, :run)
         clean_deps = DependencyAnalyzer.analyze_method(self, :clean)
-        (build_deps + clean_deps).uniq
+        (build_deps + run_deps + clean_deps).uniq
       end
 
       # Add dependencies that don't already exist

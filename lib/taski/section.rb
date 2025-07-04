@@ -90,12 +90,15 @@ module Taski
         self
       end
 
-      # Build method for compatibility (Section doesn't build instances)
+      # Run method for sections (Section doesn't run instances)
       # @param args [Hash] Optional arguments (ignored for sections)
       # @return [self] Returns self
-      def build(**args)
+      def run(**args)
         self
       end
+
+      # Build method for compatibility (Section doesn't build instances)
+      alias_method :build, :run
 
       # Reset method for compatibility (Section doesn't have state to reset)
       # @return [self] Returns self
@@ -169,7 +172,7 @@ module Taski
             end
 
             # Build the implementation and call the method
-            implementation = implementation_class.build
+            implementation = implementation_class.run
 
             begin
               implementation.send(name)

@@ -17,7 +17,7 @@ puts "=" * 40
 class Database < Taski::Task
   exports :connection_string
 
-  def build
+  def run
     @connection_string = "postgres://localhost/myapp"
   end
 end
@@ -25,7 +25,7 @@ end
 class Cache < Taski::Task
   exports :redis_url
 
-  def build
+  def run
     @redis_url = "redis://localhost:6379"
   end
 end
@@ -33,7 +33,7 @@ end
 class Config < Taski::Task
   exports :settings
 
-  def build
+  def run
     @settings = {
       database: Database.connection_string,
       cache: Cache.redis_url,
@@ -45,7 +45,7 @@ end
 class Logger < Taski::Task
   exports :log_level
 
-  def build
+  def run
     @log_level = "info"
   end
 end
@@ -53,13 +53,13 @@ end
 class WebServer < Taski::Task
   exports :server_instance
 
-  def build
+  def run
     @server_instance = "WebServer configured with #{Config.settings[:database]} and #{Logger.log_level}"
   end
 end
 
 class Application < Taski::Task
-  def build
+  def run
     puts "Starting application..."
     puts "Web server: #{WebServer.server_instance}"
     puts "Config: #{Config.settings}"
@@ -82,7 +82,7 @@ puts "\n🔧 Section-based Architecture (Dynamic Implementation Selection):"
 class DatabaseSection < Taski::Section
   interface :connection_string, :pool_size
 
-  def self.impl
+  def impl
     if ENV["DATABASE"] == "postgres"
       PostgresImplementation
     elsif ENV["DATABASE"] == "mysql"
@@ -95,7 +95,7 @@ class DatabaseSection < Taski::Section
   class PostgresImplementation < Taski::Task
     exports :connection_string, :pool_size
 
-    def build
+    def run
       Logger.log_level
       @connection_string = "postgresql://localhost/production_app"
       @pool_size = 20
@@ -105,7 +105,7 @@ class DatabaseSection < Taski::Section
   class MysqlImplementation < Taski::Task
     exports :connection_string, :pool_size
 
-    def build
+    def run
       Logger.log_level
       @connection_string = "mysql://localhost/production_app"
       @pool_size = 15
@@ -115,7 +115,7 @@ class DatabaseSection < Taski::Section
   class SQLiteImplementation < Taski::Task
     exports :connection_string, :pool_size
 
-    def build
+    def run
       @connection_string = "sqlite:///tmp/development.db"
       @pool_size = 1
     end
@@ -126,7 +126,7 @@ end
 class CacheSection < Taski::Section
   interface :cache_url
 
-  def self.impl
+  def impl
     if ENV["CACHE"] == "redis"
       RedisCache
     else
@@ -136,7 +136,7 @@ class CacheSection < Taski::Section
 
   class RedisCache < Taski::Task
     exports :cache_url
-    def build
+    def run
       DatabaseSection.connection_string
       @cache_url = "redis://localhost:6379"
     end
@@ -144,7 +144,7 @@ class CacheSection < Taski::Section
 
   class MemoryCache < Taski::Task
     exports :cache_url
-    def build
+    def run
       @cache_url = "memory://local"
     end
   end
@@ -202,4 +202,4 @@ puts "#{Taski::TreeColors.connector("Gray")} = Tree connectors"
 Taski::TreeColors.enabled = nil
 
 puts "\n▶️  Building Application (to verify dependencies work):"
-Application.build
+Application.run

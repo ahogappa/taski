@@ -315,7 +315,7 @@ class TestProgressDisplayIntegration < Minitest::Test
     test_task = Class.new(Taski::Task) do
       exports :result
 
-      def build
+      def run
         puts "Building test task..."
         puts "Processing data..."
         # Ensure output is flushed
@@ -325,7 +325,7 @@ class TestProgressDisplayIntegration < Minitest::Test
     end
     Object.const_set(:IntegrationTestTask, test_task)
 
-    IntegrationTestTask.build
+    IntegrationTestTask.run
 
     output_str = @output.string
     # Test that the task completed successfully and progress was displayed
@@ -351,7 +351,7 @@ class TestTreeDisplay < Minitest::Test
     # Test simple dependency tree display
     task_a = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "A"
       end
     end
@@ -359,7 +359,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_b = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "B with #{TreeTaskA.value}"
       end
     end
@@ -373,7 +373,7 @@ class TestTreeDisplay < Minitest::Test
     # Test complex dependency tree display
     task_a = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "A"
       end
     end
@@ -381,7 +381,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_b = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "B with #{TreeTaskCompA.value}"
       end
     end
@@ -389,7 +389,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_c = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "C with #{TreeTaskCompA.value}"
       end
     end
@@ -397,7 +397,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_d = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "D with #{TreeTaskCompB.value} and #{TreeTaskCompC.value}"
       end
     end
@@ -414,7 +414,7 @@ class TestTreeDisplay < Minitest::Test
     # Test deep nested dependency tree
     task_d = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "Deep D"
       end
     end
@@ -422,7 +422,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_c = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "Deep C with #{DeepTreeD.value}"
       end
     end
@@ -430,7 +430,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_b = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "Deep B with #{DeepTreeC.value}"
       end
     end
@@ -438,7 +438,7 @@ class TestTreeDisplay < Minitest::Test
 
     task_a = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "Deep A with #{DeepTreeB.value}"
       end
     end
@@ -463,9 +463,9 @@ class TestTreeDisplay < Minitest::Test
         "CircularTaskA"
       end
 
-      def build
+      def run
         # Create self-dependency by calling own build method
-        @value = CircularTaskA.build.value
+        @value = CircularTaskA.run.value
       end
     end
     Object.const_set(:CircularTaskA, task_a)
@@ -476,7 +476,7 @@ class TestTreeDisplay < Minitest::Test
 
     # But building should fail with circular dependency error
     error = assert_raises(Taski::TaskBuildError) do
-      CircularTaskA.build
+      CircularTaskA.run
     end
     assert_includes error.message, "Circular dependency detected"
   end
@@ -485,7 +485,7 @@ class TestTreeDisplay < Minitest::Test
     # Test tree with multiple branches and shared dependencies
     shared_task = Class.new(Taski::Task) do
       exports :shared_value
-      def build
+      def run
         @shared_value = "shared"
       end
     end
@@ -493,7 +493,7 @@ class TestTreeDisplay < Minitest::Test
 
     branch_a = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "Branch A with #{SharedTreeTask.shared_value}"
       end
     end
@@ -501,14 +501,14 @@ class TestTreeDisplay < Minitest::Test
 
     branch_b = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "Branch B with #{SharedTreeTask.shared_value}"
       end
     end
     Object.const_set(:BranchTreeB, branch_b)
 
     root_task = Class.new(Taski::Task) do
-      def build
+      def run
         puts "Root with #{BranchTreeA.value} and #{BranchTreeB.value}"
       end
     end
@@ -531,7 +531,7 @@ class TestTreeDisplay < Minitest::Test
     # Test tree display for task with no dependencies
     standalone_task = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "standalone"
       end
     end
@@ -550,14 +550,14 @@ class TestTreeDisplay < Minitest::Test
         "dynamic config"
       }
 
-      def build
+      def run
         @config_value = dynamic_config
       end
     end
     Object.const_set(:DefineTreeTask, define_task)
 
     consumer_task = Class.new(Taski::Task) do
-      def build
+      def run
         puts "Using #{DefineTreeTask.config_value}"
       end
     end
@@ -781,7 +781,7 @@ class TestLogger < Minitest::Test
     test_task = Class.new(Taski::Task) do
       exports :result
 
-      def build
+      def run
         @result = "test result"
       end
     end
@@ -791,7 +791,7 @@ class TestLogger < Minitest::Test
     Taski.configure_logger(level: :info, output: @output)
 
     # Build the task
-    LogTestTask.build
+    LogTestTask.run
 
     output = @output.string
     assert_includes output, "Task build started"
@@ -802,7 +802,7 @@ class TestLogger < Minitest::Test
   def test_integration_with_task_failure
     # Test that our logging works when tasks fail
     failing_task = Class.new(Taski::Task) do
-      def build
+      def run
         raise StandardError, "Intentional test failure"
       end
     end
@@ -813,7 +813,7 @@ class TestLogger < Minitest::Test
 
     # Build the task and expect failure
     assert_raises(Taski::TaskBuildError) do
-      LogFailingTask.build
+      LogFailingTask.run
     end
 
     output = @output.string

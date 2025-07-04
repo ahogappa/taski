@@ -24,7 +24,7 @@ puts "-" * 50
 class ConfigTask < Taski::Task
   exports :database_url, :cache_url
 
-  def build
+  def run
     sleep 0.8
     @database_url = "postgres://localhost/myapp"
     @cache_url = "redis://localhost:6379"
@@ -34,7 +34,7 @@ end
 class DatabaseTask < Taski::Task
   exports :connection
 
-  def build
+  def run
     sleep 1.2
     @connection = "Connected to #{ConfigTask.database_url}"
   end
@@ -43,14 +43,14 @@ end
 class ApplicationTask < Taski::Task
   exports :status
 
-  def build
+  def run
     sleep 1.0
     db = DatabaseTask.connection
     @status = "App ready! #{db}"
   end
 end
 
-ApplicationTask.build
+ApplicationTask.run
 puts "🎉 Application Status: #{ApplicationTask.status}"
 
 # SECTION 2: Output Capture Demo
@@ -60,7 +60,7 @@ puts "-" * 50
 class VerboseTask < Taski::Task
   exports :result
 
-  def build
+  def run
     puts "Starting task initialization..."
     sleep 0.3
 
@@ -83,7 +83,7 @@ class VerboseTask < Taski::Task
   end
 end
 
-VerboseTask.build
+VerboseTask.run
 puts "📊 Verbose Task Result: #{VerboseTask.result}"
 
 # SECTION 3: Production Build Scenario
@@ -93,7 +93,7 @@ puts "-" * 50
 class CompileTask < Taski::Task
   exports :result
 
-  def build
+  def run
     puts "Starting compilation process..."
     sleep 0.8
 
@@ -121,7 +121,7 @@ end
 class TestTask < Taski::Task
   exports :test_result
 
-  def build
+  def run
     puts "Running test suite..."
     sleep 0.2
 
@@ -135,10 +135,10 @@ class TestTask < Taski::Task
   end
 end
 
-CompileTask.build
+CompileTask.run
 puts "📦 Compilation: #{CompileTask.result}"
 
-TestTask.build
+TestTask.run
 puts "🧪 Test Result: #{TestTask.test_result}"
 
 # SECTION 4: Error Handling Demo
@@ -146,7 +146,7 @@ puts "\n📍 SECTION 4: Error Handling Demo"
 puts "-" * 50
 
 class FailingTask < Taski::Task
-  def build
+  def run
     puts "Attempting network connection..."
     sleep 1.0  # Watch it spin before failing
     puts "Connection timeout after 30 seconds"
@@ -157,7 +157,7 @@ class FailingTask < Taski::Task
 end
 
 begin
-  FailingTask.build
+  FailingTask.run
 rescue Taski::TaskBuildError => e
   puts "🛡️  Error handled gracefully: #{e.message}"
 end

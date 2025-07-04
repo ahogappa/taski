@@ -33,7 +33,7 @@ class TestSection < Minitest::Test
     test_implementation = Class.new(Taski::Task) do
       exports :database_url
 
-      def build
+      def run
         @database_url = "postgresql://localhost:5432/test"
       end
     end
@@ -54,7 +54,7 @@ class TestSection < Minitest::Test
     production_task = Class.new(Taski::Task) do
       exports :database_url, :timeout
 
-      def build
+      def run
         @database_url = "postgresql://prod:5432/app"
         @timeout = 30
       end
@@ -75,7 +75,7 @@ class TestSection < Minitest::Test
     end
 
     simple_task = Class.new(Taski::Task) do
-      def build
+      def run
         @connection_string = "sqlite::memory:"
         @pool_size = 1
       end
@@ -95,7 +95,7 @@ class TestSection < Minitest::Test
     end
 
     development_task = Class.new(Taski::Task) do
-      def build
+      def run
         @host = "localhost"
         @port = 3000
       end
@@ -121,7 +121,7 @@ class TestSection < Minitest::Test
     test_implementation = Class.new(Taski::Task) do
       exports :value
 
-      def build
+      def run
         @value = "no-self-impl"
       end
     end
@@ -183,7 +183,7 @@ class TestSection < Minitest::Test
 
     test_task = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "test"
       end
     end
@@ -191,7 +191,7 @@ class TestSection < Minitest::Test
     section_class.const_set(:TestImplementation, test_task)
 
     assert_equal section_class, section_class.reset!
-    assert_equal section_class, section_class.build
+    assert_equal section_class, section_class.run
     assert_equal section_class, section_class.ensure_instance_built
   end
 
@@ -214,14 +214,14 @@ class TestSection < Minitest::Test
 
     postgres_impl = Class.new(Taski::Task) do
       exports :database_url
-      def build
+      def run
         @database_url = "postgresql://localhost/test"
       end
     end
 
     mysql_impl = Class.new(Taski::Task) do
       exports :database_url
-      def build
+      def run
         @database_url = "mysql://localhost/test"
       end
     end
@@ -259,14 +259,14 @@ class TestSection < Minitest::Test
 
     redis_cache = Class.new(Taski::Task) do
       exports :cache_client
-      def build
+      def run
         @cache_client = "redis client"
       end
     end
 
     memory_cache = Class.new(Taski::Task) do
       exports :cache_client
-      def build
+      def run
         @cache_client = "memory cache"
       end
     end
@@ -320,7 +320,7 @@ class TestSection < Minitest::Test
 
     postgres_impl = Class.new(Taski::Task) do
       exports :database_url
-      def build
+      def run
         @database_url = "postgresql://localhost/test"
       end
     end
@@ -360,14 +360,14 @@ class TestSection < Minitest::Test
     # Create dependencies
     dep_task = Class.new(Taski::Task) do
       exports :dep_value
-      def build
+      def run
         @dep_value = "dependency"
       end
     end
 
     impl_task = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "#{dep_task.dep_value} + implementation"
       end
     end
@@ -400,14 +400,14 @@ class TestSection < Minitest::Test
 
     dep_impl = Class.new(Taski::Task) do
       exports :dep_value
-      def build
+      def run
         @dep_value = "dependency"
       end
     end
 
     impl_task = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "test"
       end
     end
@@ -454,14 +454,14 @@ class TestSection < Minitest::Test
         true
       end
 
-      def build
+      def run
         @config_ready = true
       end
     end
 
     impl_task = Class.new(Taski::Task) do
       exports :database_url, :pool_size
-      def build
+      def run
         @database_url = "postgresql://localhost"
         @pool_size = 5
       end
@@ -555,7 +555,7 @@ class TestSection < Minitest::Test
 
     impl_task = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "instance impl"
       end
     end
@@ -578,7 +578,7 @@ class TestSection < Minitest::Test
       def impl
         # This references OtherTask which should be detected as dependency
         if defined?(OtherTask)
-          OtherTask.build
+          OtherTask.run
         end
         self::TestImplementation
       end

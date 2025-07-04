@@ -16,13 +16,13 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
       const_set(:TaskA, Class.new(Taski::Task) do
         exports :value
 
-        def build
+        def run
           @value = "value_from_A"
         end
       end)
 
       const_set(:TaskB, Class.new(Taski::Task) do
-        def build
+        def run
           # Relative reference within same namespace - this should be detected
           puts "Using: #{TaskA.value}"
         end
@@ -53,7 +53,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     # Static analysis should detect absolute references even in conditional blocks
 
     consumer_task = Class.new(Taski::Task) do
-      def build
+      def run
         if Object.const_defined?(:ConditionalNamespace)
           puts "Using: #{ConditionalNamespace::ConditionalTask.value}"
         else
@@ -68,7 +68,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
       const_set(:ConditionalTask, Class.new(Taski::Task) do
         exports :value
 
-        def build
+        def run
           @value = "conditional_value"
         end
       end)
@@ -95,7 +95,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     # Future enhancement: could show unresolved dependencies with indication
 
     consumer_task = Class.new(Taski::Task) do
-      def build
+      def run
         puts "Using: #{UnresolvedNamespace::UnresolvedTask.value}"
       end
     end
@@ -119,13 +119,13 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     user_namespace = Module.new do
       const_set(:AA, Class.new(Taski::Task) do
         exports :a_value
-        def build
+        def run
           @a_value = "Value from A"
         end
       end)
 
       const_set(:AB, Class.new(Taski::Task) do
-        def build
+        def run
           # This exact pattern from user's a.rb - relative reference
           p AA.a_value
         end
@@ -153,7 +153,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
     # This is expected behavior - dynamic constant resolution cannot be statically analyzed
 
     consumer_task = Class.new(Taski::Task) do
-      def build
+      def run
         namespace_name = "DynamicTestNamespace"
         task_name = "DynamicTestTask"
         namespace = Object.const_get(namespace_name)
@@ -168,7 +168,7 @@ class TestNamespaceDependencyAnalysis < Minitest::Test
       const_set(:DynamicTestTask, Class.new(Taski::Task) do
         exports :value
 
-        def build
+        def run
           @value = "dynamic_value"
         end
       end)

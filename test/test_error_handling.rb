@@ -14,7 +14,7 @@ class TestErrorHandling < Minitest::Test
   def test_build_error_handling
     # Test error handling during build
     task = Class.new(Taski::Task) do
-      def build
+      def run
         raise StandardError, "Build failed intentionally"
       end
     end
@@ -22,7 +22,7 @@ class TestErrorHandling < Minitest::Test
 
     # Building should raise TaskBuildError
     error = assert_raises(Taski::TaskBuildError) do
-      ErrorTaskA.build
+      ErrorTaskA.run
     end
 
     assert_includes error.message, "Failed to build task ErrorTaskA"
@@ -71,7 +71,7 @@ class TestErrorHandling < Minitest::Test
   def test_build_dependencies_error_resilience
     # Test that build continues even if one dependency fails
     failing_task = Class.new(Taski::Task) do
-      def build
+      def run
         raise StandardError, "Intentional failure"
       end
     end
@@ -80,9 +80,9 @@ class TestErrorHandling < Minitest::Test
     dependent_task = Class.new(Taski::Task) do
       exports :result
 
-      def build
-        # This will fail because FailingTask.build raises an error
-        FailingTask.build
+      def run
+        # This will fail because FailingTask.run raises an error
+        FailingTask.run
         @result = "This should not be reached"
       end
     end
@@ -90,7 +90,7 @@ class TestErrorHandling < Minitest::Test
 
     # Should raise TaskBuildError due to failing dependency
     assert_raises(Taski::TaskBuildError) do
-      DependentTask.build
+      DependentTask.run
     end
   end
 
@@ -99,10 +99,10 @@ class TestErrorHandling < Minitest::Test
     task = Taski::Task.new
 
     error = assert_raises(NotImplementedError) do
-      task.build
+      task.run
     end
 
-    assert_includes error.message, "You must implement the build method"
+    assert_includes error.message, "You must implement the run method"
   end
 
   def test_define_with_existing_ref_works_correctly
@@ -111,7 +111,7 @@ class TestErrorHandling < Minitest::Test
     # Create an existing task
     existing_task = Class.new(Taski::Task) do
       exports :value
-      def build
+      def run
         @value = "existing_value"
       end
     end
@@ -121,14 +121,14 @@ class TestErrorHandling < Minitest::Test
     ref_task = Class.new(Taski::Task) do
       define :result, -> { ref("ExistingRefTaskWorking").value }
 
-      def build
+      def run
         # Empty build method (DefineAPI doesn't require build implementation)
       end
     end
     Object.const_set(:RefUsingTaskWorking, ref_task)
 
     # Build first to trigger dependency resolution
-    ref_task.build
+    ref_task.run
 
     # This should work without error
     result = ref_task.result
@@ -141,7 +141,7 @@ class TestErrorHandling < Minitest::Test
     ref_task = Class.new(Taski::Task) do
       define :result, -> { ref("NonExistentRefTask").value }
 
-      def build
+      def run
         # Empty build method (DefineAPI doesn't require build implementation)
       end
     end
@@ -149,7 +149,7 @@ class TestErrorHandling < Minitest::Test
 
     # build should raise TaskAnalysisError in phase 2 (before execution)
     error = assert_raises(Taski::TaskAnalysisError) do
-      RefFailingTask.build
+      RefFailingTask.run
     end
 
     assert_includes error.message, "Task 'RefFailingTask' cannot resolve ref('NonExistentRefTask')"

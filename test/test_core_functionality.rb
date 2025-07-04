@@ -19,7 +19,7 @@ class TestCoreFunctionality < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :task_a_result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("ExportTaskA")
         @task_a_result = "Task A"
       end
@@ -29,7 +29,7 @@ class TestCoreFunctionality < Minitest::Test
     task_b = Class.new(Taski::Task) do
       exports :task_b_result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("ExportTaskB")
         @task_b_result = "Task B with #{ExportTaskA.task_a_result}"
       end
@@ -39,7 +39,7 @@ class TestCoreFunctionality < Minitest::Test
     task_c = Class.new(Taski::Task) do
       exports :task_c_result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("ExportTaskC")
         @task_c_result = "Task C with #{ExportTaskA.task_a_result} and #{ExportTaskB.task_b_result}"
       end
@@ -48,7 +48,7 @@ class TestCoreFunctionality < Minitest::Test
 
     # Reset and build
     TaskiTestHelper.reset_build_order
-    ExportTaskC.build
+    ExportTaskC.run
 
     # Verify build order
     build_order = TaskiTestHelper.build_order
@@ -75,7 +75,7 @@ class TestCoreFunctionality < Minitest::Test
 
       exports :existing_method, :new_method
 
-      def build
+      def run
         @existing_method = "exported"
         @new_method = "new"
       end
@@ -84,7 +84,7 @@ class TestCoreFunctionality < Minitest::Test
 
     assert_equal "original", ExistingMethodTask.existing_method
 
-    ExistingMethodTask.build
+    ExistingMethodTask.run
     assert_equal "new", ExistingMethodTask.new_method
   end
 
@@ -92,7 +92,7 @@ class TestCoreFunctionality < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :task_name, :version, :config
 
-      def build
+      def run
         @task_name = "MultiTask"
         @version = "1.0.0"
         @config = {debug: true, timeout: 30}
@@ -101,7 +101,7 @@ class TestCoreFunctionality < Minitest::Test
     Object.const_set(:MultiExportTask, task)
 
     # Build and verify all exports work
-    MultiExportTask.build
+    MultiExportTask.run
 
     assert_equal "MultiTask", MultiExportTask.task_name
     assert_equal "1.0.0", MultiExportTask.version
@@ -109,7 +109,7 @@ class TestCoreFunctionality < Minitest::Test
 
     # Verify instance methods also work
     instance = MultiExportTask.new
-    instance.build
+    instance.run
     assert_equal "MultiTask", instance.task_name
     assert_equal "1.0.0", instance.version
     assert_equal({debug: true, timeout: 30}, instance.config)
@@ -120,7 +120,7 @@ class TestCoreFunctionality < Minitest::Test
     base_task = Class.new(Taski::Task) do
       exports :base_value
 
-      def build
+      def run
         @base_value = "base"
       end
     end
@@ -129,7 +129,7 @@ class TestCoreFunctionality < Minitest::Test
     derived_task = Class.new(BaseTaskA) do
       exports :derived_value
 
-      def build
+      def run
         super
         @derived_value = "derived with #{base_value}"
       end
@@ -137,7 +137,7 @@ class TestCoreFunctionality < Minitest::Test
     Object.const_set(:DerivedTaskA, derived_task)
 
     # Build derived task
-    DerivedTaskA.build
+    DerivedTaskA.run
 
     # Both base and derived values should be accessible
     assert_equal "base", DerivedTaskA.base_value
@@ -154,7 +154,7 @@ class TestCoreFunctionality < Minitest::Test
     task_a = Class.new(Taski::Task) do
       define :task_a, -> { "Task A" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("SimpleTaskA")
         puts task_a
       end
@@ -164,7 +164,7 @@ class TestCoreFunctionality < Minitest::Test
     task_b = Class.new(Taski::Task) do
       define :simple_task, -> { "Task result is #{SimpleTaskA.task_a}" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("SimpleTaskB")
         puts simple_task
       end
@@ -174,7 +174,7 @@ class TestCoreFunctionality < Minitest::Test
     # Reset build order tracking
     TaskiTestHelper.reset_build_order
 
-    assert_output("Task A\nTask result is Task A\n") { SimpleTaskB.build }
+    assert_output("Task A\nTask result is Task A\n") { SimpleTaskB.run }
 
     # Verify build order
     build_order = TaskiTestHelper.build_order
@@ -188,7 +188,7 @@ class TestCoreFunctionality < Minitest::Test
     base_component = Class.new(Taski::Task) do
       define :compile, -> { "Base component compiled" }
 
-      def build
+      def run
         puts compile
         "base-built"
       end
@@ -198,7 +198,7 @@ class TestCoreFunctionality < Minitest::Test
     frontend = Class.new(Taski::Task) do
       define :build_ui, -> { "Frontend UI built using #{BaseComponent.compile}" }
 
-      def build
+      def run
         puts build_ui
         "frontend-built"
       end
@@ -206,7 +206,7 @@ class TestCoreFunctionality < Minitest::Test
     Object.const_set(:Frontend, frontend)
 
     # Execute frontend build which should trigger BaseComponent dependency
-    output = capture_io { Frontend.build }
+    output = capture_io { Frontend.run }
 
     # Verify that dependency was resolved and both tasks executed
     assert_includes output[0], "Base component compiled"
@@ -218,7 +218,7 @@ class TestCoreFunctionality < Minitest::Test
     base_component = Class.new(Taski::Task) do
       define :compile, -> { "Base component compiled" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("BaseComponent")
         puts compile
       end
@@ -228,7 +228,7 @@ class TestCoreFunctionality < Minitest::Test
     frontend = Class.new(Taski::Task) do
       define :build_ui, -> { "Frontend UI built using #{BaseComponent.compile}" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Frontend")
         puts build_ui
       end
@@ -238,7 +238,7 @@ class TestCoreFunctionality < Minitest::Test
     application = Class.new(Taski::Task) do
       define :build_app, -> { "Application built with: #{Frontend.build_ui}" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Application")
         puts build_app
       end
@@ -246,7 +246,7 @@ class TestCoreFunctionality < Minitest::Test
     Object.const_set(:Application, application)
 
     TaskiTestHelper.reset_build_order
-    capture_io { Application.build }
+    capture_io { Application.run }
 
     # Verify execution order
     build_order = TaskiTestHelper.build_order
@@ -263,7 +263,7 @@ class TestCoreFunctionality < Minitest::Test
     base_component = Class.new(Taski::Task) do
       define :compile, -> { "Base component compiled" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("BaseComponent")
         puts compile
       end
@@ -273,7 +273,7 @@ class TestCoreFunctionality < Minitest::Test
     frontend = Class.new(Taski::Task) do
       define :build_ui, -> { "Frontend UI built using #{BaseComponent.compile}" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Frontend")
         puts build_ui
       end
@@ -283,7 +283,7 @@ class TestCoreFunctionality < Minitest::Test
     backend = Class.new(Taski::Task) do
       define :build_api, -> { "Backend API built using #{BaseComponent.compile}" }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Backend")
         puts build_api
       end
@@ -295,7 +295,7 @@ class TestCoreFunctionality < Minitest::Test
         "Application built with:\n- #{Frontend.build_ui}\n- #{Backend.build_api}"
       }
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("Application")
         puts build_app
       end
@@ -303,7 +303,7 @@ class TestCoreFunctionality < Minitest::Test
     Object.const_set(:Application, application)
 
     TaskiTestHelper.reset_build_order
-    capture_io { Application.build }
+    capture_io { Application.run }
 
     # Verify BaseComponent was built exactly once despite being a dependency of both Frontend and Backend
     build_order = TaskiTestHelper.build_order
@@ -321,14 +321,14 @@ class TestCoreFunctionality < Minitest::Test
     task = Class.new(Taski::Task) do
       define :task_with_options, -> { "value with options" }, priority: :high
 
-      def build
+      def run
         puts task_with_options
       end
     end
     Object.const_set(:OptionsTaskA, task)
 
     # Build to create the method and then test value
-    capture_io { OptionsTaskA.build }
+    capture_io { OptionsTaskA.run }
     assert_equal "value with options", OptionsTaskA.task_with_options
 
     # Options functionality is tested implicitly through the behavior
@@ -343,7 +343,7 @@ class TestCoreFunctionality < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :value
 
-      def build
+      def run
         @value = "built"
         puts "TaskA build"
       end
@@ -355,7 +355,7 @@ class TestCoreFunctionality < Minitest::Test
     Object.const_set(:CleanTaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      def build
+      def run
         puts "TaskB build with #{CleanTaskA.value}"
       end
 
@@ -380,7 +380,7 @@ class TestCoreFunctionality < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :value
 
-      def build
+      def run
         @value = "refreshed_#{object_id}"
       end
     end
@@ -407,7 +407,7 @@ class TestCoreFunctionality < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :value
 
-      def build
+      def run
         @value = "built_#{object_id}"
       end
     end
@@ -431,9 +431,9 @@ class TestCoreFunctionality < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :result_a
 
-      def build
+      def run
         puts "CircularTaskA"
-        @result_a = CircularTaskB.build.result_b
+        @result_a = CircularTaskB.run.result_b
       end
     end
     Object.const_set(:CircularTaskA, task_a)
@@ -441,16 +441,16 @@ class TestCoreFunctionality < Minitest::Test
     task_b = Class.new(Taski::Task) do
       exports :result_b
 
-      def build
+      def run
         puts "CircularTaskB"
-        @result_b = CircularTaskA.build.result_a
+        @result_b = CircularTaskA.run.result_a
       end
     end
     Object.const_set(:CircularTaskB, task_b)
 
     # Attempting to build should raise TaskBuildError with circular dependency message
     error = assert_raises(Taski::TaskBuildError) do
-      CircularTaskA.build
+      CircularTaskA.run
     end
     assert_includes error.message, "Circular dependency detected"
   end

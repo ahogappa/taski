@@ -19,7 +19,7 @@ puts "=" * 30
 class DatabaseSetup < Taski::Task
   exports :connection_string
 
-  def build
+  def run
     @connection_string = "postgresql://localhost/myapp"
     puts "Database configured"
   end
@@ -28,14 +28,14 @@ end
 class APIServer < Taski::Task
   exports :port
 
-  def build
-    # Automatic dependency: DatabaseSetup will be built first
+  def run
+    # Automatic dependency: DatabaseSetup will be executed first
     puts "Starting API with #{DatabaseSetup.connection_string}"
     @port = 3000
   end
 end
 
 # Execute - dependencies are resolved automatically
-APIServer.build
+APIServer.run
 
 puts "\n✅ Result: APIServer running on port #{APIServer.port}"

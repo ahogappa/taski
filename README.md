@@ -19,19 +19,19 @@ require 'taski'
 class DatabaseSetup < Taski::Task
   exports :connection_string
 
-  def build
+  def run
     @connection_string = "postgresql://localhost/myapp"
     puts "Database configured"
   end
 end
 
 class APIServer < Taski::Task
-  def build
+  def run
     puts "Starting API with #{DatabaseSetup.connection_string}"
   end
 end
 
-APIServer.build
+APIServer.run  # You can also use APIServer.build for compatibility
 # => Database configured
 # => Starting API with postgresql://localhost/myapp
 ```
@@ -46,7 +46,7 @@ For simple, predictable dependencies:
 class ConfigLoader < Taski::Task
   exports :app_name, :version
 
-  def build
+  def run
     @app_name = "MyApp"
     @version = "1.0.0"
     puts "Config loaded: #{@app_name} v#{@version}"
@@ -54,13 +54,13 @@ class ConfigLoader < Taski::Task
 end
 
 class Deployment < Taski::Task
-  def build
+  def run
     @deploy_url = "https://#{ConfigLoader.app_name}.example.com"
     puts "Deploying to #{@deploy_url}"
   end
 end
 
-Deployment.build
+Deployment.run
 # => Config loaded: MyApp v1.0.0
 # => Deploying to https://MyApp.example.com
 ```
@@ -80,19 +80,19 @@ class EnvironmentConfig < Taski::Task
     end
   }
 
-  def build
+  def run
     puts "Using database: #{database_service}"
     puts "Environment: #{ENV['RAILS_ENV'] || 'development'}"
   end
 end
 
-EnvironmentConfig.build
+EnvironmentConfig.run
 # => Using database: localhost:5432
 # => Environment: development
 
 ENV['RAILS_ENV'] = 'production'
 EnvironmentConfig.reset!
-EnvironmentConfig.build
+EnvironmentConfig.run
 # => Using database: production-db.example.com
 # => Environment: production
 ```
@@ -110,14 +110,14 @@ class DatabaseSection < Taski::Section
   end
 
   class Production < Taski::Task
-    def build
+    def run
       @host = "prod-db.example.com"
       @port = 5432
     end
   end
 
   class Development < Taski::Task
-    def build
+    def run
       @host = "localhost"
       @port = 5432
     end
@@ -126,18 +126,18 @@ end
 
 # Usage is simple - Section works like any Task
 class App < Taski::Task
-  def build
+  def run
     puts "DB: #{DatabaseSection.host}:#{DatabaseSection.port}"
   end
 end
 
-App.build  # => DB: localhost:5432
+App.run  # => DB: localhost:5432
 ```
 
 ### When to Use Each API
 
 - **Define API**: Best for dynamic runtime dependencies. Cannot contain side effects in definition blocks. Dependencies are analyzed at class definition time, not runtime.
-- **Exports API**: Ideal for static dependencies. Supports side effects in build methods.
+- **Exports API**: Ideal for static dependencies. Supports side effects in run methods.
 - **Section API**: Perfect for abstraction layers where you need different implementations based on runtime conditions while maintaining static analysis capabilities.
 
 | Use Case | API | Example |
@@ -162,7 +162,7 @@ end
 
 class TaskB < Taski::Task
   exports :value
-  def build
+  def run
     @value = "B result"
   end
 end
@@ -195,17 +195,17 @@ Visualize task dependencies with the `tree` method:
 ```ruby
 class Database < Taski::Task
   exports :connection
-  def build; @connection = "db-conn"; end
+  def run; @connection = "db-conn"; end
 end
 
 class Cache < Taski::Task
   exports :redis_url
-  def build; @redis_url = "redis://localhost"; end
+  def run; @redis_url = "redis://localhost"; end
 end
 
 class Config < Taski::Task
   exports :settings
-  def build
+  def run
     @settings = {
       database: Database.connection,
       cache: Cache.redis_url
@@ -214,7 +214,7 @@ class Config < Taski::Task
 end
 
 class WebServer < Taski::Task
-  def build
+  def run
     puts "Starting with #{Config.settings}"
   end
 end
@@ -237,7 +237,7 @@ Taski provides visual feedback during task execution with animated spinners and 
 
 ```ruby
 class LongRunningTask < Taski::Task
-  def build
+  def run
     puts "Starting process..."
     sleep(1.0)
     puts "Processing data..."
@@ -247,7 +247,7 @@ class LongRunningTask < Taski::Task
   end
 end
 
-LongRunningTask.build
+LongRunningTask.run
 # During execution shows:
 # ⠧ LongRunningTask
 #   Starting process...
@@ -271,28 +271,28 @@ LongRunningTask.build
 Execute any task individually - Taski builds only required dependencies:
 
 ```ruby
-# Build specific components
-ConfigLoader.build           # Builds only ConfigLoader
+# Run specific components
+ConfigLoader.run           # Runs only ConfigLoader
 # => Config loaded: MyApp v1.0.0
 
-EnvironmentConfig.build      # Builds EnvironmentConfig and its dependencies
+EnvironmentConfig.run      # Runs EnvironmentConfig and its dependencies
 # => Using database: localhost:5432
 # => Environment: development
 
-# Access values (triggers build if needed)
-puts ConfigLoader.version    # Builds ConfigLoader if not built
+# Access values (triggers execution if needed)
+puts ConfigLoader.version    # Runs ConfigLoader if not executed
 # => 1.0.0
 ```
 
 ### Lifecycle Management
 
-Tasks can define both build and clean methods. Clean operations run in reverse dependency order:
+Tasks can define both run and clean methods. Clean operations run in reverse dependency order:
 
 ```ruby
 class DatabaseSetup < Taski::Task
   exports :connection
 
-  def build
+  def run
     @connection = "db-connection"
     puts "Database connected"
   end
@@ -303,7 +303,7 @@ class DatabaseSetup < Taski::Task
 end
 
 class WebServer < Taski::Task
-  def build
+  def run
     puts "Web server started with #{DatabaseSetup.connection}"
   end
 
@@ -312,7 +312,7 @@ class WebServer < Taski::Task
   end
 end
 
-WebServer.build
+WebServer.run
 # => Database connected
 # => Web server started with db-connection
 
@@ -329,7 +329,7 @@ WebServer.clean
 class FileTask < Taski::Task
   exports :output_file
 
-  def build
+  def run
     @output_file = '/tmp/data.csv'
     File.write(@output_file, process_data)
   end
@@ -348,7 +348,7 @@ end
 
 ```ruby
 begin
-  TaskWithCircularDep.build
+  TaskWithCircularDep.run
 rescue Taski::CircularDependencyError => e
   puts "Circular dependency: #{e.message}"
 end
@@ -367,27 +367,27 @@ Taski resolves dependencies in three distinct phases, each with specific error d
 | Phase | Timing | Dependencies Resolved | Common Errors |
 |-------|--------|----------------------|---------------|
 | **Phase 1: Definition Time** | Class loading | Exports API static analysis | Missing method definitions, syntax errors |
-| **Phase 2: Pre-execution** | Before `.build()` call | Define API ref() validation, dependency graph | Circular dependencies, missing ref() targets |
-| **Phase 3: Execution** | During `.build()` call | Runtime method calls | Build failures, runtime exceptions |
+| **Phase 2: Pre-execution** | Before `.run()` call | Define API ref() validation, dependency graph | Circular dependencies, missing ref() targets |
+| **Phase 3: Execution** | During `.run()` call | Runtime method calls | Runtime failures, runtime exceptions |
 
 ```ruby
 # Phase 1: Static analysis errors (at class definition)
 class BadTask < Taski::Task
   exports :value
-  def build
+  def run
     @value = UndefinedTask.value  # ❌ Detected immediately
   end
 end
 
 # Phase 2: Reference validation errors (before execution)
 class RefTask < Taski::Task
-  define :result, -> { ref("NonExistentTask").value }  # ❌ Detected at .build()
+  define :result, -> { ref("NonExistentTask").value }  # ❌ Detected at .run()
 end
 
 # Phase 3: Runtime errors (during execution)
 class RuntimeTask < Taski::Task
-  def build
-    raise "Build failed"  # ❌ Detected during task execution
+  def run
+    raise "Task failed"  # ❌ Detected during task execution
   end
 end
 ```

@@ -7,10 +7,10 @@ module Taski
     class << self
       # === Lifecycle Management ===
 
-      # Build this task and all its dependencies
-      # @param args [Hash] Optional arguments for parametrized builds
+      # Run this task and all its dependencies
+      # @param args [Hash] Optional arguments for parametrized runs
       # @return [Task] Returns task instance (singleton or temporary)
-      def build(**args)
+      def run(**args)
         if args.empty?
           resolve_dependencies.reverse_each do |task_class|
             task_class.ensure_instance_built
@@ -18,9 +18,12 @@ module Taski
           # Return the singleton instance for consistency
           instance_variable_get(:@__task_instance)
         else
-          build_with_args(args)
+          run_with_args(args)
         end
       end
+
+      # Alias for backward compatibility
+      alias_method :build, :run
 
       # Clean this task and all its dependencies in reverse order
       def clean
@@ -49,31 +52,33 @@ module Taski
         reset!
       end
 
-      # === Parametrized Build Support ===
+      # === Parametrized Run Support ===
 
-      # Build temporary instance with arguments
-      # @param args [Hash] Build arguments
+      # Run temporary instance with arguments
+      # @param args [Hash] Run arguments
       # @return [Task] Temporary task instance
-      def build_with_args(args)
-        # Resolve dependencies first (same as normal build)
+      def run_with_args(args)
+        # Resolve dependencies first (same as normal run)
         resolve_dependencies.reverse_each do |task_class|
           task_class.ensure_instance_built
         end
 
         # Create temporary instance with arguments
         temp_instance = new
-        temp_instance.instance_variable_set(:@build_args, args)
+        temp_instance.instance_variable_set(:@run_args, args)
 
-        # Build with logging using common utility
+        # Run with logging using common utility
         Utils::TaskBuildHelpers.with_build_logging(name.to_s,
           dependencies: @dependencies || [],
           args: args) do
-          temp_instance.build
+          temp_instance.run
           temp_instance
         end
       end
 
-      private :build_with_args
+      # Keep old method name for compatibility
+      alias_method :build_with_args, :run_with_args
+      private :run_with_args, :build_with_args
 
       # === Instance Management ===
 
@@ -142,7 +147,7 @@ module Taski
         instance = new
         Utils::TaskBuildHelpers.with_build_logging(name.to_s,
           dependencies: @dependencies || []) do
-          instance.build
+          instance.run
           instance
         end
       end

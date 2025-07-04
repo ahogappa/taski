@@ -18,7 +18,7 @@ class TestDependencySystem < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :task_a_result
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("StaticTaskA")
         @task_a_result = "Task A"
         puts "StaticTaskA Processing..."
@@ -31,7 +31,7 @@ class TestDependencySystem < Minitest::Test
     Object.const_set(:StaticTaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      def build
+      def run
         TaskiTestHelper.track_build_order("StaticTaskB")
         puts "Task result is #{StaticTaskA.task_a_result}"
       end
@@ -44,7 +44,7 @@ class TestDependencySystem < Minitest::Test
 
     TaskiTestHelper.reset_build_order
 
-    output = capture_io { StaticTaskB.build }
+    output = capture_io { StaticTaskB.run }
     assert_includes output[0], "StaticTaskA Processing..."
     assert_includes output[0], "Task result is Task A"
 
@@ -67,7 +67,7 @@ class TestDependencySystem < Minitest::Test
       const_set(:NestedTaskA, Class.new(Taski::Task) do
         exports :nested_value
 
-        def build
+        def run
           @nested_value = "nested A"
         end
       end)
@@ -75,7 +75,7 @@ class TestDependencySystem < Minitest::Test
     Object.const_set(:TestModule, nested_module)
 
     task_b = Class.new(Taski::Task) do
-      def build
+      def run
         puts "Using #{TestModule::NestedTaskA.nested_value}"
       end
     end
@@ -113,7 +113,7 @@ class TestDependencySystem < Minitest::Test
     DeepTaskD.reset!
 
     TaskiTestHelper.reset_build_order
-    DeepTaskA.build
+    DeepTaskA.run
 
     # Verify build order (D should be built first, A last)
     build_order = TaskiTestHelper.build_order
@@ -135,7 +135,7 @@ class TestDependencySystem < Minitest::Test
     DeepTaskD.reset!
 
     TaskiTestHelper.reset_build_order
-    DeepTaskA.build
+    DeepTaskA.run
 
     # Verify final values are correctly built from dependencies
     assert_equal "D", DeepTaskD.d_value
@@ -178,7 +178,7 @@ class TestDependencySystem < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("RefDepTaskA")
         @value = "A"
       end
@@ -186,7 +186,7 @@ class TestDependencySystem < Minitest::Test
     Object.const_set(:RefDepTaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      def build
+      def run
         TaskiTestHelper.track_build_order("RefDepTaskB")
         puts "B depends on #{RefDepTaskA.value}"
       end
@@ -195,7 +195,7 @@ class TestDependencySystem < Minitest::Test
 
     # Reset and build
     TaskiTestHelper.reset_build_order
-    capture_io { RefDepTaskB.build }
+    capture_io { RefDepTaskB.run }
 
     # Verify build order
     build_order = TaskiTestHelper.build_order
@@ -210,7 +210,7 @@ class TestDependencySystem < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :name
 
-      def build
+      def run
         @name = "TaskA"
         puts "Building TaskA"
       end
@@ -218,7 +218,7 @@ class TestDependencySystem < Minitest::Test
     Object.const_set(:RefTaskA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      def build
+      def run
         # Use ref to get task class from string name
         ref = self.class.ref("RefTaskA")
         task_a_class = ref.is_a?(Taski::Reference) ? ref.deref : ref
@@ -227,7 +227,7 @@ class TestDependencySystem < Minitest::Test
     end
     Object.const_set(:RefTaskB, task_b)
 
-    output = capture_io { RefTaskB.build }
+    output = capture_io { RefTaskB.run }
     assert_includes output[0], "Building TaskB, depends on RefTaskA"
     # Note: ref() at runtime doesn't create automatic dependency
     refute_includes output[0], "Building TaskA"
@@ -255,7 +255,7 @@ class TestDependencySystem < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :result_a
 
-      def build
+      def run
         puts "Building A"
         @result_a = DetailedCircularB.result_b
       end
@@ -265,7 +265,7 @@ class TestDependencySystem < Minitest::Test
     task_b = Class.new(Taski::Task) do
       exports :result_b
 
-      def build
+      def run
         puts "Building B"
         @result_b = DetailedCircularA.result_a
       end
@@ -274,7 +274,7 @@ class TestDependencySystem < Minitest::Test
 
     # Capture the error message
     error = assert_raises(Taski::TaskBuildError) do
-      DetailedCircularA.build
+      DetailedCircularA.run
     end
 
     # Check that the error message contains detailed information
@@ -287,36 +287,36 @@ class TestDependencySystem < Minitest::Test
   def test_complex_circular_dependency_path
     # Create a more complex circular dependency: A -> B -> C -> D -> B
     task_a = Class.new(Taski::Task) do
-      def build
-        ComplexCircularB.build
+      def run
+        ComplexCircularB.run
       end
     end
     Object.const_set(:ComplexCircularA, task_a)
 
     task_b = Class.new(Taski::Task) do
-      def build
-        ComplexCircularC.build
+      def run
+        ComplexCircularC.run
       end
     end
     Object.const_set(:ComplexCircularB, task_b)
 
     task_c = Class.new(Taski::Task) do
-      def build
-        ComplexCircularD.build
+      def run
+        ComplexCircularD.run
       end
     end
     Object.const_set(:ComplexCircularC, task_c)
 
     task_d = Class.new(Taski::Task) do
-      def build
-        ComplexCircularB.build  # Creates cycle
+      def run
+        ComplexCircularB.run  # Creates cycle
       end
     end
     Object.const_set(:ComplexCircularD, task_d)
 
     # Attempting to build should raise TaskBuildError (wrapping CircularDependencyError)
     error = assert_raises(Taski::TaskBuildError) do
-      ComplexCircularA.build
+      ComplexCircularA.run
     end
 
     # The error message should show the detailed cycle information
@@ -331,7 +331,7 @@ class TestDependencySystem < Minitest::Test
     task_x = Class.new(Taski::Task) do
       exports :value_x
 
-      def build
+      def run
         @value_x = "X-#{ExportsCircularY.value_y}"
       end
     end
@@ -340,7 +340,7 @@ class TestDependencySystem < Minitest::Test
     task_y = Class.new(Taski::Task) do
       exports :value_y
 
-      def build
+      def run
         @value_y = "Y-#{ExportsCircularX.value_x}"
       end
     end
@@ -348,7 +348,7 @@ class TestDependencySystem < Minitest::Test
 
     # Should detect circular dependency (wrapped in TaskBuildError)
     error = assert_raises(Taski::TaskBuildError) do
-      ExportsCircularX.build
+      ExportsCircularX.run
     end
 
     assert_includes error.message, "Circular dependency detected!"
@@ -367,7 +367,7 @@ class TestDependencySystem < Minitest::Test
     task_d = Class.new(Taski::Task) do
       exports :d_value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("DeepTaskD")
         @d_value = "D"
       end
@@ -377,7 +377,7 @@ class TestDependencySystem < Minitest::Test
     task_c = Class.new(Taski::Task) do
       exports :c_value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("DeepTaskC")
         @c_value = "C-#{DeepTaskD.d_value}"
       end
@@ -387,7 +387,7 @@ class TestDependencySystem < Minitest::Test
     task_b = Class.new(Taski::Task) do
       exports :b_value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("DeepTaskB")
         @b_value = "B-#{DeepTaskC.c_value}"
       end
@@ -397,7 +397,7 @@ class TestDependencySystem < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :a_value
 
-      def build
+      def run
         TaskiTestHelper.track_build_order("DeepTaskA")
         @a_value = "A-#{DeepTaskB.b_value}"
       end

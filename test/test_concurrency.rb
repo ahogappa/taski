@@ -19,7 +19,7 @@ class TestConcurrency < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :thread_id, :build_number
 
-      define_method :build do
+      define_method :run do
         build_mutex.synchronize do
           build_count += 1
           @build_number = build_count
@@ -53,7 +53,7 @@ class TestConcurrency < Minitest::Test
     task_x = Class.new(Taski::Task) do
       exports :x_value, :build_thread_id
 
-      define_method :build do
+      define_method :run do
         # Signal ready and wait for start
         ready_signal.push(:ready)
         start_signal.pop
@@ -66,7 +66,7 @@ class TestConcurrency < Minitest::Test
     task_y = Class.new(Taski::Task) do
       exports :y_value, :build_thread_id
 
-      define_method :build do
+      define_method :run do
         # Signal ready and wait for start
         ready_signal.push(:ready)
         start_signal.pop
@@ -78,8 +78,8 @@ class TestConcurrency < Minitest::Test
 
     # Build both tasks concurrently
     threads = [
-      Thread.new { ConcurrentTaskX.build },
-      Thread.new { ConcurrentTaskY.build }
+      Thread.new { ConcurrentTaskX.run },
+      Thread.new { ConcurrentTaskY.run }
     ]
 
     # Wait for both threads to signal ready
@@ -103,13 +103,13 @@ class TestConcurrency < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :access_count
 
-      def build
+      def run
         @access_count = 0
       end
 
       # Add class method to safely increment count
       def self.increment_count
-        instance = build  # This ensures the instance exists
+        instance = run  # This ensures the instance exists
         instance.increment_count_impl
         instance.access_count
       end
@@ -122,7 +122,7 @@ class TestConcurrency < Minitest::Test
     Object.const_set(:SharedTask, task)
 
     # Build the task first
-    SharedTask.build
+    SharedTask.run
 
     # Multiple threads accessing the same instance through public API
     threads = 10.times.map do
@@ -146,7 +146,7 @@ class TestConcurrency < Minitest::Test
     task_a = Class.new(Taski::Task) do
       exports :value_a
 
-      def build
+      def run
         # This creates a circular dependency: A -> B -> A
         @value_a = "A-#{ConcurrentCircularTaskB.value_b}"
       end
@@ -156,7 +156,7 @@ class TestConcurrency < Minitest::Test
     task_b = Class.new(Taski::Task) do
       exports :value_b
 
-      def build
+      def run
         @value_b = "B-#{ConcurrentCircularTaskA.value_a}"
       end
     end
@@ -164,7 +164,7 @@ class TestConcurrency < Minitest::Test
 
     # Should detect circular dependency and raise error (may be wrapped in TaskBuildError)
     error = assert_raises(Taski::TaskBuildError, Taski::CircularDependencyError) do
-      ConcurrentCircularTaskA.build
+      ConcurrentCircularTaskA.run
     end
 
     # Verify that circular dependency was indeed detected
@@ -178,15 +178,15 @@ class TestConcurrency < Minitest::Test
     task = Class.new(Taski::Task) do
       exports :build_count
 
-      def build
+      def run
         @build_count ||= 0
         @build_count += 1
       end
 
       def self.test_multiple_builds
         # Multiple builds from same thread should not deadlock
-        build  # First build
-        build  # Second build should reuse instance, not rebuild
+        run  # First build
+        run  # Second build should reuse instance, not rebuild
         "multiple builds completed"
       end
     end
