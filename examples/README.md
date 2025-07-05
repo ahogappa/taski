@@ -1,69 +1,122 @@
 # Taski Examples
 
-Learn Taski through practical examples, from basic concepts to advanced patterns.
+Learn Taski through practical examples, from basic concepts to real-world applications.
 
-## Getting Started
+## 🚀 Learning Path
 
-Start with these examples in order:
+Follow these examples in order for the best learning experience:
 
-### 1. **[quick_start.rb](quick_start.rb)** - Your First Taski Program
-- Basic task definition with Exports API
+### 1. **[quick_start.rb](quick_start.rb)** - Exports API Basics
+- Your first Taski program
+- Static dependencies with `exports`
 - Automatic dependency resolution
-- Simple task execution
 
 ```bash
 ruby examples/quick_start.rb
 ```
 
-### 2. **[progress_demo.rb](progress_demo.rb)** - Rich CLI Progress Display
-- Animated spinner with ANSI colors
-- Real-time output capture and 5-line tail
-- Production build scenarios
-- TTY detection for clean file output
+### 2. **[define_api_basics.rb](define_api_basics.rb)** - Dynamic Dependencies
+- Environment-based logic with Define API
+- Runtime value computation
+- When to use Define vs Exports
 
 ```bash
-# Interactive mode with rich spinner
+ruby examples/define_api_basics.rb
+```
+
+### 3. **[section_basics.rb](section_basics.rb)** - Implementation Selection
+- Environment-specific implementations
+- Clean interfaces with Section API
+- Dependency tree visualization
+
+```bash
+ruby examples/section_basics.rb
+```
+
+### 4. **[progress_demo.rb](progress_demo.rb)** - Visual Progress
+- Animated progress display
+- Output capture and timing
+- TTY detection for logging
+
+```bash
+# Interactive mode with spinner
 ruby examples/progress_demo.rb
 
-# Clean output mode (no spinner)
+# Clean output for logging
 ruby examples/progress_demo.rb > build.log 2>&1
-cat build.log
 ```
 
-### 3. **[section_configuration.rb](section_configuration.rb)** - Section-based Configuration Management
-- Dynamic implementation selection with Taski::Section
-- Environment-specific configuration
-- Section dependency resolution
-- Complex configuration hierarchies
+### 5. **[build_pipeline.rb](build_pipeline.rb)** - Real-World Pipeline
+- Complete CI/CD workflow example
+- Mixed API usage patterns
+- Production-ready error handling
 
 ```bash
-ruby examples/section_configuration.rb
+ruby examples/build_pipeline.rb
 ```
 
-### 4. **[advanced_patterns.rb](advanced_patterns.rb)** - Complex Dependency Patterns
-- Mixed Exports API and Define API usage
-- Environment-specific dependencies
-- Feature flags and conditional logic
-- Task reset and rebuild scenarios
+### 6. **[error_handling.rb](error_handling.rb)** - Robust Error Management
+- Dependency error recovery
+- Graceful degradation patterns
+- Signal interruption handling
+
+```bash
+ruby examples/error_handling.rb
+```
+
+### 7. **[advanced_patterns.rb](advanced_patterns.rb)** - Complex Scenarios
+- Advanced dependency patterns
+- Performance optimization
+- Custom logging strategies
 
 ```bash
 ruby examples/advanced_patterns.rb
 ```
 
-## Key Concepts Demonstrated
+## 📚 What You'll Learn
 
-- **Exports API**: Static dependencies with `exports :property`
-- **Define API**: Dynamic dependencies with `define :property, -> { ... }`
-- **Section API**: Dynamic implementation selection with `Taski::Section`
-- **Dependency Resolution**: Automatic dependency detection for sections
-- **Progress Display**: Rich terminal output with spinners and colors
-- **Output Capture**: Tail-style display of task output
-- **Environment Configuration**: Different behavior based on runtime settings
-- **Error Handling**: Graceful failure with progress indicators
+### Core APIs
+- **Exports API**: Static values with side effects
+- **Define API**: Dynamic computation without side effects
+- **Section API**: Runtime implementation selection
 
-## Next Steps
+### Advanced Features
+- **Progress Display**: Visual feedback and timing
+- **Error Recovery**: Fallback strategies and graceful failures
+- **Signal Handling**: Interruption and cleanup
+- **Logging**: Structured output and monitoring
 
-After exploring these examples:
-- Read the main documentation
-- Examine the test files for more usage patterns
-- Check out the source code in `lib/taski/`
+### Real-World Applications
+- **Build Pipelines**: CI/CD workflows
+- **Configuration Management**: Environment-specific settings
+- **Service Orchestration**: Microservice dependencies
+- **Data Processing**: ETL and transformation pipelines
+
+## 🎯 Quick Reference
+
+| Example | Primary API | Complexity | Use Case |
+|---------|-------------|------------|----------|
+| quick_start | Exports | ⭐ | First steps |
+| define_api_basics | Define | ⭐⭐ | Dynamic values |
+| section_basics | Section | ⭐⭐ | Implementation choice |
+| progress_demo | All | ⭐⭐ | Visual feedback |
+| build_pipeline | Mixed | ⭐⭐⭐ | CI/CD workflows |
+| error_handling | Mixed | ⭐⭐⭐ | Production robustness |
+| advanced_patterns | Mixed | ⭐⭐⭐⭐ | Complex scenarios |
+
+## 🔗 Next Steps
+
+After completing these examples:
+- **[API Guide](../docs/api-guide.md)**: Detailed API documentation
+- **[Advanced Features](../docs/advanced-features.md)**: In-depth feature guides
+- **[Error Handling](../docs/error-handling.md)**: Comprehensive error strategies
+- **[Tests](../test/)**: Explore the test suite for more patterns
+- **[Source Code](../lib/taski/)**: Dive into the implementation
+
+## 💡 Tips for Learning
+
+1. **Start Simple**: Begin with `quick_start.rb` even if you're experienced
+2. **Experiment**: Modify the examples to see how behavior changes
+3. **Read Output**: Pay attention to progress display and timing information
+4. **Check Dependencies**: Use `.tree` method to visualize task relationships
+5. **Test Errors**: Try breaking examples to understand error handling
