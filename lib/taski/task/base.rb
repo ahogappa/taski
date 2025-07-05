@@ -10,6 +10,7 @@ module Taski
     # Constants for thread-local keys and method tracking
     THREAD_KEY_SUFFIX = "_building"
     TASKI_ANALYZING_DEFINE_KEY = :taski_analyzing_define
+    TASKI_CURRENT_PARENT_TASK_KEY = :taski_current_parent_task
     ANALYZED_METHODS = [:build, :clean, :run].freeze
 
     class << self
@@ -51,6 +52,24 @@ module Taski
       # @return [Hash] Resolution state hash
       def resolution_state
         @__resolution_state ||= {}
+      end
+
+      # Register rescue handler for dependency errors
+      # @param exception_classes [Array<Class>] Exception classes to handle
+      # @param handler [Proc] Lambda to handle exceptions
+      def rescue_deps(*exception_classes, handler)
+        @rescue_handlers ||= []
+        exception_classes.each do |exception_class|
+          @rescue_handlers << [exception_class, handler]
+        end
+      end
+
+      # Find rescue handler for a given exception
+      # @param exception [Exception] Exception to find handler for
+      # @return [Array, nil] Handler pair [exception_class, handler] or nil
+      def find_dependency_rescue_handler(exception)
+        return nil unless @rescue_handlers
+        @rescue_handlers.find { |exception_class, handler| exception.is_a?(exception_class) }
       end
 
       # Default implementation of resolve_pending_references

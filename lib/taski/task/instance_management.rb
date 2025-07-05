@@ -13,8 +13,10 @@ module Taski
       def run(**args)
         if args.empty?
           resolve_dependencies.reverse_each do |task_class|
-            task_class.ensure_instance_built
+            execute_with_parent_context(task_class) { task_class.ensure_instance_built }
           end
+          # Ensure this task itself is also built after dependencies
+          ensure_instance_built
           # Return the singleton instance for consistency
           instance_variable_get(:@__task_instance)
         else
@@ -145,8 +147,10 @@ module Taski
       # @return [Task] Built task instance
       def build_instance
         instance = new
+        # Try to get parent task from calling context
+        parent_task = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
         Utils::TaskBuildHelpers.with_build_logging(name.to_s,
-          dependencies: @dependencies || []) do
+          dependencies: @dependencies || [], parent_task: parent_task) do
           instance.run
           instance
         end
@@ -169,7 +173,9 @@ module Taski
           dep_class = extract_class(dep)
           next if dep_class == self
 
-          dep_class.ensure_instance_built if dep_class.respond_to?(:ensure_instance_built)
+          if dep_class.respond_to?(:ensure_instance_built)
+            execute_with_parent_context(dep_class) { dep_class.ensure_instance_built }
+          end
         end
       end
 
@@ -201,6 +207,19 @@ module Taski
 
       include Utils::DependencyUtils
       private :extract_class
+
+      # Execute block with parent task context for rescue_deps handling
+      # @param task_class [Class] Task class being executed
+      # @yield Block to execute with parent context
+      def execute_with_parent_context(task_class)
+        previous_parent = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
+        Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = self
+        begin
+          yield
+        ensure
+          Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
+        end
+      end
     end
   end
 end
