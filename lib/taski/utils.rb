@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "signal_handler"
+
 module Taski
   # Common utility functions for the Taski framework
   module Utils
@@ -112,6 +114,7 @@ module Taski
         @context = context
         @start_time = nil
         @duration = nil
+        @signal_handler = nil
       end
 
       # Template Method pattern - defines the algorithm skeleton
@@ -126,15 +129,34 @@ module Taski
         end
       end
 
+      # Signal handling methods (public for testing)
+      def setup_signal_handling
+        @signal_handler = Taski::SignalHandler.new
+        @signal_handler.setup_signal_traps
+      end
+
+      def check_for_signals
+        if @signal_handler&.signal_received?
+          signal_name = @signal_handler.signal_name
+          exception = @signal_handler.convert_signal_to_exception(signal_name)
+          raise exception
+        end
+      end
+
+      attr_reader :signal_handler
+
       protected
 
       # Template method hooks - can be overridden by subclasses
       def before_execution
+        setup_signal_handling
         start_logging_and_progress
       end
 
       def perform_execution
-        yield
+        result = yield
+        check_for_signals  # Check for signals after execution
+        result
       end
 
       def after_successful_execution(result)
@@ -195,7 +217,11 @@ module Taski
       end
 
       def complete_progress_failure(exception)
-        Taski.progress_display&.fail_task(context.task_name, error: exception, duration: @duration)
+        if exception.is_a?(TaskInterruptedException)
+          Taski.progress_display&.interrupt_task(context.task_name, error: exception, duration: @duration)
+        else
+          Taski.progress_display&.fail_task(context.task_name, error: exception, duration: @duration)
+        end
       end
 
       def log_failure(exception)

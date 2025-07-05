@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../exceptions"
+
 module Taski
   module Progress
     # Represents task execution status
@@ -17,7 +19,11 @@ module Taski
       end
 
       def failure?
-        !success?
+        !success? && !interrupted?
+      end
+
+      def interrupted?
+        @error.is_a?(TaskInterruptedException)
       end
 
       def duration_ms
@@ -26,7 +32,13 @@ module Taski
       end
 
       def icon
-        success? ? "✅" : "❌"
+        if success?
+          "✅"
+        elsif interrupted?
+          "⚠️"
+        else
+          "❌"
+        end
       end
 
       def format_duration

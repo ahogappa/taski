@@ -33,6 +33,11 @@ module Taski
         finish_task_display(status)
       end
 
+      def interrupt_task_display(task_name, error:, duration:)
+        status = TaskStatus.new(name: task_name, duration: duration, error: error)
+        finish_task_display(status)
+      end
+
       def clear_all_displays
         @spinner.stop
         @output_capture.stop

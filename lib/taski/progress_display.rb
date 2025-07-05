@@ -26,6 +26,10 @@ module Taski
       @enabled = ENV["TASKI_PROGRESS_DISABLE"] != "1" && enable
     end
 
+    def enabled?
+      @enabled
+    end
+
     def start_task(task_name, dependencies: [])
       return unless @enabled
 
@@ -44,14 +48,16 @@ module Taski
       @display_manager.fail_task_display(task_name, error: error, duration: duration)
     end
 
+    def interrupt_task(task_name, error:, duration:)
+      return unless @enabled
+
+      @display_manager.interrupt_task_display(task_name, error: error, duration: duration)
+    end
+
     def clear
       return unless @enabled
 
       @display_manager.clear_all_displays
-    end
-
-    def enabled?
-      @enabled
     end
   end
 end

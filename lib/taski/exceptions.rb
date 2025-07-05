@@ -14,4 +14,7 @@ module Taski
 
   # Raised when section implementation method is missing
   class SectionImplementationError < StandardError; end
+
+  # Raised when task execution is interrupted by signal
+  class TaskInterruptedException < StandardError; end
 end
