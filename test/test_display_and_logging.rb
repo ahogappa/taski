@@ -571,6 +571,58 @@ class TestTreeDisplay < Minitest::Test
 end
 
 # =============================================================================
+# FORMATTER INTERFACE TESTS
+# =============================================================================
+# Tests for logging formatter interface functionality
+
+class TestFormatterInterface < Minitest::Test
+  def test_formatter_interface_raises_not_implemented_error
+    # RED: This test should fail because we're testing error handling
+    formatter = Class.new do
+      include Taski::Logging::FormatterInterface
+    end.new
+
+    error = assert_raises(NotImplementedError) do
+      formatter.format(:info, "test message", {}, Time.now)
+    end
+
+    assert_includes error.message, "Subclass must implement format method"
+  end
+end
+
+class TestFormatterFactory < Minitest::Test
+  def test_create_simple_formatter
+    formatter = Taski::Logging::FormatterFactory.create(:simple)
+    assert_instance_of Taski::Logging::SimpleFormatter, formatter
+  end
+
+  def test_create_structured_formatter
+    formatter = Taski::Logging::FormatterFactory.create(:structured)
+    assert_instance_of Taski::Logging::StructuredFormatter, formatter
+  end
+
+  def test_create_json_formatter
+    formatter = Taski::Logging::FormatterFactory.create(:json)
+    assert_instance_of Taski::Logging::JsonFormatter, formatter
+  end
+
+  def test_create_invalid_formatter_raises_error
+    error = assert_raises(ArgumentError) do
+      Taski::Logging::FormatterFactory.create(:invalid)
+    end
+
+    assert_includes error.message, "Unknown format: invalid"
+    assert_includes error.message, "Valid formats: :simple, :structured, :json"
+  end
+
+  def test_available_formats
+    formats = Taski::Logging::FormatterFactory.available_formats
+    expected = [:simple, :structured, :json]
+    assert_equal expected, formats
+  end
+end
+
+# =============================================================================
 # LOGGER TESTS
 # =============================================================================
 # Tests for logging functionality including levels, formats, and integration
