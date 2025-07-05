@@ -96,6 +96,12 @@ module Taski
         result
       end
 
+      # Get the dependencies of this task
+      # @return [Array<Hash>] Array of dependency hashes in format [{klass: TaskClass}, ...]
+      def dependencies
+        @dependencies || []
+      end
+
       private
 
       include Utils::DependencyUtils
