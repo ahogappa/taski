@@ -179,6 +179,21 @@ class TestTaskStatus < Minitest::Test
     assert_nil status.duration_ms
     assert_equal "", status.format_duration
   end
+
+  def test_interrupted_task_status
+    interrupted_error = Taski::TaskInterruptedException.new("interrupted by SIGINT")
+    status = Taski::TaskStatus.new(name: "InterruptedTask", duration: 0.3, error: interrupted_error)
+
+    assert_equal "InterruptedTask", status.name
+    assert_equal 0.3, status.duration
+    assert_equal interrupted_error, status.error
+    refute status.success?
+    refute status.failure?
+    assert status.interrupted?
+    assert_equal "⚠️", status.icon
+    assert_equal 300.0, status.duration_ms
+    assert_equal "(300.0ms)", status.format_duration
+  end
 end
 
 class TestProgressDisplay < Minitest::Test
@@ -231,6 +246,17 @@ class TestProgressDisplay < Minitest::Test
     output_str = @output.string
     assert_includes output_str, "❌ FailTask"
     assert_includes output_str, "(500.0ms)"
+  end
+
+  def test_task_interruption
+    @progress.start_task("InterruptedTask")
+    # Immediately interrupt the task to test interruption functionality
+    interrupted_error = Taski::TaskInterruptedException.new("interrupted by SIGINT")
+    @progress.interrupt_task("InterruptedTask", error: interrupted_error, duration: 0.3)
+
+    output_str = @output.string
+    assert_includes output_str, "⚠️ InterruptedTask"
+    assert_includes output_str, "(300.0ms)"
   end
 
   def test_multiple_tasks_sequence

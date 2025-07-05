@@ -94,6 +94,101 @@ class TestErrorHandling < Minitest::Test
     end
   end
 
+  def test_task_interrupted_exception
+    # Test TaskInterruptedException is properly defined
+    error = Taski::TaskInterruptedException.new("interrupted by signal")
+    assert_instance_of Taski::TaskInterruptedException, error
+    assert_kind_of StandardError, error
+    assert_equal "interrupted by signal", error.message
+  end
+
+  def test_signal_handler_setup
+    # Test that signal handler setup utility exists
+    assert_respond_to Taski::SignalHandler, :setup_signal_traps
+  end
+
+  def test_signal_handler_sigint_conversion
+    # Test that SIGINT signal is converted to TaskInterruptedException
+    handler = Taski::SignalHandler.new
+
+    # Simulate signal handling
+    exception = handler.convert_signal_to_exception("INT")
+
+    assert_instance_of Taski::TaskInterruptedException, exception
+    assert_includes exception.message, "interrupted by SIGINT"
+  end
+
+  def test_task_build_session_signal_integration
+    # Test that TaskBuildSession integrates with signal handling
+    context = Taski::Utils::TaskContext.new("TestSignalTask")
+    session = Taski::Utils::TaskBuildSession.new(context)
+
+    # Check that session responds to signal handling methods
+    assert_respond_to session, :setup_signal_handling
+    assert_respond_to session, :check_for_signals
+  end
+
+  def test_task_build_session_signal_check_raises_exception
+    # Test that checking for signals raises TaskInterruptedException when signal is received
+    context = Taski::Utils::TaskContext.new("TestSignalTask")
+    session = Taski::Utils::TaskBuildSession.new(context)
+
+    # Simulate received signal
+    session.instance_variable_set(:@signal_handler, Taski::SignalHandler.new)
+    session.signal_handler.instance_variable_set(:@signal_received, true)
+    session.signal_handler.instance_variable_set(:@signal_name, "INT")
+
+    # Should raise TaskInterruptedException when checking for signals
+    error = assert_raises(Taski::TaskInterruptedException) do
+      session.check_for_signals
+    end
+
+    assert_includes error.message, "interrupted by SIGINT"
+  end
+
+  def test_task_build_session_calls_interrupt_task_for_signal_interruption
+    # Test that TaskBuildSession calls interrupt_task for TaskInterruptedException
+    context = Taski::Utils::TaskContext.new("InterruptedTestTask")
+    session = Taski::Utils::TaskBuildSession.new(context)
+
+    # Create a mock progress display class
+    mock_progress_class = Class.new do
+      attr_reader :interrupt_called, :interrupt_task_name, :interrupt_error, :interrupt_duration
+
+      def interrupt_task(task_name, error:, duration:)
+        @interrupt_called = true
+        @interrupt_task_name = task_name
+        @interrupt_error = error
+        @interrupt_duration = duration
+      end
+    end
+
+    mock_progress = mock_progress_class.new
+
+    # Set mock progress display
+    original_progress = Taski.instance_variable_get(:@progress_display)
+    Taski.instance_variable_set(:@progress_display, mock_progress)
+
+    begin
+      # Setup session timing (simulate normal execution)
+      session.send(:start_timing)
+      sleep 0.001  # Small delay to ensure duration > 0
+      session.send(:calculate_duration)
+
+      # Create TaskInterruptedException and test
+      interrupted_error = Taski::TaskInterruptedException.new("interrupted by SIGINT")
+      session.send(:complete_progress_failure, interrupted_error)
+
+      assert mock_progress.interrupt_called, "interrupt_task should have been called"
+      assert_equal "InterruptedTestTask", mock_progress.interrupt_task_name
+      assert_equal interrupted_error, mock_progress.interrupt_error
+      assert_instance_of Float, mock_progress.interrupt_duration
+    ensure
+      # Restore original progress display
+      Taski.instance_variable_set(:@progress_display, original_progress)
+    end
+  end
+
   def test_not_implemented_error
     # Test that base Task class raises NotImplementedError for build
     task = Taski::Task.new
@@ -237,6 +332,20 @@ class TestErrorHandling < Minitest::Test
     assert_nil io_handler
   end
 
+  def test_rescue_deps_finds_handler_for_task_interrupted_exception
+    # Simple test to verify rescue_deps can register and find TaskInterruptedException handlers
+    task_class = Class.new(Taski::Task)
+    handler = ->(exception, failed_task) { "handled" }
+
+    # Register handler for TaskInterruptedException
+    task_class.rescue_deps Taski::TaskInterruptedException, handler
+
+    # Should find handler for TaskInterruptedException
+    found_handler = task_class.find_dependency_rescue_handler(Taski::TaskInterruptedException.new("test"))
+    refute_nil found_handler
+    assert_equal [Taski::TaskInterruptedException, handler], found_handler
+  end
+
   def test_rescue_deps_reraise_control
     # Test that :reraise causes exception to be re-raised
     child_task = Class.new(Taski::Task) do
@@ -294,5 +403,62 @@ class TestErrorHandling < Minitest::Test
       parent_task.run
     end
     assert_includes error.message, "Custom error from rescue_deps"
+  end
+
+  # === Multiple Signal Support Tests ===
+
+  def test_signal_handler_multiple_signals_setup
+    # Test that signal handler supports multiple signals
+    handler = Taski::SignalHandler.new(signals: %w[INT TERM USR1])
+
+    # This should not raise error
+    handler.setup_signal_traps
+  end
+
+  def test_signal_handler_term_conversion
+    # Test that SIGTERM signal is converted to TaskInterruptedException
+    handler = Taski::SignalHandler.new
+
+    exception = handler.convert_signal_to_exception("TERM")
+
+    assert_instance_of Taski::TaskInterruptedException, exception
+    assert_includes exception.message, "terminated by SIGTERM"
+  end
+
+  def test_signal_handler_usr1_conversion
+    # Test that SIGUSR1 signal is converted to TaskInterruptedException
+    handler = Taski::SignalHandler.new
+
+    exception = handler.convert_signal_to_exception("USR1")
+
+    assert_instance_of Taski::TaskInterruptedException, exception
+    assert_includes exception.message, "user signal received: SIGUSR1"
+  end
+
+  def test_signal_exception_strategy_pattern
+    # Test that signal exception strategy pattern works correctly
+    int_strategy = Taski::SignalExceptionStrategy.for_signal("INT")
+    term_strategy = Taski::SignalExceptionStrategy.for_signal("TERM")
+    usr1_strategy = Taski::SignalExceptionStrategy.for_signal("USR1")
+
+    assert_equal Taski::SignalExceptionStrategy::InterruptStrategy, int_strategy
+    assert_equal Taski::SignalExceptionStrategy::TerminateStrategy, term_strategy
+    assert_equal Taski::SignalExceptionStrategy::UserSignalStrategy, usr1_strategy
+  end
+
+  def test_signal_exception_strategy_unknown_signal
+    # Test that unknown signals fall back to InterruptStrategy
+    unknown_strategy = Taski::SignalExceptionStrategy.for_signal("UNKNOWN")
+
+    assert_equal Taski::SignalExceptionStrategy::InterruptStrategy, unknown_strategy
+  end
+
+  def test_signal_handler_custom_signals
+    # Test that custom signal list works
+    custom_signals = %w[INT TERM]
+    handler = Taski::SignalHandler.new(signals: custom_signals)
+
+    # Should not raise error
+    handler.setup_signal_traps
   end
 end
