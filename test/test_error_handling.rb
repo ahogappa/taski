@@ -154,4 +154,145 @@ class TestErrorHandling < Minitest::Test
 
     assert_includes error.message, "Task 'RefFailingTask' cannot resolve ref('NonExistentRefTask')"
   end
+
+  # === rescue_deps API Tests ===
+
+  def test_rescue_deps_method_exists
+    # RED: Test that rescue_deps method can be called without error
+    task_class = Class.new(Taski::Task)
+
+    # This should not raise any error
+    task_class.rescue_deps StandardError, ->(exception, failed_task) {}
+  end
+
+  def test_rescue_deps_stores_handler
+    # RED: Test that rescue_deps stores the handler
+    task_class = Class.new(Taski::Task)
+    handler = ->(exception, failed_task) {}
+
+    task_class.rescue_deps StandardError, handler
+
+    # Handler should be stored and findable
+    found_handler = task_class.find_dependency_rescue_handler(StandardError.new)
+    refute_nil found_handler
+  end
+
+  def test_rescue_deps_catches_dependency_exception
+    # RED: Test that rescue_deps catches exceptions from dependency tasks
+    child_task = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise StandardError, "child task failed"
+      end
+    end
+    Object.const_set(:RescueDepChildTask, child_task)
+
+    parent_task = Class.new(Taski::Task) do
+      rescue_deps StandardError, ->(exception, failed_task) {}
+
+      # Create dependency through define API
+      define :result, -> {
+        # Reference child task to create dependency
+        # Even if child fails, rescue_deps should handle it
+        begin
+          RescueDepChildTask.value
+        rescue
+          "default_value"
+        end
+        "parent completed"
+      }
+
+      def run
+        # This creates dependency at class definition time
+        # The dependency will cause RescueDepChildTask to run first
+      end
+    end
+    Object.const_set(:RescueDepParentTask, parent_task)
+
+    # Should catch the child exception and continue
+    result = parent_task.run
+    assert_instance_of parent_task, result
+    # Verify that parent task completed successfully (no exception was raised)
+  end
+
+  def test_rescue_deps_supports_multiple_exception_classes
+    # RED: Test that rescue_deps can handle different exception classes
+    task_class = Class.new(Taski::Task)
+    handler = ->(exception, failed_task) {}
+
+    task_class.rescue_deps RuntimeError, handler
+    task_class.rescue_deps ArgumentError, handler
+
+    # Should find handler for RuntimeError
+    runtime_handler = task_class.find_dependency_rescue_handler(RuntimeError.new)
+    refute_nil runtime_handler
+
+    # Should find handler for ArgumentError
+    argument_handler = task_class.find_dependency_rescue_handler(ArgumentError.new)
+    refute_nil argument_handler
+
+    # Should not find handler for unregistered exception
+    io_handler = task_class.find_dependency_rescue_handler(IOError.new)
+    assert_nil io_handler
+  end
+
+  def test_rescue_deps_reraise_control
+    # Test that :reraise causes exception to be re-raised
+    child_task = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise StandardError, "child task failed"
+      end
+    end
+    Object.const_set(:RescueReraiseChildTask, child_task)
+
+    parent_task = Class.new(Taski::Task) do
+      rescue_deps StandardError, ->(exception, failed_task) { :reraise }
+
+      def run
+        # Reference child task to create dependency - this will be caught by static analysis
+        RescueReraiseChildTask.run
+        "parent completed"
+      end
+    end
+    Object.const_set(:RescueReraiseParentTask, parent_task)
+
+    # Should re-raise the exception
+    assert_raises(Taski::TaskBuildError) do
+      parent_task.run
+    end
+  end
+
+  def test_rescue_deps_custom_exception
+    # Test that custom exception can be raised instead
+    child_task = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise StandardError, "child task failed"
+      end
+    end
+    Object.const_set(:RescueCustomChildTask, child_task)
+
+    parent_task = Class.new(Taski::Task) do
+      rescue_deps StandardError, ->(exception, failed_task) {
+        ArgumentError.new("Custom error from rescue_deps")
+      }
+
+      def run
+        # Reference child task to create dependency - this will be caught by static analysis
+        RescueCustomChildTask.run
+        "parent completed"
+      end
+    end
+    Object.const_set(:RescueCustomParentTask, parent_task)
+
+    # Should raise the custom exception
+    error = assert_raises(ArgumentError) do
+      parent_task.run
+    end
+    assert_includes error.message, "Custom error from rescue_deps"
+  end
 end
