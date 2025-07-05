@@ -1,6 +1,13 @@
 module Taski
   VERSION: String
 
+  # Module-level logger and progress display
+  def self.logger: () -> Logger
+  def self.progress_display: () -> ProgressDisplay
+  def self.configure_logger: (?level: Symbol, ?output: IO, ?format: Symbol) -> Logger
+  def self.quiet!: () -> Logger
+  def self.verbose!: () -> Logger
+
   # Custom exceptions
   class CircularDependencyError < StandardError
   end
@@ -9,6 +16,9 @@ module Taski
   end
 
   class TaskBuildError < StandardError
+  end
+
+  class SectionImplementationError < StandardError
   end
 
   # Reference class for task references
@@ -70,6 +80,114 @@ module Taski
     def self.create_ref_method_if_needed: () -> void
     def self.method_defined_for_define?: (Symbol method_name) -> bool
     def self.mark_method_as_defined: (Symbol method_name) -> void
+  end
+
+  # Logger class for structured logging
+  class Logger
+    LEVELS: Hash[Symbol, Integer]
+
+    def initialize: (?level: Symbol, ?output: IO, ?format: Symbol) -> void
+    def debug: (String message, **untyped context) -> void
+    def info: (String message, **untyped context) -> void
+    def warn: (String message, **untyped context) -> void
+    def error: (String message, **untyped context) -> void
+    def task_build_start: (String task_name, ?dependencies: Array[untyped], ?args: Hash[untyped, untyped]?) -> void
+    def task_build_complete: (String task_name, ?duration: Float?) -> void
+    def task_build_failed: (String task_name, error: Exception, ?duration: Float?) -> void
+    def dependency_resolved: (String task_name, resolved_count: Integer) -> void
+    def circular_dependency_detected: (Array[Class] cycle_path) -> void
+
+    private
+
+    def log: (Symbol level, String message, Hash[untyped, untyped] context) -> void
+    def should_log?: (Symbol level) -> bool
+  end
+
+  # Progress display class
+  class ProgressDisplay
+    def initialize: (?output: IO, ?enable: bool, ?include_captured_output: bool?) -> void
+    def start_task: (String task_name, ?dependencies: Array[untyped]) -> void
+    def complete_task: (String task_name, duration: Float) -> void
+    def fail_task: (String task_name, error: Exception, duration: Float) -> void
+    def clear: () -> void
+    def enabled?: () -> bool
+  end
+
+  # Progress module with display components
+  module Progress
+    class TaskStatus
+      attr_reader name: String
+      attr_reader duration: Float?
+      attr_reader error: Exception?
+
+      def initialize: (name: String, ?duration: Float?, ?error: Exception?) -> void
+      def success?: () -> bool
+      def failed?: () -> bool
+    end
+
+    class TaskFormatter
+      def format_current_task: (String spinner_char, String task_name) -> String
+      def format_completed_task: (TaskStatus status) -> String
+      def format_output_line: (String line) -> String
+    end
+
+    class TerminalController
+      def initialize: (IO output) -> void
+      def puts: (String text) -> void
+      def clear_lines: (Integer count) -> void
+      def flush: () -> void
+    end
+
+    class SpinnerAnimation
+      def start: (TerminalController terminal, String task_name) { (String, String) -> void } -> void
+      def stop: () -> void
+    end
+
+    class OutputCapture
+      def initialize: (IO output) -> void
+      def start: () -> void
+      def stop: () -> void
+      def last_lines: () -> Array[String]
+    end
+
+    class DisplayManager
+      def initialize: (TerminalController terminal, SpinnerAnimation spinner, OutputCapture output_capture, ?include_captured_output: bool) -> void
+      def start_task_display: (String task_name) -> void
+      def complete_task_display: (String task_name, duration: Float) -> void
+      def fail_task_display: (String task_name, error: Exception, duration: Float) -> void
+      def clear_all_displays: () -> void
+    end
+  end
+
+  # Section class for abstraction layers
+  class Section
+    def self.interface: (*Symbol names) -> void
+    def self.interface_exports: () -> Array[Symbol]
+    def self.impl_defined?: () -> bool
+    def self.get_implementation_class: () -> Class
+    def self.const_set: (Symbol name, untyped value) -> untyped
+    def self.resolve: (Array[untyped] queue, Array[untyped] resolved) -> self
+    def self.resolve_dependencies: () -> Array[Class]
+    def self.analyze_dependencies_for_interfaces: () -> void
+    def self.ensure_instance_built: () -> self
+    def self.run: (**untyped args) -> self
+    def self.build: () -> self
+    def self.reset!: () -> self
+    def self.resolve_pending_references: () -> void
+    def self.tree: (?String prefix, ?Set[untyped] visited, ?color: bool) -> String
+
+    private
+
+    def self.gather_static_dependencies_for_interface: (Symbol interface_method) -> Array[Class]
+    def self.add_unique_dependencies: (Array[Class] dep_classes) -> void
+    def self.add_dependency: (Class dep_class) -> void
+    def self.dependency_exists?: (Class dep_class) -> bool
+    def self.extract_class: (untyped task) -> Class
+    def self.auto_apply_exports_to_existing_tasks: () -> void
+    def self.find_possible_implementations: () -> Array[Class]
+    def self.extract_implementation_name: (Class impl_class) -> String
+    def self.task_class?: (untyped const_value) -> bool
+    def self.impl: () -> Class
   end
 
   # Dependency analyzer module
