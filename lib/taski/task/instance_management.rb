@@ -143,8 +143,9 @@ module Taski
         @__build_monitor ||= Monitor.new
       end
 
-      # Generate thread key for recursion detection
-      # @return [String] Thread key for this task
+      # Generate thread-local key for circular dependency detection
+      # Each task uses a unique thread-local key to track if it's currently building
+      # @return [String] Thread key for this task's build state
       def build_thread_key
         "#{name}#{THREAD_KEY_SUFFIX}"
       end
