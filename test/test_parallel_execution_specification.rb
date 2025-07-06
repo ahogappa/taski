@@ -692,7 +692,6 @@ class TestParallelExecutionSpecification < Minitest::Test
     skip "Parallel execution not implemented yet"
 
     require "etc"
-    original_nprocessors = nil
     used_thread_count = nil
 
     # スレッド数を記録するためのモック
@@ -824,12 +823,12 @@ class TestParallelExecutionSpecification < Minitest::Test
       :SharedDependency, :ConcreteTaskA, :ConcreteTaskB,
       :SectionA, :SectionB
     ]
-    
+
     # Clean up performance test constants (PerfTask0, PerfTask1, etc.)
     (0..10).each do |i|
-      test_constants << "PerfTask#{i}".to_sym
+      test_constants << :"PerfTask#{i}"
     end
-    
+
     test_constants.each do |const_name|
       Object.send(:remove_const, const_name) if Object.const_defined?(const_name)
     end

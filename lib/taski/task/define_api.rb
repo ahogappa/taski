@@ -84,7 +84,7 @@ module Taski
           klass = task_class[:klass]
           # Reference objects are stateless but Task classes store analysis state
           # Selective reset prevents errors while ensuring clean state for next analysis
-          if klass.respond_to?(:instance_variable_set) && !klass.is_a?(Taski::Reference)
+          unless klass.is_a?(Taski::Reference)
             klass.instance_variable_set(:@__resolution_state, {})
           end
         end

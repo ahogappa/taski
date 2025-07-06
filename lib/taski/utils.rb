@@ -316,7 +316,7 @@ module Taski
       attr_reader :parent_task, :exception, :task_name
 
       def parent_task_supports_rescue?
-        @parent_task&.respond_to?(:find_dependency_rescue_handler)
+        !@parent_task.nil?
       end
 
       def handler_exists?

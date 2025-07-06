@@ -21,8 +21,14 @@ module Taski
       def method_added(method_name)
         super
         return unless ANALYZED_METHODS.include?(method_name)
-        # Avoid calling before dependency_resolver module is loaded
-        analyze_dependencies_at_definition if respond_to?(:analyze_dependencies_at_definition, true)
+        # Call dependency analysis (overridden by dependency_resolver module)
+        analyze_dependencies_at_definition
+      end
+
+      # Default implementation of dependency analysis
+      # This is overridden by dependency_resolver module when included
+      def analyze_dependencies_at_definition
+        # No-op implementation for base Task class
       end
 
       # Create a reference to a task class (can be used anywhere)
