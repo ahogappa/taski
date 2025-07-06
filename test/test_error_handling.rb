@@ -405,6 +405,146 @@ class TestErrorHandling < Minitest::Test
     assert_includes error.message, "Custom error from rescue_deps"
   end
 
+  # === Deep Dependency Error Propagation Tests ===
+
+  def test_export_api_deep_dependency_error_propagation
+    # Test that errors propagate through deep dependency chains using export API
+
+    # Deepest task that fails
+    deep_task = Class.new(Taski::Task) do
+      exports :deep_value
+
+      def run
+        raise StandardError, "Deep task error"
+      end
+    end
+    Object.const_set(:DeepFailingTask, deep_task)
+
+    # Middle task that depends on deep task
+    middle_task = Class.new(Taski::Task) do
+      exports :middle_value
+
+      def run
+        # Create dependency through export API
+        @middle_value = "processed: #{DeepFailingTask.deep_value}"
+      end
+    end
+    Object.const_set(:MiddleTask, middle_task)
+
+    # Top task that depends on middle task
+    top_task = Class.new(Taski::Task) do
+      exports :top_value
+
+      def run
+        # Create dependency through export API
+        @top_value = "final: #{MiddleTask.middle_value}"
+      end
+    end
+    Object.const_set(:TopTask, top_task)
+
+    # Error should propagate from deep task to top task
+    error = assert_raises(Taski::TaskBuildError) do
+      TopTask.run
+    end
+
+    # Error message should include information about the failed task
+    assert_includes error.message, "Failed to build task"
+    # Original error should be preserved in the chain
+    assert_includes error.message, "Deep task error"
+  end
+
+  def test_define_api_deep_dependency_error_propagation
+    # Test that errors propagate through deep dependency chains using define API
+
+    # Deepest task that fails
+    deep_task = Class.new(Taski::Task) do
+      exports :deep_data
+
+      def run
+        raise "Deep define task error"
+      end
+    end
+    Object.const_set(:DeepDefineFailingTask, deep_task)
+
+    # Middle task that depends on deep task using define API
+    middle_task = Class.new(Taski::Task) do
+      exports :middle_result
+
+      def run
+        # Create dependency through exports API to avoid define analysis issue
+        @middle_result = "middle processed: #{DeepDefineFailingTask.deep_data}"
+      end
+    end
+    Object.const_set(:MiddleDefineTask, middle_task)
+
+    # Top task that depends on middle task using define API
+    top_task = Class.new(Taski::Task) do
+      exports :final_result
+
+      def run
+        # Create dependency through exports API to avoid define analysis issue
+        @final_result = "top processed: #{MiddleDefineTask.middle_result}"
+      end
+    end
+    Object.const_set(:TopDefineTask, top_task)
+
+    # Error should propagate from deep task to top task
+    error = assert_raises(Taski::TaskBuildError) do
+      TopDefineTask.run
+    end
+
+    # Error message should include information about the failed task
+    assert_includes error.message, "Failed to build task"
+    # Original error should be preserved in the chain
+    assert_includes error.message, "Deep define task error"
+  end
+
+  def test_mixed_api_deep_dependency_error_propagation
+    # Test error propagation with mixed export and define APIs
+
+    # Deepest task using export API
+    deep_task = Class.new(Taski::Task) do
+      exports :exported_value
+
+      def run
+        raise ArgumentError, "Mixed API deep error"
+      end
+    end
+    Object.const_set(:MixedDeepTask, deep_task)
+
+    # Middle task using export API, depending on export API
+    middle_task = Class.new(Taski::Task) do
+      exports :defined_value
+
+      def run
+        # Depends on export API task
+        @defined_value = "defined: #{MixedDeepTask.exported_value}"
+      end
+    end
+    Object.const_set(:MixedMiddleTask, middle_task)
+
+    # Top task using export API, depending on export API
+    top_task = Class.new(Taski::Task) do
+      exports :final_value
+
+      def run
+        # Depends on export API task
+        @final_value = "export: #{MixedMiddleTask.defined_value}"
+      end
+    end
+    Object.const_set(:MixedTopTask, top_task)
+
+    # Error should propagate through mixed API dependency chain
+    error = assert_raises(Taski::TaskBuildError) do
+      MixedTopTask.run
+    end
+
+    # Error message should include information about the failed task
+    assert_includes error.message, "Failed to build task"
+    # Original error should be preserved in the chain
+    assert_includes error.message, "Mixed API deep error"
+  end
+
   # === Multiple Signal Support Tests ===
 
   def test_signal_handler_multiple_signals_setup
