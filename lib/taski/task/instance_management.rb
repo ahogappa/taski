@@ -126,10 +126,19 @@ module Taski
       # @return [void] Sets @__task_instance
       def create_and_build_instance
         thread_key = build_thread_key
-        Thread.current[thread_key] = true
-        begin
+        with_build_tracking(thread_key) do
           build_dependencies
           @__task_instance = build_instance
+        end
+      end
+
+      # Execute block while tracking this task's build state in thread-local storage
+      # @param thread_key [String] The thread-local key for this task
+      # @yield Block to execute while tracking build state
+      def with_build_tracking(thread_key)
+        Thread.current[thread_key] = true
+        begin
+          yield
         ensure
           Thread.current[thread_key] = false
         end
