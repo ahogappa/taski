@@ -189,10 +189,14 @@ module Taski
           dep_class = extract_class(dep)
           next if dep_class == self
 
-          if dep_class.respond_to?(:ensure_instance_built)
-            execute_with_parent_context(dep_class) { dep_class.ensure_instance_built }
-          end
+          build_dependency(dep_class)
         end
+      end
+
+      # Build a single dependency task
+      # @param dep_class [Class] The dependency class to build (guaranteed to be Task/Section)
+      def build_dependency(dep_class)
+        execute_with_parent_context(dep_class) { dep_class.ensure_instance_built }
       end
 
       private
