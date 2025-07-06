@@ -110,10 +110,16 @@ module Taski
       def check_circular_dependency
         thread_key = build_thread_key
         if Thread.current[thread_key]
-          # Build dependency path for better error message
-          cycle_path = build_current_dependency_path
-          raise CircularDependencyError, build_runtime_circular_dependency_message(cycle_path)
+          handle_circular_dependency_detected
         end
+      end
+
+      # Handle the case when circular dependency is detected
+      # @raise [CircularDependencyError] Always raises with detailed message
+      def handle_circular_dependency_detected
+        # Build dependency path for better error message
+        cycle_path = build_current_dependency_path
+        raise CircularDependencyError, build_runtime_circular_dependency_message(cycle_path)
       end
 
       # Create and build instance with proper thread-local state management
