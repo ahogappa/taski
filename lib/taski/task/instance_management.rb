@@ -18,7 +18,7 @@ module Taski
           # Ensure this task itself is also built after dependencies
           ensure_instance_built
           # Return the singleton instance for consistency
-          instance_variable_get(:@__task_instance)
+          current_instance
         else
           run_with_args(args)
         end
@@ -31,7 +31,7 @@ module Taski
       def clean
         resolve_dependencies.each do |task_class|
           # Get existing instance or create new one for cleaning
-          instance = task_class.instance_variable_get(:@__task_instance) || task_class.new
+          instance = task_class.instance_for_cleanup
           instance.clean
         end
       end
@@ -66,8 +66,7 @@ module Taski
         end
 
         # Create temporary instance with arguments
-        temp_instance = new
-        temp_instance.instance_variable_set(:@run_args, args)
+        temp_instance = new(args)
 
         # Run with logging using common utility
         Utils::TaskBuildHelpers.with_build_logging(name.to_s,

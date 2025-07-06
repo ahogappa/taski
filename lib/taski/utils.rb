@@ -213,7 +213,7 @@ module Taski
       end
 
       def handle_rescue_deps(exception)
-        TaskBuildHelpers.send(:handle_rescue_deps, context.parent_task, exception, context.task_name)
+        TaskBuildHelpers.handle_rescue_deps(context.parent_task, exception, context.task_name)
       end
 
       def complete_progress_failure(exception)
@@ -273,8 +273,6 @@ module Taski
       end
 
       class << self
-        private
-
         # Handle rescue_deps error handling using Chain of Responsibility
         # @param parent_task [Class] Parent task class
         # @param exception [Exception] Exception to handle
@@ -283,6 +281,8 @@ module Taski
         def handle_rescue_deps(parent_task, exception, task_name)
           RescueDepsChain.new(parent_task, exception, task_name).handle
         end
+
+        private
 
         # Handle the result from rescue handler using Strategy pattern
         # @param result [Object] Result from rescue handler

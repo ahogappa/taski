@@ -142,17 +142,23 @@ module Taski
     # @param output [IO] Output destination
     # @param format [Symbol] Log format (:simple, :structured, :json)
     def configure_logger(level: :info, output: $stdout, format: :structured)
+      @logger_output = output
+      @logger_format = format
       @logger = Logger.new(level: level, output: output, format: format)
     end
 
     # Set logger to quiet mode (only errors)
     def quiet!
-      @logger = Logger.new(level: :error, output: @logger&.instance_variable_get(:@output) || $stdout)
+      output = @logger_output || $stdout
+      format = @logger_format || :structured
+      @logger = Logger.new(level: :error, output: output, format: format)
     end
 
     # Set logger to verbose mode (all messages)
     def verbose!
-      @logger = Logger.new(level: :debug, output: @logger&.instance_variable_get(:@output) || $stdout)
+      output = @logger_output || $stdout
+      format = @logger_format || :structured
+      @logger = Logger.new(level: :debug, output: output, format: format)
     end
   end
 end

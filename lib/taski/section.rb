@@ -26,6 +26,12 @@ module Taski
         resolve_dependencies_common
       end
 
+      # Get the dependencies of this section
+      # @return [Array<Hash>] Array of dependency hashes in format [{klass: TaskClass}, ...]
+      def dependencies
+        @dependencies || []
+      end
+
       # Analyze dependencies when accessing interface methods
       def analyze_dependencies_for_interfaces
         interface_exports.each do |interface_method|
@@ -175,7 +181,7 @@ module Taski
             implementation = implementation_class.run
 
             begin
-              implementation.send(name)
+              implementation.public_send(name)
             rescue NoMethodError
               raise SectionImplementationError,
                 "Implementation does not provide required method '#{name}'. " \

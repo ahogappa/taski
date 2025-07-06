@@ -60,6 +60,12 @@ module Taski
         @__resolution_state ||= {}
       end
 
+      # Reset resolution state for define API analysis
+      # @return [void]
+      def reset_resolution_state
+        @__resolution_state = {}
+      end
+
       # Register rescue handler for dependency errors
       # @param exception_classes [Array<Class>] Exception classes to handle
       # @param handler [Proc] Lambda to handle exceptions
@@ -108,6 +114,18 @@ module Taski
         @dependencies || []
       end
 
+      # Get the current task instance (may be nil)
+      # @return [Task, nil] Current task instance or nil if not built
+      def current_instance
+        @__task_instance
+      end
+
+      # Get the current task instance or create a new one for cleaning
+      # @return [Task] Task instance for cleaning operations
+      def instance_for_cleanup
+        @__task_instance || new
+      end
+
       private
 
       include Utils::DependencyUtils
@@ -115,6 +133,12 @@ module Taski
     end
 
     # === Instance Methods ===
+
+    # Initialize task instance with optional run arguments
+    # @param run_args [Hash, nil] Optional run arguments for parametrized execution
+    def initialize(run_args = nil)
+      @run_args = run_args
+    end
 
     # Run method that must be implemented by subclasses
     # @raise [NotImplementedError] If not implemented by subclass
@@ -133,6 +157,8 @@ module Taski
 
     # Build arguments alias for backward compatibility
     alias_method :build_args, :run_args
+
+    private
 
     # Clean method with default empty implementation
     # Subclasses can override this method to implement cleanup logic

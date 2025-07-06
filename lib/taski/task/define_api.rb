@@ -67,13 +67,13 @@ module Taski
 
           # Track pending references for phase 2 resolution
           if klass.is_a?(Taski::Reference)
-            ref_key = klass.klass
+            ref_key = klass.inspect
 
             # Skip if we've already seen this reference
             break if seen_refs.include?(ref_key)
 
             seen_refs << ref_key
-            add_pending_reference(ref_key)
+            add_pending_reference(klass)
           end
 
           classes << {klass:, task:}
@@ -85,7 +85,7 @@ module Taski
           # Reference objects are stateless but Task classes store analysis state
           # Selective reset prevents errors while ensuring clean state for next analysis
           unless klass.is_a?(Taski::Reference)
-            klass.instance_variable_set(:@__resolution_state, {})
+            klass.reset_resolution_state
           end
         end
 
@@ -118,7 +118,7 @@ module Taski
         # Instance method that delegates to class method
         define_method(name) do
           @__defined_values ||= {}
-          @__defined_values[name] ||= self.class.send(name)
+          @__defined_values[name] ||= self.class.public_send(name)
         end
 
         # Mark as defined for this resolution
@@ -151,18 +151,27 @@ module Taski
         pending_refs = get_pending_references
         return if pending_refs.empty?
 
-        pending_refs.each do |klass_name|
-          Object.const_get(klass_name)
-        rescue NameError => e
-          task_name = name || to_s
-          raise Taski::TaskAnalysisError, "Task '#{task_name}' cannot resolve ref('#{klass_name}'): #{e.message}"
+        pending_refs.each do |reference|
+          reference.deref
+        rescue Taski::TaskAnalysisError => e
+          # Extract class name from the reference for error message
+          # The TaskAnalysisError from deref contains "Cannot resolve constant 'ClassName': ..."
+          # We want to extract just the class name for a cleaner error message
+          if e.message =~ /Cannot resolve constant '([^']+)'/
+            class_name = $1
+            task_name = name || to_s
+            raise Taski::TaskAnalysisError, "Task '#{task_name}' cannot resolve ref('#{class_name}')"
+          else
+            task_name = name || to_s
+            raise Taski::TaskAnalysisError, "Task '#{task_name}' cannot resolve ref: #{e.message}"
+          end
         end
       end
 
       # Track pending references for phase 2 resolution (public for debugging)
-      def add_pending_reference(klass_name)
+      def add_pending_reference(reference)
         @pending_references ||= Set.new
-        @pending_references << klass_name
+        @pending_references << reference
       end
     end
   end

@@ -8,8 +8,6 @@ module Taski
   # Used to create lazy references to task classes by name,
   # which is useful for dependency tracking and metaprogramming.
   class Reference
-    attr_reader :klass
-
     # @param klass [String] The name of the class to reference
     def initialize(klass)
       @klass = klass

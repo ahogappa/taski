@@ -35,7 +35,7 @@ module Taski
           current_path = path_map[task_class] || []
           task_class.resolve(queue, resolved)
 
-          task_class.instance_variable_get(:@dependencies)&.each do |dep|
+          task_class.dependencies.each do |dep|
             dep_class = extract_class(dep)
             path_map[dep_class] = current_path + [task_class] unless path_map.key?(dep_class)
           end
