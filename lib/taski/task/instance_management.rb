@@ -69,7 +69,7 @@ module Taski
         temp_instance = new(args)
 
         # Run with logging using common utility
-        Utils::TaskBuildHelpers.with_build_logging(name.to_s,
+        InstanceBuilder.with_build_logging(name.to_s,
           dependencies: @dependencies || [],
           args: args) do
           temp_instance.run
@@ -80,6 +80,39 @@ module Taski
       # Keep old method name for compatibility
       alias_method :build_with_args, :run_with_args
       private :run_with_args, :build_with_args
+
+      # === Dependency Management ===
+
+      # Build all dependencies of this task
+      def build_dependencies
+        resolve_dependencies
+
+        (@dependencies || []).each do |dep|
+          dep_class = extract_class(dep)
+          next if dep_class == self
+
+          build_dependency(dep_class)
+        end
+      end
+
+      # Build a single dependency task
+      # @param dep_class [Class] The dependency class to build (guaranteed to be Task/Section)
+      def build_dependency(dep_class)
+        execute_with_parent_context(dep_class) { dep_class.ensure_instance_built }
+      end
+
+      # Execute block with parent task context for rescue_deps handling
+      # @param task_class [Class] Task class being executed
+      # @yield Block to execute with parent context
+      def execute_with_parent_context(task_class)
+        previous_parent = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
+        Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = self
+        begin
+          yield
+        ensure
+          Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
+        end
+      end
 
       # === Instance Management ===
 
@@ -164,7 +197,7 @@ module Taski
         instance = new
         # Try to get parent task from calling context
         parent_task = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
-        Utils::TaskBuildHelpers.with_build_logging(name.to_s,
+        InstanceBuilder.with_build_logging(name.to_s,
           dependencies: @dependencies || [], parent_task: parent_task) do
           instance.run
           instance
@@ -176,26 +209,6 @@ module Taski
         Thread.current.keys.each do |key|
           Thread.current[key] = nil if key.to_s.include?(build_thread_key)
         end
-      end
-
-      # === Dependency Management ===
-
-      # Build all dependencies of this task
-      def build_dependencies
-        resolve_dependencies
-
-        (@dependencies || []).each do |dep|
-          dep_class = extract_class(dep)
-          next if dep_class == self
-
-          build_dependency(dep_class)
-        end
-      end
-
-      # Build a single dependency task
-      # @param dep_class [Class] The dependency class to build (guaranteed to be Task/Section)
-      def build_dependency(dep_class)
-        execute_with_parent_context(dep_class) { dep_class.ensure_instance_built }
       end
 
       private
@@ -221,23 +234,7 @@ module Taski
       # @param cycle_path [Array<Class>] The circular dependency path
       # @return [String] Formatted error message
       def build_runtime_circular_dependency_message(cycle_path)
-        Utils::CircularDependencyHelpers.build_error_message(cycle_path, "runtime")
-      end
-
-      include Utils::DependencyUtils
-      private :extract_class
-
-      # Execute block with parent task context for rescue_deps handling
-      # @param task_class [Class] Task class being executed
-      # @yield Block to execute with parent context
-      def execute_with_parent_context(task_class)
-        previous_parent = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
-        Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = self
-        begin
-          yield
-        ensure
-          Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
-        end
+        CircularDependencyDetector.build_error_message(cycle_path, "runtime")
       end
     end
   end
