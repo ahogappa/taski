@@ -1,36 +1,17 @@
 # frozen_string_literal: true
 
 require_relative "dependency_analyzer"
-require_relative "utils"
 require_relative "utils/tree_display"
-require_relative "utils/dependency_resolver"
+require_relative "task_interface"
 
 module Taski
   # Section provides an interface abstraction layer for dynamic implementation selection
   # while maintaining static analysis capabilities
   class Section
+    extend TaskInterface::ClassMethods
+
     class << self
       # === Dependency Resolution ===
-
-      # Resolve method for dependency graph (called by resolve_dependencies)
-      # @param queue [Array] Queue of tasks to process
-      # @param resolved [Array] Array of resolved tasks
-      # @return [self] Returns self for method chaining
-      def resolve(queue, resolved)
-        resolve_common(queue, resolved)
-      end
-
-      # Resolve all dependencies in topological order
-      # @return [Array<Class>] Array of tasks in dependency order
-      def resolve_dependencies
-        resolve_dependencies_common
-      end
-
-      # Get the dependencies of this section
-      # @return [Array<Hash>] Array of dependency hashes in format [{klass: TaskClass}, ...]
-      def dependencies
-        @dependencies || []
-      end
 
       # Analyze dependencies when accessing interface methods
       def analyze_dependencies_for_interfaces
@@ -52,37 +33,6 @@ module Taski
           []
         else
           DependencyAnalyzer.analyze_method(self, :impl)
-        end
-      end
-
-      # Add dependencies that don't already exist
-      def add_unique_dependencies(dep_classes)
-        dep_classes.each do |dep_class|
-          next if dep_class == self || dependency_exists?(dep_class)
-          add_dependency(dep_class)
-        end
-      end
-
-      # Add a single dependency
-      def add_dependency(dep_class)
-        @dependencies ||= []
-        @dependencies << {klass: dep_class}
-      end
-
-      # Check if dependency already exists
-      def dependency_exists?(dep_class)
-        (@dependencies || []).any? { |d| d[:klass] == dep_class }
-      end
-
-      # Extract class from dependency specification
-      def extract_class(task)
-        case task
-        when Class
-          task
-        when Hash
-          task[:klass]
-        else
-          task
         end
       end
 
@@ -110,13 +60,6 @@ module Taski
       # @return [self] Returns self
       def reset!
         self
-      end
-
-      # Default implementation of resolve_pending_references
-      # Sections don't use ref() in the same way as Tasks with DefineAPI,
-      # so this is a no-op implementation for compatibility
-      def resolve_pending_references
-        # No-op for sections
       end
 
       # Display dependency tree for this section
@@ -277,7 +220,6 @@ module Taski
       end
 
       include Utils::TreeDisplay
-      include Utils::DependencyResolver
 
       # Subclasses should override this method to select appropriate implementation
       def impl

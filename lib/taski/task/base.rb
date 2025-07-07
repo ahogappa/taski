@@ -2,6 +2,7 @@
 
 require_relative "../exceptions"
 require_relative "../utils/tree_display"
+require_relative "../task_interface"
 
 module Taski
   # Base Task class that provides the foundation for task framework
@@ -13,7 +14,12 @@ module Taski
     TASKI_CURRENT_PARENT_TASK_KEY = :taski_current_parent_task
     ANALYZED_METHODS = [:build, :clean, :run].freeze
 
+    extend Taski::TaskInterface::ClassMethods
+
     class << self
+      def resolve(queue, resolved)
+        resolve_common(queue, resolved) { create_defined_methods }
+      end
       # === Hook Methods ===
 
       # Hook called when build/clean methods are defined
@@ -25,11 +31,7 @@ module Taski
         analyze_dependencies_at_definition
       end
 
-      # Default implementation of dependency analysis
-      # This is overridden by dependency_resolver module when included
-      def analyze_dependencies_at_definition
-        # No-op implementation for base Task class
-      end
+      # analyze_dependencies_at_definition is inherited from TaskInterface::ClassMethods
 
       # Create a reference to a task class (can be used anywhere)
       # @param klass [String] The class name to reference
@@ -84,12 +86,7 @@ module Taski
         @rescue_handlers.find { |exception_class, handler| exception.is_a?(exception_class) }
       end
 
-      # Default implementation of resolve_pending_references
-      # This does nothing by default, but DefineAPI overrides it
-      # to validate ref() calls collected during analysis
-      def resolve_pending_references
-        # No-op for tasks that don't use DefineAPI
-      end
+      # resolve_pending_references is inherited from TaskInterface::ClassMethods
 
       # Display dependency tree for this task
       # @param prefix [String] Current indentation prefix
@@ -108,11 +105,7 @@ module Taski
         result
       end
 
-      # Get the dependencies of this task
-      # @return [Array<Hash>] Array of dependency hashes in format [{klass: TaskClass}, ...]
-      def dependencies
-        @dependencies || []
-      end
+      # dependencies method is inherited from TaskInterface::ClassMethods
 
       # Get the current task instance (may be nil)
       # @return [Task, nil] Current task instance or nil if not built
@@ -128,7 +121,6 @@ module Taski
 
       private
 
-      include Utils::DependencyUtils
       include Utils::TreeDisplay
     end
 
