@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "exceptions"
-require_relative "utils/tree_display"
+require_relative "tree_display"
 require_relative "task_interface"
 require "monitor"
 

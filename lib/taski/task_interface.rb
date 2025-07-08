@@ -182,7 +182,27 @@ module Taski
       # @param cycle_path [Array] Array representing the circular dependency path
       # @return [String] Formatted error message
       def build_circular_dependency_message(cycle_path)
-        CircularDependencyDetector.build_error_message(cycle_path, "dependency")
+        build_circular_dependency_error_message(cycle_path, "dependency")
+      end
+
+      # Build detailed error message for circular dependencies
+      # @param cycle_path [Array<Class>] The circular dependency path
+      # @param context [String] Context of the error (dependency, runtime)
+      # @return [String] Formatted error message
+      def build_circular_dependency_error_message(cycle_path, context = "dependency")
+        path_names = cycle_path.map { |klass| klass.name || klass.to_s }
+
+        message = "Circular dependency detected!\n"
+        message += "Cycle: #{path_names.join(" → ")}\n\n"
+        message += "The #{context} chain is:\n"
+
+        cycle_path.each_cons(2).with_index do |(from, to), index|
+          action = (context == "dependency") ? "depends on" : "is trying to build"
+          message += "  #{index + 1}. #{from.name} #{action} → #{to.name}\n"
+        end
+
+        message += "\nThis creates an infinite loop that cannot be resolved." if context == "dependency"
+        message
       end
 
       def ensure_instance_built

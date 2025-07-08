@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "dependency_analyzer"
-require_relative "utils/tree_display"
+require_relative "tree_display"
 require_relative "task_interface"
 
 module Taski
@@ -67,13 +67,13 @@ module Taski
       # @param visited [Set] Set of visited classes to prevent infinite loops
       # @param color [Boolean] Whether to use color output
       # @return [String] Formatted dependency tree
-      def tree(prefix = "", visited = Set.new, color: TreeColors.enabled?)
+      def tree(prefix = "", visited = Set.new, color: Taski::TreeDisplay::TreeColors.enabled?)
         should_return_early, early_result, new_visited = handle_circular_dependency_check(visited, self, prefix)
         return early_result if should_return_early
 
         # Get section name with fallback for anonymous classes
         section_name = name || to_s
-        colored_section_name = color ? TreeColors.section(section_name) : section_name
+        colored_section_name = color ? Taski::TreeDisplay::TreeColors.section(section_name) : section_name
         result = "#{prefix}#{colored_section_name}\n"
 
         # Add possible implementations - detect from nested Task classes
@@ -81,8 +81,8 @@ module Taski
         if possible_implementations.any?
           impl_names = possible_implementations.map { |impl| extract_implementation_name(impl) }
           impl_text = "[One of: #{impl_names.join(", ")}]"
-          colored_impl_text = color ? TreeColors.implementations(impl_text) : impl_text
-          connector = color ? TreeColors.connector("└── ") : "└── "
+          colored_impl_text = color ? Taski::TreeDisplay::TreeColors.implementations(impl_text) : impl_text
+          connector = color ? Taski::TreeDisplay::TreeColors.connector("└── ") : "└── "
           result += "#{prefix}#{connector}#{colored_impl_text}\n"
         end
 
@@ -219,7 +219,7 @@ module Taski
         const_value.is_a?(Class) && const_value < Taski::Task
       end
 
-      include Utils::TreeDisplay
+      include TreeDisplay
 
       # Subclasses should override this method to select appropriate implementation
       def impl

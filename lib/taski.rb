@@ -10,11 +10,9 @@ require_relative "taski/progress_display"
 require_relative "taski/reference"
 require_relative "taski/dependency_analyzer"
 require_relative "taski/signal_handler"
-require_relative "taski/tree_colors"
 require_relative "taski/task_interface"
 require_relative "taski/task_component"
 require_relative "taski/instance_builder"
-require_relative "taski/circular_dependency_detector"
 
 # Load Task class
 require_relative "taski/task"

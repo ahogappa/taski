@@ -328,8 +328,8 @@ class TestSection < Minitest::Test
     database_section.const_set(:PostgresImplementation, postgres_impl)
 
     # Force enable colors for testing (since test environment might not be TTY)
-    original_enabled = Taski::TreeColors.enabled?
-    Taski::TreeColors.enabled = true
+    original_enabled = Taski::TreeDisplay::TreeColors.enabled?
+    Taski::TreeDisplay::TreeColors.enabled = true
 
     begin
       # Color enabled
@@ -343,7 +343,7 @@ class TestSection < Minitest::Test
       refute_includes plain_output, "\e[", "Should not include any ANSI codes when color disabled"
     ensure
       # Restore original state
-      Taski::TreeColors.enabled = original_enabled
+      Taski::TreeDisplay::TreeColors.enabled = original_enabled
     end
   end
 
