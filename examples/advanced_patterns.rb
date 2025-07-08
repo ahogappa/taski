@@ -115,5 +115,50 @@ ENV["FEATURE_REDIS_CACHE"] = "true"
 Environment.reset!
 Application.run
 
-puts "\n4. Cleanup:"
-Application.clean
+puts "\n4. Parametrized Task Execution (run_with_args):"
+
+# Task that accepts parameters
+class ParametrizedTask < Taski::Task
+  exports :result
+
+  def run
+    # Access parameters using build_args method
+    args = run_args
+    multiplier = args[:multiplier] || 1
+    base_value = args[:base_value] || 10
+
+    @result = base_value * multiplier
+    puts "Computed result: #{@result} (base: #{base_value}, multiplier: #{multiplier})"
+  end
+end
+
+# Task that uses parametrized dependency
+class Calculator < Taski::Task
+  def run
+    # Use parameters to customize calculation
+    args = run_args
+    multiplier = args[:multiplier] || 1
+    base_value = args[:base_value] || 10
+
+    puts "Calculator running with multiplier: #{multiplier}, base_value: #{base_value}"
+
+    result = base_value * multiplier
+    puts "Final result: #{result}"
+  end
+end
+
+# Example 1: Basic parametrized task execution
+puts "Basic parametrized task execution:"
+Calculator.run(multiplier: 2, base_value: 5)
+
+# Example 2: Different parameters
+puts "\nDifferent parameters:"
+Calculator.run(multiplier: 3, base_value: 10)
+
+# Example 3: Using ParametrizedTask with parameters
+puts "\nParametrized task with dependency:"
+result = ParametrizedTask.run(multiplier: 4, base_value: 7)
+puts "Parametrized task result: #{result.result}"
+
+puts "\n5. Cleanup:"
+puts "Application shutdown complete"
