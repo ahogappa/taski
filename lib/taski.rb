@@ -16,11 +16,8 @@ require_relative "taski/task_component"
 require_relative "taski/instance_builder"
 require_relative "taski/circular_dependency_detector"
 
-# Load Task class components
-require_relative "taski/task/base"
-require_relative "taski/task/exports_api"
-require_relative "taski/task/define_api"
-require_relative "taski/task/instance_management"
+# Load Task class
+require_relative "taski/task"
 
 # Load Section class
 require_relative "taski/section"

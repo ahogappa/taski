@@ -2,10 +2,8 @@
 
 module Taski
   class Task
-    class << self
-      # === Define API ===
-      # Define lazy-evaluated values with dynamic dependency resolution
-
+    # Module for the Define API - lazy-evaluated values with dynamic dependency resolution
+    module DefineAPI
       # Define a lazy-evaluated value using a block
       # Use this API when dependencies change based on runtime conditions,
       # environment-specific configurations, feature flags, or complex conditional logic
@@ -27,8 +25,6 @@ module Taski
       end
 
       private
-
-      # === Define API Implementation ===
 
       # Create method that tracks dependencies for define API
       # @param name [Symbol] Method name to create
@@ -55,7 +51,7 @@ module Taski
         seen_refs = Set.new
 
         # Set flag to indicate we're analyzing define dependencies
-        Thread.current[TASKI_ANALYZING_DEFINE_KEY] = true
+        Thread.current[CoreConstants::TASKI_ANALYZING_DEFINE_KEY] = true
 
         loop do
           klass, task = catch(:unresolved) do
@@ -91,7 +87,7 @@ module Taski
 
         classes
       ensure
-        Thread.current[TASKI_ANALYZING_DEFINE_KEY] = false
+        Thread.current[CoreConstants::TASKI_ANALYZING_DEFINE_KEY] = false
       end
 
       # Create methods for values defined with define API

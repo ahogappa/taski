@@ -4,9 +4,8 @@ require "monitor"
 
 module Taski
   class Task
-    class << self
-      # === Lifecycle Management ===
-
+    # Module for instance and lifecycle management
+    module InstanceManagement
       # Run this task and all its dependencies
       # @param args [Hash] Optional arguments for parametrized runs
       # @return [Task] Returns task instance (singleton or temporary)
@@ -105,12 +104,12 @@ module Taski
       # @param task_class [Class] Task class being executed
       # @yield Block to execute with parent context
       def execute_with_parent_context(task_class)
-        previous_parent = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
-        Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = self
+        previous_parent = Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY]
+        Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY] = self
         begin
           yield
         ensure
-          Thread.current[TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
+          Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
         end
       end
 
@@ -188,7 +187,7 @@ module Taski
       # Each task uses a unique thread-local key to track if it's currently building
       # @return [String] Thread key for this task's build state
       def build_thread_key
-        "#{name}#{THREAD_KEY_SUFFIX}"
+        "#{name}#{CoreConstants::THREAD_KEY_SUFFIX}"
       end
 
       # Build and configure task instance
@@ -196,7 +195,7 @@ module Taski
       def build_instance
         instance = new
         # Try to get parent task from calling context
-        parent_task = Thread.current[TASKI_CURRENT_PARENT_TASK_KEY]
+        parent_task = Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY]
         InstanceBuilder.with_build_logging(name.to_s,
           dependencies: @dependencies || [], parent_task: parent_task) do
           instance.run
@@ -218,8 +217,8 @@ module Taski
       def build_current_dependency_path
         path = []
         Thread.current.keys.each do |key|
-          if key.to_s.end_with?(THREAD_KEY_SUFFIX) && Thread.current[key]
-            class_name = key.to_s.sub(THREAD_KEY_SUFFIX, "")
+          if key.to_s.end_with?(CoreConstants::THREAD_KEY_SUFFIX) && Thread.current[key]
+            class_name = key.to_s.sub(CoreConstants::THREAD_KEY_SUFFIX, "")
             begin
               path << Object.const_get(class_name)
             rescue NameError

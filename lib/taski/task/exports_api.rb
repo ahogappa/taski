@@ -2,10 +2,8 @@
 
 module Taski
   class Task
-    class << self
-      # === Exports API ===
-      # Export instance variables as class methods for static dependencies
-
+    # Module for the Exports API - export instance variables as class methods
+    module ExportsAPI
       # Export instance variables as both class and instance methods
       # @param names [Array<Symbol>] Names of instance variables to export
       def exports(*names)
