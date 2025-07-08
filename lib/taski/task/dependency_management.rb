@@ -71,6 +71,37 @@ module Taski
         @rescue_handlers.find { |exception_class, handler| exception.is_a?(exception_class) }
       end
 
+      # Build all dependencies of this task
+      def build_dependencies
+        resolve_dependencies
+
+        (@dependencies || []).each do |dep|
+          dep_class = extract_class(dep)
+          next if dep_class == self
+
+          build_dependency(dep_class)
+        end
+      end
+
+      # Build a single dependency task
+      # @param dep_class [Class] The dependency class to build (guaranteed to be Task/Section)
+      def build_dependency(dep_class)
+        execute_with_parent_context(dep_class) { dep_class.ensure_instance_built }
+      end
+
+      # Execute block with parent task context for rescue_deps handling
+      # @param task_class [Class] Task class being executed
+      # @yield Block to execute with parent context
+      def execute_with_parent_context(task_class)
+        previous_parent = Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY]
+        Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY] = self
+        begin
+          yield
+        ensure
+          Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
+        end
+      end
+
       # Get the current task instance (may be nil)
       # @return [Task, nil] Current task instance or nil if not built
       def current_instance
