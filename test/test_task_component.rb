@@ -44,7 +44,6 @@ class TestTaskComponent < Minitest::Test
 
   class TestTask < Taski::Task
     def run
-      # 何もしない
     end
   end
 end

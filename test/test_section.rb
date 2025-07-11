@@ -196,9 +196,6 @@ class TestSection < Minitest::Test
   end
 
   def test_section_tree_displays_possible_implementations
-    # RED段階：Section.treeが可能な実装クラスを表示する機能のテスト
-    # 期待される動作：Section.treeで可能な実装クラスが表示される
-
     # PostgreSQL/MySQL implementation section
     database_section = Class.new(Taski::Section) do
       interface :database_url
@@ -242,8 +239,6 @@ class TestSection < Minitest::Test
   end
 
   def test_section_tree_shows_different_implementations_for_different_sections
-    # 三角測量：異なるSectionで異なる実装リストが表示されることを確認
-
     # Cache section (different implementations)
     cache_section = Class.new(Taski::Section) do
       interface :cache_client
@@ -290,7 +285,6 @@ class TestSection < Minitest::Test
   end
 
   def test_section_tree_with_no_implementations
-    # エッジケース：実装クラスが存在しない場合
     empty_section = Class.new(Taski::Section) do
       interface :value
 
@@ -309,7 +303,6 @@ class TestSection < Minitest::Test
   end
 
   def test_section_tree_with_colors
-    # カラー表示のテスト
     database_section = Class.new(Taski::Section) do
       interface :database_url
 
