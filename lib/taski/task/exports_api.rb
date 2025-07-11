@@ -11,22 +11,17 @@ module Taski
         @exports += names
 
         names.each do |name|
-          next if respond_to?(name)
+          next if singleton_class.method_defined?(name)
 
           # Define class method that delegates to instance
           define_singleton_method(name) do
             ensure_instance_built.public_send(name)
           end
 
-          # Define instance method - use attr_reader for basic identifiers only
+          # Define instance method using attr_reader for valid identifiers
+          # Skip special characters as they cannot be used as instance variable names
           if name.to_s.match?(/\A[a-zA-Z_][a-zA-Z0-9_]*\z/)
             attr_reader name
-          else
-            # TECHNICAL DEBT: Special characters (?, !) require instance_variable_get
-            # TODO: Replace with Hash-based state management in future refactoring
-            define_method(name) do
-              instance_variable_get("@#{name}")
-            end
           end
         end
       end
