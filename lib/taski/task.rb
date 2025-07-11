@@ -55,8 +55,6 @@ module Taski
     # Build arguments alias for backward compatibility
     alias_method :build_args, :run_args
 
-    private
-
     # Clean method with default empty implementation
     # Subclasses can override this method to implement cleanup logic
     def clean

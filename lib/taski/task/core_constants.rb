@@ -8,7 +8,7 @@ module Taski
       THREAD_KEY_SUFFIX = "_building"
       TASKI_ANALYZING_DEFINE_KEY = :taski_analyzing_define
       TASKI_CURRENT_PARENT_TASK_KEY = :taski_current_parent_task
-      ANALYZED_METHODS = [:build, :clean, :run].freeze
+      ANALYZED_METHODS = [:build, :clean, :run, :drop].freeze
     end
   end
 end

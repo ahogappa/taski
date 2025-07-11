@@ -375,6 +375,55 @@ class TestCoreFunctionality < Minitest::Test
     refute_includes output[0], "TaskB build"
   end
 
+  def test_default_clean_method_visibility
+    # Test that default clean method is publicly accessible
+    task = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "built"
+      end
+    end
+    Object.const_set(:DefaultCleanTask, task)
+
+    # Should be able to call clean method without error
+    DefaultCleanTask.clean
+
+    # Should be able to call clean on instance without error
+    instance = task.new
+    instance.clean
+
+    # If we reach here, clean method is accessible
+    assert true
+  end
+
+  def test_clean_method_with_dependencies_without_clean_implementation
+    # Test that clean works when dependencies don't implement clean method
+    task_a = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "dependency_value"
+      end
+      # No clean method implemented - should use default
+    end
+    Object.const_set(:NocleanDependency, task_a)
+
+    task_b = Class.new(Taski::Task) do
+      def run
+        puts "Using: #{NocleanDependency.value}"
+      end
+      # No clean method implemented - should use default
+    end
+    Object.const_set(:NocleanMain, task_b)
+
+    # Should be able to call clean without error even when dependencies don't implement clean
+    NocleanMain.clean
+
+    # If we reach here, clean method worked correctly
+    assert true
+  end
+
   def test_refresh_functionality
     # Test that refresh works like reset
     task = Class.new(Taski::Task) do
