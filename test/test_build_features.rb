@@ -478,6 +478,195 @@ class TestBuildFeatures < Minitest::Test
   end
 
   # ===================================================================
+  # PARAMETRIZED BUILD CACHE BEHAVIOR TESTS
+  # ===================================================================
+
+  def test_parametrized_cache_maintains_for_order_changes
+    # Cache should be maintained when argument order changes but keys are same
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def self.name
+        "CacheOrderTask"
+      end
+
+      def run
+        args = build_args
+        @result = "args_#{args.inspect}"
+      end
+    end
+    Object.const_set(:CacheOrderTask, task_class)
+
+    # First call with specific order
+    first_result = CacheOrderTask.run(a: 1, b: 2)
+    first_object_id = first_result.object_id
+
+    # Second call with different order but same keys
+    second_result = CacheOrderTask.run(b: 2, a: 1)
+    second_object_id = second_result.object_id
+
+    # Should return same cached instance
+    assert_equal first_object_id, second_object_id
+    assert_equal first_result.result, second_result.result
+  end
+
+  def test_parametrized_cache_clears_for_key_additions
+    # Cache should be cleared when argument keys are added
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def self.name
+        "CacheAdditionTask"
+      end
+
+      def run
+        args = build_args
+        @result = "args_#{args.inspect}"
+      end
+    end
+    Object.const_set(:CacheAdditionTask, task_class)
+
+    # First call with two keys
+    first_result = CacheAdditionTask.run(a: 1, b: 2)
+    first_object_id = first_result.object_id
+
+    # Second call with additional key
+    second_result = CacheAdditionTask.run(a: 1, b: 2, c: 3)
+    second_object_id = second_result.object_id
+
+    # Should create new instance (cache cleared)
+    refute_equal first_object_id, second_object_id
+    refute_equal first_result.result, second_result.result
+  end
+
+  def test_parametrized_cache_clears_for_key_removals
+    # Cache should be cleared when argument keys are removed
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def self.name
+        "CacheRemovalTask"
+      end
+
+      def run
+        args = build_args
+        @result = "args_#{args.inspect}"
+      end
+    end
+    Object.const_set(:CacheRemovalTask, task_class)
+
+    # First call with three keys
+    first_result = CacheRemovalTask.run(a: 1, b: 2, c: 3)
+    first_object_id = first_result.object_id
+
+    # Second call with one key removed
+    second_result = CacheRemovalTask.run(a: 1, b: 2)
+    second_object_id = second_result.object_id
+
+    # Should create new instance (cache cleared)
+    refute_equal first_object_id, second_object_id
+    refute_equal first_result.result, second_result.result
+  end
+
+  def test_parametrized_cache_distinguishes_nil_values
+    # Cache should distinguish between explicit nil and omitted values
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def self.name
+        "CacheNilTask"
+      end
+
+      def run
+        args = build_args
+        @result = "args_#{args.inspect}"
+      end
+    end
+    Object.const_set(:CacheNilTask, task_class)
+
+    # First call without nil values
+    first_result = CacheNilTask.run(a: 1, b: 2)
+    first_object_id = first_result.object_id
+
+    # Second call with nil value added - should create new instance
+    second_result = CacheNilTask.run(a: 1, b: 2, c: nil)
+    second_object_id = second_result.object_id
+
+    # Should return different instances (nil is significant)
+    refute_equal first_object_id, second_object_id
+    refute_equal first_result.result, second_result.result
+
+    # But same arguments should use cache
+    third_result = CacheNilTask.run(a: 1, b: 2, c: nil)
+    assert_equal second_object_id, third_result.object_id
+  end
+
+  def test_parametrized_cache_single_cache_strategy
+    # Only one cache should be maintained at a time (single cache strategy)
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def self.name
+        "SingleCacheTask"
+      end
+
+      def run
+        args = build_args
+        @result = "args_#{args.inspect}"
+      end
+    end
+    Object.const_set(:SingleCacheTask, task_class)
+
+    # First call with specific args
+    first_result = SingleCacheTask.run(a: 1, b: 2)
+    first_object_id = first_result.object_id
+
+    # Second call with different args (should clear first cache)
+    second_result = SingleCacheTask.run(x: 10, y: 20)
+    second_object_id = second_result.object_id
+
+    # Third call with original args (should not restore first cache)
+    third_result = SingleCacheTask.run(a: 1, b: 2)
+    third_object_id = third_result.object_id
+
+    # First and third should be different instances (cache was cleared)
+    refute_equal first_object_id, third_object_id
+    # Second and third should be different (different args)
+    refute_equal second_object_id, third_object_id
+  end
+
+  def test_parametrized_cache_maintains_after_order_change_then_same_keys
+    # Test cache behavior with order changes and subsequent calls
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def self.name
+        "OrderMaintainTask"
+      end
+
+      def run
+        args = build_args
+        @result = "args_#{args.inspect}"
+      end
+    end
+    Object.const_set(:OrderMaintainTask, task_class)
+
+    # First call
+    first_result = OrderMaintainTask.run(a: 1, b: 2, c: 3)
+    first_object_id = first_result.object_id
+
+    # Second call with different order (should use cache)
+    second_result = OrderMaintainTask.run(c: 3, a: 1, b: 2)
+    second_object_id = second_result.object_id
+    assert_equal first_object_id, second_object_id
+
+    # Third call with same keys as first call (should still use cache)
+    third_result = OrderMaintainTask.run(a: 1, b: 2, c: 3)
+    third_object_id = third_result.object_id
+    assert_equal first_object_id, third_object_id
+  end
+
+  # ===================================================================
   # COMBINED PARAMETRIZED BUILD AND INTEGRATION TESTS
   # ===================================================================
 

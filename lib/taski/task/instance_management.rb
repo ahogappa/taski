@@ -42,6 +42,7 @@ module Taski
           @__task_instance = nil
           @__defined_values = nil
           @__defined_for_resolve = nil
+          @__parametrized_cache = nil
           clear_thread_local_state
         end
         self
@@ -59,8 +60,18 @@ module Taski
       # @param args [Hash] Run arguments
       # @return [Task] Temporary task instance
       def run_with_args(args)
-        # Resolve dependencies first (same as normal run)
+        # Check if we have a cached instance for these arguments
+        if @__parametrized_cache && @__parametrized_cache[:args] == args
+          return @__parametrized_cache[:instance]
+        end
+
+        # Clear previous cache (single cache strategy)
+        @__parametrized_cache = nil
+
+        # Resolve dependencies first (excluding self to avoid creating singleton instance)
         resolve_dependencies.reverse_each do |task_class|
+          # Skip self to avoid creating singleton instance before parametrized instance
+          next if task_class == self
           task_class.ensure_instance_built
         end
 
@@ -68,12 +79,19 @@ module Taski
         temp_instance = new(args)
 
         # Run with logging using common utility
-        InstanceBuilder.with_build_logging(name.to_s,
+        result = InstanceBuilder.with_build_logging(name.to_s,
           dependencies: @dependencies || [],
           args: args) do
           temp_instance.run
           temp_instance
         end
+
+        # Cache the result with original arguments
+        @__parametrized_cache = {
+          args: args,
+          instance: result
+        }
+        result
       end
 
       # Keep old method name for compatibility
