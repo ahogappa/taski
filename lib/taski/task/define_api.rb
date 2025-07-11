@@ -50,7 +50,6 @@ module Taski
         classes = []
         seen_refs = Set.new
 
-        # Set flag to indicate we're analyzing define dependencies
         Thread.current[CoreConstants::TASKI_ANALYZING_DEFINE_KEY] = true
 
         loop do
@@ -65,7 +64,6 @@ module Taski
           if klass.is_a?(Taski::Reference)
             ref_key = klass.inspect
 
-            # Skip if we've already seen this reference
             break if seen_refs.include?(ref_key)
 
             seen_refs << ref_key
@@ -75,7 +73,6 @@ module Taski
           classes << {klass:, task:}
         end
 
-        # Reset resolution state
         classes.each do |task_class|
           klass = task_class[:klass]
           # Reference objects are stateless but Task classes store analysis state

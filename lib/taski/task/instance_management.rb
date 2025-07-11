@@ -14,7 +14,6 @@ module Taski
           resolve_dependencies.reverse_each do |task_class|
             execute_with_parent_context(task_class) { task_class.ensure_instance_built }
           end
-          # Ensure this task itself is also built after dependencies
           ensure_instance_built
           # Return the singleton instance for consistency
           current_instance
@@ -26,7 +25,6 @@ module Taski
       # Clean this task and all its dependencies in reverse order
       def clean
         resolve_dependencies.each do |task_class|
-          # Get existing instance or create new one for cleaning
           instance = task_class.instance_for_cleanup
           instance.clean
         end
@@ -57,25 +55,19 @@ module Taski
       # @param args [Hash] Run arguments
       # @return [Task] Temporary task instance
       def run_with_args(args)
-        # Check if we have a cached instance for these arguments
         if @__parametrized_cache && @__parametrized_cache[:args] == args
           return @__parametrized_cache[:instance]
         end
 
-        # Clear previous cache (single cache strategy)
         @__parametrized_cache = nil
 
-        # Resolve dependencies first (excluding self to avoid creating singleton instance)
         resolve_dependencies.reverse_each do |task_class|
-          # Skip self to avoid creating singleton instance before parametrized instance
           next if task_class == self
           task_class.ensure_instance_built
         end
 
-        # Create temporary instance with arguments
         temp_instance = new(args)
 
-        # Run with logging using common utility
         result = InstanceBuilder.with_build_logging(name.to_s,
           dependencies: @dependencies || [],
           args: args) do
@@ -83,7 +75,6 @@ module Taski
           temp_instance
         end
 
-        # Cache the result with original arguments
         @__parametrized_cache = {
           args: args,
           instance: result

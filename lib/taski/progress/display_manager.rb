@@ -86,7 +86,6 @@ module Taski
       def finish_task_display(status)
         @spinner.stop
 
-        # Capture output before stopping
         captured_output = @output_capture.last_lines
         @output_capture.stop
         clear_current_display
@@ -104,13 +103,12 @@ module Taski
       end
 
       def display_final_state
-        # Only display the newly completed task (last one)
         if @completed_tasks.any?
           latest_task = @completed_tasks.last
           @terminal.puts @formatter.format_completed_task(latest_task)
         end
         @terminal.flush
-        @current_display_lines = 1  # Only one line for the latest task
+        @current_display_lines = 1
       end
 
       def clear_current_display
