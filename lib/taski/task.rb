@@ -18,6 +18,7 @@ module Taski
   # This class integrates multiple modules to provide full task functionality
   class Task
     extend Taski::TaskInterface::ClassMethods
+    include Taski::TaskInterface::InstanceMethods
 
     # Core modules
     include Task::CoreConstants
@@ -37,15 +38,6 @@ module Taski
       @run_args = run_args
     end
 
-    # Run method that must be implemented by subclasses
-    # @raise [NotImplementedError] If not implemented by subclass
-    def run
-      raise NotImplementedError, "You must implement the run method in your task class"
-    end
-
-    # Build method for backward compatibility
-    alias_method :build, :run
-
     # Access run arguments passed to parametrized runs
     # @return [Hash] Run arguments or empty hash if none provided
     def run_args
@@ -54,11 +46,5 @@ module Taski
 
     # Build arguments alias for backward compatibility
     alias_method :build_args, :run_args
-
-    # Clean method with default empty implementation
-    # Subclasses can override this method to implement cleanup logic
-    def clean
-      # Default implementation does nothing - allows optional cleanup in subclasses
-    end
   end
 end

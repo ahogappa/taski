@@ -75,10 +75,9 @@ module Taski
       # Resolve method for dependency graph (called by resolve_dependencies)
       # @param queue [Array] Queue of tasks to process
       # @param resolved [Array] Array of resolved tasks
-      # @param options [Hash] Optional parameters for customization
       # @yield Optional block to execute during resolution
       # @return [self] Returns self for method chaining
-      def resolve_common(queue, resolved, options = {}, &block)
+      def resolve_common(queue, resolved, &block)
         @dependencies ||= []
 
         @dependencies.each do |task|
@@ -88,9 +87,6 @@ module Taski
           resolved.delete(task_class) if resolved.include?(task_class)
           queue << task_class
         end
-
-        # Call custom hook if provided (legacy support)
-        options[:custom_hook]&.call
 
         # Execute the provided block if given (new preferred way)
         yield if block_given?
@@ -110,8 +106,9 @@ module Taski
         visited = Set.new
         resolving = Set.new
         path_map = {self => []}
+        resolved_set = Set.new  # Use Set for O(1) inclusion checks
 
-        while queue.any?
+        until queue.empty?
           task_class = queue.shift
           next if visited.include?(task_class)
 
@@ -128,11 +125,16 @@ module Taski
 
           task_class.dependencies.each do |dep|
             dep_class = extract_class(dep)
-            path_map[dep_class] = current_path + [task_class] unless path_map.key?(dep_class)
+            # Only create path if not already tracked
+            path_map[dep_class] ||= current_path + [task_class]
           end
 
           resolving.delete(task_class)
-          resolved << task_class unless resolved.include?(task_class)
+          # Use Set for fast lookups and only append if not already present
+          unless resolved_set.include?(task_class)
+            resolved << task_class
+            resolved_set << task_class
+          end
         end
 
         resolved
@@ -220,11 +222,31 @@ module Taski
       # Gather dependencies from build and clean methods
       # @return [Array<Class>] Array of dependency classes
       def gather_static_dependencies
-        build_deps = DependencyAnalyzer.analyze_method(self, :build)
-        run_deps = DependencyAnalyzer.analyze_method(self, :run)
-        clean_deps = DependencyAnalyzer.analyze_method(self, :clean)
-        (build_deps + run_deps + clean_deps).uniq
+        %i[build run clean drop].flat_map do |method_name|
+          DependencyAnalyzer.analyze_method(self, method_name)
+        end.uniq
       end
+    end
+
+    # Instance methods that should be available on task instances
+    module InstanceMethods
+      # Main execution method that must be implemented by subclasses
+      # @raise [NotImplementedError] If not implemented by subclass
+      def run
+        raise NotImplementedError, "You must implement the run method in #{self.class}"
+      end
+
+      # Build method alias for backward compatibility
+      alias_method :build, :run
+
+      # Clean method with default implementation that does nothing
+      # Subclasses can override this method to implement cleanup logic
+      def clean
+        # Default implementation does nothing - allows optional cleanup in subclasses
+      end
+
+      # Drop method alias for backward compatibility
+      alias_method :drop, :clean
     end
   end
 end
