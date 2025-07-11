@@ -138,9 +138,9 @@ Calculator.run(multiplier: 2, base_value: 5)
 
 # Example 2: Different parameters
 puts "\nDifferent parameters:"
-Calculator.run(multiplier: 3, base_value: 10)
+result = Calculator.run(multiplier: 3, base_value: 10)
 
-puts "Parametrized task result: #{result.result}"
+puts "Parametrized task result: #{result.class.name}"
 
 puts "\n5. Cleanup:"
 Application.clean
