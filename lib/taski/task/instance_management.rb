@@ -23,9 +23,6 @@ module Taski
         end
       end
 
-      # Alias for backward compatibility
-      alias_method :build, :run
-
       # Clean this task and all its dependencies in reverse order
       def clean
         resolve_dependencies.each do |task_class|
@@ -156,7 +153,7 @@ module Taski
         begin
           yield
         ensure
-          Thread.current[thread_key] = false
+          Thread.current[thread_key] = nil
         end
       end
 
