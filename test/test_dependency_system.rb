@@ -297,11 +297,11 @@ class TestDependencySystem < Minitest::Test
   end
 
   # ========================================================================
-  # REFERENCE FUNCTIONALITY TESTS
+  # REFERENCE CLASS TESTS - Low-level Reference object functionality
   # ========================================================================
 
   def test_reference_basic_functionality
-    # Test the Reference class functionality
+    # Test Reference class basic operations: creation, dereferencing, comparison, inspection
     ref = Taski::Reference.new("String")
 
     assert_instance_of Taski::Reference, ref
@@ -311,7 +311,7 @@ class TestDependencySystem < Minitest::Test
   end
 
   def test_reference_error_handling
-    # Test Reference class error handling
+    # Test Reference class error handling for non-existent constants
     ref = Taski::Reference.new("NonExistentClass")
 
     # deref should raise TaskAnalysisError for non-existent class
@@ -325,78 +325,69 @@ class TestDependencySystem < Minitest::Test
     refute ref == String
   end
 
-  def test_reference_in_dependencies
-    # Test that Reference objects work in dependency resolution
-    task_a = Class.new(Taski::Task) do
-      exports :value
+  # ========================================================================
+  # REF() METHOD TESTS - High-level ref() method functionality
+  # ========================================================================
 
-      def run
-        TaskiTestHelper.track_build_order("RefDepTaskA")
-        @value = "A"
-      end
-    end
-    Object.const_set(:RefDepTaskA, task_a)
+  def test_ref_enables_forward_declaration
+    # Test forward declaration: ref() allows referencing classes defined later
+    # This is the primary use case for ref() - defining task dependencies in reverse order
 
+    # Define TaskB first (references TaskA that doesn't exist yet)
     task_b = Class.new(Taski::Task) do
+      exports :result_b
+
       def run
-        TaskiTestHelper.track_build_order("RefDepTaskB")
-        puts "B depends on #{RefDepTaskA.value}"
+        # ref() should resolve forward declaration to actual class at runtime
+        task_a_ref = ref("ForwardDeclTaskA")
+        @result_b = "Result from B, depending on #{task_a_ref.result_a}"
       end
     end
-    Object.const_set(:RefDepTaskB, task_b)
+    Object.const_set(:ForwardDeclTaskB, task_b)
 
-    # Reset and build
-    TaskiTestHelper.reset_build_order
-    capture_io { RefDepTaskB.run }
+    # Now define TaskA after TaskB has already referenced it
+    task_a = Class.new(Taski::Task) do
+      exports :result_a
 
-    # Verify build order
-    build_order = TaskiTestHelper.build_order
-    task_a_idx = build_order.index("RefDepTaskA")
-    task_b_idx = build_order.index("RefDepTaskB")
+      def run
+        @result_a = "Result from A"
+      end
+    end
+    Object.const_set(:ForwardDeclTaskA, task_a)
 
-    assert task_a_idx < task_b_idx, "RefDepTaskA should be built before RefDepTaskB"
+    # Verify that forward declaration resolves correctly at runtime
+    output = capture_io { ForwardDeclTaskB.run }
+
+    # Both tasks should execute successfully - forward declaration resolved
+    assert_includes output[0], "Task build completed (task=ForwardDeclTaskB"
+    assert_includes output[0], "Task build completed (task=ForwardDeclTaskA"
+  ensure
+    Object.send(:remove_const, :ForwardDeclTaskA) if Object.const_defined?(:ForwardDeclTaskA)
+    Object.send(:remove_const, :ForwardDeclTaskB) if Object.const_defined?(:ForwardDeclTaskB)
   end
 
-  def test_ref_method_usage
-    # Test using ref() in different contexts
+  def test_ref_error_handling_at_runtime
+    # Test ref() error handling for truly non-existent classes
+    # ref() should raise TaskAnalysisError (wrapped in TaskBuildError) for invalid references
     task_a = Class.new(Taski::Task) do
-      exports :name
+      exports :result_a
 
       def run
-        @name = "TaskA"
-        puts "Building TaskA"
+        # Attempt to reference a class that will never exist
+        _task_ref = ref("NonExistentClass")
+        @result_a = "This should not execute"
       end
     end
-    Object.const_set(:RefTaskA, task_a)
+    Object.const_set(:RuntimeRefTask, task_a)
 
-    task_b = Class.new(Taski::Task) do
-      def run
-        # Use ref to get task class from string name
-        ref = self.class.ref("RefTaskA")
-        task_a_class = ref.is_a?(Taski::Reference) ? ref.deref : ref
-        puts "Building TaskB, depends on #{task_a_class.name}"
-      end
+    # Verify that ref() with non-existent class raises appropriate error
+    error = assert_raises Taski::TaskBuildError do
+      RuntimeRefTask.run
     end
-    Object.const_set(:RefTaskB, task_b)
-
-    output = capture_io { RefTaskB.run }
-    assert_includes output[0], "Building TaskB, depends on RefTaskA"
-    # Note: ref() at runtime doesn't create automatic dependency
-    refute_includes output[0], "Building TaskA"
+    assert_includes error.message, "Cannot resolve constant 'NonExistentClass'"
+  ensure
+    Object.send(:remove_const, :RuntimeRefTask) if Object.const_defined?(:RuntimeRefTask)
   end
-
-  # TODO: These tests need to be implemented after fixing ref method
-  # def test_ref_tracks_dependencies_during_analysis
-  #   # Test that ref() properly tracks dependencies during define block analysis
-  # end
-
-  # def test_ref_enables_forward_declaration
-  #   # Test the main use case: defining classes in reverse dependency order
-  # end
-
-  # def test_ref_error_handling_at_runtime
-  #   # Test that ref() handles non-existent classes gracefully at runtime
-  # end
 
   # ========================================================================
   # CIRCULAR DEPENDENCY DETAIL TESTS
