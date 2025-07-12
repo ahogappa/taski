@@ -30,6 +30,12 @@ module Taski
     extend Task::DependencyManagement
     extend Task::TreeDisplay
 
+    # Instance method delegation for ref()
+    # Enable ref() as instance method by delegating to class method
+    def ref(klass_name)
+      self.class.ref(klass_name)
+    end
+
     # === Instance Methods ===
 
     # Initialize task instance with optional run arguments

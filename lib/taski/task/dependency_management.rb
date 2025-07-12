@@ -29,14 +29,13 @@ module Taski
           # Track as dependency by throwing unresolved
           throw :unresolved, [reference, :deref]
         else
-          # At runtime, try to resolve to actual class for convenience
-          # This provides better ergonomics for define API usage
+          # At runtime, resolve to actual class object
+          # Forward declarations should be resolved by this point
           begin
             Object.const_get(klass_name)
-          rescue NameError
-            # Fall back to Reference object if class doesn't exist yet
-            # This maintains compatibility with forward references
-            Reference.new(klass_name)
+          rescue NameError => e
+            # Raise TaskAnalysisError if class cannot be resolved at runtime
+            raise TaskAnalysisError, "Cannot resolve constant '#{klass_name}': #{e.message}"
           end
         end
       end
