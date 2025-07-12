@@ -829,7 +829,175 @@ class TestBuildFeatures < Minitest::Test
     assert_equal "final-param-fast-root", result
   end
 
+  # ===================================================================
+  # INSTANCE BUILDER TESTS
+  # ===================================================================
+
+  def test_instance_builder_can_be_created
+    builder = Taski::InstanceBuilder.new(TestTask)
+    assert builder, "InstanceBuilder should be created successfully"
+  end
+
+  def test_can_build_instance
+    builder = Taski::InstanceBuilder.new(TestTask)
+    instance = builder.build_instance
+    assert instance, "build_instance should return an instance"
+    assert_instance_of TestTask, instance
+  end
+
+  def test_builds_instance_with_dependencies
+    dep_task = Class.new(Taski::Task) do
+      def run
+      end
+    end
+    Object.const_set(:BuilderDepTask, dep_task)
+
+    main_task = Class.new(Taski::Task) do
+      def run
+        BuilderDepTask.ensure_instance_built
+      end
+    end
+    Object.const_set(:BuilderMainWithDepTask, main_task)
+
+    builder = Taski::InstanceBuilder.new(BuilderMainWithDepTask)
+    instance = builder.build_instance
+
+    assert instance, "build_instance should return an instance"
+    assert_instance_of BuilderMainWithDepTask, instance
+  ensure
+    Object.send(:remove_const, :BuilderDepTask) if defined?(BuilderDepTask)
+    Object.send(:remove_const, :BuilderMainWithDepTask) if defined?(BuilderMainWithDepTask)
+  end
+
+  def test_instance_builder_detects_circular_dependency
+    task_a = Class.new(Taski::Task) do
+      def run
+        BuilderCircularTaskB.ensure_instance_built
+      end
+    end
+    Object.const_set(:BuilderCircularTaskA, task_a)
+
+    task_b = Class.new(Taski::Task) do
+      def run
+        BuilderCircularTaskA.ensure_instance_built
+      end
+    end
+    Object.const_set(:BuilderCircularTaskB, task_b)
+
+    # Thread.currentに循環依存の状態を模擬設定
+    thread_key = "BuilderCircularTaskA_building"
+    Thread.current[thread_key] = true
+
+    builder = Taski::InstanceBuilder.new(BuilderCircularTaskA)
+
+    assert_raises(Taski::CircularDependencyError) do
+      builder.build_instance
+    end
+  ensure
+    Thread.current[thread_key] = false
+    Object.send(:remove_const, :BuilderCircularTaskA) if defined?(BuilderCircularTaskA)
+    Object.send(:remove_const, :BuilderCircularTaskB) if defined?(BuilderCircularTaskB)
+  end
+
+  # ===================================================================
+  # ENSURE INSTANCE BUILT TESTS
+  # ===================================================================
+
+  def test_ensure_instance_built_returns_singleton_instance
+    # テスト開始前にリセット
+    TestTask.reset!
+
+    # 最初の呼び出しでインスタンスを作成
+    instance1 = TestTask.ensure_instance_built
+    assert instance1, "ensure_instance_built should return an instance"
+    assert_instance_of TestTask, instance1
+
+    # 2回目の呼び出しでは同じインスタンスを返す（シングルトン）
+    instance2 = TestTask.ensure_instance_built
+    assert_same instance1, instance2, "ensure_instance_built should return the same instance"
+  end
+
+  def test_ensure_instance_built_with_dependencies
+    dep_task = Class.new(Taski::Task) do
+      def run
+        @executed = true
+      end
+
+      def executed?
+        @executed
+      end
+    end
+    Object.const_set(:EnsureDepTask, dep_task)
+
+    main_task = Class.new(Taski::Task) do
+      def run
+        EnsureDepTask.ensure_instance_built
+        @main_executed = true
+      end
+
+      def main_executed?
+        @main_executed
+      end
+    end
+    Object.const_set(:EnsureMainTaskWithDep, main_task)
+
+    # メインタスクを実行
+    main_instance = EnsureMainTaskWithDep.ensure_instance_built
+    assert main_instance.main_executed?, "Main task should be executed"
+
+    dep_instance = EnsureDepTask.current_instance
+    assert dep_instance.executed?, "Dependency task should be executed"
+  ensure
+    Object.send(:remove_const, :EnsureDepTask) if defined?(EnsureDepTask)
+    Object.send(:remove_const, :EnsureMainTaskWithDep) if defined?(EnsureMainTaskWithDep)
+  end
+
+  def test_ensure_instance_built_detects_circular_dependency_error
+    task_a = Class.new(Taski::Task) do
+      def run
+        EnsureCircularDepTaskB.ensure_instance_built
+      end
+    end
+    Object.const_set(:EnsureCircularDepTaskA, task_a)
+
+    task_b = Class.new(Taski::Task) do
+      def run
+        EnsureCircularDepTaskA.ensure_instance_built
+      end
+    end
+    Object.const_set(:EnsureCircularDepTaskB, task_b)
+
+    error = assert_raises(Taski::TaskBuildError) do
+      EnsureCircularDepTaskA.ensure_instance_built
+    end
+    assert_match(/Circular dependency detected/, error.message)
+  ensure
+    Object.send(:remove_const, :EnsureCircularDepTaskA) if defined?(EnsureCircularDepTaskA)
+    Object.send(:remove_const, :EnsureCircularDepTaskB) if defined?(EnsureCircularDepTaskB)
+  end
+
+  def test_ensure_instance_built_after_reset
+    instance1 = TestTask.ensure_instance_built
+    assert instance1, "ensure_instance_built should return an instance"
+
+    TestTask.reset!
+
+    instance2 = TestTask.ensure_instance_built
+    assert instance2, "ensure_instance_built should return an instance after reset"
+    refute_same instance1, instance2, "ensure_instance_built should return a new instance after reset"
+  end
+
   private
+
+  class TestTask < Taski::Task
+    def run
+      @executed = true
+    end
+
+    def executed?
+      @executed
+    end
+  end
 
   def setup_partial_dependency_graph
     # Skip if already set up
