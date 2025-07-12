@@ -16,6 +16,14 @@ require_relative "task/tree_display"
 module Taski
   # Base Task class that provides the foundation for task framework
   # This class integrates multiple modules to provide full task functionality
+  #
+  # === Core API Methods ===
+  # run(**args)    - Execute task and dependencies (defined in InstanceManagement)
+  # clean()        - Clean task and dependencies (defined in InstanceManagement)
+  # reset!()       - Reset task state (defined in InstanceManagement)
+  # ref(klass)     - Create task reference (defined in DependencyManagement)
+  # exports(*names) - Export instance variables (defined in ExportsAPI)
+  # define(&block) - Define task behavior (defined in DefineAPI)
   class Task
     extend Taski::TaskInterface::ClassMethods
     include Taski::TaskInterface::InstanceMethods
