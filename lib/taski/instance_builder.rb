@@ -70,8 +70,8 @@ module Taski
           return nil
         end
 
-        # Wrap exception in TaskBuildError unless it already is one
-        if exception.is_a?(TaskBuildError)
+        # Wrap exception in TaskBuildError unless it already is one or is TaskInterruptedException
+        if exception.is_a?(TaskBuildError) || exception.is_a?(TaskInterruptedException)
           raise
         else
           # Build error message
