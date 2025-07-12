@@ -504,6 +504,179 @@ class TestCoreFunctionality < Minitest::Test
     assert_includes error.message, "Circular dependency detected"
   end
 
+  def test_instance_for_cleanup_without_existing_instance
+    # Test that instance_for_cleanup creates new instance when no cached instance exists
+    task = Class.new(Taski::Task) do
+      def run
+        @value = "built"
+      end
+    end
+    Object.const_set(:CleanupTestTask, task)
+
+    # Get instance for cleanup without running first
+    cleanup_instance = CleanupTestTask.instance_for_cleanup
+
+    # Should be a new instance
+    assert_instance_of task, cleanup_instance
+    assert_nil cleanup_instance.instance_variable_get(:@value), "New instance should not have @value set"
+  end
+
+  def test_instance_for_cleanup_with_existing_instance
+    # Test that instance_for_cleanup reuses existing instance when cached instance exists
+    task = Class.new(Taski::Task) do
+      def run
+        @value = "built_#{object_id}"
+      end
+    end
+    Object.const_set(:CleanupReuseTestTask, task)
+
+    # Run to create cached instance
+    CleanupReuseTestTask.run
+
+    # Get instance for cleanup
+    cleanup_instance = CleanupReuseTestTask.instance_for_cleanup
+
+    # Should be the same instance that was created during run
+    assert_equal "built_#{cleanup_instance.object_id}", cleanup_instance.instance_variable_get(:@value)
+  end
+
+  def test_instance_for_cleanup_independence_between_tasks
+    # Test that different task classes have independent instance_for_cleanup behavior
+    task_a = Class.new(Taski::Task) do
+      def run
+        @value = "task_a_#{object_id}"
+      end
+    end
+    Object.const_set(:CleanupTaskA, task_a)
+
+    task_b = Class.new(Taski::Task) do
+      def run
+        @value = "task_b_#{object_id}"
+      end
+    end
+    Object.const_set(:CleanupTaskB, task_b)
+
+    # Run only TaskA
+    CleanupTaskA.run
+
+    # Get cleanup instances
+    cleanup_a = CleanupTaskA.instance_for_cleanup
+    cleanup_b = CleanupTaskB.instance_for_cleanup
+
+    # TaskA should have existing instance, TaskB should have new instance
+    assert_equal "task_a_#{cleanup_a.object_id}", cleanup_a.instance_variable_get(:@value)
+    assert_nil cleanup_b.instance_variable_get(:@value)
+  end
+
+  def test_clean_with_deep_dependency_chain
+    # Test that clean method executes dependencies in correct reverse order
+    setup_deep_dependency_chain
+
+    # Add clean methods that track execution order
+    [DeepTaskA, DeepTaskB, DeepTaskC, DeepTaskD].each do |task_class|
+      task_class.class_eval do
+        def clean
+          TaskiTestHelper.track_build_order("#{self.class.name.split("::").last} Cleaning")
+          super
+        end
+      end
+    end
+
+    # Reset tracking
+    TaskiTestHelper.reset_build_order
+
+    # Execute clean on the top-level task
+    DeepTaskA.clean
+
+    # Verify clean execution order (should be reverse of dependency order)
+    clean_order = TaskiTestHelper.build_order
+    assert_equal ["DeepTaskA Cleaning", "DeepTaskB Cleaning", "DeepTaskC Cleaning", "DeepTaskD Cleaning"], clean_order
+  end
+
+  def test_clean_error_handling_in_dependency
+    # Test that exception in dependency clean method propagates properly
+    task_a = Class.new(Taski::Task) do
+      exports :value_a
+
+      def run
+        @value_a = "task_a"
+      end
+
+      def clean
+        TaskiTestHelper.track_build_order("TaskA clean called")
+        raise "Task A clean error"
+      end
+    end
+    Object.const_set(:ErrorCleanTaskA, task_a)
+
+    task_b = Class.new(Taski::Task) do
+      def run
+        puts "Using: #{ErrorCleanTaskA.value_a}"
+      end
+
+      def clean
+        TaskiTestHelper.track_build_order("TaskB clean called")
+        super
+      end
+    end
+    Object.const_set(:ErrorCleanTaskB, task_b)
+
+    # Reset tracking
+    TaskiTestHelper.reset_build_order
+
+    # Exception should propagate from dependency clean
+    error = assert_raises(RuntimeError) do
+      ErrorCleanTaskB.clean
+    end
+
+    assert_equal "Task A clean error", error.message
+
+    # Verify TaskB's clean was called but TaskA's clean raised error
+    clean_order = TaskiTestHelper.build_order
+    assert_includes clean_order, "TaskB clean called"
+    assert_includes clean_order, "TaskA clean called"
+  end
+
+  def test_clean_continues_after_successful_dependency_clean
+    # Test that clean continues processing after successful dependency clean
+    task_a = Class.new(Taski::Task) do
+      exports :value_a
+
+      def run
+        @value_a = "task_a"
+      end
+
+      def clean
+        TaskiTestHelper.track_build_order("TaskA clean completed")
+      end
+    end
+    Object.const_set(:SuccessCleanTaskA, task_a)
+
+    task_b = Class.new(Taski::Task) do
+      exports :value_b
+
+      def run
+        @value_b = "task_b_with_#{SuccessCleanTaskA.value_a}"
+      end
+
+      def clean
+        TaskiTestHelper.track_build_order("TaskB clean completed")
+        super
+      end
+    end
+    Object.const_set(:SuccessCleanTaskB, task_b)
+
+    # Reset tracking
+    TaskiTestHelper.reset_build_order
+
+    # Should complete without error
+    SuccessCleanTaskB.clean
+
+    # Verify both cleans were called
+    clean_order = TaskiTestHelper.build_order
+    assert_equal ["TaskB clean completed", "TaskA clean completed"], clean_order
+  end
+
   def test_method_visibility
     # Test that private methods are properly hidden
     refute Taski::Task.respond_to?(:build_monitor), "build_monitor should be private"
@@ -515,5 +688,52 @@ class TestCoreFunctionality < Minitest::Test
     assert Taski::Task.respond_to?(:clean), "clean should be public"
     assert Taski::Task.respond_to?(:reset!), "reset! should be public"
     assert Taski::Task.respond_to?(:refresh), "refresh should be public"
+  end
+
+  private
+
+  def setup_deep_dependency_chain
+    # Skip if already set up
+    return if defined?(DeepTaskD)
+
+    task_d = Class.new(Taski::Task) do
+      exports :d_value
+
+      def run
+        TaskiTestHelper.track_build_order("DeepTaskD")
+        @d_value = "D"
+      end
+    end
+    Object.const_set(:DeepTaskD, task_d)
+
+    task_c = Class.new(Taski::Task) do
+      exports :c_value
+
+      def run
+        TaskiTestHelper.track_build_order("DeepTaskC")
+        @c_value = "C-#{DeepTaskD.d_value}"
+      end
+    end
+    Object.const_set(:DeepTaskC, task_c)
+
+    task_b = Class.new(Taski::Task) do
+      exports :b_value
+
+      def run
+        TaskiTestHelper.track_build_order("DeepTaskB")
+        @b_value = "B-#{DeepTaskC.c_value}"
+      end
+    end
+    Object.const_set(:DeepTaskB, task_b)
+
+    task_a = Class.new(Taski::Task) do
+      exports :a_value
+
+      def run
+        TaskiTestHelper.track_build_order("DeepTaskA")
+        @a_value = "A-#{DeepTaskB.b_value}"
+      end
+    end
+    Object.const_set(:DeepTaskA, task_a)
   end
 end
