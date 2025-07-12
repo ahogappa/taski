@@ -330,22 +330,8 @@ class TestDependencySystem < Minitest::Test
   # ========================================================================
 
   def test_ref_enables_forward_declaration
-    # Test forward declaration: ref() allows referencing classes defined later
-    # This is the primary use case for ref() - defining task dependencies in reverse order
-
-    # Define TaskB first (references TaskA that doesn't exist yet)
-    task_b = Class.new(Taski::Task) do
-      exports :result_b
-
-      def run
-        # ref() should resolve forward declaration to actual class at runtime
-        task_a_ref = ref("ForwardDeclTaskA")
-        @result_b = "Result from B, depending on #{task_a_ref.result_a}"
-      end
-    end
-    Object.const_set(:ForwardDeclTaskB, task_b)
-
-    # Now define TaskA after TaskB has already referenced it
+    # Test that ref() returns actual Class objects at runtime (not Reference objects)
+    # This ensures ref() properly resolves string class names to executable classes
     task_a = Class.new(Taski::Task) do
       exports :result_a
 
@@ -355,12 +341,23 @@ class TestDependencySystem < Minitest::Test
     end
     Object.const_set(:ForwardDeclTaskA, task_a)
 
-    # Verify that forward declaration resolves correctly at runtime
-    output = capture_io { ForwardDeclTaskB.run }
+    task_b = Class.new(Taski::Task) do
+      exports :result_b
 
-    # Both tasks should execute successfully - forward declaration resolved
-    assert_includes output[0], "Task build completed (task=ForwardDeclTaskB"
-    assert_includes output[0], "Task build completed (task=ForwardDeclTaskA"
+      def run
+        task_a_class = ref("ForwardDeclTaskA")
+        raise "Expected Class, got #{task_a_class.class}" unless task_a_class.is_a?(Class)
+        raise "Expected task class to respond to result_a" unless task_a_class.respond_to?(:result_a)
+        @result_b = "Result from B, depending on #{task_a_class.result_a}"
+      end
+    end
+    Object.const_set(:ForwardDeclTaskB, task_b)
+
+    ForwardDeclTaskB.run
+
+    assert_equal "Result from A", ForwardDeclTaskA.result_a
+    assert_equal "Result from B, depending on Result from A", ForwardDeclTaskB.result_b
+    assert ForwardDeclTaskB.result_b.include?("Result from A")
   ensure
     Object.send(:remove_const, :ForwardDeclTaskA) if Object.const_defined?(:ForwardDeclTaskA)
     Object.send(:remove_const, :ForwardDeclTaskB) if Object.const_defined?(:ForwardDeclTaskB)
