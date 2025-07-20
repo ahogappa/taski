@@ -3,7 +3,6 @@
 require_relative "exceptions"
 require_relative "tree_display"
 require_relative "task_interface"
-require "monitor"
 
 # Load all task modules
 require_relative "task/core_constants"

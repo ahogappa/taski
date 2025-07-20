@@ -884,17 +884,13 @@ class TestBuildFeatures < Minitest::Test
     end
     Object.const_set(:BuilderCircularTaskB, task_b)
 
-    # Thread.currentに循環依存の状態を模擬設定
-    thread_key = "BuilderCircularTaskA_building"
-    Thread.current[thread_key] = true
-
     builder = Taski::InstanceBuilder.new(BuilderCircularTaskA)
 
-    assert_raises(Taski::CircularDependencyError) do
+    error = assert_raises(Taski::TaskBuildError) do
       builder.build_instance
     end
+    assert_includes error.message, "Circular dependency detected!"
   ensure
-    Thread.current[thread_key] = false
     Object.send(:remove_const, :BuilderCircularTaskA) if defined?(BuilderCircularTaskA)
     Object.send(:remove_const, :BuilderCircularTaskB) if defined?(BuilderCircularTaskB)
   end

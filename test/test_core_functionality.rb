@@ -679,8 +679,6 @@ class TestCoreFunctionality < Minitest::Test
 
   def test_method_visibility
     # Test that private methods are properly hidden
-    refute Taski::Task.respond_to?(:build_monitor), "build_monitor should be private"
-    refute Taski::Task.respond_to?(:build_thread_key), "build_thread_key should be private"
     refute Taski::Task.respond_to?(:extract_class), "extract_class should be private"
 
     # Test that public methods are accessible

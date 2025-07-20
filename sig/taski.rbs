@@ -34,8 +34,6 @@ module Taski
   # Main Task class
   class Task
     # Constants
-    THREAD_KEY_SUFFIX: String
-    TASKI_ANALYZING_DEFINE_KEY: Symbol
     ANALYZED_METHODS: Array[Symbol]
 
     # Hook methods

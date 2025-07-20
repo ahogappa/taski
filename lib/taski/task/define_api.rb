@@ -50,41 +50,39 @@ module Taski
         classes = []
         seen_refs = Set.new
 
-        Thread.current[CoreConstants::TASKI_ANALYZING_DEFINE_KEY] = true
+        ExecutionContext.current.with_analyzing_define do
+          loop do
+            klass, task = catch(:unresolved) do
+              block.call
+              nil
+            end
 
-        loop do
-          klass, task = catch(:unresolved) do
-            block.call
-            nil
+            break if klass.nil?
+
+            # Track pending references for phase 2 resolution
+            if klass.is_a?(Taski::Reference)
+              ref_key = klass.inspect
+
+              break if seen_refs.include?(ref_key)
+
+              seen_refs << ref_key
+              add_pending_reference(klass)
+            end
+
+            classes << {klass:, task:}
           end
 
-          break if klass.nil?
-
-          # Track pending references for phase 2 resolution
-          if klass.is_a?(Taski::Reference)
-            ref_key = klass.inspect
-
-            break if seen_refs.include?(ref_key)
-
-            seen_refs << ref_key
-            add_pending_reference(klass)
+          classes.each do |task_class|
+            klass = task_class[:klass]
+            # Reference objects are stateless but Task classes store analysis state
+            # Selective reset prevents errors while ensuring clean state for next analysis
+            unless klass.is_a?(Taski::Reference)
+              klass.reset_resolution_state
+            end
           end
 
-          classes << {klass:, task:}
+          classes
         end
-
-        classes.each do |task_class|
-          klass = task_class[:klass]
-          # Reference objects are stateless but Task classes store analysis state
-          # Selective reset prevents errors while ensuring clean state for next analysis
-          unless klass.is_a?(Taski::Reference)
-            klass.reset_resolution_state
-          end
-        end
-
-        classes
-      ensure
-        Thread.current[CoreConstants::TASKI_ANALYZING_DEFINE_KEY] = false
       end
 
       # Create methods for values defined with define API

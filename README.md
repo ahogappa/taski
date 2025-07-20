@@ -17,7 +17,7 @@ Build complex workflows by defining tasks and their dependencies - Taski automat
 - **Automatic Resolution**: No manual orchestration needed
 - **Three APIs**: Static (Exports), Dynamic (Define), Abstraction (Section)
 - **Built-in Features**: Progress display, error handling, logging
-- **Thread-Safe**: Production-ready concurrency support
+- **Error Handling**: Comprehensive exception management and recovery
 
 ## 🚀 Quick Start
 
@@ -85,7 +85,7 @@ end
 ## Key Features
 
 - **Automatic Dependency Resolution**: No manual orchestration needed
-- **Thread-Safe**: Production-ready concurrency support
+- **Error Handling**: Comprehensive exception management and recovery
 - **Visual Progress**: Real-time feedback with spinners and timing
 - **Error Handling**: Circular dependency detection and recovery
 - **Signal Support**: Graceful interruption (Ctrl+C)

@@ -23,7 +23,7 @@ module Taski
       # @return [Reference, Class] A reference object or actual class
       def ref(klass_name)
         # During dependency analysis, track as dependency but defer resolution
-        if Thread.current[CoreConstants::TASKI_ANALYZING_DEFINE_KEY]
+        if ExecutionContext.current.analyzing_define?
           # Create Reference object for deferred resolution
           reference = Reference.new(klass_name)
           # Track as dependency by throwing unresolved
@@ -92,12 +92,8 @@ module Taski
       # @param task_class [Class] Task class being executed
       # @yield Block to execute with parent context
       def execute_with_parent_context(task_class)
-        previous_parent = Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY]
-        Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY] = self
-        begin
+        ExecutionContext.current.with_parent_task(self) do
           yield
-        ensure
-          Thread.current[CoreConstants::TASKI_CURRENT_PARENT_TASK_KEY] = previous_parent
         end
       end
 

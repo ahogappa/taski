@@ -15,25 +15,11 @@ class TestTaskComponent < Minitest::Test
   end
 
   def test_can_manage_thread_state
-    manager = TestTaskComponentImplementation.new(TestTask)
-    result = nil
-    manager.with_build_tracking do
-      result = "executed"
-    end
-    assert_equal "executed", result
+    skip "Thread management functionality has been removed for simplification"
   end
 
   def test_manages_thread_local_state_properly
-    manager = TestTaskComponentImplementation.new(TestTask)
-    thread_key = "#{TestTask.name}_building"
-
-    assert !Thread.current[thread_key], "Thread key should be false initially"
-
-    manager.with_build_tracking do
-      assert Thread.current[thread_key], "Thread key should be true during tracking"
-    end
-
-    assert !Thread.current[thread_key], "Thread key should be false after tracking"
+    skip "Thread local state management has been removed for simplification"
   end
 
   private

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "monitor"
-
 # Load core components
 require_relative "taski/version"
 require_relative "taski/exceptions"
@@ -12,6 +10,7 @@ require_relative "taski/dependency_analyzer"
 require_relative "taski/signal_handler"
 require_relative "taski/task_interface"
 require_relative "taski/task_component"
+require_relative "taski/execution_context"
 require_relative "taski/instance_builder"
 
 # Load Task class
@@ -38,7 +37,7 @@ module Taski
   # - Automatic dependency resolution (static and dynamic)
   # - Static analysis of method dependencies
   # - Runtime implementation selection with Section API
-  # - Thread-safe task building
+  # - Robust task building
   # - Circular dependency detection
   # - Memory leak prevention
 end

@@ -12,10 +12,7 @@ module Taski
     end
 
     def build_instance
-      check_circular_dependency
-      with_build_tracking do
-        create_and_execute_instance
-      end
+      create_and_execute_instance
     end
 
     # Execute block with comprehensive build logging and progress display (class method)
@@ -147,67 +144,6 @@ module Taski
 
     private
 
-    # Check for circular dependencies and raise error if detected
-    # @raise [CircularDependencyError] If circular dependency is detected
-    def check_circular_dependency
-      thread_key = build_thread_key
-      if Thread.current[thread_key]
-        handle_circular_dependency_detected
-      end
-    end
-
-    # Handle the case when circular dependency is detected
-    # @raise [CircularDependencyError] Always raises with detailed message
-    def handle_circular_dependency_detected
-      # Build dependency path for better error message
-      cycle_path = build_current_dependency_path
-      raise CircularDependencyError, build_runtime_circular_dependency_message(cycle_path)
-    end
-
-    # Build current dependency path from thread-local storage
-    # @return [Array<Class>] Array of classes in the current build path
-    def build_current_dependency_path
-      path = []
-      Thread.current.keys.each do |key|
-        if key.to_s.end_with?(Taski::Task::CoreConstants::THREAD_KEY_SUFFIX) && Thread.current[key]
-          class_name = key.to_s.sub(Taski::Task::CoreConstants::THREAD_KEY_SUFFIX, "")
-          begin
-            path << Object.const_get(class_name)
-          rescue NameError
-            # Skip if class not found
-          end
-        end
-      end
-      path << @task_class
-    end
-
-    # Build runtime circular dependency error message
-    # @param cycle_path [Array<Class>] The circular dependency path
-    # @return [String] Formatted error message
-    def build_runtime_circular_dependency_message(cycle_path)
-      build_circular_dependency_error_message(cycle_path, "runtime")
-    end
-
-    # Build detailed error message for circular dependencies
-    # @param cycle_path [Array<Class>] The circular dependency path
-    # @param context [String] Context of the error (dependency, runtime)
-    # @return [String] Formatted error message
-    def build_circular_dependency_error_message(cycle_path, context = "dependency")
-      path_names = cycle_path.map { |klass| klass.name || klass.to_s }
-
-      message = "Circular dependency detected!\n"
-      message += "Cycle: #{path_names.join(" → ")}\n\n"
-      message += "The #{context} chain is:\n"
-
-      cycle_path.each_cons(2).with_index do |(from, to), index|
-        action = (context == "dependency") ? "depends on" : "is trying to build"
-        message += "  #{index + 1}. #{from.name} #{action} → #{to.name}\n"
-      end
-
-      message += "\nThis creates an infinite loop that cannot be resolved." if context == "dependency"
-      message
-    end
-
     # Create instance, build dependencies, and execute with logging
     # @return [Task] The executed task instance
     def create_and_execute_instance
@@ -227,12 +163,17 @@ module Taski
     # @param instance [Task] Task instance to execute
     # @return [Task] The executed task instance
     def execute_instance_with_logging(instance)
-      parent_task = current_parent_task
+      # Get parent task from current context before we change it
+      parent_task = ExecutionContext.current.current_parent_task
+
       with_build_logging(@task_class.name.to_s,
         dependencies: @task_class.dependencies,
         parent_task: parent_task) do
-        instance.run
-        instance
+        # Set parent context for rescue_deps handling in instance methods
+        ExecutionContext.current.with_parent_task(@task_class) do
+          instance.run
+          instance
+        end
       end
     end
 
@@ -247,10 +188,10 @@ module Taski
       self.class.with_build_logging(task_name, dependencies: dependencies, args: args, parent_task: parent_task) { yield }
     end
 
-    # Get current parent task from thread-local storage
+    # Get current parent task from execution context
     # @return [Task, nil] Current parent task or nil
     def current_parent_task
-      Thread.current[Taski::Task::TASKI_CURRENT_PARENT_TASK_KEY]
+      ExecutionContext.current.current_parent_task
     end
 
     attr_reader :circular_dependency_detector
