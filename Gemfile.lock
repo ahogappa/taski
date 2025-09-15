@@ -30,7 +30,7 @@ GEM
     pp (0.6.2)
       prettyprint
     prettyprint (0.2.0)
-    prism (1.4.0)
+    prism (1.5.1)
     psych (5.2.6)
       date
       stringio
@@ -94,7 +94,7 @@ PLATFORMS
 DEPENDENCIES
   debug
   minitest (~> 5.0)
-  prism (~> 1.4)
+  prism (~> 1.5)
   rake (~> 13.0)
   simplecov (~> 0.22)
   simplecov-lcov (~> 0.8)
