@@ -1,43 +1,73 @@
 # frozen_string_literal: true
 
-# Load core components
 require_relative "taski/version"
-require_relative "taski/exceptions"
-require_relative "taski/logger"
-require_relative "taski/progress_display"
-require_relative "taski/reference"
-require_relative "taski/dependency_analyzer"
-require_relative "taski/signal_handler"
-require_relative "taski/task_interface"
-require_relative "taski/task_component"
-require_relative "taski/execution_context"
-require_relative "taski/instance_builder"
-
-# Load Task class
+require_relative "taski/static_analysis/analyzer"
+require_relative "taski/static_analysis/visitor"
+require_relative "taski/execution/registry"
+require_relative "taski/execution/coordinator"
+require_relative "taski/execution/task_wrapper"
+require_relative "taski/execution/parallel_progress_display"
 require_relative "taski/task"
-
-# Load Section class
 require_relative "taski/section"
 
 module Taski
-  # Main module for the Taski task framework
+  # Main module for the Taski task execution framework
   #
-  # Taski provides a framework for defining and managing task dependencies
-  # with three complementary APIs:
-  # 1. Exports API - Export instance variables as class methods (static dependencies)
-  # 2. Define API - Define lazy-evaluated values with dynamic dependency resolution
-  # 3. Section API - Abstraction layers with runtime implementation selection
-  #
-  # API Selection Guide:
-  # - Use Exports API for simple static dependencies
-  # - Use Define API for conditional dependencies analyzed at class definition time
-  # - Use Section API for environment-specific implementations with static analysis
+  # Taski provides a framework for task execution with automatic
+  # dependency resolution using static analysis.
   #
   # Features:
-  # - Automatic dependency resolution (static and dynamic)
-  # - Static analysis of method dependencies
-  # - Runtime implementation selection with Section API
-  # - Robust task building
-  # - Circular dependency detection
-  # - Memory leak prevention
+  # - Static dependency analysis using Prism AST
+  # - Parallel execution of independent tasks
+  # - Automatic dependency resolution
+  # - Export mechanism for sharing values between tasks
+  # - Section pattern for dynamic implementation selection
+  #
+  # Usage:
+  #   class MyTask < Taski::Task
+  #     exports :result
+  #
+  #     def run
+  #       @result = "computed value"
+  #     end
+  #   end
+  #
+  #   MyTask.result  # Executes task and returns result
+
+  # Exception raised when user wants to abort task execution
+  class TaskAbortException < StandardError
+  end
+
+  # Global registry shared across all tasks
+  #
+  # @return [Execution::Registry] The global registry instance
+  def self.global_registry
+    @global_registry ||= Execution::Registry.new
+  end
+
+  # Reset the global registry
+  def self.reset_global_registry!
+    @global_registry = nil
+  end
+
+  # Global progress display for parallel execution
+  #
+  # @return [Execution::ParallelProgressDisplay, nil] The progress display instance or nil if disabled
+  def self.progress_display
+    return nil unless progress_enabled?
+    @progress_display ||= Execution::ParallelProgressDisplay.new
+  end
+
+  # Check if progress display is enabled
+  #
+  # @return [Boolean] true if progress display is enabled
+  def self.progress_enabled?
+    ENV["TASKI_PROGRESS"] == "1" || ENV["TASKI_FORCE_PROGRESS"] == "1"
+  end
+
+  # Reset the progress display
+  def self.reset_progress_display!
+    @progress_display&.stop
+    @progress_display = nil
+  end
 end
