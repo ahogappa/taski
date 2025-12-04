@@ -1,122 +1,147 @@
 # Taski Examples
 
-Learn Taski through practical examples, from basic concepts to real-world applications.
+Learn Taski through practical examples demonstrating parallel execution and automatic dependency resolution.
 
 ## 🚀 Learning Path
 
 Follow these examples in order for the best learning experience:
 
-### 1. **[quick_start.rb](quick_start.rb)** - Exports API Basics
-- Your first Taski program
+### 1. **[quick_start.rb](quick_start.rb)** - Exports API Basics ⭐
+Your first Taski program demonstrating:
 - Static dependencies with `exports`
 - Automatic dependency resolution
+- Basic task execution
 
 ```bash
 ruby examples/quick_start.rb
 ```
 
-### 2. **[define_api_basics.rb](define_api_basics.rb)** - Dynamic Dependencies
-- Environment-based logic with Define API
-- Runtime value computation
-- When to use Define vs Exports
+**What you'll learn:**
+- How to define tasks with `exports`
+- How dependencies are automatically resolved
+- How to access exported values from other tasks
 
-```bash
-ruby examples/define_api_basics.rb
-```
+---
 
-### 3. **[section_basics.rb](section_basics.rb)** - Implementation Selection
-- Environment-specific implementations
-- Clean interfaces with Section API
+### 2. **[section_basics.rb](section_basics.rb)** - Runtime Implementation Selection ⭐⭐
+Environment-specific implementations using the Section API:
+- Switch implementations based on environment
+- Clean interface definitions
 - Dependency tree visualization
 
 ```bash
 ruby examples/section_basics.rb
 ```
 
-### 4. **[progress_demo.rb](progress_demo.rb)** - Visual Progress
-- Animated progress display
-- Output capture and timing
-- TTY detection for logging
+**What you'll learn:**
+- How to use `interfaces` to define contracts
+- How to implement environment-specific behavior
+- How to visualize dependency trees with `.tree`
+
+---
+
+### 3. **[parallel_progress_demo.rb](parallel_progress_demo.rb)** - Parallel Execution with Progress Display ⭐⭐⭐
+Real-time progress visualization of parallel task execution:
+- Docker-style multi-layer download simulation
+- Parallel execution of independent tasks
+- Real-time progress with timing
 
 ```bash
-# Interactive mode with spinner
-ruby examples/progress_demo.rb
-
-# Clean output for logging
-ruby examples/progress_demo.rb > build.log 2>&1
+# Enable progress display
+TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
 ```
 
-### 5. **[build_pipeline.rb](build_pipeline.rb)** - Real-World Pipeline
-- Complete CI/CD workflow example
-- Mixed API usage patterns
-- Production-ready error handling
+**What you'll learn:**
+- How tasks execute in parallel automatically
+- How to enable and use progress display
+- How execution timing works in parallel scenarios
 
-```bash
-ruby examples/build_pipeline.rb
-```
-
-### 6. **[error_handling.rb](error_handling.rb)** - Robust Error Management
-- Dependency error recovery
-- Graceful degradation patterns
-- Signal interruption handling
-
-```bash
-ruby examples/error_handling.rb
-```
-
-### 7. **[advanced_patterns.rb](advanced_patterns.rb)** - Complex Scenarios
-- Advanced dependency patterns
-- Performance optimization
-- Custom logging strategies
-
-```bash
-ruby examples/advanced_patterns.rb
-```
+---
 
 ## 📚 What You'll Learn
 
 ### Core APIs
-- **Exports API**: Static values with side effects
-- **Define API**: Dynamic computation without side effects
-- **Section API**: Runtime implementation selection
+- **Exports API**: Share computed values between tasks
+- **Section API**: Runtime implementation selection based on environment
 
-### Advanced Features
-- **Progress Display**: Visual feedback and timing
-- **Error Recovery**: Fallback strategies and graceful failures
-- **Signal Handling**: Interruption and cleanup
-- **Logging**: Structured output and monitoring
+### Key Features
+- **Parallel Execution**: Independent tasks run concurrently using threads
+- **Static Analysis**: Dependencies detected automatically via Prism AST
+- **Progress Display**: Real-time visual feedback with spinners and timing
+- **Thread-Safe**: Monitor-based synchronization for reliable concurrent execution
 
 ### Real-World Applications
-- **Build Pipelines**: CI/CD workflows
 - **Configuration Management**: Environment-specific settings
-- **Service Orchestration**: Microservice dependencies
-- **Data Processing**: ETL and transformation pipelines
+- **Build Pipelines**: Parallel compilation and testing
+- **Service Orchestration**: Microservice dependency management
+- **Data Processing**: Parallel ETL workflows
 
 ## 🎯 Quick Reference
 
-| Example | Primary API | Complexity | Use Case |
-|---------|-------------|------------|----------|
-| quick_start | Exports | ⭐ | First steps |
-| define_api_basics | Define | ⭐⭐ | Dynamic values |
-| section_basics | Section | ⭐⭐ | Implementation choice |
-| progress_demo | All | ⭐⭐ | Visual feedback |
-| build_pipeline | Mixed | ⭐⭐⭐ | CI/CD workflows |
-| error_handling | Mixed | ⭐⭐⭐ | Production robustness |
-| advanced_patterns | Mixed | ⭐⭐⭐⭐ | Complex scenarios |
+| Example | Primary Feature | Complexity | Run Time |
+|---------|----------------|------------|----------|
+| quick_start | Exports API | ⭐ | < 1s |
+| section_basics | Section API | ⭐⭐ | < 1s |
+| parallel_progress_demo | Parallel Execution | ⭐⭐⭐ | ~2s |
 
 ## 🔗 Next Steps
 
 After completing these examples:
-- **[API Guide](../docs/api-guide.md)**: Detailed API documentation
-- **[Advanced Features](../docs/advanced-features.md)**: In-depth feature guides
-- **[Error Handling](../docs/error-handling.md)**: Comprehensive error strategies
+- **[Main README](../README.md)**: Full project documentation
 - **[Tests](../test/)**: Explore the test suite for more patterns
 - **[Source Code](../lib/taski/)**: Dive into the implementation
+  - `lib/taski/task.rb` - Core Task implementation
+  - `lib/taski/section.rb` - Section API
+  - `lib/taski/execution/` - Parallel execution engine
+  - `lib/taski/static_analysis/` - Dependency analyzer
 
 ## 💡 Tips for Learning
 
 1. **Start Simple**: Begin with `quick_start.rb` even if you're experienced
 2. **Experiment**: Modify the examples to see how behavior changes
-3. **Read Output**: Pay attention to progress display and timing information
-4. **Check Dependencies**: Use `.tree` method to visualize task relationships
-5. **Test Errors**: Try breaking examples to understand error handling
+3. **Use Progress Display**: Set `TASKI_FORCE_PROGRESS=1` to see real-time execution
+4. **Visualize Dependencies**: Use `.tree` method to see task relationships
+5. **Read Source Code**: Examples are heavily commented for learning
+
+## 🎨 Example Patterns
+
+### Basic Task Pattern
+```ruby
+class MyTask < Taski::Task
+  exports :result
+
+  def run
+    @result = compute_something()
+  end
+end
+```
+
+### Section Pattern
+```ruby
+class MySection < Taski::Section
+  interfaces :value
+
+  def impl
+    ENV['PROD'] ? ProdImpl : DevImpl
+  end
+
+  class ProdImpl < Taski::Task
+    exports :value
+    def run; @value = "prod"; end
+  end
+end
+```
+
+### Dependency Pattern
+```ruby
+class Consumer < Taski::Task
+  def run
+    # Automatically depends on Producer
+    puts Producer.data
+  end
+end
+```
+
+---
+
+**Happy Learning!** 🚀

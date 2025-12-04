@@ -6,18 +6,19 @@
 
 > **🚧 Development Status:** Taski is currently under active development. Not yet recommended for production use.
 
-**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and execution.
+**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and **parallel execution**.
 
 > **Name Origin**: "Taski" comes from the Japanese word "襷" (tasuki), a sash used in relay races. Just like how runners pass the sash to the next teammate, tasks in Taski pass dependencies to one another in a continuous chain.
 
 ## Why Taski?
 
-Build complex workflows by defining tasks and their dependencies - Taski automatically resolves execution order and manages the entire process.
+Build complex workflows by defining tasks and their dependencies - Taski automatically resolves execution order and executes them in parallel.
 
-- **Automatic Resolution**: No manual orchestration needed
-- **Three APIs**: Static (Exports), Dynamic (Define), Abstraction (Section)
-- **Built-in Features**: Progress display, error handling, logging
-- **Error Handling**: Comprehensive exception management and recovery
+- **Automatic Dependency Resolution**: Dependencies detected via static analysis
+- **Parallel Execution**: Independent tasks run concurrently for maximum performance
+- **Two Simple APIs**: Exports (value sharing) and Section (runtime selection)
+- **Real-time Progress**: Visual feedback with parallel task progress display
+- **Thread-Safe**: Built on Monitor-based synchronization for reliable concurrent execution
 
 ## 🚀 Quick Start
 
@@ -34,66 +35,108 @@ class DatabaseSetup < Taski::Task
   end
 end
 
-class APIServer < Taski::Task
+class CacheSetup < Taski::Task
+  exports :cache_url
+
   def run
-    puts "Starting API with #{DatabaseSetup.connection_string}"
+    @cache_url = "redis://localhost:6379"
+    puts "Cache configured"
   end
 end
 
-# Run any task - dependencies execute automatically
+class APIServer < Taski::Task
+  def run
+    # Dependencies execute automatically and in parallel
+    puts "Starting API with #{DatabaseSetup.connection_string}"
+    puts "Using cache at #{CacheSetup.cache_url}"
+  end
+end
+
+# Run any task - dependencies resolve and execute in parallel
 APIServer.run
 # => Database configured
+# => Cache configured
 # => Starting API with postgresql://localhost/myapp
+# => Using cache at redis://localhost:6379
 ```
 
 ## Core Concepts
 
-Taski provides three APIs for different dependency scenarios:
+Taski provides two complementary APIs:
 
-### 1. Exports API (Static Dependencies)
+### 1. Exports API - Value Sharing Between Tasks
 ```ruby
 class Config < Taski::Task
-  exports :app_name
-  def run; @app_name = "MyApp"; end
+  exports :app_name, :port
+
+  def run
+    @app_name = "MyApp"
+    @port = 3000
+  end
 end
 
 class Server < Taski::Task
-  def run; puts "Starting #{Config.app_name}"; end
+  def run
+    # Automatically depends on Config task
+    puts "Starting #{Config.app_name} on port #{Config.port}"
+  end
 end
 ```
 
-### 2. Define API (Dynamic Dependencies)
-```ruby
-class EnvConfig < Taski::Task
-  define :db_host, -> { ENV['DB_HOST'] || 'localhost' }
-end
-```
-
-### 3. Section API (Abstraction Layers)
+### 2. Section API - Runtime Implementation Selection
 ```ruby
 class DatabaseSection < Taski::Section
-  interface :host
-  def impl; production? ? ProductionDB : LocalDB; end
+  interfaces :host, :port
+
+  def impl
+    # Select implementation at runtime
+    ENV['RAILS_ENV'] == 'production' ? ProductionDB : LocalDB
+  end
+end
+
+class ProductionDB < Taski::Task
+  exports :host, :port
+  def run
+    @host = "prod.example.com"
+    @port = 5432
+  end
 end
 ```
 
 **When to use each:**
-- **Exports**: Static values and side effects
-- **Define**: Environment-based logic
-- **Section**: Runtime implementation selection
+- **Exports**: Share computed values or side effects between tasks
+- **Section**: Switch implementations based on environment or conditions
 
 ## Key Features
 
-- **Automatic Dependency Resolution**: No manual orchestration needed
-- **Error Handling**: Comprehensive exception management and recovery
-- **Visual Progress**: Real-time feedback with spinners and timing
-- **Error Handling**: Circular dependency detection and recovery
-- **Signal Support**: Graceful interruption (Ctrl+C)
-- **Flexible Logging**: Multiple output formats
-- **Tree Visualization**: See your dependency graph
+- **Parallel Execution**: Independent tasks run concurrently using threads
+- **Static Analysis**: Dependencies detected automatically via Prism AST parsing
+- **Thread-Safe**: Monitor-based synchronization ensures safe concurrent access
+- **Progress Display**: Real-time visual feedback with spinner animations and timing
+- **Tree Visualization**: See your dependency graph structure
+- **Graceful Abort**: Stop execution cleanly without starting new tasks (Ctrl+C)
+
+### Parallel Progress Display
+
+Enable real-time progress visualization:
+
+```bash
+TASKI_FORCE_PROGRESS=1 ruby your_script.rb
+```
+
+Output example:
+```
+⠋ DatabaseSetup (running)
+⠙ CacheSetup (running)
+✅ DatabaseSetup (123.4ms)
+✅ CacheSetup (98.2ms)
+⠸ WebServer (running)
+✅ WebServer (45.1ms)
+```
+
+### Tree Visualization
 
 ```ruby
-# Visualize dependencies
 puts WebServer.tree
 # => WebServer
 # => └── Config
@@ -120,12 +163,13 @@ rake standard  # Check code style
 
 ## 📚 Learn More
 
-- **[API Guide](docs/api-guide.md)**: Detailed documentation for all three APIs
-- **[Advanced Features](docs/advanced-features.md)**: Progress display, signal handling, logging
-- **[Error Handling](docs/error-handling.md)**: Recovery strategies and debugging
 - **[Examples](examples/)**: Practical examples from basic to advanced patterns
-- **[Tests](test/)**: Comprehensive test suite showing usage patterns
-- **[Source Code](lib/taski/)**: Well-documented implementation
+- **[Tests](test/)**: Comprehensive test suite showing real-world usage
+- **[Source Code](lib/taski/)**: Clean, well-documented implementation
+  - `lib/taski/task.rb` - Core Task implementation with exports API
+  - `lib/taski/section.rb` - Section API for runtime selection
+  - `lib/taski/execution/` - Parallel execution engine
+  - `lib/taski/static_analysis/` - Prism-based dependency analyzer
 
 ## Support
 
@@ -137,4 +181,4 @@ MIT License
 
 ---
 
-**Taski** - Build dependency graphs with elegant Ruby code. 🚀
+**Taski** - Parallel task execution with automatic dependency resolution. 🚀

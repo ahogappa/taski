@@ -15,7 +15,7 @@ require_relative "../lib/taski"
 # for development and production environments
 class DatabaseSection < Taski::Section
   # Define the interface that implementations must provide
-  interface :host, :port, :username, :password, :database_name, :pool_size
+  interfaces :host, :port, :username, :password, :database_name, :pool_size
 
   # Select implementation based on environment
   # Note: Must return a Task class - .run is automatically called
@@ -29,8 +29,9 @@ class DatabaseSection < Taski::Section
   end
 
   # Production implementation with secure settings
-  # Note: exports are automatically inherited from interface declaration
   class Production < Taski::Task
+    exports :host, :port, :username, :password, :database_name, :pool_size
+
     def run
       @host = "prod-db.example.com"
       @port = 5432
@@ -42,8 +43,9 @@ class DatabaseSection < Taski::Section
   end
 
   # Development implementation with local settings
-  # Note: exports are automatically inherited from interface declaration
   class Development < Taski::Task
+    exports :host, :port, :username, :password, :database_name, :pool_size
+
     def run
       @host = "localhost"
       @port = 5432
@@ -58,7 +60,7 @@ end
 # Example 2: API Configuration Section
 # This section provides API endpoints and credentials
 class ApiSection < Taski::Section
-  interface :base_url, :api_key, :timeout, :retry_count
+  interfaces :base_url, :api_key, :timeout, :retry_count
 
   # No 'self' needed - just define as instance method!
   def impl
@@ -71,8 +73,9 @@ class ApiSection < Taski::Section
     end
   end
 
-  # Note: exports are automatically inherited from interface declaration - DRY principle!
   class Production < Taski::Task
+    exports :base_url, :api_key, :timeout, :retry_count
+
     def run
       @base_url = "https://api.example.com/v1"
       @api_key = ENV["PROD_API_KEY"] || "prod-key-123"
@@ -81,8 +84,9 @@ class ApiSection < Taski::Section
     end
   end
 
-  # Note: exports are automatically inherited from interface declaration - DRY principle!
   class Staging < Taski::Task
+    exports :base_url, :api_key, :timeout, :retry_count
+
     def run
       @base_url = "https://staging-api.example.com/v1"
       @api_key = ENV["STAGING_API_KEY"] || "staging-key-456"
