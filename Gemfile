@@ -7,7 +7,7 @@ gemspec
 
 gem "rake", "~> 13.3"
 
-gem "prism", "~> 1.4"
+gem "prism", "~> 1.6"
 
 group :development, :test do
   gem "debug"
