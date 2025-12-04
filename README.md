@@ -101,6 +101,28 @@ class ProductionDB < Taski::Task
     @port = 5432
   end
 end
+
+class LocalDB < Taski::Task
+  exports :host, :port
+  def run
+    @host = "localhost"
+    @port = 5432
+  end
+end
+
+class App < Taski::Task
+  def run
+    # Access through Section - implementation selected at runtime
+    puts "Connecting to #{DatabaseSection.host}:#{DatabaseSection.port}"
+  end
+end
+
+App.run
+# In development (RAILS_ENV != 'production'):
+# => Connecting to localhost:5432
+
+# In production (RAILS_ENV == 'production'):
+# => Connecting to prod.example.com:5432
 ```
 
 **When to use each:**
