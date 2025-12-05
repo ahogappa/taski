@@ -29,9 +29,8 @@ class DatabaseSection < Taski::Section
   end
 
   # Production implementation with secure settings
+  # No exports needed - automatically inherited from interfaces
   class Production < Taski::Task
-    exports :host, :port, :username, :password, :database_name, :pool_size
-
     def run
       @host = "prod-db.example.com"
       @port = 5432
@@ -44,8 +43,6 @@ class DatabaseSection < Taski::Section
 
   # Development implementation with local settings
   class Development < Taski::Task
-    exports :host, :port, :username, :password, :database_name, :pool_size
-
     def run
       @host = "localhost"
       @port = 5432
@@ -74,8 +71,6 @@ class ApiSection < Taski::Section
   end
 
   class Production < Taski::Task
-    exports :base_url, :api_key, :timeout, :retry_count
-
     def run
       @base_url = "https://api.example.com/v1"
       @api_key = ENV["PROD_API_KEY"] || "prod-key-123"
@@ -85,8 +80,6 @@ class ApiSection < Taski::Section
   end
 
   class Staging < Taski::Task
-    exports :base_url, :api_key, :timeout, :retry_count
-
     def run
       @base_url = "https://staging-api.example.com/v1"
       @api_key = ENV["STAGING_API_KEY"] || "staging-key-456"

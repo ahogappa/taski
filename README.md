@@ -88,25 +88,24 @@ end
 class DatabaseSection < Taski::Section
   interfaces :host, :port
 
+  # Nested classes automatically inherit interfaces - no exports needed
+  class ProductionDB < Taski::Task
+    def run
+      @host = "prod.example.com"
+      @port = 5432
+    end
+  end
+
+  class LocalDB < Taski::Task
+    def run
+      @host = "localhost"
+      @port = 5432
+    end
+  end
+
   def impl
     # Select implementation at runtime
     ENV['RAILS_ENV'] == 'production' ? ProductionDB : LocalDB
-  end
-end
-
-class ProductionDB < Taski::Task
-  exports :host, :port
-  def run
-    @host = "prod.example.com"
-    @port = 5432
-  end
-end
-
-class LocalDB < Taski::Task
-  exports :host, :port
-  def run
-    @host = "localhost"
-    @port = 5432
   end
 end
 
@@ -128,6 +127,8 @@ App.run
 **When to use each:**
 - **Exports**: Share computed values or side effects between tasks
 - **Section**: Switch implementations based on environment or conditions
+
+> **Note**: When implementation classes are nested inside a Section, they automatically inherit the Section's `interfaces` as `exports`. External implementations must declare `exports` explicitly.
 
 ## Key Features
 
