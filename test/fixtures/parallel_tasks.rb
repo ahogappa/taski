@@ -268,3 +268,46 @@ class CleanTaskD < Taski::Task
     "cleaned_D"
   end
 end
+
+# Test fixtures for Section with nested implementations
+# Nested classes automatically inherit interfaces from parent Section
+
+class NestedSection < Taski::Section
+  interfaces :host, :port
+
+  # No exports needed - automatically inherited from interfaces
+  class LocalDB < Taski::Task
+    def run
+      @host = "localhost"
+      @port = 5432
+    end
+  end
+
+  class ProductionDB < Taski::Task
+    def run
+      @host = "prod.example.com"
+      @port = 5432
+    end
+  end
+
+  def impl
+    LocalDB
+  end
+end
+
+# Section that uses external implementation (traditional pattern)
+class ExternalImplSection < Taski::Section
+  interfaces :value
+
+  def impl
+    ExternalImpl
+  end
+end
+
+class ExternalImpl < Taski::Task
+  exports :value
+
+  def run
+    @value = "external implementation"
+  end
+end
