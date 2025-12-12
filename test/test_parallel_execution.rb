@@ -57,10 +57,66 @@ class TestParallelExecution < Minitest::Test
     assert_equal value1, value2, "Values should be the same (cached)"
   end
 
-  def test_static_dependency_analysis
-    # Skip this test for now - static analysis requires actual source files
-    # Dynamic class definitions don't have source locations
-    skip "Static analysis requires actual source files, not dynamic class definitions"
+  def test_new_creates_fresh_instance_for_re_execution
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "value_#{rand(10000)}"
+      end
+    end
+
+    # TaskClass.new.run creates a fresh instance each time (re-execution)
+    task1 = task_class.new
+    result1 = task1.run
+    task2 = task_class.new
+    result2 = task2.run
+
+    refute_equal result1, result2, "Each new instance should execute independently"
+  end
+
+  def test_new_instance_is_cached_within_itself
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "value_#{rand(10000)}"
+      end
+    end
+
+    # Same instance should be cached
+    task = task_class.new
+    result1 = task.run
+    result2 = task.run
+
+    assert_equal result1, result2, "Same instance should return cached value"
+  end
+
+  def test_new_returns_task_wrapper
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    instance = task_class.new
+    assert_kind_of Taski::Execution::TaskWrapper, instance
+  end
+
+  def test_new_instance_can_access_exported_values
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test_value"
+      end
+    end
+
+    task = task_class.new
+    task.run
+    assert_equal "test_value", task.value
   end
 
   def test_section_implementation_selection

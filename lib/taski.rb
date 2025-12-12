@@ -7,6 +7,7 @@ require_relative "taski/execution/registry"
 require_relative "taski/execution/coordinator"
 require_relative "taski/execution/task_wrapper"
 require_relative "taski/execution/parallel_progress_display"
+require_relative "taski/context"
 require_relative "taski/task"
 require_relative "taski/section"
 

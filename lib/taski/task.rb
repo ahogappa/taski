@@ -28,6 +28,19 @@ module Taski
         @exported_methods ||= []
       end
 
+      # Create a new task instance wrapped in TaskWrapper
+      # Unlike cached class methods, each call to new creates a fresh instance
+      # that can be executed independently (re-execution support)
+      #
+      # @return [Execution::TaskWrapper] A new task wrapper instance
+      def new
+        Execution::TaskWrapper.new(
+          super,
+          registry: registry,
+          coordinator: coordinator
+        )
+      end
+
       # Get cached dependencies for this task
       #
       # @return [Set<Class>] Set of dependency classes
@@ -44,6 +57,7 @@ module Taski
       #
       # @return [Object] The result of the task execution
       def run
+        Taski::Context.set_root_task(self)
         cached_wrapper.run
       end
 
@@ -51,6 +65,7 @@ module Taski
       #
       # @return [Object] The result of the task cleanup
       def clean
+        Taski::Context.set_root_task(self)
         cached_wrapper.clean
       end
 
@@ -76,6 +91,7 @@ module Taski
       def reset!
         registry.reset!
         Taski.reset_global_registry!
+        Taski::Context.reset!
         @coordinator = nil
       end
 
@@ -144,6 +160,8 @@ module Taski
       # @return [Execution::TaskWrapper] The task wrapper
       def cached_wrapper
         registry.get_or_create(self) do
+          # Use allocate + initialize instead of new to avoid infinite loop
+          # since new is overridden to return TaskWrapper
           task_instance = allocate
           task_instance.send(:initialize)
           Execution::TaskWrapper.new(
@@ -178,6 +196,7 @@ module Taski
         singleton_class.undef_method(method) if singleton_class.method_defined?(method)
 
         define_singleton_method(method) do
+          Taski::Context.set_root_task(self)
           cached_wrapper.get_exported_value(method)
         end
       end
