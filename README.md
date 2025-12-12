@@ -130,6 +130,60 @@ App.run
 
 > **Note**: When implementation classes are nested inside a Section, they automatically inherit the Section's `interfaces` as `exports`. External implementations must declare `exports` explicitly.
 
+### 3. Context - Runtime Information Access
+
+Access execution context information from any task:
+
+```ruby
+class DeployTask < Taski::Task
+  def run
+    puts "Working directory: #{Taski::Context.working_directory}"
+    puts "Started at: #{Taski::Context.started_at}"
+    puts "Root task: #{Taski::Context.root_task}"
+  end
+end
+```
+
+**Available context:**
+- `working_directory`: Directory where execution started
+- `started_at`: Time when execution began
+- `root_task`: The first task class that was called
+
+> **Note**: Context is not included in dependency analysis - it provides runtime information only.
+
+> **Important**: Tasks must be defined in source files, not dynamically with `Class.new`. Static analysis requires actual source files to detect dependencies.
+
+### 4. Re-execution with `new`
+
+By default, task results are cached. Use `new` to create a fresh instance for re-execution:
+
+```ruby
+class RandomTask < Taski::Task
+  exports :value
+
+  def run
+    @value = rand(1000)
+  end
+end
+
+# Cached execution (same result)
+RandomTask.value  # => 42
+RandomTask.value  # => 42 (cached)
+
+# Fresh execution with new
+RandomTask.new.run  # => 123 (new instance)
+RandomTask.new.run  # => 456 (another new instance)
+
+# Reset all caches
+RandomTask.reset!
+RandomTask.value  # => 789 (fresh after reset)
+```
+
+**When to use:**
+- `TaskClass.run` / `TaskClass.value`: Normal execution with caching (recommended for dependency graphs)
+- `TaskClass.new.run`: Re-execute only this task (dependencies still use cache)
+- `TaskClass.reset!`: Clear all caches and re-execute everything
+
 ## Key Features
 
 - **Parallel Execution**: Independent tasks run concurrently using threads
@@ -138,6 +192,7 @@ App.run
 - **Progress Display**: Real-time visual feedback with spinner animations and timing
 - **Tree Visualization**: See your dependency graph structure
 - **Graceful Abort**: Stop execution cleanly without starting new tasks (Ctrl+C)
+- **Runtime Context**: Access execution information from any task
 
 ### Parallel Progress Display
 
