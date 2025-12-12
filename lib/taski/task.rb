@@ -28,56 +28,6 @@ module Taski
         @exported_methods ||= []
       end
 
-      # Hook called when a subclass is created
-      # Automatically inherits interfaces from parent Section for nested classes
-      #
-      # @param subclass [Class] The newly created subclass
-      def inherited(subclass)
-        super
-        inherit_section_interfaces(subclass)
-      end
-
-      private
-
-      # Inherit interfaces from parent Section if this is a nested class
-      #
-      # @param subclass [Class] The newly created subclass
-      def inherit_section_interfaces(subclass)
-        parent_section = find_parent_section(subclass)
-        return unless parent_section
-
-        interface_methods = parent_section.exported_methods
-        return if interface_methods.empty?
-
-        # Apply the same exports to the nested class
-        subclass.exports(*interface_methods)
-      end
-
-      # Find the parent Section class for a nested class
-      #
-      # @param subclass [Class] The nested class to check
-      # @return [Class, nil] The parent Section class or nil
-      def find_parent_section(subclass)
-        return nil unless subclass.name
-
-        parts = subclass.name.split("::")
-        return nil if parts.size < 2
-
-        # Get parent namespace (all parts except the last one)
-        parent_name = parts[0..-2].join("::")
-        return nil if parent_name.empty?
-
-        begin
-          parent_class = Object.const_get(parent_name)
-          # Only return if parent is a Section (not just any Task)
-          parent_class if parent_class < Taski::Section
-        rescue NameError
-          nil
-        end
-      end
-
-      public
-
       # Get cached dependencies for this task
       #
       # @return [Set<Class>] Set of dependency classes
@@ -208,6 +158,9 @@ module Taski
       #
       # @param method [Symbol] The method name
       def define_instance_reader(method)
+        # Remove existing method to avoid redefinition warning
+        undef_method(method) if method_defined?(method)
+
         # Define reader method
         define_method(method) do
           # Read from instance variable
@@ -221,6 +174,9 @@ module Taski
       #
       # @param method [Symbol] The method name
       def define_class_accessor(method)
+        # Remove existing method to avoid redefinition warning
+        singleton_class.undef_method(method) if singleton_class.method_defined?(method)
+
         define_singleton_method(method) do
           cached_wrapper.get_exported_value(method)
         end

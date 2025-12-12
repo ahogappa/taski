@@ -12,10 +12,11 @@ class TestSection < Minitest::Test
     Taski::Task.reset!
   end
 
-  # Test that nested classes in Section automatically inherit interfaces
+  # Test that nested classes in Section inherit interfaces after execution
   def test_nested_class_inherits_interfaces
+    # After Section execution, the implementation class has interface methods
+    NestedSection.run
     assert_equal [:host, :port], NestedSection::LocalDB.exported_methods
-    assert_equal [:host, :port], NestedSection::ProductionDB.exported_methods
   end
 
   # Test Section with nested implementation works end-to-end
