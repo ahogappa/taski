@@ -157,42 +157,39 @@ class Application < Taski::Task
   end
 end
 
-# Demo script
-if __FILE__ == $0
-  puts "Taski Section Configuration Example"
-  puts "=" * 50
+puts "Taski Section Configuration Example"
+puts "=" * 50
 
-  puts "\n1. Development Environment (default)"
-  ENV["RAILS_ENV"] = "development"
-  ENV["USE_STAGING_API"] = "false"
+puts "\n1. Development Environment (default)"
+ENV["RAILS_ENV"] = "development"
+ENV["USE_STAGING_API"] = "false"
 
-  # Reset all tasks to ensure fresh build
-  [DatabaseSection, ApiSection, ApplicationSetup, DatabaseConnection, ApiClient, Application].each(&:reset!)
+# Reset all tasks to ensure fresh build
+[DatabaseSection, ApiSection, ApplicationSetup, DatabaseConnection, ApiClient, Application].each(&:reset!)
 
-  Application.run
+Application.run
 
-  puts "\n" + "=" * 50
-  puts "\n2. Production Environment with Staging API"
-  ENV["RAILS_ENV"] = "production"
-  ENV["USE_STAGING_API"] = "true"
+puts "\n" + "=" * 50
+puts "\n2. Production Environment with Staging API"
+ENV["RAILS_ENV"] = "production"
+ENV["USE_STAGING_API"] = "true"
 
-  # Reset all tasks to see different configuration
-  [DatabaseSection, ApiSection, ApplicationSetup, DatabaseConnection, ApiClient, Application].each(&:reset!)
+# Reset all tasks to see different configuration
+[DatabaseSection, ApiSection, ApplicationSetup, DatabaseConnection, ApiClient, Application].each(&:reset!)
 
-  Application.run
+Application.run
 
-  puts "\n" + "=" * 50
-  puts "\n3. Dependency Tree Visualization"
-  puts "\nApplication dependency tree:"
-  puts Application.tree
+puts "\n" + "=" * 50
+puts "\n3. Dependency Tree Visualization"
+puts "\nApplication dependency tree:"
+puts Application.tree
 
-  puts "\nDatabaseConnection dependency tree:"
-  puts DatabaseConnection.tree
+puts "\nDatabaseConnection dependency tree:"
+puts DatabaseConnection.tree
 
-  puts "\nApiClient dependency tree:"
-  puts ApiClient.tree
+puts "\nApiClient dependency tree:"
+puts ApiClient.tree
 
-  puts "\n" + "=" * 50
-  puts "\nSection dependency resolution successfully demonstrated!"
-  puts "Notice how sections appear in the dependency trees and logs."
-end
+puts "\n" + "=" * 50
+puts "\nSection dependency resolution successfully demonstrated!"
+puts "Notice how sections appear in the dependency trees and logs."
