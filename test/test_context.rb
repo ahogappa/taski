@@ -15,7 +15,7 @@ class TestContext < Minitest::Test
       exports :captured_dir
 
       def run
-        @captured_dir = Taski::Context.working_directory
+        @captured_dir = Taski.context.working_directory
       end
     end
 
@@ -28,7 +28,7 @@ class TestContext < Minitest::Test
       exports :captured_time
 
       def run
-        @captured_time = Taski::Context.started_at
+        @captured_time = Taski.context.started_at
       end
     end
 
@@ -50,7 +50,7 @@ class TestContext < Minitest::Test
     # even though it depends on ParallelTaskA and ParallelTaskB
     ParallelTaskC.task_c_value
 
-    assert_equal ParallelTaskC, Taski::Context.root_task
+    assert_equal ParallelTaskC, Taski.context.root_task
   end
 
   def test_root_task_is_set_only_once
@@ -72,11 +72,11 @@ class TestContext < Minitest::Test
 
     # First task call sets root_task
     task_a.value
-    first_root = Taski::Context.root_task
+    first_root = Taski.context.root_task
 
     # Second task call should not change root_task
     task_b.value
-    second_root = Taski::Context.root_task
+    second_root = Taski.context.root_task
 
     assert_equal task_a, first_root
     assert_equal task_a, second_root
@@ -94,14 +94,14 @@ class TestContext < Minitest::Test
     task_class.run
 
     # Context values should be set
-    assert_equal task_class, Taski::Context.root_task
-    refute_nil Taski::Context.working_directory
-    refute_nil Taski::Context.started_at
+    assert_equal task_class, Taski.context.root_task
+    refute_nil Taski.context.working_directory
+    refute_nil Taski.context.started_at
 
     # Reset should clear all values
     Taski::Task.reset!
 
-    assert_nil Taski::Context.root_task
+    assert_nil Taski.context
   end
 
   def test_context_is_not_dependency
@@ -135,7 +135,7 @@ class TestContext < Minitest::Test
 
       threads << Thread.new do
         task_class.value
-        mutex.synchronize { results << Taski::Context.root_task }
+        mutex.synchronize { results << Taski.context.root_task }
       end
     end
 
@@ -157,9 +157,9 @@ class TestContext < Minitest::Test
       define_method(:run) do
         sleep 0.05 # Small delay to ensure parallel execution
         @context_info = {
-          root: Taski::Context.root_task,
-          dir: Taski::Context.working_directory,
-          time: Taski::Context.started_at
+          root: Taski.context.root_task,
+          dir: Taski.context.working_directory,
+          time: Taski.context.started_at
         }
       end
     end
@@ -170,9 +170,9 @@ class TestContext < Minitest::Test
       define_method(:run) do
         sleep 0.05
         @context_info = {
-          root: Taski::Context.root_task,
-          dir: Taski::Context.working_directory,
-          time: Taski::Context.started_at
+          root: Taski.context.root_task,
+          dir: Taski.context.working_directory,
+          time: Taski.context.started_at
         }
       end
     end
@@ -184,5 +184,129 @@ class TestContext < Minitest::Test
     # Both tasks should see consistent context values
     assert_equal task_a.context_info[:dir], task_b.context_info[:dir]
     assert_equal task_a.context_info[:time], task_b.context_info[:time]
+  end
+
+  # New tests for user-defined options
+
+  def test_context_options_are_accessible
+    task_class = Class.new(Taski::Task) do
+      exports :env_value
+
+      def run
+        @env_value = Taski.context[:env]
+      end
+    end
+
+    task_class.run(context: {env: "production"})
+    assert_equal "production", task_class.env_value
+  end
+
+  def test_context_options_return_nil_for_missing_keys
+    task_class = Class.new(Taski::Task) do
+      exports :missing_value
+
+      def run
+        @missing_value = Taski.context[:nonexistent]
+      end
+    end
+
+    task_class.run(context: {env: "production"})
+    assert_nil task_class.missing_value
+  end
+
+  def test_context_fetch_with_default_value
+    task_class = Class.new(Taski::Task) do
+      exports :timeout_value
+
+      def run
+        @timeout_value = Taski.context.fetch(:timeout, 30)
+      end
+    end
+
+    task_class.run(context: {})
+    assert_equal 30, task_class.timeout_value
+  end
+
+  def test_context_fetch_with_block
+    task_class = Class.new(Taski::Task) do
+      exports :computed_value
+
+      def run
+        @computed_value = Taski.context.fetch(:computed) { 10 * 5 }
+      end
+    end
+
+    task_class.run(context: {})
+    assert_equal 50, task_class.computed_value
+  end
+
+  def test_context_fetch_returns_existing_value_over_default
+    task_class = Class.new(Taski::Task) do
+      exports :timeout_value
+
+      def run
+        @timeout_value = Taski.context.fetch(:timeout, 30)
+      end
+    end
+
+    task_class.run(context: {timeout: 60})
+    assert_equal 60, task_class.timeout_value
+  end
+
+  def test_context_key_check
+    task_class = Class.new(Taski::Task) do
+      exports :has_env, :has_missing
+
+      def run
+        @has_env = Taski.context.key?(:env)
+        @has_missing = Taski.context.key?(:missing)
+      end
+    end
+
+    task_class.run(context: {env: "production"})
+    assert task_class.has_env
+    refute task_class.has_missing
+  end
+
+  def test_context_options_are_immutable
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def run
+        # Options hash should be frozen
+        @result = Taski.context.instance_variable_get(:@options).frozen?
+      end
+    end
+
+    task_class.run(context: {env: "production"})
+    assert task_class.result
+  end
+
+  def test_context_options_shared_across_dependent_tasks
+    Taski::Task.reset!
+
+    dependency_env = nil
+
+    dep_task = Class.new(Taski::Task) do
+      exports :dep_value
+
+      define_method(:run) do
+        dependency_env = Taski.context[:env]
+        @dep_value = "from_dep"
+      end
+    end
+
+    main_task_class = Class.new(Taski::Task) do
+      exports :main_value
+
+      define_singleton_method(:dep_task) { dep_task }
+
+      define_method(:run) do
+        @main_value = self.class.dep_task.dep_value
+      end
+    end
+
+    main_task_class.run(context: {env: "staging"})
+    assert_equal "staging", dependency_env
   end
 end

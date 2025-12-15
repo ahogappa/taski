@@ -115,19 +115,36 @@ end
 
 ## Advanced Usage
 
-### Context - Runtime Information
+### Context - Runtime Information and Options
 
-Access execution context from any task:
+Pass custom options and access execution context from any task:
 
 ```ruby
 class DeployTask < Taski::Task
   def run
-    puts "Working directory: #{Taski::Context.working_directory}"
-    puts "Started at: #{Taski::Context.started_at}"
-    puts "Root task: #{Taski::Context.root_task}"
+    # User-defined options
+    env = Taski.context[:env]
+    debug = Taski.context.fetch(:debug, false)
+
+    # Runtime information
+    puts "Working directory: #{Taski.context.working_directory}"
+    puts "Started at: #{Taski.context.started_at}"
+    puts "Root task: #{Taski.context.root_task}"
+    puts "Deploying to: #{env}"
   end
 end
+
+# Pass options when running
+DeployTask.run(context: { env: "production", debug: true })
 ```
+
+Context API:
+- `Taski.context[:key]` - Get option value (nil if not set)
+- `Taski.context.fetch(:key, default)` - Get with default value
+- `Taski.context.key?(:key)` - Check if option exists
+- `Taski.context.working_directory` - Execution directory
+- `Taski.context.started_at` - Execution start time
+- `Taski.context.root_task` - First task class called
 
 ### Re-execution
 

@@ -39,14 +39,14 @@ module Taski
         @dependencies_cache = nil
       end
 
-      def run
-        Taski::Context.set_root_task(self)
+      def run(context: {})
+        Taski.start_context(options: context, root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.run
       end
 
-      def clean
-        Taski::Context.set_root_task(self)
+      def clean(context: {})
+        Taski.start_context(options: context, root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.clean
       end
@@ -65,7 +65,7 @@ module Taski
       def reset!
         registry.reset!
         Taski.reset_global_registry!
-        Taski::Context.reset!
+        Taski.reset_context!
         @coordinator = nil
         @circular_dependency_checked = false
       end
@@ -163,7 +163,7 @@ module Taski
         singleton_class.undef_method(method) if singleton_class.method_defined?(method)
 
         define_singleton_method(method) do
-          Taski::Context.set_root_task(self)
+          Taski.start_context(options: {}, root_task: self)
           validate_no_circular_dependencies!
           cached_wrapper.get_exported_value(method)
         end
