@@ -4,15 +4,11 @@
 [![Codecov](https://codecov.io/gh/ahogappa/taski/branch/master/graph/badge.svg)](https://codecov.io/gh/ahogappa/taski)
 [![Gem Version](https://badge.fury.io/rb/taski.svg)](https://badge.fury.io/rb/taski)
 
-> **🚧 Development Status:** Taski is currently under active development. Not yet recommended for production use.
-
-**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and **parallel execution**.
+**Taski** is a Ruby framework for building task dependency graphs with automatic resolution and parallel execution.
 
 > **Name Origin**: "Taski" comes from the Japanese word "襷" (tasuki), a sash used in relay races. Just like how runners pass the sash to the next teammate, tasks in Taski pass dependencies to one another in a continuous chain.
 
-## Why Taski?
-
-Build complex workflows by defining tasks and their dependencies - Taski automatically resolves execution order and executes them in parallel.
+## Features
 
 - **Automatic Dependency Resolution**: Dependencies detected via static analysis
 - **Parallel Execution**: Independent tasks run concurrently for maximum performance
@@ -20,18 +16,16 @@ Build complex workflows by defining tasks and their dependencies - Taski automat
 - **Real-time Progress**: Visual feedback with parallel task progress display
 - **Thread-Safe**: Built on Monitor-based synchronization for reliable concurrent execution
 
-## 🚀 Quick Start
+## Quick Start
 
 ```ruby
 require 'taski'
 
-# Define tasks with dependencies
 class DatabaseSetup < Taski::Task
   exports :connection_string
 
   def run
     @connection_string = "postgresql://localhost/myapp"
-    puts "Database configured"
   end
 end
 
@@ -40,31 +34,32 @@ class CacheSetup < Taski::Task
 
   def run
     @cache_url = "redis://localhost:6379"
-    puts "Cache configured"
   end
 end
 
 class APIServer < Taski::Task
   def run
     # Dependencies execute automatically and in parallel
-    puts "Starting API with #{DatabaseSetup.connection_string}"
-    puts "Using cache at #{CacheSetup.cache_url}"
+    puts "DB: #{DatabaseSetup.connection_string}"
+    puts "Cache: #{CacheSetup.cache_url}"
   end
 end
 
-# Run any task - dependencies resolve and execute in parallel
 APIServer.run
-# => Database configured
-# => Cache configured
-# => Starting API with postgresql://localhost/myapp
-# => Using cache at redis://localhost:6379
+```
+
+## Installation
+
+```ruby
+gem 'taski'
 ```
 
 ## Core Concepts
 
-Taski provides two complementary APIs:
+### Exports - Value Sharing Between Tasks
 
-### 1. Exports API - Value Sharing Between Tasks
+Share computed values between tasks:
+
 ```ruby
 class Config < Taski::Task
   exports :app_name, :port
@@ -77,26 +72,27 @@ end
 
 class Server < Taski::Task
   def run
-    # Automatically depends on Config task
     puts "Starting #{Config.app_name} on port #{Config.port}"
   end
 end
 ```
 
-### 2. Section API - Runtime Implementation Selection
+### Section - Runtime Implementation Selection
+
+Switch implementations based on environment:
+
 ```ruby
 class DatabaseSection < Taski::Section
   interfaces :host, :port
 
-  # Nested classes automatically inherit interfaces - no exports needed
-  class ProductionDB < Taski::Task
+  class Production < Taski::Task
     def run
       @host = "prod.example.com"
       @port = 5432
     end
   end
 
-  class LocalDB < Taski::Task
+  class Development < Taski::Task
     def run
       @host = "localhost"
       @port = 5432
@@ -104,35 +100,24 @@ class DatabaseSection < Taski::Section
   end
 
   def impl
-    # Select implementation at runtime
-    ENV['RAILS_ENV'] == 'production' ? ProductionDB : LocalDB
+    ENV['RAILS_ENV'] == 'production' ? Production : Development
   end
 end
 
 class App < Taski::Task
   def run
-    # Access through Section - implementation selected at runtime
     puts "Connecting to #{DatabaseSection.host}:#{DatabaseSection.port}"
   end
 end
-
-App.run
-# In development (RAILS_ENV != 'production'):
-# => Connecting to localhost:5432
-
-# In production (RAILS_ENV == 'production'):
-# => Connecting to prod.example.com:5432
 ```
 
-**When to use each:**
-- **Exports**: Share computed values or side effects between tasks
-- **Section**: Switch implementations based on environment or conditions
+> **Note**: Nested implementation classes automatically inherit Section's `interfaces` as `exports`.
 
-> **Note**: When implementation classes are nested inside a Section, they automatically inherit the Section's `interfaces` as `exports`. External implementations must declare `exports` explicitly.
+## Advanced Usage
 
-### 3. Context - Runtime Information Access
+### Context - Runtime Information
 
-Access execution context information from any task:
+Access execution context from any task:
 
 ```ruby
 class DeployTask < Taski::Task
@@ -144,57 +129,21 @@ class DeployTask < Taski::Task
 end
 ```
 
-**Available context:**
-- `working_directory`: Directory where execution started
-- `started_at`: Time when execution began
-- `root_task`: The first task class that was called
-
-> **Note**: Context is not included in dependency analysis - it provides runtime information only.
-
-> **Important**: Tasks must be defined in source files, not dynamically with `Class.new`. Static analysis requires actual source files to detect dependencies.
-
-### 4. Re-execution with `new`
-
-By default, task results are cached. Use `new` to create a fresh instance for re-execution:
+### Re-execution
 
 ```ruby
-class RandomTask < Taski::Task
-  exports :value
-
-  def run
-    @value = rand(1000)
-  end
-end
-
-# Cached execution (same result)
+# Cached execution (default)
 RandomTask.value  # => 42
 RandomTask.value  # => 42 (cached)
 
-# Fresh execution with new
+# Fresh execution
 RandomTask.new.run  # => 123 (new instance)
-RandomTask.new.run  # => 456 (another new instance)
 
 # Reset all caches
 RandomTask.reset!
-RandomTask.value  # => 789 (fresh after reset)
 ```
 
-**When to use:**
-- `TaskClass.run` / `TaskClass.value`: Normal execution with caching (recommended for dependency graphs)
-- `TaskClass.new.run`: Re-execute only this task (dependencies still use cache)
-- `TaskClass.reset!`: Clear all caches and re-execute everything
-
-## Key Features
-
-- **Parallel Execution**: Independent tasks run concurrently using threads
-- **Static Analysis**: Dependencies detected automatically via Prism AST parsing
-- **Thread-Safe**: Monitor-based synchronization ensures safe concurrent access
-- **Progress Display**: Real-time visual feedback with spinner animations and timing
-- **Tree Visualization**: See your dependency graph structure
-- **Graceful Abort**: Stop execution cleanly without starting new tasks (Ctrl+C)
-- **Runtime Context**: Access execution information from any task
-
-### Parallel Progress Display
+### Progress Display
 
 Enable real-time progress visualization:
 
@@ -202,14 +151,11 @@ Enable real-time progress visualization:
 TASKI_FORCE_PROGRESS=1 ruby your_script.rb
 ```
 
-Output example:
 ```
 ⠋ DatabaseSetup (running)
 ⠙ CacheSetup (running)
 ✅ DatabaseSetup (123.4ms)
 ✅ CacheSetup (98.2ms)
-⠸ WebServer (running)
-✅ WebServer (45.1ms)
 ```
 
 ### Tree Visualization
@@ -222,32 +168,12 @@ puts WebServer.tree
 # =>     └── Cache
 ```
 
-## 📦 Installation
-
-```ruby
-gem 'taski'
-```
-
-```bash
-bundle install
-```
-
-## 🧪 Testing
+## Development
 
 ```bash
 rake test      # Run all tests
 rake standard  # Check code style
 ```
-
-## 📚 Learn More
-
-- **[Examples](examples/)**: Practical examples from basic to advanced patterns
-- **[Tests](test/)**: Comprehensive test suite showing real-world usage
-- **[Source Code](lib/taski/)**: Clean, well-documented implementation
-  - `lib/taski/task.rb` - Core Task implementation with exports API
-  - `lib/taski/section.rb` - Section API for runtime selection
-  - `lib/taski/execution/` - Parallel execution engine
-  - `lib/taski/static_analysis/` - Prism-based dependency analyzer
 
 ## Support
 
@@ -256,7 +182,3 @@ Bug reports and pull requests welcome at https://github.com/ahogappa/taski.
 ## License
 
 MIT License
-
----
-
-**Taski** - Parallel task execution with automatic dependency resolution. 🚀
