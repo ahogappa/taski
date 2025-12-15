@@ -4,6 +4,32 @@ require "monitor"
 
 module Taski
   module Execution
+    # Immutable value object for tracking task execution timing (Ruby 3.2+)
+    # Provides duration calculation with thread-safe immutable state
+    TaskTiming = Data.define(:start_time, :end_time) do
+      # Calculate task duration in milliseconds
+      #
+      # @return [Float, nil] Duration in milliseconds or nil if not available
+      def duration_ms
+        return nil unless start_time && end_time
+        ((end_time - start_time) * 1000).round(1)
+      end
+
+      # Create a new timing with start time set to now
+      #
+      # @return [TaskTiming] New timing with current time as start
+      def self.start_now
+        new(start_time: Time.now, end_time: nil)
+      end
+
+      # Create a new timing with end time set to now
+      #
+      # @return [TaskTiming] New timing with current time as end
+      def with_end_now
+        with(end_time: Time.now)
+      end
+    end
+
     # Wrapper for task execution with parallel dependency resolution and state management
     class TaskWrapper
       attr_reader :task, :result
@@ -25,8 +51,7 @@ module Taski
         @clean_condition = @monitor.new_cond
         @state = STATE_PENDING
         @clean_state = STATE_PENDING
-        @start_time = nil
-        @end_time = nil
+        @timing = nil
 
         # Register with progress display if enabled
         register_with_progress_display
@@ -74,6 +99,7 @@ module Taski
       #
       # This method implements a thread-safe state machine that ensures
       # operations are executed exactly once even with concurrent access.
+      # Uses pattern matching (Ruby 3.0+) for exhaustive state handling.
       #
       # @param state_getter [Proc] Proc that returns current state
       # @param starter [Proc] Proc that starts the operation
@@ -81,19 +107,15 @@ module Taski
       # @param pre_start_check [Proc, nil] Optional check before starting
       def execute_with_state_pattern(state_getter:, starter:, waiter:, pre_start_check: nil)
         @monitor.synchronize do
-          current_state = state_getter.call
-
-          case current_state
-          when STATE_PENDING
+          case state_getter.call
+          in STATE_PENDING
             pre_start_check&.call
             starter.call
             waiter.call
-          when STATE_RUNNING
+          in STATE_RUNNING
             waiter.call
-          when STATE_COMPLETED
+          in STATE_COMPLETED
             return
-          else
-            raise "Unknown state: #{current_state}"
           end
         end
       end
@@ -113,7 +135,7 @@ module Taski
 
       def start_async_execution
         @state = STATE_RUNNING
-        @start_time = Time.now
+        @timing = TaskTiming.start_now
         update_progress(:running)
         start_thread_with { execute_task }
       end
@@ -201,7 +223,7 @@ module Taski
       end
 
       def mark_completed
-        @end_time = Time.now
+        @timing = @timing&.with_end_now
         @monitor.synchronize do
           @state = STATE_COMPLETED
           @condition.broadcast
@@ -211,17 +233,8 @@ module Taski
         if @error
           update_progress(:failed, error: @error)
         else
-          duration = calculate_duration
-          update_progress(:completed, duration: duration)
+          update_progress(:completed, duration: @timing&.duration_ms)
         end
-      end
-
-      # Calculate task duration in milliseconds
-      #
-      # @return [Float, nil] Duration in milliseconds or nil if not available
-      def calculate_duration
-        return nil unless @start_time && @end_time
-        ((@end_time - @start_time) * 1000).round(1)
       end
 
       def mark_clean_completed
