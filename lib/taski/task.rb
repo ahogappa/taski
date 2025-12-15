@@ -86,29 +86,40 @@ module Taski
         name: "\e[1m"        # bold
       }.freeze
 
-      def build_tree(task_class, prefix, task_index_map, is_impl)
+      def build_tree(task_class, prefix, task_index_map, is_impl, ancestors = Set.new)
         type_label = colored_type_label(task_class)
         impl_prefix = is_impl ? "#{COLORS[:impl]}[impl]#{COLORS[:reset]} " : ""
         task_number = get_task_number(task_class, task_index_map)
         name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
-        result = "#{impl_prefix}#{task_number} #{name} #{type_label}\n"
-        return result if task_index_map.key?(task_class)
 
-        task_index_map[task_class] = task_index_map.size + 1
+        # Detect circular reference
+        if ancestors.include?(task_class)
+          circular_marker = "#{COLORS[:impl]}(circular)#{COLORS[:reset]}"
+          return "#{impl_prefix}#{task_number} #{name} #{type_label} #{circular_marker}\n"
+        end
+
+        result = "#{impl_prefix}#{task_number} #{name} #{type_label}\n"
+
+        # Register task number if not already registered
+        task_index_map[task_class] = task_index_map.size + 1 unless task_index_map.key?(task_class)
+
+        # Add to ancestors for circular detection
+        new_ancestors = ancestors + [task_class]
+
         dependencies = task_class.cached_dependencies.to_a
         is_section = section_class?(task_class)
 
         dependencies.each_with_index do |dep, index|
           is_last = (index == dependencies.size - 1)
-          result += format_dependency_branch(dep, prefix, is_last, task_index_map, is_section)
+          result += format_dependency_branch(dep, prefix, is_last, task_index_map, is_section, new_ancestors)
         end
 
         result
       end
 
-      def format_dependency_branch(dep, prefix, is_last, task_index_map, is_impl)
+      def format_dependency_branch(dep, prefix, is_last, task_index_map, is_impl, ancestors)
         connector, extension = tree_connector_chars(is_last)
-        dep_tree = build_tree(dep, "#{prefix}#{extension}", task_index_map, is_impl)
+        dep_tree = build_tree(dep, "#{prefix}#{extension}", task_index_map, is_impl, ancestors)
 
         result = "#{prefix}#{COLORS[:tree]}#{connector}#{COLORS[:reset]}"
         lines = dep_tree.lines
