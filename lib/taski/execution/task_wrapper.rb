@@ -4,7 +4,7 @@ require "monitor"
 
 module Taski
   module Execution
-    TaskTiming = Data.define(:start_time, :end_time) do
+    class TaskTiming < Data.define(:start_time, :end_time)
       # @return [Float, nil] Duration in milliseconds or nil if not available
       def duration_ms
         return nil unless start_time && end_time
