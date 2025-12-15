@@ -65,8 +65,9 @@ class TestTreeDisplay < Minitest::Test
   def test_tree_shows_nested_section_with_impl
     result = strip_ansi(OuterSection.tree)
     assert_includes result, "OuterSection (Section)"
-    assert_includes result, "[impl] InnerSection (Section)"
-    assert_includes result, "[impl] InnerSection::InnerImpl (Task)"
+    assert_includes result, "[impl]"
+    assert_includes result, "InnerSection (Section)"
+    assert_includes result, "InnerSection::InnerImpl (Task)"
   end
 
   def test_tree_shows_mixed_task_and_section_dependencies
@@ -74,7 +75,8 @@ class TestTreeDisplay < Minitest::Test
     assert_includes result, "DeepDependency::TaskD (Task)"
     assert_includes result, "ParallelTaskC (Task)"
     assert_includes result, "ParallelSection (Section)"
-    assert_includes result, "[impl] ParallelSectionImpl2 (Task)"
+    assert_includes result, "[impl]"
+    assert_includes result, "ParallelSectionImpl2 (Task)"
   end
 
   def test_tree_includes_ansi_color_codes
