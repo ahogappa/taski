@@ -338,3 +338,30 @@ class ExternalImpl < Taski::Task
     @value = "external implementation"
   end
 end
+
+# Test fixtures for nested Section (Section inside Section)
+# OuterSection's impl returns InnerSection (which is also a Section)
+
+class InnerSection < Taski::Section
+  interfaces :db_url
+
+  class InnerImpl < Taski::Task
+    exports :db_url
+
+    def run
+      @db_url = "postgres://localhost:5432/mydb"
+    end
+  end
+
+  def impl
+    InnerImpl
+  end
+end
+
+class OuterSection < Taski::Section
+  interfaces :db_url
+
+  def impl
+    InnerSection
+  end
+end
