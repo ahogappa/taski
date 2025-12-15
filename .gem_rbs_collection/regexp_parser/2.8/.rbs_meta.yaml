@@ -1,0 +1,9 @@
+---
+name: regexp_parser
+version: '2.8'
+source:
+  type: git
+  name: ruby/gem_rbs_collection
+  revision: 3a33fa6f8e486f880c80ca401f2be1c1f621cf11
+  remote: https://github.com/ruby/gem_rbs_collection.git
+  repo_dir: gems
