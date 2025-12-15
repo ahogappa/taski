@@ -7,11 +7,12 @@ module Taski
     class Visitor < Prism::Visitor
       attr_reader :dependencies
 
-      def initialize(target_task_class)
+      def initialize(target_task_class, target_method = :run)
         super()
         @target_task_class = target_task_class
+        @target_method = target_method
         @dependencies = Set.new
-        @in_target_run_method = false
+        @in_target_method = false
         @current_namespace_path = []
       end
 
@@ -24,17 +25,27 @@ module Taski
       end
 
       def visit_def_node(node)
-        if node.name == :run && in_target_class?
-          @in_target_run_method = true
+        if node.name == @target_method && in_target_class?
+          @in_target_method = true
           super
-          @in_target_run_method = false
+          @in_target_method = false
         else
           super
         end
       end
 
       def visit_call_node(node)
-        detect_task_dependency(node) if @in_target_run_method
+        detect_task_dependency(node) if @in_target_method
+        super
+      end
+
+      def visit_constant_read_node(node)
+        detect_return_constant(node) if @in_target_method && @target_method == :impl
+        super
+      end
+
+      def visit_constant_path_node(node)
+        detect_return_constant(node) if @in_target_method && @target_method == :impl
         super
       end
 
@@ -60,6 +71,11 @@ module Taski
 
         constant_name = extract_receiver_constant(node.receiver)
         resolve_and_add_dependency(constant_name) if constant_name
+      end
+
+      def detect_return_constant(node)
+        constant_name = node.slice
+        resolve_and_add_dependency(constant_name)
       end
 
       def extract_receiver_constant(receiver)

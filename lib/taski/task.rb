@@ -71,31 +71,45 @@ module Taski
       end
 
       def tree
-        build_tree(self, "", Set.new)
+        build_tree(self, "", Set.new, false)
       end
 
       private
 
-      def build_tree(task_class, prefix, visited)
-        result = "#{task_class.name}\n"
+      # ANSI color codes
+      COLORS = {
+        reset: "\e[0m",
+        task: "\e[32m",      # green
+        section: "\e[34m",   # blue
+        impl: "\e[33m",      # yellow
+        tree: "\e[90m",      # gray
+        name: "\e[1m"        # bold
+      }.freeze
+
+      def build_tree(task_class, prefix, visited, is_impl)
+        type_label = colored_type_label(task_class)
+        impl_prefix = is_impl ? "#{COLORS[:impl]}[impl]#{COLORS[:reset]} " : ""
+        name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
+        result = "#{impl_prefix}#{name} #{type_label}\n"
         return result if visited.include?(task_class)
 
         visited.add(task_class)
         dependencies = task_class.cached_dependencies.to_a
+        is_section = section_class?(task_class)
 
         dependencies.each_with_index do |dep, index|
           is_last = (index == dependencies.size - 1)
-          result += format_dependency_branch(dep, prefix, is_last, visited)
+          result += format_dependency_branch(dep, prefix, is_last, visited, is_section)
         end
 
         result
       end
 
-      def format_dependency_branch(dep, prefix, is_last, visited)
+      def format_dependency_branch(dep, prefix, is_last, visited, is_impl)
         connector, extension = tree_connector_chars(is_last)
-        dep_tree = build_tree(dep, "#{prefix}#{extension}", visited)
+        dep_tree = build_tree(dep, "#{prefix}#{extension}", visited, is_impl)
 
-        result = "#{prefix}#{connector}"
+        result = "#{prefix}#{COLORS[:tree]}#{connector}#{COLORS[:reset]}"
         lines = dep_tree.lines
         result += lines.first
         lines.drop(1).each { |line| result += line }
@@ -108,6 +122,18 @@ module Taski
         else
           ["├── ", "│   "]
         end
+      end
+
+      def colored_type_label(klass)
+        if section_class?(klass)
+          "#{COLORS[:section]}(Section)#{COLORS[:reset]}"
+        else
+          "#{COLORS[:task]}(Task)#{COLORS[:reset]}"
+        end
+      end
+
+      def section_class?(klass)
+        defined?(Taski::Section) && klass < Taski::Section
       end
 
       # Use allocate + initialize instead of new to avoid infinite loop
