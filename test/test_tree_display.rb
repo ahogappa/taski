@@ -108,4 +108,21 @@ class TestTreeDisplay < Minitest::Test
     impl_count = result.scan("ParallelSectionImpl2").size
     assert impl_count >= 2, "ParallelSectionImpl2 should appear multiple times as ParallelSection is fully expanded"
   end
+
+  def test_tree_shows_circular_marker_for_circular_dependency
+    require_relative "fixtures/circular_tasks"
+    result = strip_ansi(CircularTaskA.tree)
+    assert_includes result, "CircularTaskA"
+    assert_includes result, "CircularTaskB"
+    assert_includes result, "(circular)"
+  end
+
+  def test_tree_shows_circular_marker_for_indirect_circular_dependency
+    require_relative "fixtures/circular_tasks"
+    result = strip_ansi(IndirectCircular::TaskX.tree)
+    assert_includes result, "IndirectCircular::TaskX"
+    assert_includes result, "IndirectCircular::TaskY"
+    assert_includes result, "IndirectCircular::TaskZ"
+    assert_includes result, "(circular)"
+  end
 end
