@@ -298,6 +298,7 @@ class TestParallelExecution < Minitest::Test
     # Chain 2: ParallelChain2C -> ParallelChain2D (200ms total)
     # ParallelChainFinal depends on both chains
     Taski::Task.reset!
+    ParallelChainStartTimes.reset
 
     # Verify dependencies
     assert_equal ["ParallelChain1B", "ParallelChain2D"], ParallelChainFinal.cached_dependencies.map(&:name).sort
@@ -305,18 +306,24 @@ class TestParallelExecution < Minitest::Test
     assert_equal ["ParallelChain2C"], ParallelChain2D.cached_dependencies.map(&:name)
 
     # Execute
-    start_time = Time.now
     result = ParallelChainFinal.run
-    end_time = Time.now
-    total_time = end_time - start_time
 
     # Verify result
     assert_includes result, "Chain1-B"
     assert_includes result, "Chain2-D"
 
-    # Verify total execution time is close to 200ms (parallel) not 400ms (sequential)
-    # Each chain is 200ms (100ms + 100ms), if parallel should be ~200ms total
-    assert total_time < 0.35, "Parallel execution should take ~200ms, not 400ms. Took #{(total_time * 1000).round}ms"
+    # Verify parallel execution by comparing start times of independent chains
+    # If chains execute in parallel, both should start at approximately the same time
+    chain1_start = ParallelChainStartTimes.get(:chain1a)
+    chain2_start = ParallelChainStartTimes.get(:chain2c)
+
+    refute_nil chain1_start, "Chain1A should have recorded start time"
+    refute_nil chain2_start, "Chain2C should have recorded start time"
+
+    # Start time difference should be minimal (< 50ms) if truly parallel
+    # This is much more stable than checking total execution time
+    start_time_diff = (chain1_start - chain2_start).abs
+    assert start_time_diff < 0.05, "Independent chains should start nearly simultaneously. Difference: #{(start_time_diff * 1000).round}ms"
   end
 
   def test_clean_execution_order
