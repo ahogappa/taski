@@ -84,7 +84,7 @@ module Taski
         return nil if @current_namespace_path.empty?
 
         @current_namespace_path.length.downto(0) do |i|
-          prefix = @current_namespace_path[0...i].join("::")
+          prefix = @current_namespace_path.take(i).join("::")
           full_name = prefix.empty? ? constant_name : "#{prefix}::#{constant_name}"
 
           begin
