@@ -67,7 +67,7 @@ module Taski
         Taski.reset_global_registry!
         Taski::Context.reset!
         @coordinator = nil
-        @circular_dependency_checked = nil
+        @circular_dependency_checked = false
       end
 
       def tree
@@ -98,7 +98,7 @@ module Taski
         result = "#{prefix}#{connector}"
         lines = dep_tree.lines
         result += lines.first
-        lines[1..].each { |line| result += line }
+        lines.drop(1).each { |line| result += line }
         result
       end
 
@@ -128,6 +128,7 @@ module Taski
         undef_method(method) if method_defined?(method)
 
         define_method(method) do
+          # @type self: Task
           instance_variable_get("@#{method}")
         end
       end
