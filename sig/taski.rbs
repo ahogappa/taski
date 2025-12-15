@@ -1,217 +1,306 @@
 module Taski
   VERSION: String
 
-  # Module-level logger and progress display
-  def self.logger: () -> Logger
-  def self.progress_display: () -> ProgressDisplay
-  def self.configure_logger: (?level: Symbol, ?output: IO, ?format: Symbol) -> Logger
-  def self.quiet!: () -> Logger
-  def self.verbose!: () -> Logger
+  self.@global_registry: Execution::Registry?
+  self.@progress_display: Execution::ParallelProgressDisplay?
+
+  # Type alias for Task class (singleton type with class methods)
+  # This represents a Class that inherits from Taski::Task
+  type task_class = singleton(Task)
+
+  # Module-level methods
+  def self.global_registry: () -> Execution::Registry
+  def self.reset_global_registry!: () -> void
+  def self.progress_display: () -> Execution::ParallelProgressDisplay?
+  def self.progress_enabled?: () -> bool
+  def self.reset_progress_display!: () -> void
 
   # Custom exceptions
+  class TaskAbortException < StandardError
+  end
+
   class CircularDependencyError < StandardError
+    @cyclic_tasks: Array[Array[Class]]
+
+    attr_reader cyclic_tasks: Array[Array[Class]]
+
+    def initialize: (Array[Array[Class]] cyclic_tasks) -> void
   end
 
-  class TaskAnalysisError < StandardError
-  end
+  # Context class for execution context management
+  class Context
+    self.@monitor: Monitor
+    self.@working_directory: String?
+    self.@started_at: Time?
+    self.@root_task: Class?
 
-  class TaskBuildError < StandardError
-  end
-
-  class SectionImplementationError < StandardError
-  end
-
-  # Reference class for task references
-  class Reference
-    @klass: String
-
-    def initialize: (String klass) -> void
-    def deref: () -> Class
-    def ==: (untyped other) -> bool
-    def inspect: () -> String
+    def self.working_directory: () -> String
+    def self.started_at: () -> Time
+    def self.root_task: () -> Class?
+    def self.set_root_task: (Class task) -> void
+    def self.reset!: () -> void
   end
 
   # Main Task class
   class Task
-    # Constants
-    THREAD_KEY_SUFFIX: String
-    TASKI_ANALYZING_DEFINE_KEY: Symbol
-    ANALYZED_METHODS: Array[Symbol]
+    self.@exported_methods: Array[Symbol]
+    self.@dependencies_cache: Set[task_class]?
+    self.@coordinator: Execution::Coordinator?
+    self.@circular_dependency_checked: bool
 
-    # Hook methods
-    def self.method_added: (Symbol method_name) -> void
-
-    # Public API methods
+    # Class methods
     def self.exports: (*Symbol names) -> void
-    def self.define: (Symbol name) { () -> untyped } -> void
-    def self.build: () -> void
+    def self.exported_methods: () -> Array[Symbol]
+    def self.new: () -> Execution::TaskWrapper
+    def self.cached_dependencies: () -> Set[task_class]
+    def self.clear_dependency_cache: () -> void
+    def self.run: () -> untyped
     def self.clean: () -> void
-    def self.reset!: () -> self
-    def self.refresh: () -> self
-    def self.resolve: (Array[untyped] queue, Array[untyped] resolved) -> self
-    def self.ref: (String | Class klass) -> (Reference | Class)
-    def self.ensure_instance_built: () -> Task
-
-    # Define API methods
-    def self.__resolve__: () -> Hash[Symbol, untyped]
-    def self.resolve_dependencies: () -> void
+    def self.registry: () -> Execution::Registry
+    def self.coordinator: () -> Execution::Coordinator
+    def self.reset!: () -> void
+    def self.tree: () -> String
 
     # Instance methods
-    def build: () -> void
+    def run: () -> void
     def clean: () -> void
-
-    # Allow dynamic method definitions
-    def method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
-    def respond_to_missing?: (Symbol name, bool include_private) -> bool
-
-    # Allow dynamic class method definitions  
-    def self.method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
-    def self.respond_to_missing?: (Symbol name, bool include_private) -> bool
+    def reset!: () -> void
 
     private
 
-    # Private class methods for dependency resolution
-    def self.resolve_queue: (Array[Class] queue, Array[Class] resolved) -> Array[Class]
-    def self.detect_circular_dependencies: (Array[Class] queue, Array[Class] resolved) -> void
-    def self.build_instance: (Class task_class) -> void
-
-    # Private class methods for Define API
-    def self.create_defined_method: (Symbol name) { () -> untyped } -> void
-    def self.create_ref_method_if_needed: () -> void
-    def self.method_defined_for_define?: (Symbol method_name) -> bool
-    def self.mark_method_as_defined: (Symbol method_name) -> void
+    # Private class methods
+    def self.build_tree: (task_class task_class, String prefix, Set[task_class] visited) -> String
+    def self.format_dependency_branch: (task_class dep, String prefix, bool is_last, Set[task_class] visited) -> String
+    def self.tree_connector_chars: (bool is_last) -> [String, String]
+    def self.cached_wrapper: () -> Execution::TaskWrapper
+    def self.define_instance_reader: (Symbol method_name) -> void
+    def self.define_class_accessor: (Symbol method_name) -> void
+    def self.validate_no_circular_dependencies!: () -> void
   end
 
-  # Logger class for structured logging
-  class Logger
-    LEVELS: Hash[Symbol, Integer]
+  # Section class for abstraction layers (inherits from Task)
+  class Section < Task
+    def self.interfaces: (*Symbol interface_methods) -> void
 
-    def initialize: (?level: Symbol, ?output: IO, ?format: Symbol) -> void
-    def debug: (String message, **untyped context) -> void
-    def info: (String message, **untyped context) -> void
-    def warn: (String message, **untyped context) -> void
-    def error: (String message, **untyped context) -> void
-    def task_build_start: (String task_name, ?dependencies: Array[untyped], ?args: Hash[untyped, untyped]?) -> void
-    def task_build_complete: (String task_name, ?duration: Float?) -> void
-    def task_build_failed: (String task_name, error: Exception, ?duration: Float?) -> void
-    def dependency_resolved: (String task_name, resolved_count: Integer) -> void
-    def circular_dependency_detected: (Array[Class] cycle_path) -> void
+    def run: () -> void
+    def impl: () -> task_class
 
     private
 
-    def log: (Symbol level, String message, Hash[untyped, untyped] context) -> void
-    def should_log?: (Symbol level) -> bool
+    def apply_interface_to_implementation: (task_class implementation_class) -> void
   end
 
-  # Progress display class
-  class ProgressDisplay
-    def initialize: (?output: IO, ?enable: bool, ?include_captured_output: bool?) -> void
-    def start_task: (String task_name, ?dependencies: Array[untyped]) -> void
-    def complete_task: (String task_name, duration: Float) -> void
-    def fail_task: (String task_name, error: Exception, duration: Float) -> void
-    def clear: () -> void
-    def enabled?: () -> bool
-  end
+  # Execution module
+  module Execution
+    # TaskTiming struct (Data.define)
+    class TaskTiming
+      attr_reader start_time: Time
+      attr_reader end_time: Time?
 
-  # Progress module with display components
-  module Progress
-    class TaskStatus
-      attr_reader name: String
-      attr_reader duration: Float?
-      attr_reader error: Exception?
+      # Data.define provides both positional and keyword argument constructors
+      def initialize: (Time start_time, Time? end_time) -> void
+                    | (start_time: Time, end_time: Time?) -> void
 
-      def initialize: (name: String, ?duration: Float?, ?error: Exception?) -> void
-      def success?: () -> bool
-      def failed?: () -> bool
+      def self.new: (Time start_time, Time? end_time) -> TaskTiming
+                  | (start_time: Time, end_time: Time?) -> TaskTiming
+
+      def self.start_now: () -> TaskTiming
+      def duration_ms: () -> (Integer | Float)?
+      def with_end_now: () -> TaskTiming
+      def with: (?start_time: Time, ?end_time: Time?) -> TaskTiming
     end
 
-    class TaskFormatter
-      def format_current_task: (String spinner_char, String task_name) -> String
-      def format_completed_task: (TaskStatus status) -> String
-      def format_output_line: (String line) -> String
-    end
-
-    class TerminalController
-      def initialize: (IO output) -> void
-      def puts: (String text) -> void
-      def clear_lines: (Integer count) -> void
-      def flush: () -> void
-    end
-
-    class SpinnerAnimation
-      def start: (TerminalController terminal, String task_name) { (String, String) -> void } -> void
-      def stop: () -> void
-    end
-
-    class OutputCapture
-      def initialize: (IO output) -> void
-      def start: () -> void
-      def stop: () -> void
-      def last_lines: () -> Array[String]
-    end
-
-    class DisplayManager
-      def initialize: (TerminalController terminal, SpinnerAnimation spinner, OutputCapture output_capture, ?include_captured_output: bool) -> void
-      def start_task_display: (String task_name) -> void
-      def complete_task_display: (String task_name, duration: Float) -> void
-      def fail_task_display: (String task_name, error: Exception, duration: Float) -> void
-      def clear_all_displays: () -> void
-    end
-  end
-
-  # Section class for abstraction layers
-  class Section
-    def self.interface: (*Symbol names) -> void
-    def self.interface_exports: () -> Array[Symbol]
-    def self.impl_defined?: () -> bool
-    def self.get_implementation_class: () -> Class
-    def self.const_set: (Symbol name, untyped value) -> untyped
-    def self.resolve: (Array[untyped] queue, Array[untyped] resolved) -> self
-    def self.resolve_dependencies: () -> Array[Class]
-    def self.analyze_dependencies_for_interfaces: () -> void
-    def self.ensure_instance_built: () -> self
-    def self.run: (**untyped args) -> self
-    def self.build: () -> self
-    def self.reset!: () -> self
-    def self.resolve_pending_references: () -> void
-    def self.tree: (?String prefix, ?Set[untyped] visited, ?color: bool) -> String
-
-    private
-
-    def self.gather_static_dependencies_for_interface: (Symbol interface_method) -> Array[Class]
-    def self.add_unique_dependencies: (Array[Class] dep_classes) -> void
-    def self.add_dependency: (Class dep_class) -> void
-    def self.dependency_exists?: (Class dep_class) -> bool
-    def self.extract_class: (untyped task) -> Class
-    def self.auto_apply_exports_to_existing_tasks: () -> void
-    def self.find_possible_implementations: () -> Array[Class]
-    def self.extract_implementation_name: (Class impl_class) -> String
-    def self.task_class?: (untyped const_value) -> bool
-    def self.impl: () -> Class
-  end
-
-  # Dependency analyzer module
-  module DependencyAnalyzer
-    def self.analyze_method: (Class klass, Symbol method_name) -> Array[Class]
-
-    # Task dependency visitor for AST analysis
-    class TaskDependencyVisitor < Prism::Visitor
-      @dependencies: Array[Class]
+    # Registry class for task instance management
+    class Registry
+      @tasks: Hash[Class, TaskWrapper]
+      @threads: Array[Thread]
+      @monitor: Monitor
+      @abort_requested: bool
 
       def initialize: () -> void
-      def dependencies: () -> Array[Class]
-      def visit_call_node: (Prism::CallNode node) -> void
+      def get_or_create: (Class task_class) { () -> TaskWrapper } -> TaskWrapper
+      def get_task: (Class task_class) -> TaskWrapper
+      def register_thread: (Thread thread) -> void
+      def wait_all: () -> void
+      def reset!: () -> void
+      def request_abort!: () -> void
+      def abort_requested?: () -> bool
+      def run: (Class task_class, Array[Symbol] exported_methods) -> untyped
+    end
+
+    # Coordinator class for dependency management
+    class Coordinator
+      @registry: Registry
+      @analyzer: singleton(StaticAnalysis::Analyzer)
+
+      def initialize: (registry: Registry, analyzer: singleton(StaticAnalysis::Analyzer)) -> void
+      def start_dependencies: (task_class task_class) -> void
+      def start_clean_dependencies: (task_class task_class) -> void
+      def get_dependencies: (task_class task_class) -> Set[task_class]
 
       private
 
-      def extract_class_from_constant: (String constant_name) -> Class?
-      def safe_constantize: (String name) -> Class?
-      def extract_class_from_ref_call: (Prism::CallNode node) -> Class?
+      def start_thread_with: () { () -> void } -> void
+      def start_dependency_execution: (task_class dep_class) -> void
+      def start_dependency_clean: (task_class dep_class) -> void
     end
 
-    private
+    # TaskWrapper class for task execution
+    class TaskWrapper
+      attr_reader task: Task
+      attr_reader result: untyped
 
-    def self.parse_method_code: (Class klass, Symbol method_name) -> Prism::ParseResult?
-    def self.extract_dependencies_from_ast: (Prism::Node ast) -> Array[Class]
+      @task: Task
+      @registry: Registry
+      @coordinator: Coordinator
+      @result: untyped
+      @clean_result: untyped
+      @error: StandardError?
+      @monitor: Monitor
+      @condition: MonitorMixin::ConditionVariable
+      @clean_condition: MonitorMixin::ConditionVariable
+      @state: Symbol
+      @clean_state: Symbol
+      @timing: TaskTiming?
+
+      STATE_PENDING: Symbol
+      STATE_RUNNING: Symbol
+      STATE_COMPLETED: Symbol
+
+      def initialize: (Task task, registry: Registry, coordinator: Coordinator) -> void
+      def run: () -> untyped
+      def clean: () -> void
+      def get_exported_value: (Symbol method_name) -> untyped
+      def start_thread_with: () { () -> void } -> void
+      def execute_with_state_pattern: (state_getter: ^() -> Symbol, starter: ^() -> void, waiter: ^() -> void, ?pre_start_check: (^() -> void)?) -> void
+      def execute_task_if_needed: () -> void
+      def start_async_execution: () -> void
+      def execute_task: () -> void
+      def wait_for_dependencies: () -> void
+      def execute_clean_if_needed: () -> void
+      def start_async_clean: () -> void
+      def execute_clean: () -> void
+      def wait_for_clean_dependencies: () -> void
+      def mark_completed: () -> void
+      def mark_clean_completed: () -> void
+      def wait_for_completion: () -> untyped
+      def wait_for_clean_completion: () -> void
+      def debug_log: (String message) -> void
+      def log_start: () -> void
+      def log_completion: () -> void
+      def log_clean_start: () -> void
+      def log_clean_completion: () -> void
+      def register_with_progress_display: () -> void
+      def update_progress: (Symbol state, ?duration: Numeric?, ?error: Exception?) -> void
+      def method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
+      def respond_to_missing?: (Symbol name, ?bool include_private) -> bool
+    end
+
+    # ParallelProgressDisplay class for progress visualization
+    class ParallelProgressDisplay
+      SPINNER_FRAMES: Array[String]
+
+      @output: IO
+      @tasks: Hash[Class, TaskProgress]
+      @monitor: Monitor
+      @spinner_index: Integer
+      @renderer_thread: Thread?
+      @running: bool
+
+      class TaskProgress
+        attr_accessor state: Symbol
+        attr_accessor start_time: Time?
+        attr_accessor end_time: Time?
+        attr_accessor error: Exception?
+        attr_accessor duration: Numeric?
+
+        def initialize: () -> void
+      end
+
+      def initialize: (?output: IO) -> void
+      def register_task: (Class task_class) -> void
+      def task_registered?: (Class task_class) -> bool
+      def update_task: (Class task_class, state: Symbol, ?duration: Numeric?, ?error: Exception?) -> void
+      def task_state: (Class task_class) -> Symbol?
+      def render: () -> void
+      def start: () -> void
+      def stop: () -> void
+
+      private
+
+      def collect_task_lines: () -> Array[String]
+      def render_live: () -> void
+      def render_final: () -> void
+      def format_task_line: (Class task_class, TaskProgress progress) -> String
+      def task_icon: (Symbol state) -> String
+      def spinner_char: () -> String
+      def task_details: (TaskProgress progress) -> String
+    end
+  end
+
+  # StaticAnalysis module
+  module StaticAnalysis
+    # Analyzer class for dependency analysis
+    class Analyzer
+      def self.analyze: (Class task_class) -> Set[task_class]
+
+      private
+
+      def self.extract_run_method_location: (Class task_class) -> [String, Integer]?
+    end
+
+    # Visitor class for AST traversal
+    class Visitor < Prism::Visitor
+      @target_task_class: Class
+      @dependencies: Set[task_class]
+      @in_target_run_method: bool
+      @current_namespace_path: Array[String?]
+
+      attr_reader dependencies: Set[task_class]
+
+      def initialize: (Class task_class) -> void
+      def visit_class_node: (Prism::ClassNode node) -> untyped
+      def visit_module_node: (Prism::ModuleNode node) -> untyped
+      def visit_def_node: (Prism::DefNode node) -> untyped
+      def visit_call_node: (Prism::CallNode node) -> untyped
+
+      private
+
+      def within_namespace: (String? name) { () -> void } -> void
+      def in_target_class?: () -> bool
+      def extract_constant_name: (untyped node) -> String?
+      def detect_task_dependency: (Prism::CallNode node) -> void
+      def extract_receiver_constant: (untyped receiver) -> String?
+      def resolve_and_add_dependency: (String constant_name) -> void
+      def resolve_constant: (String name) -> task_class?
+      def resolve_with_namespace_prefix: (String name) -> task_class?
+      def valid_dependency?: (task_class klass) -> bool
+      def is_parallel_task?: (task_class klass) -> boolish
+      def is_parallel_section?: (task_class klass) -> boolish
+    end
+
+    # DependencyGraph class for topological sorting and cycle detection
+    class DependencyGraph
+      include TSort[Class]
+
+      @graph: Hash[Class, Set[Class]]
+
+      def initialize: () -> void
+      def build_from: (Class root_task_class) -> self
+      def sorted: () -> Array[Class]
+      def cyclic?: () -> bool
+      def strongly_connected_components: () -> Array[Array[Class]]
+      def cyclic_components: () -> Array[Array[Class]]
+      def all_tasks: () -> Array[Class]
+      def dependencies_for: (Class task) -> Set[Class]
+
+      # TSort interface methods (required by TSort module)
+      def tsort_each_node: () { (Class) -> void } -> void
+      def tsort_each_child: (Class node) { (Class) -> void } -> void
+
+      private
+
+      def collect_dependencies: (Class task_class) -> void
+    end
   end
 end

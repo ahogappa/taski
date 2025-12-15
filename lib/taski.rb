@@ -1,44 +1,52 @@
 # frozen_string_literal: true
 
-require "monitor"
-
-# Load core components
 require_relative "taski/version"
-require_relative "taski/exceptions"
-require_relative "taski/logger"
-require_relative "taski/progress_display"
-require_relative "taski/reference"
-require_relative "taski/dependency_analyzer"
-require_relative "taski/signal_handler"
-require_relative "taski/task_interface"
-require_relative "taski/task_component"
-require_relative "taski/instance_builder"
-
-# Load Task class
+require_relative "taski/static_analysis/analyzer"
+require_relative "taski/static_analysis/visitor"
+require_relative "taski/static_analysis/dependency_graph"
+require_relative "taski/execution/registry"
+require_relative "taski/execution/coordinator"
+require_relative "taski/execution/task_wrapper"
+require_relative "taski/execution/parallel_progress_display"
+require_relative "taski/context"
 require_relative "taski/task"
-
-# Load Section class
 require_relative "taski/section"
 
 module Taski
-  # Main module for the Taski task framework
-  #
-  # Taski provides a framework for defining and managing task dependencies
-  # with three complementary APIs:
-  # 1. Exports API - Export instance variables as class methods (static dependencies)
-  # 2. Define API - Define lazy-evaluated values with dynamic dependency resolution
-  # 3. Section API - Abstraction layers with runtime implementation selection
-  #
-  # API Selection Guide:
-  # - Use Exports API for simple static dependencies
-  # - Use Define API for conditional dependencies analyzed at class definition time
-  # - Use Section API for environment-specific implementations with static analysis
-  #
-  # Features:
-  # - Automatic dependency resolution (static and dynamic)
-  # - Static analysis of method dependencies
-  # - Runtime implementation selection with Section API
-  # - Thread-safe task building
-  # - Circular dependency detection
-  # - Memory leak prevention
+  class TaskAbortException < StandardError
+  end
+
+  # Raised when circular dependencies are detected between tasks
+  class CircularDependencyError < StandardError
+    attr_reader :cyclic_tasks
+
+    # @param cyclic_tasks [Array<Array<Class>>] Groups of mutually dependent task classes
+    def initialize(cyclic_tasks)
+      @cyclic_tasks = cyclic_tasks
+      task_names = cyclic_tasks.map { |group| group.map(&:name).join(" <-> ") }.join(", ")
+      super("Circular dependency detected: #{task_names}")
+    end
+  end
+
+  def self.global_registry
+    @global_registry ||= Execution::Registry.new
+  end
+
+  def self.reset_global_registry!
+    @global_registry = nil
+  end
+
+  def self.progress_display
+    return nil unless progress_enabled?
+    @progress_display ||= Execution::ParallelProgressDisplay.new
+  end
+
+  def self.progress_enabled?
+    ENV["TASKI_PROGRESS"] == "1" || ENV["TASKI_FORCE_PROGRESS"] == "1"
+  end
+
+  def self.reset_progress_display!
+    @progress_display&.stop
+    @progress_display = nil
+  end
 end

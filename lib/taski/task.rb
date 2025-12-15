@@ -1,66 +1,173 @@
 # frozen_string_literal: true
 
-require_relative "exceptions"
-require_relative "tree_display"
-require_relative "task_interface"
-require "monitor"
-
-# Load all task modules
-require_relative "task/core_constants"
-require_relative "task/define_api"
-require_relative "task/exports_api"
-require_relative "task/instance_management"
-require_relative "task/dependency_management"
-require_relative "task/tree_display"
+require_relative "static_analysis/analyzer"
+require_relative "execution/registry"
+require_relative "execution/coordinator"
+require_relative "execution/task_wrapper"
 
 module Taski
-  # Base Task class that provides the foundation for task framework
-  # This class integrates multiple modules to provide full task functionality
   class Task
-    extend Taski::TaskInterface::ClassMethods
+    class << self
+      def exports(*export_methods)
+        @exported_methods = export_methods
 
-    # Core modules
-    include Task::CoreConstants
+        export_methods.each do |method|
+          define_instance_reader(method)
+          define_class_accessor(method)
+        end
+      end
 
-    # Class method modules
-    extend Task::DefineAPI
-    extend Task::ExportsAPI
-    extend Task::InstanceManagement
-    extend Task::DependencyManagement
-    extend Task::TreeDisplay
+      def exported_methods
+        @exported_methods ||= []
+      end
 
-    # === Instance Methods ===
+      # Each call creates a fresh TaskWrapper instance for re-execution support.
+      # Use class methods (e.g., MyTask.result) for cached single execution.
+      def new
+        Execution::TaskWrapper.new(
+          super,
+          registry: registry,
+          coordinator: coordinator
+        )
+      end
 
-    # Initialize task instance with optional run arguments
-    # @param run_args [Hash, nil] Optional run arguments for parametrized execution
-    def initialize(run_args = nil)
-      @run_args = run_args
+      def cached_dependencies
+        @dependencies_cache ||= StaticAnalysis::Analyzer.analyze(self)
+      end
+
+      def clear_dependency_cache
+        @dependencies_cache = nil
+      end
+
+      def run
+        Taski::Context.set_root_task(self)
+        validate_no_circular_dependencies!
+        cached_wrapper.run
+      end
+
+      def clean
+        Taski::Context.set_root_task(self)
+        validate_no_circular_dependencies!
+        cached_wrapper.clean
+      end
+
+      def registry
+        Taski.global_registry
+      end
+
+      def coordinator
+        @coordinator ||= Execution::Coordinator.new(
+          registry: registry,
+          analyzer: StaticAnalysis::Analyzer
+        )
+      end
+
+      def reset!
+        registry.reset!
+        Taski.reset_global_registry!
+        Taski::Context.reset!
+        @coordinator = nil
+        @circular_dependency_checked = false
+      end
+
+      def tree
+        build_tree(self, "", Set.new)
+      end
+
+      private
+
+      def build_tree(task_class, prefix, visited)
+        result = "#{task_class.name}\n"
+        return result if visited.include?(task_class)
+
+        visited.add(task_class)
+        dependencies = task_class.cached_dependencies.to_a
+
+        dependencies.each_with_index do |dep, index|
+          is_last = (index == dependencies.size - 1)
+          result += format_dependency_branch(dep, prefix, is_last, visited)
+        end
+
+        result
+      end
+
+      def format_dependency_branch(dep, prefix, is_last, visited)
+        connector, extension = tree_connector_chars(is_last)
+        dep_tree = build_tree(dep, "#{prefix}#{extension}", visited)
+
+        result = "#{prefix}#{connector}"
+        lines = dep_tree.lines
+        result += lines.first
+        lines.drop(1).each { |line| result += line }
+        result
+      end
+
+      def tree_connector_chars(is_last)
+        if is_last
+          ["└── ", "    "]
+        else
+          ["├── ", "│   "]
+        end
+      end
+
+      # Use allocate + initialize instead of new to avoid infinite loop
+      # since new is overridden to return TaskWrapper
+      def cached_wrapper
+        registry.get_or_create(self) do
+          task_instance = allocate
+          task_instance.send(:initialize)
+          Execution::TaskWrapper.new(
+            task_instance,
+            registry: registry,
+            coordinator: coordinator
+          )
+        end
+      end
+
+      def define_instance_reader(method)
+        undef_method(method) if method_defined?(method)
+
+        define_method(method) do
+          # @type self: Task
+          instance_variable_get("@#{method}")
+        end
+      end
+
+      def define_class_accessor(method)
+        singleton_class.undef_method(method) if singleton_class.method_defined?(method)
+
+        define_singleton_method(method) do
+          Taski::Context.set_root_task(self)
+          validate_no_circular_dependencies!
+          cached_wrapper.get_exported_value(method)
+        end
+      end
+
+      def validate_no_circular_dependencies!
+        return if @circular_dependency_checked
+
+        graph = StaticAnalysis::DependencyGraph.new.build_from(self)
+        cyclic_components = graph.cyclic_components
+
+        if cyclic_components.any?
+          raise Taski::CircularDependencyError.new(cyclic_components)
+        end
+
+        @circular_dependency_checked = true
+      end
     end
 
-    # Run method that must be implemented by subclasses
-    # @raise [NotImplementedError] If not implemented by subclass
     def run
-      raise NotImplementedError, "You must implement the run method in your task class"
+      raise NotImplementedError, "Subclasses must implement the run method"
     end
 
-    # Build method for backward compatibility
-    alias_method :build, :run
-
-    # Access run arguments passed to parametrized runs
-    # @return [Hash] Run arguments or empty hash if none provided
-    def run_args
-      @run_args || {}
-    end
-
-    # Build arguments alias for backward compatibility
-    alias_method :build_args, :run_args
-
-    private
-
-    # Clean method with default empty implementation
-    # Subclasses can override this method to implement cleanup logic
     def clean
-      # Default implementation does nothing - allows optional cleanup in subclasses
+    end
+
+    def reset!
+      self.class.exported_methods.each do |method|
+        instance_variable_set("@#{method}", nil)
+      end
     end
   end
 end

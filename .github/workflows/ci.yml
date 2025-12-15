@@ -9,10 +9,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.ruby-version == 'debug' }}
     strategy:
       matrix:
         ruby-version: [3.2, 3.3, 3.4, debug]
-    
+
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
     

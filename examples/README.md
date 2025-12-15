@@ -1,122 +1,122 @@
 # Taski Examples
 
-Learn Taski through practical examples, from basic concepts to real-world applications.
+Practical examples demonstrating Taski's parallel task execution and automatic dependency resolution.
 
-## 🚀 Learning Path
+## Examples
 
-Follow these examples in order for the best learning experience:
+### 1. quick_start.rb - Getting Started
 
-### 1. **[quick_start.rb](quick_start.rb)** - Exports API Basics
-- Your first Taski program
-- Static dependencies with `exports`
-- Automatic dependency resolution
+Basic Exports API usage and automatic dependency resolution.
 
 ```bash
 ruby examples/quick_start.rb
 ```
 
-### 2. **[define_api_basics.rb](define_api_basics.rb)** - Dynamic Dependencies
-- Environment-based logic with Define API
-- Runtime value computation
-- When to use Define vs Exports
+**Covers:**
+- Task definition with `exports`
+- Automatic dependency detection
+- Accessing exported values
+
+---
+
+### 2. section_demo.rb - Runtime Implementation Selection
+
+Switch implementations based on environment using the Section API.
 
 ```bash
-ruby examples/define_api_basics.rb
+ruby examples/section_demo.rb
 ```
 
-### 3. **[section_basics.rb](section_basics.rb)** - Implementation Selection
+**Covers:**
+- `interfaces` for defining contracts
 - Environment-specific implementations
-- Clean interfaces with Section API
-- Dependency tree visualization
+- Dependency tree visualization with `.tree`
+
+---
+
+### 3. context_demo.rb - Runtime Context
+
+Access execution context information from any task.
 
 ```bash
-ruby examples/section_basics.rb
+ruby examples/context_demo.rb
 ```
 
-### 4. **[progress_demo.rb](progress_demo.rb)** - Visual Progress
-- Animated progress display
-- Output capture and timing
-- TTY detection for logging
+**Covers:**
+- `Taski::Context.working_directory`
+- `Taski::Context.started_at`
+- `Taski::Context.root_task`
+
+---
+
+### 4. reexecution_demo.rb - Cache Control
+
+Understand caching behavior and re-execution patterns.
 
 ```bash
-# Interactive mode with spinner
-ruby examples/progress_demo.rb
-
-# Clean output for logging
-ruby examples/progress_demo.rb > build.log 2>&1
+ruby examples/reexecution_demo.rb
 ```
 
-### 5. **[build_pipeline.rb](build_pipeline.rb)** - Real-World Pipeline
-- Complete CI/CD workflow example
-- Mixed API usage patterns
-- Production-ready error handling
+**Covers:**
+- Default caching behavior
+- `Task.new` for fresh instances
+- `Task.reset!` for clearing caches
+
+---
+
+### 5. data_pipeline_demo.rb - Real-World Pipeline
+
+A realistic ETL pipeline with parallel data fetching.
 
 ```bash
-ruby examples/build_pipeline.rb
+ruby examples/data_pipeline_demo.rb
 ```
 
-### 6. **[error_handling.rb](error_handling.rb)** - Robust Error Management
-- Dependency error recovery
-- Graceful degradation patterns
-- Signal interruption handling
+**Covers:**
+- Multiple data sources in parallel
+- Data transformation stages
+- Aggregation and reporting
+
+---
+
+### 6. parallel_progress_demo.rb - Progress Display
+
+Real-time progress visualization during parallel execution.
 
 ```bash
-ruby examples/error_handling.rb
+TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
 ```
 
-### 7. **[advanced_patterns.rb](advanced_patterns.rb)** - Complex Scenarios
-- Advanced dependency patterns
-- Performance optimization
-- Custom logging strategies
+**Covers:**
+- Parallel task execution
+- Progress display with spinners
+- Execution timing
+
+---
+
+## Quick Reference
+
+| Example | Feature | Complexity |
+|---------|---------|------------|
+| quick_start | Exports API | Basic |
+| section_demo | Section API | Intermediate |
+| context_demo | Context API | Intermediate |
+| reexecution_demo | Cache Control | Intermediate |
+| data_pipeline_demo | ETL Pipeline | Advanced |
+| parallel_progress_demo | Progress Display | Advanced |
+
+## Running All Examples
 
 ```bash
-ruby examples/advanced_patterns.rb
+# Run each example
+for f in examples/*.rb; do echo "=== $f ===" && ruby "$f" && echo; done
+
+# With progress display (for parallel_progress_demo)
+TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
 ```
 
-## 📚 What You'll Learn
+## Next Steps
 
-### Core APIs
-- **Exports API**: Static values with side effects
-- **Define API**: Dynamic computation without side effects
-- **Section API**: Runtime implementation selection
-
-### Advanced Features
-- **Progress Display**: Visual feedback and timing
-- **Error Recovery**: Fallback strategies and graceful failures
-- **Signal Handling**: Interruption and cleanup
-- **Logging**: Structured output and monitoring
-
-### Real-World Applications
-- **Build Pipelines**: CI/CD workflows
-- **Configuration Management**: Environment-specific settings
-- **Service Orchestration**: Microservice dependencies
-- **Data Processing**: ETL and transformation pipelines
-
-## 🎯 Quick Reference
-
-| Example | Primary API | Complexity | Use Case |
-|---------|-------------|------------|----------|
-| quick_start | Exports | ⭐ | First steps |
-| define_api_basics | Define | ⭐⭐ | Dynamic values |
-| section_basics | Section | ⭐⭐ | Implementation choice |
-| progress_demo | All | ⭐⭐ | Visual feedback |
-| build_pipeline | Mixed | ⭐⭐⭐ | CI/CD workflows |
-| error_handling | Mixed | ⭐⭐⭐ | Production robustness |
-| advanced_patterns | Mixed | ⭐⭐⭐⭐ | Complex scenarios |
-
-## 🔗 Next Steps
-
-After completing these examples:
-- **[API Guide](../docs/api-guide.md)**: Detailed API documentation
-- **[Advanced Features](../docs/advanced-features.md)**: In-depth feature guides
-- **[Error Handling](../docs/error-handling.md)**: Comprehensive error strategies
-- **[Tests](../test/)**: Explore the test suite for more patterns
-- **[Source Code](../lib/taski/)**: Dive into the implementation
-
-## 💡 Tips for Learning
-
-1. **Start Simple**: Begin with `quick_start.rb` even if you're experienced
-2. **Experiment**: Modify the examples to see how behavior changes
-3. **Read Output**: Pay attention to progress display and timing information
-4. **Check Dependencies**: Use `.tree` method to visualize task relationships
-5. **Test Errors**: Try breaking examples to understand error handling
+- [Main README](../README.md) - Full documentation
+- [Tests](../test/) - More usage patterns
+- [Source](../lib/taski/) - Implementation details

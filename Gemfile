@@ -8,6 +8,7 @@ gemspec
 gem "rake", "~> 13.3"
 
 gem "prism", "~> 1.4"
+gem "tsort"
 
 group :development, :test do
   gem "debug"
@@ -15,4 +16,5 @@ group :development, :test do
   gem "standard", "~> 1.39"
   gem "simplecov", "~> 0.22"
   gem "simplecov-lcov", "~> 0.8"
+  gem "steep", "~> 1.10"
 end
