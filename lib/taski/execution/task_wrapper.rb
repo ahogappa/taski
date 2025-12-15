@@ -49,7 +49,7 @@ module Taski
       # @return [Object] The result of task execution
       def run
         execute_task_if_needed
-        raise @error if @error
+        raise @error if @error # steep:ignore
         @result
       end
 
@@ -63,7 +63,7 @@ module Taski
       # @return [Object] The exported value
       def get_exported_value(method_name)
         execute_task_if_needed
-        raise @error if @error
+        raise @error if @error # steep:ignore
         @task.public_send(method_name)
       end
 
