@@ -106,7 +106,8 @@ module Taski
         # Add to ancestors for circular detection
         new_ancestors = ancestors + [task_class]
 
-        dependencies = task_class.cached_dependencies.to_a
+        # Use analyze_for_tree to include Section.impl candidates for visualization
+        dependencies = StaticAnalysis::Analyzer.analyze_for_tree(task_class).to_a
         is_section = section_class?(task_class)
 
         dependencies.each_with_index do |dep, index|
