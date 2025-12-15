@@ -170,11 +170,37 @@ class SequentialTaskD < Taski::Task
 end
 
 # Test fixtures for parallel chain execution
+# Module to track start times for verifying parallel execution
+module ParallelChainStartTimes
+  @start_times = {}
+  @mutex = Mutex.new
+
+  class << self
+    def record(task_name)
+      @mutex.synchronize do
+        @start_times[task_name] = Time.now
+      end
+    end
+
+    def get(task_name)
+      @mutex.synchronize do
+        @start_times[task_name]
+      end
+    end
+
+    def reset
+      @mutex.synchronize do
+        @start_times = {}
+      end
+    end
+  end
+end
 
 class ParallelChain1A < Taski::Task
   exports :value
 
   def run
+    ParallelChainStartTimes.record(:chain1a)
     sleep(0.1)
     @value = "Chain1-A"
   end
@@ -193,6 +219,7 @@ class ParallelChain2C < Taski::Task
   exports :value
 
   def run
+    ParallelChainStartTimes.record(:chain2c)
     sleep(0.1)
     @value = "Chain2-C"
   end
