@@ -19,8 +19,13 @@ jobs:
       uses: ruby/setup-ruby@ac793fdd38cc468a4dd57246fa9d0e868aba9085 # v1.270.0
       with:
         ruby-version: 3.4
-        bundler-cache: true
-    
+        bundler-cache: false
+
+    - name: Add platform and install dependencies
+      run: |
+        bundle lock --add-platform x86_64-linux
+        bundle install
+
     - name: Install bundler-audit
       run: gem install bundler-audit
     
