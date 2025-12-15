@@ -86,4 +86,30 @@ class TestSection < Minitest::Test
     # InnerSection should also be executed and have the same value
     assert_equal "postgres://localhost:5432/mydb", InnerSection.db_url
   end
+
+  # Test that Section only executes dependencies of the selected implementation
+  # When impl returns OptionB, OptionA's dependencies (ExpensiveTask) should NOT run
+  def test_section_lazy_dependency_resolution
+    LazyDependencyTest.reset
+
+    # Run with context that selects OptionB
+    LazyDependencyTest::MySection.run(context: {use_option_a: false})
+
+    executed = LazyDependencyTest.executed_tasks
+
+    # OptionB and its dependency (CheapTask) should be executed
+    assert_includes executed, :option_b, "Selected implementation should be executed"
+    assert_includes executed, :cheap_task, "Selected implementation's dependency should be executed"
+
+    # ExpensiveTask should NOT be executed (it's only a dependency of OptionA)
+    refute_includes executed, :expensive_task,
+      "ExpensiveTask should NOT be executed when OptionA is not selected"
+
+    # OptionA should NOT be executed
+    refute_includes executed, :option_a,
+      "OptionA should NOT be executed when OptionB is selected"
+
+    # Value should be from OptionB
+    assert_equal "B with cheap", LazyDependencyTest::MySection.value
+  end
 end

@@ -7,8 +7,22 @@ module Taski
   module StaticAnalysis
     class Analyzer
       # @param task_class [Class] The task class to analyze
-      # @return [Set<Class>] Set of task classes that are dependencies
+      # @return [Set<Class>] Set of task classes that are dependencies (for execution)
       def self.analyze(task_class)
+        analyze_with_options(task_class, include_impl_candidates: false)
+      end
+
+      # @param task_class [Class] The task class to analyze
+      # @return [Set<Class>] Set of task classes that are dependencies (for tree display)
+      #   This includes Section.impl candidates for visualization purposes
+      def self.analyze_for_tree(task_class)
+        analyze_with_options(task_class, include_impl_candidates: true)
+      end
+
+      # @param task_class [Class] The task class to analyze
+      # @param include_impl_candidates [Boolean] Whether to include impl candidates
+      # @return [Set<Class>] Set of task classes that are dependencies
+      def self.analyze_with_options(task_class, include_impl_candidates:)
         target_method = target_method_for(task_class)
         source_location = extract_method_location(task_class, target_method)
         return Set.new unless source_location
@@ -16,7 +30,7 @@ module Taski
         file_path, _line_number = source_location
         parse_result = Prism.parse_file(file_path)
 
-        visitor = Visitor.new(task_class, target_method)
+        visitor = Visitor.new(task_class, target_method, include_impl_candidates: include_impl_candidates)
         visitor.visit(parse_result.value)
         visitor.dependencies
       end
