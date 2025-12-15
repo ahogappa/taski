@@ -3,6 +3,7 @@
 require_relative "taski/version"
 require_relative "taski/static_analysis/analyzer"
 require_relative "taski/static_analysis/visitor"
+require_relative "taski/static_analysis/dependency_graph"
 require_relative "taski/execution/registry"
 require_relative "taski/execution/coordinator"
 require_relative "taski/execution/task_wrapper"
@@ -13,6 +14,18 @@ require_relative "taski/section"
 
 module Taski
   class TaskAbortException < StandardError
+  end
+
+  # Raised when circular dependencies are detected between tasks
+  class CircularDependencyError < StandardError
+    attr_reader :cyclic_tasks
+
+    # @param cyclic_tasks [Array<Array<Class>>] Groups of mutually dependent task classes
+    def initialize(cyclic_tasks)
+      @cyclic_tasks = cyclic_tasks
+      task_names = cyclic_tasks.map { |group| group.map(&:name).join(" <-> ") }.join(", ")
+      super("Circular dependency detected: #{task_names}")
+    end
   end
 
   def self.global_registry

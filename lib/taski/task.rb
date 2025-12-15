@@ -41,11 +41,13 @@ module Taski
 
       def run
         Taski::Context.set_root_task(self)
+        validate_no_circular_dependencies!
         cached_wrapper.run
       end
 
       def clean
         Taski::Context.set_root_task(self)
+        validate_no_circular_dependencies!
         cached_wrapper.clean
       end
 
@@ -65,6 +67,7 @@ module Taski
         Taski.reset_global_registry!
         Taski::Context.reset!
         @coordinator = nil
+        @circular_dependency_checked = nil
       end
 
       def tree
@@ -134,8 +137,22 @@ module Taski
 
         define_singleton_method(method) do
           Taski::Context.set_root_task(self)
+          validate_no_circular_dependencies!
           cached_wrapper.get_exported_value(method)
         end
+      end
+
+      def validate_no_circular_dependencies!
+        return if @circular_dependency_checked
+
+        graph = StaticAnalysis::DependencyGraph.new.build_from(self)
+        cyclic_components = graph.cyclic_components
+
+        if cyclic_components.any?
+          raise Taski::CircularDependencyError.new(cyclic_components)
+        end
+
+        @circular_dependency_checked = true
       end
     end
 
