@@ -62,6 +62,16 @@ module Taski
         @graph.fetch(task_class, Set.new)
       end
 
+      # TSort interface: iterate over all nodes
+      def tsort_each_node(&block)
+        @graph.each_key(&block)
+      end
+
+      # TSort interface: iterate over children (dependencies) of a node
+      def tsort_each_child(node, &block)
+        @graph.fetch(node, Set.new).each(&block)
+      end
+
       private
 
       # Recursively collect all dependencies starting from a task class
@@ -74,16 +84,6 @@ module Taski
         dependencies.each do |dep_class|
           collect_dependencies(dep_class)
         end
-      end
-
-      # TSort interface: iterate over all nodes
-      def tsort_each_node(&block)
-        @graph.each_key(&block)
-      end
-
-      # TSort interface: iterate over children (dependencies) of a node
-      def tsort_each_child(node, &block)
-        @graph.fetch(node, Set.new).each(&block)
       end
     end
   end
