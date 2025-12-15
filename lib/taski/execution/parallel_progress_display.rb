@@ -4,13 +4,9 @@ require "monitor"
 
 module Taski
   module Execution
-    # Displays progress of multiple tasks executing in parallel
-    # Similar to Docker's multi-layer download progress display
     class ParallelProgressDisplay
-      # Spinner animation frames
       SPINNER_FRAMES = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏].freeze
 
-      # Task progress tracking
       class TaskProgress
         attr_accessor :state, :start_time, :end_time, :error, :duration
 
@@ -25,15 +21,13 @@ module Taski
 
       def initialize(output: $stdout)
         @output = output
-        @tasks = {} # task_class => TaskProgress
+        @tasks = {}
         @monitor = Monitor.new
         @spinner_index = 0
         @renderer_thread = nil
         @running = false
       end
 
-      # Register a task to be tracked
-      #
       # @param task_class [Class] The task class to register
       def register_task(task_class)
         @monitor.synchronize do
@@ -41,8 +35,6 @@ module Taski
         end
       end
 
-      # Check if a task is registered
-      #
       # @param task_class [Class] The task class to check
       # @return [Boolean] true if the task is registered
       def task_registered?(task_class)
@@ -51,8 +43,6 @@ module Taski
         end
       end
 
-      # Update task state
-      #
       # @param task_class [Class] The task class to update
       # @param state [Symbol] The new state (:pending, :running, :completed, :failed)
       # @param duration [Float] Duration in milliseconds (for completed tasks)
@@ -75,8 +65,6 @@ module Taski
         end
       end
 
-      # Get task state
-      #
       # @param task_class [Class] The task class
       # @return [Symbol] The task state
       def task_state(task_class)
@@ -85,7 +73,6 @@ module Taski
         end
       end
 
-      # Render the current progress display
       def render
         @monitor.synchronize do
           @tasks.each do |task_class, progress|
@@ -95,7 +82,6 @@ module Taski
         end
       end
 
-      # Start the progress display renderer
       def start
         return if @running
 
@@ -104,12 +90,11 @@ module Taski
           loop do
             break unless @running
             render_live
-            sleep 0.1 # Update 10 times per second
+            sleep 0.1
           end
         end
       end
 
-      # Stop the progress display renderer
       def stop
         return unless @running
 
@@ -120,8 +105,6 @@ module Taski
 
       private
 
-      # Collect formatted task lines
-      #
       # @return [Array<String>] Array of formatted task lines
       def collect_task_lines
         @tasks.map do |task_class, progress|
@@ -129,52 +112,41 @@ module Taski
         end
       end
 
-      # Render live progress (updates in place)
       def render_live
         return unless @output.tty?
 
         @monitor.synchronize do
-          # Update spinner index once per render cycle for consistent animation
           @spinner_index += 1
 
           lines = collect_task_lines
 
-          # Clear and print each line
           lines.each_with_index do |line, index|
             @output.print "\r\e[K#{line}"
             @output.print "\n" unless index == lines.length - 1
           end
 
-          # Move cursor back to top
           @output.print "\e[#{lines.length - 1}A" if lines.length > 1
         end
       end
 
-      # Render final state (static output)
       def render_final
         @monitor.synchronize do
           lines = collect_task_lines
 
-          # Clear current display if in TTY mode
           if @output.tty? && lines.length > 0
-            # Clear each line
             lines.each_with_index do |_, index|
               @output.print "\r\e[K"
               @output.print "\e[1B" unless index == lines.length - 1
             end
-            # Move cursor back to top
             @output.print "\e[#{lines.length - 1}A" if lines.length > 1
           end
 
-          # Print final state
           lines.each do |line|
             @output.puts line
           end
         end
       end
 
-      # Format a single task line for display
-      #
       # @param task_class [Class] The task class
       # @param progress [TaskProgress] The task progress
       # @return [String] Formatted line
@@ -186,8 +158,6 @@ module Taski
         "#{icon} #{name}#{details}"
       end
 
-      # Get icon for task state
-      #
       # @param state [Symbol] The task state
       # @return [String] The icon character
       def task_icon(state)
@@ -205,15 +175,11 @@ module Taski
         end
       end
 
-      # Get spinner character
-      #
       # @return [String] Current spinner frame
       def spinner_char
         SPINNER_FRAMES[@spinner_index % SPINNER_FRAMES.length]
       end
 
-      # Get task details string
-      #
       # @param progress [TaskProgress] The task progress
       # @return [String] Details string
       def task_details(progress)

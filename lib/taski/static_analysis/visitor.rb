@@ -4,7 +4,6 @@ require "prism"
 
 module Taski
   module StaticAnalysis
-    # AST visitor to detect task dependencies in run methods
     class Visitor < Prism::Visitor
       attr_reader :dependencies
 
@@ -76,17 +75,14 @@ module Taski
       end
 
       def resolve_constant(constant_name)
-        # Try direct resolution first
         Object.const_get(constant_name)
       rescue NameError
-        # Try resolution with current namespace prefixes
         resolve_with_namespace_prefix(constant_name)
       end
 
       def resolve_with_namespace_prefix(constant_name)
         return nil if @current_namespace_path.empty?
 
-        # Try each level of nesting from innermost to outermost
         @current_namespace_path.length.downto(0) do |i|
           prefix = @current_namespace_path[0...i].join("::")
           full_name = prefix.empty? ? constant_name : "#{prefix}::#{constant_name}"
@@ -102,7 +98,6 @@ module Taski
       end
 
       def valid_dependency?(klass)
-        # Check if the class is a valid task or section dependency
         klass.is_a?(Class) &&
           (is_parallel_task?(klass) || is_parallel_section?(klass))
       end
