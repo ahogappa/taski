@@ -65,8 +65,9 @@ class TestTreeDisplay < Minitest::Test
   def test_tree_shows_nested_section_with_impl
     result = strip_ansi(OuterSection.tree)
     assert_includes result, "OuterSection (Section)"
-    assert_includes result, "[impl] InnerSection (Section)"
-    assert_includes result, "[impl] InnerSection::InnerImpl (Task)"
+    assert_includes result, "[impl]"
+    assert_includes result, "InnerSection (Section)"
+    assert_includes result, "InnerSection::InnerImpl (Task)"
   end
 
   def test_tree_shows_mixed_task_and_section_dependencies
@@ -74,12 +75,54 @@ class TestTreeDisplay < Minitest::Test
     assert_includes result, "DeepDependency::TaskD (Task)"
     assert_includes result, "ParallelTaskC (Task)"
     assert_includes result, "ParallelSection (Section)"
-    assert_includes result, "[impl] ParallelSectionImpl2 (Task)"
+    assert_includes result, "[impl]"
+    assert_includes result, "ParallelSectionImpl2 (Task)"
   end
 
   def test_tree_includes_ansi_color_codes
     result = FixtureTaskA.tree
     # Check that ANSI codes are present
     assert_match(/\e\[/, result)
+  end
+
+  def test_tree_shows_task_numbers
+    result = strip_ansi(FixtureTaskB.tree)
+    assert_match(/\[1\].*FixtureTaskB/, result)
+    assert_match(/\[2\].*FixtureTaskA/, result)
+  end
+
+  def test_tree_same_task_has_same_number
+    result = strip_ansi(DeepDependency::Nested::TaskH.tree)
+    # Find all occurrences of ParallelTaskA with their numbers
+    matches = result.scan(/\[(\d+)\].*ParallelTaskA/)
+    assert matches.size >= 2, "ParallelTaskA should appear multiple times"
+    # All occurrences should have the same number
+    numbers = matches.flatten.uniq
+    assert_equal 1, numbers.size, "Same task should have the same number"
+  end
+
+  def test_tree_expands_duplicate_dependencies
+    result = strip_ansi(DeepDependency::Nested::TaskH.tree)
+    # ParallelSection appears multiple times and should be fully expanded each time
+    # Count how many times ParallelSectionImpl2 appears (it's a dependency of ParallelSection)
+    impl_count = result.scan("ParallelSectionImpl2").size
+    assert impl_count >= 2, "ParallelSectionImpl2 should appear multiple times as ParallelSection is fully expanded"
+  end
+
+  def test_tree_shows_circular_marker_for_circular_dependency
+    require_relative "fixtures/circular_tasks"
+    result = strip_ansi(CircularTaskA.tree)
+    assert_includes result, "CircularTaskA"
+    assert_includes result, "CircularTaskB"
+    assert_includes result, "(circular)"
+  end
+
+  def test_tree_shows_circular_marker_for_indirect_circular_dependency
+    require_relative "fixtures/circular_tasks"
+    result = strip_ansi(IndirectCircular::TaskX.tree)
+    assert_includes result, "IndirectCircular::TaskX"
+    assert_includes result, "IndirectCircular::TaskY"
+    assert_includes result, "IndirectCircular::TaskZ"
+    assert_includes result, "(circular)"
   end
 end
