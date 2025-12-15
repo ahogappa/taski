@@ -74,4 +74,16 @@ class TestSection < Minitest::Test
     end
     assert_match(/does not have an implementation/, error.message)
   end
+
+  # Test nested Section (Section inside Section)
+  # OuterSection uses InnerSection as impl, which is also a Section
+  def test_nested_section_inside_section
+    OuterSection.run
+
+    # OuterSection should have the value from InnerSection
+    assert_equal "postgres://localhost:5432/mydb", OuterSection.db_url
+
+    # InnerSection should also be executed and have the same value
+    assert_equal "postgres://localhost:5432/mydb", InnerSection.db_url
+  end
 end
