@@ -16,4 +16,5 @@ group :development, :test do
   gem "standard", "~> 1.39"
   gem "simplecov", "~> 0.22"
   gem "simplecov-lcov", "~> 0.8"
+  gem "steep", "~> 1.10"
 end
