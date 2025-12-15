@@ -166,4 +166,43 @@ class TestParallelProgressDisplay < Minitest::Test
     assert_includes result, "TaskA"
     assert_includes result, "TaskB"
   end
+
+  # Test Taski.reset_progress_display!
+  def test_taski_reset_progress_display
+    # First, enable progress by setting the environment variable
+    original_env = ENV["TASKI_FORCE_PROGRESS"]
+    ENV["TASKI_FORCE_PROGRESS"] = "1"
+
+    # Reset any existing progress display
+    Taski.reset_progress_display!
+
+    # Access progress_display to create a new one
+    display = Taski.progress_display
+    assert_instance_of Taski::Execution::ParallelProgressDisplay, display
+
+    # Reset should clear it
+    Taski.reset_progress_display!
+
+    # Accessing again should create a new instance
+    new_display = Taski.progress_display
+    refute_same display, new_display
+  ensure
+    ENV["TASKI_FORCE_PROGRESS"] = original_env
+    Taski.reset_progress_display!
+  end
+
+  # Test progress_display returns nil when disabled
+  def test_taski_progress_display_returns_nil_when_disabled
+    original_env = ENV["TASKI_PROGRESS"]
+    original_force = ENV["TASKI_FORCE_PROGRESS"]
+    ENV["TASKI_PROGRESS"] = nil
+    ENV["TASKI_FORCE_PROGRESS"] = nil
+
+    Taski.reset_progress_display!
+    assert_nil Taski.progress_display
+  ensure
+    ENV["TASKI_PROGRESS"] = original_env
+    ENV["TASKI_FORCE_PROGRESS"] = original_force
+    Taski.reset_progress_display!
+  end
 end

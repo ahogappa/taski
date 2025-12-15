@@ -368,4 +368,57 @@ class TestParallelExecution < Minitest::Test
     result = task_class.clean # Should not raise, returns nil (default)
     assert_nil result
   end
+
+  # Test that Task instance run raises NotImplementedError when not overridden
+  def test_task_instance_run_raises_not_implemented_error
+    task_class = Class.new(Taski::Task)
+    # Directly instantiate and call run to test the error
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+
+    error = assert_raises(NotImplementedError) do
+      task_instance.run
+    end
+    assert_match(/Subclasses must implement the run method/, error.message)
+  end
+
+  # Test that Task instance reset! clears exported values
+  def test_task_instance_reset_clears_exported_values
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test_value"
+      end
+    end
+
+    task_class.run
+    assert_equal "test_value", task_class.value
+
+    # Get the underlying task instance and call reset!
+    registry = Taski.global_registry
+    wrapper = registry.instance_variable_get(:@tasks)[task_class]
+    wrapper.task.reset!
+
+    # After reset!, the instance variable should be nil
+    assert_nil wrapper.task.instance_variable_get(:@value)
+  end
+
+  # Test Registry#get_task raises error for unregistered task
+  def test_registry_get_task_raises_for_unregistered
+    registry = Taski::Execution::Registry.new
+
+    unregistered_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    error = assert_raises(RuntimeError) do
+      registry.get_task(unregistered_class)
+    end
+    assert_match(/not registered/, error.message)
+  end
 end
