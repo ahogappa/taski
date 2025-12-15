@@ -11,7 +11,7 @@ gem "prism", "~> 1.4"
 
 group :development, :test do
   gem "debug"
-  gem "minitest", "~> 5.26"
+  gem "minitest", "~> 5.27"
   gem "standard", "~> 1.39"
   gem "simplecov", "~> 0.22"
   gem "simplecov-lcov", "~> 0.8"
