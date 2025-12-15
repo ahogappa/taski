@@ -7,6 +7,7 @@
 # - working_directory: Where execution started
 # - started_at: When execution began
 # - root_task: The first task class that was called
+# - User-defined options: Custom values passed via run(context: {...})
 #
 # Run: ruby examples/context_demo.rb
 
@@ -21,13 +22,15 @@ class SetupTask < Taski::Task
 
   def run
     puts "Setup running..."
-    puts "  Working directory: #{Taski::Context.working_directory}"
-    puts "  Started at: #{Taski::Context.started_at}"
-    puts "  Root task: #{Taski::Context.root_task}"
+    puts "  Working directory: #{Taski.context.working_directory}"
+    puts "  Started at: #{Taski.context.started_at}"
+    puts "  Root task: #{Taski.context.root_task}"
+    puts "  Environment: #{Taski.context[:env]}"
 
     @setup_info = {
-      directory: Taski::Context.working_directory,
-      timestamp: Taski::Context.started_at
+      directory: Taski.context.working_directory,
+      timestamp: Taski.context.started_at,
+      env: Taski.context[:env]
     }
   end
 end
@@ -38,11 +41,12 @@ class FileProcessor < Taski::Task
 
   def run
     # Use context to determine output location
-    base_dir = Taski::Context.working_directory
-    @output_path = File.join(base_dir, "tmp", "output.txt")
+    base_dir = Taski.context.working_directory
+    env = Taski.context.fetch(:env, "development")
+    @output_path = File.join(base_dir, "tmp", env, "output.txt")
 
     puts "FileProcessor: Would write to #{@output_path}"
-    puts "  (relative to working directory)"
+    puts "  (relative to working directory, env: #{env})"
   end
 end
 
@@ -51,11 +55,12 @@ class TimingTask < Taski::Task
   exports :duration_info
 
   def run
-    start_time = Taski::Context.started_at
+    start_time = Taski.context.started_at
     current_time = Time.now
     elapsed = current_time - start_time
 
     puts "TimingTask: #{elapsed.round(3)}s since execution started"
+    puts "  Debug mode: #{Taski.context.fetch(:debug, false)}"
 
     @duration_info = {
       started: start_time,
@@ -71,7 +76,8 @@ class MainTask < Taski::Task
 
   def run
     puts "\nMainTask executing..."
-    puts "  Root task is: #{Taski::Context.root_task}"
+    puts "  Root task is: #{Taski.context.root_task}"
+    puts "  Environment: #{Taski.context[:env]}"
 
     # Access dependencies
     setup = SetupTask.setup_info
@@ -82,7 +88,7 @@ class MainTask < Taski::Task
       setup: setup,
       output_path: output,
       timing: timing,
-      root_task: Taski::Context.root_task.to_s
+      root_task: Taski.context.root_task.to_s
     }
 
     puts "\nExecution Summary:"
@@ -92,15 +98,15 @@ class MainTask < Taski::Task
   end
 end
 
-puts "\n1. Running MainTask (context will show MainTask as root)"
+puts "\n1. Running MainTask with context options"
 puts "-" * 40
-MainTask.run
+MainTask.run(context: {env: "production", debug: true})
 
 puts "\n" + "=" * 40
-puts "\n2. Running SetupTask directly (context will show SetupTask as root)"
+puts "\n2. Running SetupTask directly with different context"
 puts "-" * 40
 SetupTask.reset!
-SetupTask.run
+SetupTask.run(context: {env: "staging"})
 
 puts "\n" + "=" * 40
 puts "\n3. Dependency Tree"
@@ -109,4 +115,4 @@ puts MainTask.tree
 
 puts "\n" + "=" * 40
 puts "Context API demonstration complete!"
-puts "Note: Context provides runtime information without affecting dependency analysis."
+puts "Note: Context provides runtime information and user options without affecting dependency analysis."

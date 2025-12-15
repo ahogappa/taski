@@ -3,50 +3,48 @@
 require "monitor"
 
 module Taski
-  # Runtime context accessible from any task (not included in dependency analysis).
+  # Runtime context accessible from any task.
+  # Holds user-defined options and execution metadata.
+  # Context is immutable after creation - options cannot be modified during task execution.
   class Context
-    @monitor = Monitor.new
+    attr_reader :started_at, :working_directory, :root_task
 
-    class << self
-      # @return [String] The working directory path
-      def working_directory
-        @monitor.synchronize do
-          @working_directory ||= Dir.pwd
-        end
-      end
+    # @param options [Hash] User-defined options (immutable after creation)
+    # @param root_task [Class] The root task class that initiated execution
+    def initialize(options:, root_task:)
+      @options = options.dup.freeze
+      @root_task = root_task
+      @started_at = Time.now
+      @working_directory = Dir.pwd
+    end
 
-      # @return [Time] The start time
-      def started_at
-        @monitor.synchronize do
-          @started_at ||= Time.now
-        end
-      end
+    # Get a user-defined option value
+    # @param key [Symbol, String] The option key
+    # @return [Object, nil] The option value or nil if not set
+    def [](key)
+      @options[key]
+    end
 
-      # @return [Class, nil] The root task class or nil if not set
-      def root_task
-        @monitor.synchronize do
-          @root_task
-        end
+    # Get a user-defined option value with a default
+    # @param key [Symbol, String] The option key
+    # @param default [Object] Default value if key is not present
+    # @yield Block to compute default value if key is not present
+    # @return [Object] The option value or default
+    def fetch(key, default = nil, &block)
+      if @options.key?(key)
+        @options[key]
+      elsif block
+        block.call
+      else
+        default
       end
+    end
 
-      # Called internally when a task is first invoked. Only the first call has effect.
-      # @param task_class [Class] The task class to set as root
-      def set_root_task(task_class)
-        @monitor.synchronize do
-          return if @root_task
-          @root_task = task_class
-          @started_at ||= Time.now
-          @working_directory ||= Dir.pwd
-        end
-      end
-
-      def reset!
-        @monitor.synchronize do
-          @working_directory = nil
-          @started_at = nil
-          @root_task = nil
-        end
-      end
+    # Check if a user-defined option key exists
+    # @param key [Symbol, String] The option key
+    # @return [Boolean] true if the key exists
+    def key?(key)
+      @options.key?(key)
     end
   end
 end

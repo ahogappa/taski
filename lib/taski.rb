@@ -28,6 +28,29 @@ module Taski
     end
   end
 
+  @context_monitor = Monitor.new
+
+  # Get the current execution context
+  # @return [Context, nil] The current context or nil if no task is running
+  def self.context
+    @context_monitor.synchronize { @context }
+  end
+
+  # Start a new execution context (internal use only)
+  # @api private
+  def self.start_context(options:, root_task:)
+    @context_monitor.synchronize do
+      return if @context
+      @context = Context.new(options: options, root_task: root_task)
+    end
+  end
+
+  # Reset the execution context (internal use only)
+  # @api private
+  def self.reset_context!
+    @context_monitor.synchronize { @context = nil }
+  end
+
   def self.global_registry
     @global_registry ||= Execution::Registry.new
   end

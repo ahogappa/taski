@@ -34,18 +34,21 @@ ruby examples/section_demo.rb
 
 ---
 
-### 3. context_demo.rb - Runtime Context
+### 3. context_demo.rb - Runtime Context and Options
 
-Access execution context information from any task.
+Access execution context and pass custom options to tasks.
 
 ```bash
 ruby examples/context_demo.rb
 ```
 
 **Covers:**
-- `Taski::Context.working_directory`
-- `Taski::Context.started_at`
-- `Taski::Context.root_task`
+- User-defined options via `run(context: {...})`
+- `Taski.context[:key]` for option access
+- `Taski.context.fetch(:key, default)` for defaults
+- `Taski.context.working_directory`
+- `Taski.context.started_at`
+- `Taski.context.root_task`
 
 ---
 
