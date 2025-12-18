@@ -3,6 +3,7 @@ module Taski
 
   self.@global_registry: Execution::Registry?
   self.@progress_display: Execution::ParallelProgressDisplay?
+  self.@context: Context?
 
   # Type alias for Task class (singleton type with class methods)
   # This represents a Class that inherits from Taski::Task
@@ -14,6 +15,9 @@ module Taski
   def self.progress_display: () -> Execution::ParallelProgressDisplay?
   def self.progress_enabled?: () -> bool
   def self.reset_progress_display!: () -> void
+  def self.context: () -> Hash[Symbol, untyped]
+  def self.start_context: (options: Hash[Symbol, untyped], root_task: Class) -> void
+  def self.reset_context!: () -> void
 
   # Custom exceptions
   class TaskAbortException < StandardError
@@ -29,23 +33,27 @@ module Taski
 
   # Context class for execution context management
   class Context
-    self.@monitor: Monitor
-    self.@working_directory: String?
-    self.@started_at: Time?
-    self.@root_task: Class?
+    @options: Hash[Symbol | String, untyped]
+    @root_task: Class
+    @started_at: Time
+    @working_directory: String
 
-    def self.working_directory: () -> String
-    def self.started_at: () -> Time
-    def self.root_task: () -> Class?
-    def self.set_root_task: (Class task) -> void
-    def self.reset!: () -> void
+    attr_reader started_at: Time
+    attr_reader working_directory: String
+    attr_reader root_task: Class
+
+    def initialize: (options: Hash[Symbol | String, untyped], root_task: Class) -> void
+    def []: (Symbol | String key) -> untyped
+    def fetch: (Symbol | String key, ?untyped default) ?{ () -> untyped } -> untyped
+    def key?: (Symbol | String key) -> bool
   end
 
   # Main Task class
   class Task
+    COLORS: Hash[Symbol, String]
+
     self.@exported_methods: Array[Symbol]
     self.@dependencies_cache: Set[task_class]?
-    self.@coordinator: Execution::Coordinator?
     self.@circular_dependency_checked: bool
 
     # Class methods
@@ -54,10 +62,9 @@ module Taski
     def self.new: () -> Execution::TaskWrapper
     def self.cached_dependencies: () -> Set[task_class]
     def self.clear_dependency_cache: () -> void
-    def self.run: () -> untyped
-    def self.clean: () -> void
+    def self.run: (?context: Hash[Symbol, untyped]) -> untyped
+    def self.clean: (?context: Hash[Symbol, untyped]) -> void
     def self.registry: () -> Execution::Registry
-    def self.coordinator: () -> Execution::Coordinator
     def self.reset!: () -> void
     def self.tree: () -> String
 
@@ -69,9 +76,12 @@ module Taski
     private
 
     # Private class methods
-    def self.build_tree: (task_class task_class, String prefix, Set[task_class] visited) -> String
-    def self.format_dependency_branch: (task_class dep, String prefix, bool is_last, Set[task_class] visited) -> String
+    def self.build_tree: (task_class task_class, String prefix, Hash[task_class, Integer] task_index_map, boolish is_impl, ?Set[task_class] ancestors) -> String
+    def self.format_dependency_branch: (task_class dep, String prefix, bool is_last, Hash[task_class, Integer] task_index_map, boolish is_impl, Set[task_class] ancestors) -> String
     def self.tree_connector_chars: (bool is_last) -> [String, String]
+    def self.get_task_number: (task_class task_class, Hash[task_class, Integer] task_index_map) -> String
+    def self.colored_type_label: (task_class klass) -> String
+    def self.section_class?: (task_class klass) -> boolish
     def self.cached_wrapper: () -> Execution::TaskWrapper
     def self.define_instance_reader: (Symbol method_name) -> void
     def self.define_class_accessor: (Symbol method_name) -> void
@@ -119,7 +129,8 @@ module Taski
 
       def initialize: () -> void
       def get_or_create: (Class task_class) { () -> TaskWrapper } -> TaskWrapper
-      def get_task: (Class task_class) -> TaskWrapper
+      def get_task: (Class task_class) -> TaskWrapper?
+      def register: (Class task_class, TaskWrapper wrapper) -> void
       def register_thread: (Thread thread) -> void
       def wait_all: () -> void
       def reset!: () -> void
@@ -128,31 +139,52 @@ module Taski
       def run: (Class task_class, Array[Symbol] exported_methods) -> untyped
     end
 
-    # Coordinator class for dependency management
-    class Coordinator
-      @registry: Registry
-      @analyzer: singleton(StaticAnalysis::Analyzer)
+    # Executor class for parallel task execution (Producer-Consumer pattern)
+    class Executor
+      STATE_PENDING: Symbol
+      STATE_ENQUEUED: Symbol
+      STATE_COMPLETED: Symbol
 
-      def initialize: (registry: Registry, analyzer: singleton(StaticAnalysis::Analyzer)) -> void
-      def start_dependencies: (task_class task_class) -> void
-      def start_clean_dependencies: (task_class task_class) -> void
-      def get_dependencies: (task_class task_class) -> Set[task_class]
+      @registry: Registry
+      @worker_count: Integer
+      @execution_queue: Thread::Queue
+      @completion_queue: Thread::Queue
+      @workers: Array[Thread]
+      @dependencies: Hash[Class, Set[Class]]
+      @task_states: Hash[Class, Symbol]
+      @completed_tasks: Set[Class]
+
+      def self.execute: (Class root_task_class, registry: Registry) -> void
+      def initialize: (registry: Registry, ?worker_count: Integer?) -> void
+      def execute: (Class root_task_class) -> void
 
       private
 
-      def start_thread_with: () { () -> void } -> void
-      def start_dependency_execution: (task_class dep_class) -> void
-      def start_dependency_clean: (task_class dep_class) -> void
+      def default_worker_count: () -> Integer
+      def build_dependency_graph: (Class root_task_class) -> void
+      def enqueue_ready_tasks: () -> void
+      def ready_to_execute?: (Class task_class) -> bool
+      def enqueue_task: (Class task_class) -> void
+      def get_or_create_wrapper: (Class task_class) -> TaskWrapper
+      def start_workers: () -> void
+      def worker_loop: () -> void
+      def execute_task: (Class task_class, TaskWrapper wrapper) -> void
+      def run_main_loop: (Class root_task_class) -> void
+      def no_running_tasks?: () -> bool
+      def handle_completion: (Hash[Symbol, untyped] event) -> void
+      def shutdown_workers: () -> void
+      def debug_log: (String message) -> void
     end
 
     # TaskWrapper class for task execution
     class TaskWrapper
       attr_reader task: Task
       attr_reader result: untyped
+      attr_reader error: StandardError?
+      attr_reader timing: TaskTiming?
 
       @task: Task
       @registry: Registry
-      @coordinator: Coordinator
       @result: untyped
       @clean_result: untyped
       @error: StandardError?
@@ -167,33 +199,31 @@ module Taski
       STATE_RUNNING: Symbol
       STATE_COMPLETED: Symbol
 
-      def initialize: (Task task, registry: Registry, coordinator: Coordinator) -> void
+      def initialize: (Task task, registry: Registry) -> void
+      def state: () -> Symbol
+      def pending?: () -> bool
+      def completed?: () -> bool
       def run: () -> untyped
-      def clean: () -> void
+      def clean: () -> untyped
       def get_exported_value: (Symbol method_name) -> untyped
-      def start_thread_with: () { () -> void } -> void
-      def execute_with_state_pattern: (state_getter: ^() -> Symbol, starter: ^() -> void, waiter: ^() -> void, ?pre_start_check: (^() -> void)?) -> void
-      def execute_task_if_needed: () -> void
-      def start_async_execution: () -> void
-      def execute_task: () -> void
-      def wait_for_dependencies: () -> void
-      def execute_clean_if_needed: () -> void
-      def start_async_clean: () -> void
-      def execute_clean: () -> void
-      def wait_for_clean_dependencies: () -> void
-      def mark_completed: () -> void
-      def mark_clean_completed: () -> void
-      def wait_for_completion: () -> untyped
+      def mark_running: () -> bool
+      def mark_completed: (untyped result) -> void
+      def mark_failed: (StandardError error) -> void
+      def mark_clean_completed: (untyped result) -> void
+      def wait_for_completion: () -> void
       def wait_for_clean_completion: () -> void
-      def debug_log: (String message) -> void
-      def log_start: () -> void
-      def log_completion: () -> void
-      def log_clean_start: () -> void
-      def log_clean_completion: () -> void
-      def register_with_progress_display: () -> void
-      def update_progress: (Symbol state, ?duration: Numeric?, ?error: Exception?) -> void
       def method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped
       def respond_to_missing?: (Symbol name, ?bool include_private) -> bool
+
+      private
+
+      def trigger_execution_and_wait: () -> void
+      def trigger_clean_and_wait: () -> void
+      def execute_clean: () -> void
+      def wait_for_clean_dependencies: () -> void
+      def check_abort!: () -> void
+      def update_progress: (Symbol state, ?duration: Numeric?, ?error: Exception?) -> void
+      def debug_log: (String message) -> void
     end
 
     # ParallelProgressDisplay class for progress visualization
@@ -246,19 +276,21 @@ module Taski
 
       private
 
-      def self.extract_run_method_location: (Class task_class) -> [String, Integer]?
+      def self.target_method_for: (Class task_class) -> Symbol
+      def self.extract_method_location: (Class task_class, Symbol method_name) -> [String, Integer]?
     end
 
     # Visitor class for AST traversal
     class Visitor < Prism::Visitor
       @target_task_class: Class
+      @target_method: Symbol
       @dependencies: Set[task_class]
-      @in_target_run_method: bool
+      @in_target_method: bool
       @current_namespace_path: Array[String?]
 
       attr_reader dependencies: Set[task_class]
 
-      def initialize: (Class task_class) -> void
+      def initialize: (Class task_class, Symbol target_method) -> void
       def visit_class_node: (Prism::ClassNode node) -> untyped
       def visit_module_node: (Prism::ModuleNode node) -> untyped
       def visit_def_node: (Prism::DefNode node) -> untyped
@@ -268,8 +300,10 @@ module Taski
 
       def within_namespace: (String? name) { () -> void } -> void
       def in_target_class?: () -> bool
+      def in_impl_method?: () -> bool
       def extract_constant_name: (untyped node) -> String?
       def detect_task_dependency: (Prism::CallNode node) -> void
+      def detect_impl_candidate: (untyped node) -> void
       def extract_receiver_constant: (untyped receiver) -> String?
       def resolve_and_add_dependency: (String constant_name) -> void
       def resolve_constant: (String name) -> task_class?
