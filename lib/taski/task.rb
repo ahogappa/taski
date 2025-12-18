@@ -2,7 +2,6 @@
 
 require_relative "static_analysis/analyzer"
 require_relative "execution/registry"
-require_relative "execution/coordinator"
 require_relative "execution/task_wrapper"
 
 module Taski
@@ -24,11 +23,16 @@ module Taski
       # Each call creates a fresh TaskWrapper instance for re-execution support.
       # Use class methods (e.g., MyTask.result) for cached single execution.
       def new
-        Execution::TaskWrapper.new(
-          super,
-          registry: registry,
-          coordinator: coordinator
+        fresh_registry = Execution::Registry.new
+        task_instance = allocate
+        task_instance.send(:initialize)
+        wrapper = Execution::TaskWrapper.new(
+          task_instance,
+          registry: fresh_registry
         )
+        # Pre-register to prevent Executor from creating a duplicate wrapper
+        fresh_registry.register(self, wrapper)
+        wrapper
       end
 
       def cached_dependencies
@@ -55,18 +59,10 @@ module Taski
         Taski.global_registry
       end
 
-      def coordinator
-        @coordinator ||= Execution::Coordinator.new(
-          registry: registry,
-          analyzer: StaticAnalysis::Analyzer
-        )
-      end
-
       def reset!
         registry.reset!
         Taski.reset_global_registry!
         Taski.reset_context!
-        @coordinator = nil
         @circular_dependency_checked = false
       end
 
@@ -162,8 +158,7 @@ module Taski
           task_instance.send(:initialize)
           Execution::TaskWrapper.new(
             task_instance,
-            registry: registry,
-            coordinator: coordinator
+            registry: registry
           )
         end
       end
