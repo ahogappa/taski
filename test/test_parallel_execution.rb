@@ -421,4 +421,150 @@ class TestParallelExecution < Minitest::Test
     end
     assert_match(/not registered/, error.message)
   end
+
+  # Test TaskWrapper state methods
+  def test_task_wrapper_state_methods
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    # Create a fresh registry and wrapper
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    # Initially pending
+    assert_equal :pending, wrapper.state
+    assert wrapper.pending?
+    refute wrapper.completed?
+
+    # After mark_running
+    assert wrapper.mark_running
+
+    # Cannot mark running twice
+    refute wrapper.mark_running
+
+    # After mark_completed
+    wrapper.mark_completed("result")
+    assert_equal :completed, wrapper.state
+    refute wrapper.pending?
+    assert wrapper.completed?
+  end
+
+  # Test TaskWrapper respond_to_missing? for unknown methods
+  def test_task_wrapper_respond_to_missing_unknown_method
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    # Should respond to exported method
+    assert wrapper.respond_to?(:value)
+
+    # Should not respond to unknown method
+    refute wrapper.respond_to?(:unknown_method_that_does_not_exist)
+  end
+
+  # Test TaskWrapper method_missing for unknown methods
+  def test_task_wrapper_method_missing_unknown_method
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    # Should raise NoMethodError for unknown method
+    assert_raises(NoMethodError) do
+      wrapper.completely_unknown_method
+    end
+  end
+
+  # Test non-TaskAbortException error handling in Executor
+  def test_executor_handles_non_abort_exception
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise StandardError, "Test error"
+      end
+    end
+
+    error = assert_raises(StandardError) do
+      task_class.run
+    end
+    assert_equal "Test error", error.message
+  end
+
+  # Test that wrapper timing is recorded
+  def test_task_wrapper_timing
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        sleep 0.01
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    # No timing before execution
+    assert_nil wrapper.timing
+
+    wrapper.mark_running
+    refute_nil wrapper.timing
+    assert_nil wrapper.timing.end_time
+
+    result = task_instance.run
+    wrapper.mark_completed(result)
+
+    refute_nil wrapper.timing.end_time
+    assert wrapper.timing.duration_ms >= 0
+  end
+
+  # Test that mark_failed records error
+  def test_task_wrapper_mark_failed
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    wrapper.mark_running
+    test_error = StandardError.new("Test error")
+    wrapper.mark_failed(test_error)
+
+    assert wrapper.completed?
+    assert_equal test_error, wrapper.error
+  end
 end
