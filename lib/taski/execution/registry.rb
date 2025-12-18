@@ -20,6 +20,12 @@ module Taski
       end
 
       # @param task_class [Class] The task class
+      # @param wrapper [TaskWrapper] The wrapper instance to register
+      def register(task_class, wrapper)
+        @tasks[task_class] = wrapper
+      end
+
+      # @param task_class [Class] The task class
       # @return [Object] The task instance
       # @raise [RuntimeError] If the task is not registered
       def get_task(task_class)
@@ -65,7 +71,9 @@ module Taski
 
         wait_all
 
-        get_task(task_class).result
+        # @type var wrapper: Taski::Execution::TaskWrapper
+        wrapper = get_task(task_class)
+        wrapper.result
       end
     end
   end

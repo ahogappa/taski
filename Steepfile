@@ -13,6 +13,7 @@ target :lib do
   # Standard library dependencies
   library "monitor"
   library "tsort"
+  library "etc"
 
   # Use gems from rbs_collection
   collection_config "rbs_collection.yaml"
