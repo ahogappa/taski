@@ -457,6 +457,94 @@ module ImplDependsOnTaskTest
   end
 end
 
+# Test fixtures for static analysis following method calls
+# When run method calls private methods, dependencies in those methods should be detected
+
+class MethodCallBaseTask < Taski::Task
+  exports :base_value
+
+  def run
+    @base_value = "base"
+  end
+end
+
+class MethodCallFollowTask < Taski::Task
+  exports :result
+
+  def run
+    @result = process_data
+  end
+
+  private
+
+  def process_data
+    # This dependency should be detected by static analysis
+    MethodCallBaseTask.base_value + "_processed"
+  end
+end
+
+# Test fixture for nested method calls (run -> helper1 -> helper2)
+class NestedMethodCallTask < Taski::Task
+  exports :result
+
+  def run
+    @result = step1
+  end
+
+  private
+
+  def step1
+    step2 + "_step1"
+  end
+
+  def step2
+    # Nested dependency - two levels deep from run
+    MethodCallBaseTask.base_value + "_step2"
+  end
+end
+
+# Test fixture for multiple methods with dependencies
+class MultiMethodTask < Taski::Task
+  exports :result
+
+  def run
+    @result = "#{get_base}_#{get_other}"
+  end
+
+  private
+
+  def get_base
+    MethodCallBaseTask.base_value
+  end
+
+  def get_other
+    MethodCallFollowTask.result
+  end
+end
+
+# Test fixture for Section with method calls in impl
+class MethodCallSectionImpl < Taski::Task
+  exports :section_value
+
+  def run
+    @section_value = "section_impl"
+  end
+end
+
+class MethodCallSection < Taski::Section
+  interfaces :section_value
+
+  def impl
+    select_impl
+  end
+
+  private
+
+  def select_impl
+    MethodCallSectionImpl
+  end
+end
+
 module LazyDependencyTest
   # Track which tasks have been executed with timestamps
   @executed_tasks = []
