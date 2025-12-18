@@ -9,14 +9,10 @@ module Taski
 
       # @param target_task_class [Class] The task class to analyze
       # @param target_method [Symbol] The method name to analyze (:run or :impl)
-      # @param include_impl_candidates [Boolean] Whether to include impl candidates in dependencies
-      #   - false (default): impl candidates are NOT treated as dependencies (for execution)
-      #   - true: impl candidates ARE included (for tree display visualization)
-      def initialize(target_task_class, target_method = :run, include_impl_candidates: false)
+      def initialize(target_task_class, target_method = :run)
         super()
         @target_task_class = target_task_class
         @target_method = target_method
-        @include_impl_candidates = include_impl_candidates
         @dependencies = Set.new
         @in_target_method = false
         @current_namespace_path = []
@@ -46,16 +42,14 @@ module Taski
       end
 
       def visit_constant_read_node(node)
-        # Section.impl method constants are only included when include_impl_candidates is true (for tree display)
-        # For execution, impl candidates are resolved at runtime by the impl method
-        detect_impl_candidate(node) if should_detect_impl_candidates?
+        # For Section.impl, detect constants as impl candidates (static dependencies)
+        detect_impl_candidate(node) if in_impl_method?
         super
       end
 
       def visit_constant_path_node(node)
-        # Section.impl method constants are only included when include_impl_candidates is true (for tree display)
-        # For execution, impl candidates are resolved at runtime by the impl method
-        detect_impl_candidate(node) if should_detect_impl_candidates?
+        # For Section.impl, detect constants as impl candidates (static dependencies)
+        detect_impl_candidate(node) if in_impl_method?
         super
       end
 
@@ -76,8 +70,8 @@ module Taski
         node.slice
       end
 
-      def should_detect_impl_candidates?
-        @in_target_method && @target_method == :impl && @include_impl_candidates
+      def in_impl_method?
+        @in_target_method && @target_method == :impl
       end
 
       def detect_impl_candidate(node)

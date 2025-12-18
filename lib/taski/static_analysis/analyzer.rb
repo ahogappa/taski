@@ -6,23 +6,18 @@ require_relative "visitor"
 module Taski
   module StaticAnalysis
     class Analyzer
+      # Analyzes a task class and returns its static dependencies.
+      # For Task: dependencies detected from run method (SomeTask.method calls)
+      # For Section: impl candidates detected from impl method (constants returned)
+      #
+      # Static dependencies are used for:
+      # - Tree display visualization
+      # - Circular dependency detection
+      # - Task execution (for Task only; Section resolves impl at runtime)
+      #
       # @param task_class [Class] The task class to analyze
-      # @return [Set<Class>] Set of task classes that are dependencies (for execution)
+      # @return [Set<Class>] Set of task classes that are static dependencies
       def self.analyze(task_class)
-        analyze_with_options(task_class, include_impl_candidates: false)
-      end
-
-      # @param task_class [Class] The task class to analyze
-      # @return [Set<Class>] Set of task classes that are dependencies (for tree display)
-      #   This includes Section.impl candidates for visualization purposes
-      def self.analyze_for_tree(task_class)
-        analyze_with_options(task_class, include_impl_candidates: true)
-      end
-
-      # @param task_class [Class] The task class to analyze
-      # @param include_impl_candidates [Boolean] Whether to include impl candidates
-      # @return [Set<Class>] Set of task classes that are dependencies
-      def self.analyze_with_options(task_class, include_impl_candidates:)
         target_method = target_method_for(task_class)
         source_location = extract_method_location(task_class, target_method)
         return Set.new unless source_location
@@ -30,7 +25,7 @@ module Taski
         file_path, _line_number = source_location
         parse_result = Prism.parse_file(file_path)
 
-        visitor = Visitor.new(task_class, target_method, include_impl_candidates: include_impl_candidates)
+        visitor = Visitor.new(task_class, target_method)
         visitor.visit(parse_result.value)
         visitor.dependencies
       end
