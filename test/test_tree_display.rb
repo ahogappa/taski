@@ -56,6 +56,8 @@ class TestTreeDisplay < Minitest::Test
     assert_includes result, "(Section)"
   end
 
+  # Section.impl candidates ARE shown in tree display for visualization purposes
+  # even though they are resolved at runtime for execution
   def test_tree_shows_impl_prefix_for_section_dependency
     result = NestedSection.tree
     assert_includes result, "[impl]"

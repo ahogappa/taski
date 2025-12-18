@@ -9,6 +9,13 @@ module Taski
       def interfaces(*interface_methods)
         exports(*interface_methods)
       end
+
+      # Section does not have static dependencies for execution.
+      # The impl method is called at runtime to determine the actual implementation.
+      # Static dependencies (impl candidates) are only used for tree display and circular detection.
+      def cached_dependencies
+        Set.new
+      end
     end
 
     def run

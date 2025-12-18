@@ -6,8 +6,17 @@ require_relative "visitor"
 module Taski
   module StaticAnalysis
     class Analyzer
+      # Analyzes a task class and returns its static dependencies.
+      # For Task: dependencies detected from run method (SomeTask.method calls)
+      # For Section: impl candidates detected from impl method (constants returned)
+      #
+      # Static dependencies are used for:
+      # - Tree display visualization
+      # - Circular dependency detection
+      # - Task execution (for Task only; Section resolves impl at runtime)
+      #
       # @param task_class [Class] The task class to analyze
-      # @return [Set<Class>] Set of task classes that are dependencies
+      # @return [Set<Class>] Set of task classes that are static dependencies
       def self.analyze(task_class)
         target_method = target_method_for(task_class)
         source_location = extract_method_location(task_class, target_method)

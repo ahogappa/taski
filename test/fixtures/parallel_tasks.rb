@@ -365,3 +365,101 @@ class OuterSection < Taski::Section
     InnerSection
   end
 end
+
+# Test fixtures for lazy dependency resolution in Section
+# When impl returns OptionB, OptionA's dependencies should NOT be executed
+module LazyDependencyTest
+  # Track which tasks have been executed with timestamps
+  @executed_tasks = []
+  @impl_call_order = nil
+  @mutex = Mutex.new
+
+  class << self
+    attr_accessor :impl_call_order
+
+    def record(task_name)
+      @mutex.synchronize do
+        @executed_tasks << {name: task_name, time: Time.now}
+      end
+    end
+
+    def executed_tasks
+      @mutex.synchronize do
+        @executed_tasks.map { |entry| entry[:name] }
+      end
+    end
+
+    def executed_before_impl?(task_name)
+      @mutex.synchronize do
+        return false unless @impl_call_order
+        task_entry = @executed_tasks.find { |entry| entry[:name] == task_name }
+        return false unless task_entry
+        task_entry[:time] < @impl_call_order
+      end
+    end
+
+    def reset
+      @mutex.synchronize do
+        @executed_tasks = []
+        @impl_call_order = nil
+      end
+    end
+  end
+
+  # Expensive task that should NOT be executed when OptionA is not selected
+  class ExpensiveTask < Taski::Task
+    exports :value
+
+    def run
+      LazyDependencyTest.record(:expensive_task)
+      @value = "expensive"
+    end
+  end
+
+  # Cheap task that OptionB depends on
+  class CheapTask < Taski::Task
+    exports :value
+
+    def run
+      LazyDependencyTest.record(:cheap_task)
+      @value = "cheap"
+    end
+  end
+
+  # Section with two options, each with different dependencies
+  # Bug: When impl has conditional, all candidates' dependencies are executed
+  class MySection < Taski::Section
+    interfaces :value
+
+    # OptionA depends on ExpensiveTask
+    class OptionA < Taski::Task
+      exports :value
+
+      def run
+        LazyDependencyTest.record(:option_a)
+        @value = "A with #{ExpensiveTask.value}"
+      end
+    end
+
+    # OptionB depends on CheapTask
+    class OptionB < Taski::Task
+      exports :value
+
+      def run
+        LazyDependencyTest.record(:option_b)
+        @value = "B with #{CheapTask.value}"
+      end
+    end
+
+    def impl
+      LazyDependencyTest.impl_call_order = Time.now
+      # Conditional selection - both OptionA and OptionB are referenced in impl
+      # Only the selected option's dependencies should be executed
+      if Taski.context[:use_option_a]
+        OptionA
+      else
+        OptionB
+      end
+    end
+  end
+end
