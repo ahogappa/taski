@@ -368,6 +368,95 @@ end
 
 # Test fixtures for lazy dependency resolution in Section
 # When impl returns OptionB, OptionA's dependencies should NOT be executed
+# Test fixtures for Section.impl depending on other tasks
+# Example: def impl = TaskA.value ? TaskB : TaskC
+module ImplDependsOnTaskTest
+  @executed_tasks = []
+  @mutex = Mutex.new
+
+  class << self
+    def record(task_name)
+      @mutex.synchronize do
+        @executed_tasks << task_name
+      end
+    end
+
+    def executed_tasks
+      @mutex.synchronize { @executed_tasks.dup }
+    end
+
+    def reset
+      @mutex.synchronize { @executed_tasks = [] }
+    end
+  end
+
+  # Task that determines which implementation to use
+  class ConditionTask < Taski::Task
+    exports :use_fast_mode
+
+    def run
+      ImplDependsOnTaskTest.record(:condition_task)
+      # Use context to control condition for testing
+      @use_fast_mode = Taski.context[:fast_mode] || false
+    end
+  end
+
+  # Fast implementation
+  class FastImpl < Taski::Task
+    exports :result
+
+    def run
+      ImplDependsOnTaskTest.record(:fast_impl)
+      @result = "fast result"
+    end
+  end
+
+  # Slow implementation with its own dependency
+  class SlowDependency < Taski::Task
+    exports :data
+
+    def run
+      ImplDependsOnTaskTest.record(:slow_dependency)
+      @data = "slow data"
+    end
+  end
+
+  class SlowImpl < Taski::Task
+    exports :result
+
+    def run
+      ImplDependsOnTaskTest.record(:slow_impl)
+      @result = "slow result with #{SlowDependency.data}"
+    end
+  end
+
+  # Section where impl depends on ConditionTask's value
+  class ConditionalSection < Taski::Section
+    interfaces :result
+
+    def impl
+      ImplDependsOnTaskTest.record(:impl_called)
+      # impl method depends on another task's value
+      # This will block until ConditionTask completes
+      if ConditionTask.use_fast_mode
+        FastImpl
+      else
+        SlowImpl
+      end
+    end
+  end
+
+  # Task that depends on the Section
+  class FinalTask < Taski::Task
+    exports :output
+
+    def run
+      ImplDependsOnTaskTest.record(:final_task)
+      @output = "final: #{ConditionalSection.result}"
+    end
+  end
+end
+
 module LazyDependencyTest
   # Track which tasks have been executed with timestamps
   @executed_tasks = []

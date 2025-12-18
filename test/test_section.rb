@@ -112,4 +112,89 @@ class TestSection < Minitest::Test
     # Value should be from OptionB
     assert_equal "B with cheap", LazyDependencyTest::MySection.value
   end
+
+  # Test Section.impl that depends on another task's value
+  # Example: def impl = TaskA.value ? TaskB : TaskC
+  def test_section_impl_depends_on_task_fast_mode
+    ImplDependsOnTaskTest.reset
+
+    # Run with fast_mode = true
+    ImplDependsOnTaskTest::FinalTask.run(context: {fast_mode: true})
+
+    executed = ImplDependsOnTaskTest.executed_tasks
+
+    # ConditionTask must be executed (impl depends on it)
+    assert_includes executed, :condition_task,
+      "ConditionTask should be executed because impl depends on it"
+
+    # impl should be called after ConditionTask
+    assert_includes executed, :impl_called,
+      "impl method should be called"
+
+    # FastImpl should be executed (condition is true)
+    assert_includes executed, :fast_impl,
+      "FastImpl should be executed when fast_mode is true"
+
+    # SlowImpl and SlowDependency should NOT be executed
+    refute_includes executed, :slow_impl,
+      "SlowImpl should NOT be executed when fast_mode is true"
+    refute_includes executed, :slow_dependency,
+      "SlowDependency should NOT be executed when fast_mode is true"
+
+    # Final result should use FastImpl
+    assert_equal "final: fast result", ImplDependsOnTaskTest::FinalTask.output
+  end
+
+  def test_section_impl_depends_on_task_slow_mode
+    ImplDependsOnTaskTest.reset
+
+    # Run with fast_mode = false (default)
+    ImplDependsOnTaskTest::FinalTask.run(context: {fast_mode: false})
+
+    executed = ImplDependsOnTaskTest.executed_tasks
+
+    # ConditionTask must be executed (impl depends on it)
+    assert_includes executed, :condition_task,
+      "ConditionTask should be executed because impl depends on it"
+
+    # impl should be called
+    assert_includes executed, :impl_called,
+      "impl method should be called"
+
+    # SlowImpl and its dependency should be executed
+    assert_includes executed, :slow_impl,
+      "SlowImpl should be executed when fast_mode is false"
+    assert_includes executed, :slow_dependency,
+      "SlowDependency should be executed as SlowImpl's dependency"
+
+    # FastImpl should NOT be executed
+    refute_includes executed, :fast_impl,
+      "FastImpl should NOT be executed when fast_mode is false"
+
+    # Final result should use SlowImpl
+    assert_equal "final: slow result with slow data", ImplDependsOnTaskTest::FinalTask.output
+  end
+
+  # Test execution order: impl is called first, then blocks on ConditionTask
+  # The impl method is called during Section.run, and when it accesses
+  # ConditionTask.use_fast_mode, it blocks until ConditionTask completes.
+  def test_section_impl_blocks_on_dependency
+    ImplDependsOnTaskTest.reset
+
+    ImplDependsOnTaskTest::ConditionalSection.run(context: {fast_mode: true})
+
+    executed = ImplDependsOnTaskTest.executed_tasks
+
+    # Both should be recorded
+    assert_includes executed, :condition_task, "ConditionTask should be executed"
+    assert_includes executed, :impl_called, "impl should be called"
+
+    # impl is called first (during Section.run), then it accesses ConditionTask.use_fast_mode
+    # which triggers ConditionTask execution and blocks until it completes
+    impl_idx = executed.index(:impl_called)
+    condition_idx = executed.index(:condition_task)
+
+    assert impl_idx < condition_idx,
+      "impl (#{impl_idx}) is called first, then blocks on ConditionTask (#{condition_idx})"
+  end
 end
