@@ -126,7 +126,7 @@ class TestParallelExecution < Minitest::Test
         exports :section_value
 
         def run
-          @ection_value = "Implementation 1"
+          @section_value = "Implementation 1"
         end
       end)
     end
