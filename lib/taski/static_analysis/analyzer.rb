@@ -7,8 +7,8 @@ module Taski
   module StaticAnalysis
     class Analyzer
       # Analyzes a task class and returns its static dependencies.
-      # For Task: dependencies detected from run method (SomeTask.method calls)
-      # For Section: impl candidates detected from impl method (constants returned)
+      # For Task: dependencies detected from run method and called methods (SomeTask.method calls)
+      # For Section: impl candidates detected from impl method and called methods (constants returned)
       #
       # Static dependencies are used for:
       # - Tree display visualization
