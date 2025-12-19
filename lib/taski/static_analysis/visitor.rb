@@ -9,17 +9,34 @@ module Taski
 
       # @param target_task_class [Class] The task class to analyze
       # @param target_method [Symbol] The method name to analyze (:run or :impl)
-      def initialize(target_task_class, target_method = :run)
+      # @param methods_to_analyze [Set<Symbol>] Set of method names to analyze (for following calls)
+      def initialize(target_task_class, target_method = :run, methods_to_analyze = nil)
         super()
         @target_task_class = target_task_class
         @target_method = target_method
         @dependencies = Set.new
         @in_target_method = false
         @current_namespace_path = []
+        # Methods to analyze: starts with just the target method, grows as we find calls
+        @methods_to_analyze = methods_to_analyze || Set.new([@target_method])
+        # Track which methods we've already analyzed to prevent infinite loops
+        @analyzed_methods = Set.new
+        # Collect method calls made within analyzed methods (for following)
+        @method_calls_to_follow = Set.new
+        # Store method definitions found in the class for later analysis
+        @class_method_defs = {}
+        # Track if we're in an impl call chain (for Section constant detection)
+        @in_impl_chain = false
       end
 
       def visit_class_node(node)
-        within_namespace(extract_constant_name(node.constant_path)) { super }
+        within_namespace(extract_constant_name(node.constant_path)) do
+          if in_target_class?
+            # First pass: collect all method definitions in the target class
+            collect_method_definitions(node)
+          end
+          super
+        end
       end
 
       def visit_module_node(node)
@@ -27,17 +44,25 @@ module Taski
       end
 
       def visit_def_node(node)
-        if node.name == @target_method && in_target_class?
+        if in_target_class? && should_analyze_method?(node.name)
+          @analyzed_methods.add(node.name)
           @in_target_method = true
+          @current_analyzing_method = node.name
+          # Start impl chain when entering impl method
+          @in_impl_chain = true if node.name == :impl && @target_method == :impl
           super
           @in_target_method = false
+          @current_analyzing_method = nil
         else
           super
         end
       end
 
       def visit_call_node(node)
-        detect_task_dependency(node) if @in_target_method
+        if @in_target_method
+          detect_task_dependency(node)
+          detect_method_call_to_follow(node)
+        end
         super
       end
 
@@ -53,7 +78,45 @@ module Taski
         super
       end
 
+      # After visiting, follow any method calls that need analysis
+      # @in_impl_chain is preserved because methods called from impl should
+      # also detect constants as impl candidates
+      def follow_method_calls
+        new_methods = @method_calls_to_follow - @analyzed_methods
+        return if new_methods.empty?
+
+        # Add new methods to analyze
+        @methods_to_analyze.merge(new_methods)
+        @method_calls_to_follow.clear
+
+        # Re-analyze the class methods
+        # Preserve impl chain context: methods called from impl should continue
+        # detecting constants as impl candidates
+        @class_method_defs.each do |method_name, method_node|
+          next unless new_methods.include?(method_name)
+
+          @analyzed_methods.add(method_name)
+          @in_target_method = true
+          @current_analyzing_method = method_name
+          visit(method_node)
+          @in_target_method = false
+          @current_analyzing_method = nil
+        end
+
+        # Recursively follow any new calls discovered
+        follow_method_calls
+      end
+
       private
+
+      # Collect all method definitions in the target class for later analysis
+      def collect_method_definitions(class_node)
+        class_node.body&.body&.each do |node|
+          if node.is_a?(Prism::DefNode)
+            @class_method_defs[node.name] = node
+          end
+        end
+      end
 
       def within_namespace(name)
         @current_namespace_path.push(name)
@@ -70,8 +133,26 @@ module Taski
         node.slice
       end
 
+      def should_analyze_method?(method_name)
+        @methods_to_analyze.include?(method_name) && !@analyzed_methods.include?(method_name)
+      end
+
       def in_impl_method?
-        @in_target_method && @target_method == :impl
+        @in_target_method && @in_impl_chain
+      end
+
+      # Detect method calls that should be followed (calls to methods in the same class)
+      def detect_method_call_to_follow(node)
+        # Only follow calls without explicit receiver (self.method or just method)
+        return if node.receiver && !self_receiver?(node.receiver)
+
+        method_name = node.name
+        # Mark this method for later analysis if it's defined in the class
+        @method_calls_to_follow.add(method_name) if @class_method_defs.key?(method_name)
+      end
+
+      def self_receiver?(receiver)
+        receiver.is_a?(Prism::SelfNode)
       end
 
       def detect_impl_candidate(node)

@@ -23,4 +23,27 @@ class TestParallelStaticAnalysis < Minitest::Test
     dependencies = Taski::StaticAnalysis::Analyzer.analyze(FixtureTaskA)
     assert_empty dependencies
   end
+
+  # Tests for following method calls from run/impl
+  def test_analyze_follows_method_call_from_run
+    dependencies = Taski::StaticAnalysis::Analyzer.analyze(MethodCallFollowTask)
+    assert_includes dependencies.map(&:name), "MethodCallBaseTask"
+  end
+
+  def test_analyze_follows_nested_method_calls
+    dependencies = Taski::StaticAnalysis::Analyzer.analyze(NestedMethodCallTask)
+    assert_includes dependencies.map(&:name), "MethodCallBaseTask"
+  end
+
+  def test_analyze_follows_multiple_method_calls
+    dependencies = Taski::StaticAnalysis::Analyzer.analyze(MultiMethodTask)
+    dep_names = dependencies.map(&:name)
+    assert_includes dep_names, "MethodCallBaseTask"
+    assert_includes dep_names, "MethodCallFollowTask"
+  end
+
+  def test_analyze_follows_method_call_in_section_impl
+    dependencies = Taski::StaticAnalysis::Analyzer.analyze(MethodCallSection)
+    assert_includes dependencies.map(&:name), "MethodCallSectionImpl"
+  end
 end

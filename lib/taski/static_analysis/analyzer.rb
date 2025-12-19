@@ -27,6 +27,8 @@ module Taski
 
         visitor = Visitor.new(task_class, target_method)
         visitor.visit(parse_result.value)
+        # Follow method calls to analyze dependencies in called methods
+        visitor.follow_method_calls
         visitor.dependencies
       end
 
