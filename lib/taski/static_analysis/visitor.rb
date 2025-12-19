@@ -79,6 +79,8 @@ module Taski
       end
 
       # After visiting, follow any method calls that need analysis
+      # @in_impl_chain is preserved because methods called from impl should
+      # also detect constants as impl candidates
       def follow_method_calls
         new_methods = @method_calls_to_follow - @analyzed_methods
         return if new_methods.empty?
@@ -88,6 +90,8 @@ module Taski
         @method_calls_to_follow.clear
 
         # Re-analyze the class methods
+        # Preserve impl chain context: methods called from impl should continue
+        # detecting constants as impl candidates
         @class_method_defs.each do |method_name, method_node|
           next unless new_methods.include?(method_name)
 
