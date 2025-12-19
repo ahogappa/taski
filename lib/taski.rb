@@ -7,7 +7,8 @@ require_relative "taski/static_analysis/dependency_graph"
 require_relative "taski/execution/registry"
 require_relative "taski/execution/task_wrapper"
 require_relative "taski/execution/executor"
-require_relative "taski/execution/parallel_progress_display"
+require_relative "taski/execution/tree_progress_display"
+require_relative "taski/execution/output_capture"
 require_relative "taski/context"
 require_relative "taski/task"
 require_relative "taski/section"
@@ -59,13 +60,17 @@ module Taski
     @global_registry = nil
   end
 
+  # Progress display is enabled by default (tree-style).
+  # Environment variables:
+  # - TASKI_PROGRESS_DISABLE=1: Disable progress display entirely
+  # - TASKI_FORCE_PROGRESS=1: Force enable even without TTY (for testing)
   def self.progress_display
-    return nil unless progress_enabled?
-    @progress_display ||= Execution::ParallelProgressDisplay.new
+    return nil if progress_disabled?
+    @progress_display ||= Execution::TreeProgressDisplay.new
   end
 
-  def self.progress_enabled?
-    ENV["TASKI_PROGRESS"] == "1" || ENV["TASKI_FORCE_PROGRESS"] == "1"
+  def self.progress_disabled?
+    ENV["TASKI_PROGRESS_DISABLE"] == "1"
   end
 
   def self.reset_progress_display!
