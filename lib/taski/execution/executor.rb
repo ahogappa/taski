@@ -48,6 +48,12 @@ module Taski
         # Build dependency graph from static analysis
         build_dependency_graph(root_task_class)
 
+        # Set up tree progress display with root task (before start)
+        setup_tree_progress(root_task_class)
+
+        # Start progress display automatically for tree progress
+        start_progress_display
+
         # Start worker threads
         start_workers
 
@@ -59,6 +65,9 @@ module Taski
 
         # Shutdown workers
         shutdown_workers
+
+        # Stop progress display
+        stop_progress_display
       end
 
       private
@@ -155,7 +164,7 @@ module Taski
         return if @registry.abort_requested?
 
         begin
-          result = wrapper.task.run
+          result = execute_with_output_capture(task_class, wrapper)
           wrapper.mark_completed(result)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
         rescue Taski::TaskAbortException => e
@@ -165,6 +174,23 @@ module Taski
         rescue => e
           wrapper.mark_failed(e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e})
+        end
+      end
+
+      # Execute task with stdout capture for progress display
+      def execute_with_output_capture(task_class, wrapper)
+        progress = Taski.progress_display
+        if progress&.is_a?(TreeProgressDisplay) && $stdout.tty?
+          capture = OutputCapture.new(task_class, progress_display: progress)
+          original_stdout = $stdout
+          begin
+            $stdout = capture
+            wrapper.task.run
+          ensure
+            $stdout = original_stdout
+          end
+        else
+          wrapper.task.run
         end
       end
 
@@ -199,6 +225,27 @@ module Taski
       def shutdown_workers
         @worker_count.times { @execution_queue.push(:shutdown) }
         @workers.each(&:join)
+      end
+
+      def setup_tree_progress(root_task_class)
+        progress = Taski.progress_display
+        return unless progress.is_a?(TreeProgressDisplay)
+
+        progress.set_root_task(root_task_class)
+      end
+
+      def start_progress_display
+        progress = Taski.progress_display
+        return unless progress.is_a?(TreeProgressDisplay)
+
+        progress.start
+      end
+
+      def stop_progress_display
+        progress = Taski.progress_display
+        return unless progress.is_a?(TreeProgressDisplay)
+
+        progress.stop
       end
 
       def debug_log(message)

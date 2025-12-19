@@ -24,6 +24,9 @@ module Taski
         raise "Section #{self.class} does not have an implementation. Override 'impl' method."
       end
 
+      # Register selected impl for progress display
+      register_impl_selection(implementation_class)
+
       apply_interface_to_implementation(implementation_class)
 
       self.class.exported_methods.each do |method|
@@ -39,6 +42,13 @@ module Taski
     end
 
     private
+
+    def register_impl_selection(implementation_class)
+      progress = Taski.progress_display
+      return unless progress.is_a?(Execution::TreeProgressDisplay)
+
+      progress.register_section_impl(self.class, implementation_class)
+    end
 
     # @param implementation_class [Class] The implementation task class
     def apply_interface_to_implementation(implementation_class)
