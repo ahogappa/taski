@@ -2,7 +2,7 @@ module Taski
   VERSION: String
 
   self.@global_registry: Execution::Registry?
-  self.@progress_display: Execution::ParallelProgressDisplay?
+  self.@progress_display: Execution::TreeProgressDisplay?
   self.@context: Context?
 
   # Type alias for Task class (singleton type with class methods)
@@ -12,8 +12,8 @@ module Taski
   # Module-level methods
   def self.global_registry: () -> Execution::Registry
   def self.reset_global_registry!: () -> void
-  def self.progress_display: () -> Execution::ParallelProgressDisplay?
-  def self.progress_enabled?: () -> bool
+  def self.progress_display: () -> Execution::TreeProgressDisplay?
+  def self.progress_disabled?: () -> bool
   def self.reset_progress_display!: () -> void
   def self.context: () -> Hash[Symbol, untyped]
   def self.start_context: (options: Hash[Symbol, untyped], root_task: Class) -> void
@@ -50,8 +50,6 @@ module Taski
 
   # Main Task class
   class Task
-    COLORS: Hash[Symbol, String]
-
     self.@exported_methods: Array[Symbol]
     self.@dependencies_cache: Set[task_class]?
     self.@circular_dependency_checked: bool
@@ -76,12 +74,6 @@ module Taski
     private
 
     # Private class methods
-    def self.build_tree: (task_class task_class, String prefix, Hash[task_class, Integer] task_index_map, boolish is_impl, ?Set[task_class] ancestors) -> String
-    def self.format_dependency_branch: (task_class dep, String prefix, bool is_last, Hash[task_class, Integer] task_index_map, boolish is_impl, Set[task_class] ancestors) -> String
-    def self.tree_connector_chars: (bool is_last) -> [String, String]
-    def self.get_task_number: (task_class task_class, Hash[task_class, Integer] task_index_map) -> String
-    def self.colored_type_label: (task_class klass) -> String
-    def self.section_class?: (task_class klass) -> boolish
     def self.cached_wrapper: () -> Execution::TaskWrapper
     def self.define_instance_reader: (Symbol method_name) -> void
     def self.define_class_accessor: (Symbol method_name) -> void
@@ -226,9 +218,11 @@ module Taski
       def debug_log: (String message) -> void
     end
 
-    # ParallelProgressDisplay class for progress visualization
-    class ParallelProgressDisplay
+    # TreeProgressDisplay class for tree-based progress visualization
+    class TreeProgressDisplay
       SPINNER_FRAMES: Array[String]
+      COLORS: Hash[Symbol, String]
+      ICONS: Hash[Symbol, String]
 
       @output: IO
       @tasks: Hash[Class, TaskProgress]
@@ -236,6 +230,30 @@ module Taski
       @spinner_index: Integer
       @renderer_thread: Thread?
       @running: bool
+      @nest_level: Integer
+      @root_task_class: Class?
+      @tree_structure: Hash[Symbol, untyped]?
+      @section_impl_map: Hash[Class, Class]
+      @last_line_count: Integer
+
+      # Shared class methods
+      def self.section_class?: (Class klass) -> bool
+      def self.nested_class?: (Class child_class, Class parent_class) -> bool
+      def self.render_static_tree: (Class root_task_class) -> String
+
+      # Static tree renderer (internal class)
+      class StaticTreeRenderer
+        @task_index_map: Hash[Class, Integer]
+
+        def render: (Class root_task_class) -> String
+
+        private
+
+        def build_tree: (Class task_class, String prefix, bool is_impl, Set[Class] ancestors) -> String
+        def render_dependency_branch: (Class dep, String prefix, bool is_last, bool is_impl, Set[Class] ancestors) -> String
+        def get_task_number: (Class task_class) -> String
+        def colored_type_label: (Class klass) -> String
+      end
 
       class TaskProgress
         attr_accessor state: Symbol
@@ -243,28 +261,42 @@ module Taski
         attr_accessor end_time: Time?
         attr_accessor error: Exception?
         attr_accessor duration: Numeric?
+        attr_accessor latest_output: String?
+        attr_accessor is_impl_candidate: bool
 
         def initialize: () -> void
       end
 
       def initialize: (?output: IO) -> void
+      def set_root_task: (Class root_task_class) -> void
+      def register_section_impl: (Class section_class, Class impl_class) -> void
       def register_task: (Class task_class) -> void
       def task_registered?: (Class task_class) -> bool
       def update_task: (Class task_class, state: Symbol, ?duration: Numeric?, ?error: Exception?) -> void
+      def update_task_output: (Class task_class, String line) -> void
       def task_state: (Class task_class) -> Symbol?
-      def render: () -> void
       def start: () -> void
       def stop: () -> void
 
       private
 
-      def collect_task_lines: () -> Array[String]
+      def build_tree_structure: () -> void
+      def build_tree_node: (Class task_class, Set[Class] ancestors) -> Hash[Symbol, untyped]?
+      def register_tasks_from_tree: (Hash[Symbol, untyped] node) -> void
       def render_live: () -> void
       def render_final: () -> void
-      def format_task_line: (Class task_class, TaskProgress progress) -> String
-      def task_icon: (Symbol state) -> String
+      def build_tree_display: () -> Array[String]
+      def build_root_tree_lines: (Hash[Symbol, untyped] node, String prefix, Array[String] lines) -> void
+      def render_children: (Hash[Symbol, untyped] node, String prefix, Array[String] lines, Class parent_task_class, bool ancestor_selected) -> void
+      def format_tree_line: (Class task_class, TaskProgress? progress, bool is_impl, bool is_selected) -> String
+      def format_unknown_task: (Class task_class, ?bool is_selected) -> String
+      def task_status_icon: (Symbol state, bool is_selected) -> String
       def spinner_char: () -> String
+      def type_label_for: (Class task_class, ?bool is_selected) -> String
       def task_details: (TaskProgress progress) -> String
+      def format_output_snippet: (String? output) -> String
+      def section_class?: (Class klass) -> bool
+      def nested_class?: (Class child_class, Class parent_class) -> bool
     end
   end
 

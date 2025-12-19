@@ -9,7 +9,7 @@
 # - Data transformation and aggregation
 #
 # Run: ruby examples/data_pipeline_demo.rb
-# With progress: TASKI_FORCE_PROGRESS=1 ruby examples/data_pipeline_demo.rb
+# Disable progress: TASKI_PROGRESS_DISABLE=1 ruby examples/data_pipeline_demo.rb
 
 require_relative "../lib/taski"
 
@@ -227,5 +227,5 @@ puts "\nKey concepts demonstrated:"
 puts "  - DataSourceSection: Switch between production/test data"
 puts "  - ReportFormatSection: Switch output format (text/JSON)"
 puts "  - Parallel execution of independent transforms"
-puts "\nTry with progress display:"
-puts "  TASKI_FORCE_PROGRESS=1 ruby examples/data_pipeline_demo.rb"
+puts "\nTo disable progress display:"
+puts "  TASKI_PROGRESS_DISABLE=1 ruby examples/data_pipeline_demo.rb"

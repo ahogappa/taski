@@ -162,27 +162,26 @@ RandomTask.reset!
 
 ### Progress Display
 
-Enable real-time progress visualization:
-
-```bash
-TASKI_FORCE_PROGRESS=1 ruby your_script.rb
-```
+Tree-based progress visualization is enabled by default:
 
 ```
-⠋ DatabaseSetup (running)
-⠙ CacheSetup (running)
-✅ DatabaseSetup (123.4ms)
-✅ CacheSetup (98.2ms)
+WebServer (Task)
+├── ⠋ Config (Task) ...
+│   ├── ✅ Database (Task) 45.2ms
+│   └── ⠙ Cache (Task) ...
+└── ◻ Server (Task)
 ```
+
+To disable: `TASKI_PROGRESS_DISABLE=1 ruby your_script.rb`
 
 ### Tree Visualization
 
 ```ruby
 puts WebServer.tree
-# => WebServer
-# => └── Config
-# =>     ├── Database
-# =>     └── Cache
+# WebServer (Task)
+# └── Config (Task)
+#     ├── Database (Task)
+#     └── Cache (Task)
 ```
 
 ## Development

@@ -4,7 +4,7 @@
 require_relative "../lib/taski"
 
 # Demo for nested Sections (Section inside Section)
-# Run with: TASKI_FORCE_PROGRESS=1 ruby examples/nested_section_demo.rb
+# Run with: ruby examples/nested_section_demo.rb
 
 # Configuration loader task - determines which storage to use
 class StorageConfig < Taski::Task

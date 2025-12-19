@@ -77,8 +77,10 @@ class TestTreeDisplay < Minitest::Test
     assert_includes result, "DeepDependency::TaskD (Task)"
     assert_includes result, "ParallelTaskC (Task)"
     assert_includes result, "ParallelSection (Section)"
-    assert_includes result, "[impl]"
+    # ParallelSectionImpl2 is not a nested class of ParallelSection,
+    # so it should NOT have [impl] label (only nested classes get [impl])
     assert_includes result, "ParallelSectionImpl2 (Task)"
+    refute_includes result, "[impl] ParallelSectionImpl2"
   end
 
   def test_tree_includes_ansi_color_codes

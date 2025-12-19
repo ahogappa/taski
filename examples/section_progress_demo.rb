@@ -4,7 +4,7 @@
 require_relative "../lib/taski"
 
 # Demo for tree-based progress display with Section
-# Run with: TASKI_FORCE_PROGRESS=1 ruby examples/section_progress_demo.rb
+# Run with: ruby examples/section_progress_demo.rb
 
 # Database Section with multiple impl candidates
 class DatabaseSection < Taski::Section
