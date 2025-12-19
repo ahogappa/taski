@@ -164,7 +164,7 @@ module Taski
         return if @registry.abort_requested?
 
         begin
-          result = execute_with_output_capture(task_class, wrapper)
+          result = execute_task_run(wrapper)
           wrapper.mark_completed(result)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
         rescue Taski::TaskAbortException => e
@@ -177,21 +177,11 @@ module Taski
         end
       end
 
-      # Execute task with stdout capture for progress display
-      def execute_with_output_capture(task_class, wrapper)
-        progress = Taski.progress_display
-        if progress&.is_a?(TreeProgressDisplay) && $stdout.tty?
-          capture = OutputCapture.new(task_class, progress_display: progress)
-          original_stdout = $stdout
-          begin
-            $stdout = capture
-            wrapper.task.run
-          ensure
-            $stdout = original_stdout
-          end
-        else
-          wrapper.task.run
-        end
+      # Execute task run method
+      # Note: Previously captured stdout for progress display, but this was removed
+      # due to thread-safety concerns with global $stdout mutation.
+      def execute_task_run(wrapper)
+        wrapper.task.run
       end
 
       # Main thread event loop - continues until root task completes

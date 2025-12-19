@@ -261,7 +261,6 @@ module Taski
         attr_accessor end_time: Time?
         attr_accessor error: Exception?
         attr_accessor duration: Numeric?
-        attr_accessor latest_output: String?
         attr_accessor is_impl_candidate: bool
 
         def initialize: () -> void
@@ -273,7 +272,6 @@ module Taski
       def register_task: (Class task_class) -> void
       def task_registered?: (Class task_class) -> bool
       def update_task: (Class task_class, state: Symbol, ?duration: Numeric?, ?error: Exception?) -> void
-      def update_task_output: (Class task_class, String line) -> void
       def task_state: (Class task_class) -> Symbol?
       def start: () -> void
       def stop: () -> void
@@ -294,7 +292,6 @@ module Taski
       def spinner_char: () -> String
       def type_label_for: (Class task_class, ?bool is_selected) -> String
       def task_details: (TaskProgress progress) -> String
-      def format_output_snippet: (String? output) -> String
       def section_class?: (Class klass) -> bool
       def nested_class?: (Class child_class, Class parent_class) -> bool
     end

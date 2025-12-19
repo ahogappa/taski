@@ -22,7 +22,6 @@ module Taski
         error: "\e[31m",     # red
         running: "\e[36m",   # cyan
         pending: "\e[90m",   # gray
-        output: "\e[37m",    # white/gray for stdout
         dim: "\e[2m"         # dim
       }.freeze
 
@@ -121,7 +120,7 @@ module Taski
 
       class TaskProgress
         attr_accessor :state, :start_time, :end_time, :error, :duration
-        attr_accessor :latest_output, :is_impl_candidate
+        attr_accessor :is_impl_candidate
 
         def initialize
           @state = :pending
@@ -129,7 +128,6 @@ module Taski
           @end_time = nil
           @error = nil
           @duration = nil
-          @latest_output = nil
           @is_impl_candidate = false
         end
       end
@@ -203,19 +201,6 @@ module Taski
           when :completed, :failed
             progress.end_time = Time.now
           end
-        end
-      end
-
-      # Update the latest stdout line for a task
-      # @param task_class [Class] The task class
-      # @param line [String] The latest output line
-      def update_task_output(task_class, line)
-        @monitor.synchronize do
-          progress = @tasks[task_class]
-          return unless progress
-          # Store only the last non-empty line, trimmed
-          clean_line = line.to_s.strip
-          progress.latest_output = clean_line unless clean_line.empty?
         end
       end
 
@@ -443,9 +428,8 @@ module Taski
         status_icon = task_status_icon(progress.state, is_selected)
         name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
         details = task_details(progress)
-        output_snippet = format_output_snippet(progress.latest_output)
 
-        "#{status_icon} #{impl_prefix}#{name} #{type_label}#{details}#{output_snippet}"
+        "#{status_icon} #{impl_prefix}#{name} #{type_label}#{details}"
       end
 
       def format_unknown_task(task_class, is_selected = true)
@@ -502,15 +486,6 @@ module Taski
         else
           ""
         end
-      end
-
-      def format_output_snippet(output)
-        return "" unless output && !output.empty?
-
-        # Truncate long output
-        max_length = 50
-        truncated = (output.length > max_length) ? "#{output[0, max_length]}..." : output
-        " #{COLORS[:output]}| #{truncated}#{COLORS[:reset]}"
       end
 
       def section_class?(klass)
