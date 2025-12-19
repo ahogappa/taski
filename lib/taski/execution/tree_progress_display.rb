@@ -213,16 +213,20 @@ module Taski
       end
 
       def start
+        should_start = false
         @monitor.synchronize do
           @nest_level += 1
           return if @nest_level > 1 # Already running from outer executor
+          return if @running
+          return unless @output.tty?
+
+          @running = true
+          should_start = true
         end
 
-        return if @running
-        return unless @output.tty?
+        return unless should_start
 
-        @running = true
-        # Hide cursor
+        # Hide cursor (outside monitor to avoid holding lock during I/O)
         @output.print "\e[?25l"
         @renderer_thread = Thread.new do
           loop do
@@ -237,13 +241,15 @@ module Taski
         should_stop = false
         @monitor.synchronize do
           @nest_level -= 1 if @nest_level > 0
-          should_stop = @nest_level == 0
+          return unless @nest_level == 0
+          return unless @running
+
+          @running = false
+          should_stop = true
         end
 
         return unless should_stop
-        return unless @running
 
-        @running = false
         @renderer_thread&.join
         # Show cursor
         @output.print "\e[?25h"
