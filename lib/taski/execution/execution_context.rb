@@ -68,6 +68,11 @@ module Taski
         Thread.current[THREAD_LOCAL_KEY] = context
       end
 
+      ##
+      # Creates a new ExecutionContext and initializes its internal synchronization and state.
+      #
+      # Initializes a monitor for thread-safe operations and sets up empty observer storage
+      # and nil defaults for execution/clean triggers and output capture related fields.
       def initialize
         @monitor = Monitor.new
         @observers = []
@@ -121,7 +126,10 @@ module Taski
       # This is used to break the circular dependency between TaskWrapper and Executor.
       # The trigger is a callable that takes (task_class, registry) and executes the task.
       #
-      # @param trigger [Proc, nil] The execution trigger callback
+      ##
+      # Sets the execution trigger used to run tasks.
+      # This stores a Proc that will be invoked with (task_class, registry) when a task is executed; setting to `nil` clears the custom trigger and restores the default execution behavior.
+      # @param [Proc, nil] trigger - A callback receiving `(task_class, registry)`, or `nil` to unset the custom trigger.
       def execution_trigger=(trigger)
         @monitor.synchronize { @execution_trigger = trigger }
       end
@@ -130,7 +138,9 @@ module Taski
       # This is used to break the circular dependency between TaskWrapper and Executor.
       # The trigger is a callable that takes (task_class, registry) and cleans the task.
       #
-      # @param trigger [Proc, nil] The clean trigger callback
+      ##
+      # Sets the clean trigger callback used to run task cleaning operations.
+      # @param [Proc, nil] trigger - The callback invoked by `trigger_clean`; `nil` clears the custom clean trigger.
       def clean_trigger=(trigger)
         @monitor.synchronize { @clean_trigger = trigger }
       end
@@ -139,7 +149,10 @@ module Taski
       # Falls back to Executor.execute if no custom trigger is set.
       #
       # @param task_class [Class] The task class to execute
-      # @param registry [Registry] The task registry
+      ##
+      # Executes the given task class using the configured execution trigger or falls back to Executor.execute.
+      # @param task_class [Class] The task class to execute.
+      # @param registry [Registry] The task registry used during execution.
       def trigger_execution(task_class, registry:)
         trigger = @monitor.synchronize { @execution_trigger }
         if trigger
@@ -154,7 +167,11 @@ module Taski
       # Falls back to Executor.execute_clean if no custom trigger is set.
       #
       # @param task_class [Class] The task class to clean
-      # @param registry [Registry] The task registry
+      ##
+      # Triggers a clean operation for the specified task class using the configured clean trigger or a backward-compatible fallback.
+      # @param [Class] task_class - The task class to clean.
+      # @param [Registry] registry - The task registry providing task lookup and metadata.
+      # @return [Object] The result returned by the clean operation (implementation-dependent).
       def trigger_clean(task_class, registry:)
         trigger = @monitor.synchronize { @clean_trigger }
         if trigger
@@ -245,7 +262,8 @@ module Taski
         dispatch(:start)
       end
 
-      # Notify observers to stop.
+      ##
+      # Notify registered observers that execution has stopped.
       def notify_stop
         dispatch(:stop)
       end
@@ -256,7 +274,10 @@ module Taski
 
       # Notify observers that a task's clean has started.
       #
-      # @param task_class [Class] The task class that started cleaning
+      ##
+      # Notifies observers that cleaning of the given task has started.
+      # Dispatches an `:update_task` notification with `state: :cleaning`.
+      # @param [Class] task_class The task class that started cleaning.
       def notify_clean_started(task_class)
         dispatch(:update_task, task_class, state: :cleaning)
       end
@@ -265,7 +286,13 @@ module Taski
       #
       # @param task_class [Class] The task class that completed cleaning
       # @param duration [Float, nil] The clean duration in milliseconds
-      # @param error [Exception, nil] The error if the clean failed
+      ##
+      # Notifies observers that a task's clean has completed, including duration and any error.
+      # Observers receive an `:update_task` notification with `state` set to `:clean_completed` when
+      # `error` is nil, or `:clean_failed` when `error` is provided.
+      # @param [Class] task_class - The task class that finished cleaning.
+      # @param [Numeric, nil] duration - The duration of the clean operation in seconds, or `nil` if unknown.
+      # @param [Exception, nil] error - The error raised during cleaning, or `nil` if the clean succeeded.
       def notify_clean_completed(task_class, duration: nil, error: nil)
         state = error ? :clean_failed : :clean_completed
         dispatch(:update_task, task_class, state: state, duration: duration, error: error)

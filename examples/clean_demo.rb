@@ -22,6 +22,11 @@ BUILD_DIR = "/tmp/taski_clean_demo"
 class SetupBuildDir < Taski::Task
   exports :build_path
 
+  ##
+  # Prepares the task's build directory and simulates its creation.
+  #
+  # Sets the task's exported `build_path` to the "build" subdirectory under `BUILD_DIR`
+  # and performs a simulated creation step with informational output.
   def run
     @build_path = "#{BUILD_DIR}/build"
     puts "[SetupBuildDir] Creating build directory: #{@build_path}"
@@ -29,6 +34,9 @@ class SetupBuildDir < Taski::Task
     sleep 0.8
   end
 
+  ##
+  # Removes the directory referenced by @build_path.
+  # Cleans up build artifacts created by this task.
   def clean
     puts "[SetupBuildDir] Removing build directory: #{@build_path}"
     # Simulated directory removal
@@ -40,6 +48,9 @@ end
 class CompileSource < Taski::Task
   exports :binary_path
 
+  ##
+  # Compiles source artifacts and sets the compiled binary path for downstream tasks.
+  # This method sets @binary_path to the build directory's "app.bin" file and emits a console message indicating the compilation target.
   def run
     build_dir = SetupBuildDir.build_path
     @binary_path = "#{build_dir}/app.bin"
@@ -47,6 +58,9 @@ class CompileSource < Taski::Task
     sleep 1.5
   end
 
+  ##
+  # Removes the compiled binary produced by this task.
+  # Performs the task's cleanup step and simulates the deletion process.
   def clean
     puts "[CompileSource] Removing compiled binary: #{@binary_path}"
     sleep 0.6
@@ -57,6 +71,11 @@ end
 class GenerateDocs < Taski::Task
   exports :docs_path
 
+  ##
+  # Generates documentation for the build and records the output path.
+  #
+  # Sets the task's `@docs_path` to the "docs" subdirectory under `SetupBuildDir.build_path`
+  # and prints a progress message to STDOUT.
   def run
     build_dir = SetupBuildDir.build_path
     @docs_path = "#{build_dir}/docs"
@@ -64,6 +83,9 @@ class GenerateDocs < Taski::Task
     sleep 1.2
   end
 
+  ##
+  # Removes the generated documentation at the task's docs_path.
+  # Prints a removal message for @docs_path and simulates its deletion.
   def clean
     puts "[GenerateDocs] Removing generated docs: #{@docs_path}"
     sleep 0.5
@@ -74,6 +96,9 @@ end
 class CreateRelease < Taski::Task
   exports :release_path
 
+  ##
+  # Creates the release package path and announces the included artifacts.
+  # Uses CompileSource.binary_path and GenerateDocs.docs_path to determine the package inputs, sets @release_path to "#{BUILD_DIR}/release.zip", and prints the binary, docs, and output paths.
   def run
     binary = CompileSource.binary_path
     docs = GenerateDocs.docs_path
@@ -85,6 +110,9 @@ class CreateRelease < Taski::Task
     sleep 0.7
   end
 
+  ##
+  # Removes the release package produced by this task.
+  # Uses the task's `@release_path` as the target for cleanup.
   def clean
     puts "[CreateRelease] Removing release package: #{@release_path}"
     sleep 0.5
