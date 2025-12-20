@@ -34,15 +34,13 @@ module Taski
         skipped: "⊘"         # Prohibition sign for unselected impl candidates
       }.freeze
 
-      # Shared helper methods
+      # Shared helper methods - delegate to TreeBuilder for consistency
       def self.section_class?(klass)
-        defined?(Taski::Section) && klass < Taski::Section
+        TreeBuilder.section_class?(klass)
       end
 
       def self.nested_class?(child_class, parent_class)
-        child_name = child_class.name.to_s
-        parent_name = parent_class.name.to_s
-        child_name.start_with?("#{parent_name}::")
+        TreeBuilder.nested_class?(child_class, parent_class)
       end
 
       # Render a static tree structure for a task class (used by Task.tree)
@@ -80,22 +78,33 @@ module Taski
           @task_index_map[task_class] = @task_index_map.size + 1 unless @task_index_map.key?(task_class)
 
           new_ancestors = ancestors + [task_class]
-          dependencies = StaticAnalysis::Analyzer.analyze(task_class).to_a
-          is_section = TreeProgressDisplay.section_class?(task_class)
+          dep_metadata = TreeBuilder.build_dependencies(task_class, new_ancestors)
 
-          dependencies.each_with_index do |dep, index|
-            is_last = (index == dependencies.size - 1)
-            is_impl_candidate = is_section && TreeProgressDisplay.nested_class?(dep, task_class)
-            result += render_dependency_branch(dep, prefix, is_last, is_impl_candidate, new_ancestors)
+          dep_metadata.each_with_index do |dep_info, index|
+            is_last = (index == dep_metadata.size - 1)
+            result += render_dependency_branch(
+              dep_info[:task_class],
+              prefix,
+              is_last,
+              dep_info[:is_impl_candidate],
+              dep_info[:is_circular],
+              new_ancestors
+            )
           end
 
           result
         end
 
-        def render_dependency_branch(dep, prefix, is_last, is_impl, ancestors)
+        def render_dependency_branch(dep, prefix, is_last, is_impl, is_circular, ancestors)
           connector = is_last ? "└── " : "├── "
           extension = is_last ? "    " : "│   "
-          dep_tree = build_tree(dep, "#{prefix}#{extension}", is_impl, ancestors)
+
+          # For circular dependencies, render without recursion
+          dep_tree = if is_circular
+            render_circular_node(dep, is_impl)
+          else
+            build_tree(dep, "#{prefix}#{extension}", is_impl, ancestors)
+          end
 
           result = "#{prefix}#{COLORS[:tree]}#{connector}#{COLORS[:reset]}"
           lines = dep_tree.lines
@@ -104,13 +113,22 @@ module Taski
           result
         end
 
+        def render_circular_node(task_class, is_impl)
+          type_label = colored_type_label(task_class)
+          impl_prefix = is_impl ? "#{COLORS[:impl]}[impl]#{COLORS[:reset]} " : ""
+          task_number = get_task_number(task_class)
+          name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
+          circular_marker = "#{COLORS[:impl]}(circular)#{COLORS[:reset]}"
+          "#{impl_prefix}#{task_number} #{name} #{type_label} #{circular_marker}\n"
+        end
+
         def get_task_number(task_class)
           number = @task_index_map[task_class] || (@task_index_map.size + 1)
           "#{COLORS[:tree]}[#{number}]#{COLORS[:reset]}"
         end
 
         def colored_type_label(klass)
-          if TreeProgressDisplay.section_class?(klass)
+          if TreeBuilder.section_class?(klass)
             "#{COLORS[:section]}(Section)#{COLORS[:reset]}"
           else
             "#{COLORS[:task]}(Task)#{COLORS[:reset]}"
@@ -273,27 +291,27 @@ module Taski
         register_tasks_from_tree(@tree_structure)
       end
 
-      # Build a single tree node
+      # Build a single tree node using TreeBuilder for dependency traversal
       def build_tree_node(task_class, ancestors)
         return nil if ancestors.include?(task_class)
 
         node = {
           task_class: task_class,
-          is_section: section_class?(task_class),
+          is_section: TreeBuilder.section_class?(task_class),
           children: [],
           is_impl_candidate: false
         }
 
         new_ancestors = ancestors + [task_class]
-        dependencies = StaticAnalysis::Analyzer.analyze(task_class).to_a
-        is_section = section_class?(task_class)
+        dep_metadata = TreeBuilder.build_dependencies(task_class, new_ancestors)
 
-        dependencies.each do |dep|
-          child_node = build_tree_node(dep, new_ancestors)
+        dep_metadata.each do |dep_info|
+          # Skip circular dependencies (return nil equivalent)
+          next if dep_info[:is_circular]
+
+          child_node = build_tree_node(dep_info[:task_class], new_ancestors)
           if child_node
-            # Only mark as impl candidate if parent is Section AND
-            # the dependency is a nested class of that Section
-            child_node[:is_impl_candidate] = is_section && nested_class?(dep, task_class)
+            child_node[:is_impl_candidate] = dep_info[:is_impl_candidate]
             node[:children] << child_node
           end
         end
@@ -480,7 +498,7 @@ module Taski
       end
 
       def type_label_for(task_class, is_selected = true)
-        if section_class?(task_class)
+        if TreeBuilder.section_class?(task_class)
           is_selected ? "#{COLORS[:section]}(Section)#{COLORS[:reset]}" : "#{COLORS[:dim]}(Section)#{COLORS[:reset]}"
         else
           is_selected ? "#{COLORS[:task]}(Task)#{COLORS[:reset]}" : "#{COLORS[:dim]}(Task)#{COLORS[:reset]}"
@@ -533,12 +551,13 @@ module Taski
         end
       end
 
+      # Delegate to TreeBuilder for consistency
       def section_class?(klass)
-        self.class.section_class?(klass)
+        TreeBuilder.section_class?(klass)
       end
 
       def nested_class?(child_class, parent_class)
-        self.class.nested_class?(child_class, parent_class)
+        TreeBuilder.nested_class?(child_class, parent_class)
       end
     end
   end
