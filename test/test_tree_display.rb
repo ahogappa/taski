@@ -797,4 +797,76 @@ class TestTaskOutputRouter < Minitest::Test
     @router.close_all
     refute @router.active?
   end
+
+  # Tests for system() output capture through pipe-based architecture
+  # These tests simulate the real execution environment where $stdout is replaced with the router
+
+  def test_system_output_captured_in_router
+    original_stdout = $stdout
+    $stdout = @router
+    begin
+      @router.start_capture(SystemCallTask)
+      task = SystemCallTask.allocate
+      task.send(:initialize)
+      task.run
+      @router.stop_capture
+      @router.poll
+
+      # Output from system() should be captured
+      assert_equal "system_output", @router.last_line_for(SystemCallTask)
+    ensure
+      $stdout = original_stdout
+    end
+  end
+
+  def test_system_shell_mode_output_captured
+    original_stdout = $stdout
+    $stdout = @router
+    begin
+      @router.start_capture(SystemCallShellModeTask)
+      task = SystemCallShellModeTask.allocate
+      task.send(:initialize)
+      task.run
+      @router.stop_capture
+      @router.poll
+
+      assert_equal "shell_mode_output", @router.last_line_for(SystemCallShellModeTask)
+    ensure
+      $stdout = original_stdout
+    end
+  end
+
+  def test_system_returns_true_on_success
+    original_stdout = $stdout
+    $stdout = @router
+    begin
+      @router.start_capture(SystemCallTask)
+      task = SystemCallTask.allocate
+      task.send(:initialize)
+      result = task.run
+      @router.stop_capture
+
+      assert_equal true, result
+      assert $?.success?
+    ensure
+      $stdout = original_stdout
+    end
+  end
+
+  def test_system_returns_false_on_failure
+    original_stdout = $stdout
+    $stdout = @router
+    begin
+      @router.start_capture(SystemCallFailingTask)
+      task = SystemCallFailingTask.allocate
+      task.send(:initialize)
+      result = task.run
+      @router.stop_capture
+
+      assert_equal false, result
+      refute $?.success?
+    ensure
+      $stdout = original_stdout
+    end
+  end
 end

@@ -545,6 +545,32 @@ class MethodCallSection < Taski::Section
   end
 end
 
+# Test fixtures for subprocess output capture (system() and backticks)
+
+class SystemCallTask < Taski::Task
+  exports :result
+
+  def run
+    @result = system("echo", "system_output")
+  end
+end
+
+class SystemCallShellModeTask < Taski::Task
+  exports :result
+
+  def run
+    @result = system("echo shell_mode_output")
+  end
+end
+
+class SystemCallFailingTask < Taski::Task
+  exports :result
+
+  def run
+    @result = system("exit 1")
+  end
+end
+
 module LazyDependencyTest
   # Track which tasks have been executed with timestamps
   @executed_tasks = []
