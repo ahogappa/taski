@@ -144,6 +144,19 @@ module Taski
         @original.winsize
       end
 
+      # Get the write IO for the current thread's pipe
+      # Used by Task#system to redirect subprocess output directly to the pipe
+      # @return [IO, nil] The write IO or nil if not capturing
+      def current_write_io
+        synchronize do
+          task_class = @thread_map[Thread.current]
+          return nil unless task_class
+          pipe = @pipes[task_class]
+          return nil if pipe.nil? || pipe.write_closed?
+          pipe.write_io
+        end
+      end
+
       # Delegate unknown methods to original stdout
       def method_missing(method, ...)
         @original.send(method, ...)

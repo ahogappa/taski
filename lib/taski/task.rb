@@ -125,6 +125,23 @@ module Taski
     def clean
     end
 
+    # Override system() to capture subprocess output through the pipe-based architecture.
+    # Uses Kernel.system with :out option to redirect output to the task's pipe.
+    # @param args [Array] Command arguments (shell mode if single string, exec mode if array)
+    # @param opts [Hash] Options passed to Kernel.system
+    # @return [Boolean, nil] true if command succeeded, false if failed, nil if command not found
+    def system(*args, **opts)
+      write_io = $stdout.respond_to?(:current_write_io) ? $stdout.current_write_io : nil
+
+      if write_io
+        # Redirect subprocess output to the task's pipe (stderr merged into stdout)
+        Kernel.system(*args, out: write_io, err: [:child, :out], **opts)
+      else
+        # No capture active, use normal system
+        Kernel.system(*args, **opts)
+      end
+    end
+
     def reset!
       self.class.exported_methods.each do |method|
         instance_variable_set("@#{method}", nil)
