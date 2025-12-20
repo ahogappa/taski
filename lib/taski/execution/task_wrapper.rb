@@ -32,9 +32,10 @@ module Taski
       STATE_RUNNING = :running
       STATE_COMPLETED = :completed
 
-      def initialize(task, registry:)
+      def initialize(task, registry:, execution_context: nil)
         @task = task
         @registry = registry
+        @execution_context = execution_context
         @result = nil
         @clean_result = nil
         @error = nil
@@ -157,7 +158,7 @@ module Taski
 
       private
 
-      # Trigger execution via Executor and wait for completion
+      # Trigger execution via ExecutionContext or Executor and wait for completion
       def trigger_execution_and_wait
         should_execute = false
         @monitor.synchronize do
@@ -174,8 +175,13 @@ module Taski
 
         if should_execute
           # Execute outside the lock to avoid deadlock
-          Executor.execute(@task.class, registry: @registry)
-          # After Executor.execute returns, the task is completed
+          if @execution_context
+            @execution_context.trigger_execution(@task.class, registry: @registry)
+          else
+            # Fallback for backward compatibility
+            Executor.execute(@task.class, registry: @registry)
+          end
+          # After execution returns, the task is completed
         end
       end
 
@@ -222,7 +228,9 @@ module Taski
       end
 
       def update_progress(state, duration: nil, error: nil)
-        Taski.progress_display&.update_task(@task.class, state: state, duration: duration, error: error)
+        return unless @execution_context
+
+        @execution_context.notify_task_completed(@task.class, duration: duration, error: error)
       end
 
       def debug_log(message)

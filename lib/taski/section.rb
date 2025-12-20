@@ -44,10 +44,10 @@ module Taski
     private
 
     def register_impl_selection(implementation_class)
-      progress = Taski.progress_display
-      return unless progress.is_a?(Execution::TreeProgressDisplay)
+      context = Execution::ExecutionContext.current
+      return unless context
 
-      progress.register_section_impl(self.class, implementation_class)
+      context.notify_section_impl_selected(self.class, implementation_class)
     end
 
     # @param implementation_class [Class] The implementation task class
