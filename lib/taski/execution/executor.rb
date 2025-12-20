@@ -6,15 +6,38 @@ module Taski
   module Execution
     # Producer-Consumer pattern executor for parallel task execution.
     #
-    # Architecture:
-    # - Main Thread: Manages all state, coordinates execution, handles events
-    # - Worker Threads: Execute tasks and send completion events (via WorkerPool)
-    # - Scheduler: Manages dependency state and determines execution order
-    # - ExecutionContext: Manages observers and output capture
+    # Executor is the orchestrator that coordinates all execution components.
     #
-    # Communication Queues:
+    # == Architecture
+    #
+    #   Executor
+    #     ├── Scheduler: Dependency management and execution order
+    #     ├── WorkerPool: Thread management and task distribution
+    #     └── ExecutionContext: Observer notifications and output capture
+    #             └── Observers (e.g., TreeProgressDisplay)
+    #
+    # == Execution Flow
+    #
+    # 1. Build dependency graph via Scheduler
+    # 2. Set up progress display via ExecutionContext
+    # 3. Start WorkerPool threads
+    # 4. Enqueue ready tasks (no dependencies) to WorkerPool
+    # 5. Run event loop:
+    #    - Pop completion events from workers
+    #    - Mark completed in Scheduler
+    #    - Enqueue newly ready tasks to WorkerPool
+    # 6. Shutdown WorkerPool when root task completes
+    # 7. Teardown progress display
+    #
+    # == Communication Queues
+    #
     # - Execution Queue (Main -> Worker): Tasks ready to execute (via WorkerPool)
     # - Completion Queue (Worker -> Main): Events from workers
+    #
+    # == Thread Safety
+    #
+    # - Main Thread: Manages all state, coordinates execution, handles events
+    # - Worker Threads: Execute tasks and send completion events (via WorkerPool)
     class Executor
       class << self
         # Execute a task and all its dependencies

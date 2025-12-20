@@ -8,7 +8,39 @@ module Taski
     # ExecutionContext manages execution state and notifies observers about execution events.
     # It decouples progress display from Executor using the observer pattern.
     #
-    # Thread Safety: All observer operations are synchronized using Monitor.
+    # == Architecture
+    #
+    # ExecutionContext is the central hub for execution events in the Taski framework:
+    #
+    #   Executor → Scheduler/WorkerPool/ExecutionContext → Observers
+    #
+    # - Executor coordinates the overall execution flow
+    # - Scheduler manages dependency state and determines execution order
+    # - WorkerPool manages worker threads that execute tasks
+    # - ExecutionContext notifies observers about execution events
+    #
+    # == Observer Pattern
+    #
+    # Observers are registered using {#add_observer} and receive notifications
+    # via duck-typed method dispatch. Observers should implement any subset of:
+    #
+    # - register_task(task_class) - Called when a task is registered
+    # - update_task(task_class, state:, duration:, error:) - Called on state changes
+    # - register_section_impl(section_class, impl_class) - Called on section impl selection
+    # - set_root_task(task_class) - Called when root task is set
+    # - set_output_capture(output_capture) - Called when output capture is configured
+    # - start - Called when execution starts
+    # - stop - Called when execution ends
+    #
+    # == Thread Safety
+    #
+    # All observer operations are synchronized using Monitor. The output capture
+    # getter is also thread-safe for access from worker threads.
+    #
+    # == Backward Compatibility
+    #
+    # TreeProgressDisplay works as an observer without any API changes.
+    # Existing task code works unchanged.
     #
     # @example Registering an observer
     #   context = ExecutionContext.new

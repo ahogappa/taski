@@ -6,8 +6,27 @@ module Taski
     # It tracks which tasks are pending, enqueued, or completed, and provides
     # methods to determine which tasks are ready to execute.
     #
-    # Thread Safety: Scheduler is only accessed from the main thread in Executor,
-    # so no synchronization is needed.
+    # == Responsibilities
+    #
+    # - Build dependency graph from root task via static analysis
+    # - Track task states: pending, enqueued, completed
+    # - Determine which tasks are ready to execute (all dependencies completed)
+    # - Provide next_ready_tasks for the Executor's event loop
+    #
+    # == API
+    #
+    # - {#build_dependency_graph} - Initialize dependency graph from root task
+    # - {#next_ready_tasks} - Get tasks ready for execution
+    # - {#mark_enqueued} - Mark task as sent to worker pool
+    # - {#mark_completed} - Mark task as finished
+    # - {#completed?} - Check if task is completed
+    # - {#running_tasks?} - Check if any tasks are currently executing
+    #
+    # == Thread Safety
+    #
+    # Scheduler is only accessed from the main thread in Executor,
+    # so no synchronization is needed. The Executor serializes all
+    # access to the Scheduler through its event loop.
     class Scheduler
       # Task execution states
       STATE_PENDING = :pending

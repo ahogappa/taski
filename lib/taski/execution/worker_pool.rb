@@ -7,7 +7,24 @@ module Taski
     # WorkerPool manages a pool of worker threads that execute tasks.
     # It provides methods to start, stop, and enqueue tasks for execution.
     #
-    # Thread Safety: WorkerPool uses Queue for thread-safe task distribution.
+    # == Responsibilities
+    #
+    # - Manage worker thread lifecycle (start, shutdown)
+    # - Distribute tasks to worker threads via Queue
+    # - Execute tasks via callback provided by Executor
+    #
+    # == API
+    #
+    # - {#start} - Start all worker threads
+    # - {#enqueue} - Add a task to the execution queue
+    # - {#shutdown} - Gracefully shutdown all worker threads
+    # - {#execution_queue} - Access the underlying Queue (for testing)
+    #
+    # == Thread Safety
+    #
+    # WorkerPool uses Queue for thread-safe task distribution.
+    # The Queue handles synchronization between the main thread
+    # (which enqueues tasks) and worker threads (which pop tasks).
     class WorkerPool
       attr_reader :execution_queue
 
