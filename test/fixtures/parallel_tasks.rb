@@ -587,7 +587,13 @@ module LazyDependencyTest
   @mutex = Mutex.new
 
   class << self
-    attr_accessor :impl_call_order
+    def impl_call_order
+      @mutex.synchronize { @impl_call_order }
+    end
+
+    def impl_call_order=(value)
+      @mutex.synchronize { @impl_call_order = value }
+    end
 
     def record(task_name)
       @mutex.synchronize do
