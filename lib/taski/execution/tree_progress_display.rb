@@ -344,9 +344,13 @@ module Taski
           @output.print "\e[#{@last_line_count}A"  # Move up
         end
 
+        # Clear from cursor to end of screen, then redraw
+        # Using \e[J ensures any garbage lines below are also cleared
+        @output.print "\e[J"
+
         # Redraw all lines
         lines.each do |line|
-          @output.print "\e[K#{line}\n"  # Clear line and print
+          @output.print "#{line}\n"
         end
 
         @monitor.synchronize do
@@ -365,6 +369,9 @@ module Taski
           if @last_line_count > 0
             @output.print "\e[#{@last_line_count}A"
           end
+
+          # Clear from cursor to end of screen to remove any garbage
+          @output.print "\e[J"
 
           # Print final state
           lines.each { |line| @output.puts line }
