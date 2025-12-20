@@ -36,6 +36,7 @@ module Taski
           pipe = TaskOutputPipe.new(task_class)
           @pipes[task_class] = pipe
           @thread_map[Thread.current] = task_class
+          debug_log("Started capture for #{task_class} on thread #{Thread.current.object_id}")
         end
       end
 
@@ -44,10 +45,14 @@ module Taski
       def stop_capture
         synchronize do
           task_class = @thread_map.delete(Thread.current)
-          return unless task_class
+          unless task_class
+            debug_log("Warning: stop_capture called for unregistered thread #{Thread.current.object_id}")
+            return
+          end
 
           pipe = @pipes[task_class]
           pipe&.close_write
+          debug_log("Stopped capture for #{task_class} on thread #{Thread.current.object_id}")
         end
       end
 
@@ -101,6 +106,12 @@ module Taski
         if pipe && !pipe.write_closed?
           pipe.write_io.write(str)
         else
+          # Fallback to original stdout - log why capture failed
+          if @thread_map.empty?
+            debug_log("Output not captured: no threads registered")
+          else
+            debug_log("Output not captured: thread #{Thread.current.object_id} not mapped")
+          end
           @original.write(str)
         end
       end
@@ -194,6 +205,11 @@ module Taski
         synchronize do
           @last_lines[task_class] = last_non_empty&.strip if last_non_empty
         end
+      end
+
+      def debug_log(message)
+        return unless ENV["TASKI_DEBUG"]
+        @original.puts "[TaskOutputRouter] #{message}"
       end
     end
   end

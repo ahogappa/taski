@@ -65,7 +65,6 @@ module Taski
   # Progress display is enabled by default (tree-style).
   # Environment variables:
   # - TASKI_PROGRESS_DISABLE=1: Disable progress display entirely
-  # - TASKI_FORCE_PROGRESS=1: Force enable even without TTY (for testing)
   def self.progress_display
     return nil if progress_disabled?
     @progress_display ||= Execution::TreeProgressDisplay.new

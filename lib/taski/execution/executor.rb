@@ -72,8 +72,11 @@ module Taski
         # Build dependency graph from static analysis
         @scheduler.build_dependency_graph(root_task_class)
 
-        # Set up progress display with root task and output capture
+        # Set up progress display with root task
         setup_progress_display(root_task_class)
+
+        # Set up output capture (returns true if this executor set it up)
+        should_teardown_capture = setup_output_capture_if_needed
 
         # Start progress display
         start_progress_display
@@ -93,8 +96,8 @@ module Taski
         # Stop progress display
         stop_progress_display
 
-        # Restore original stdout
-        teardown_output_capture
+        # Restore original stdout (only if this executor set it up)
+        teardown_output_capture if should_teardown_capture
       end
 
       private
@@ -183,13 +186,25 @@ module Taski
         enqueue_ready_tasks
       end
 
+      # Notify observers about the root task
+      # @param root_task_class [Class] The root task class
+      # @return [void]
       def setup_progress_display(root_task_class)
         @execution_context.notify_set_root_task(root_task_class)
-
-        # Set up output capture for inline display (only for TTY)
-        @execution_context.setup_output_capture($stdout)
       end
 
+      # Set up output capture if progress display is active and not already set up
+      # @return [Boolean] true if this executor set up the capture
+      def setup_output_capture_if_needed
+        return false unless Taski.progress_display
+        return false if @execution_context.output_capture_active?
+
+        @execution_context.setup_output_capture($stdout)
+        true
+      end
+
+      # Tear down output capture and restore original $stdout
+      # @return [void]
       def teardown_output_capture
         @execution_context.teardown_output_capture
       end

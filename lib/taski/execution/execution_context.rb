@@ -74,23 +74,25 @@ module Taski
         @original_stdout = nil
       end
 
+      # Check if output capture is already active.
+      # @return [Boolean] true if capture is active
+      def output_capture_active?
+        @monitor.synchronize { !@output_capture.nil? }
+      end
+
       # Set up output capture for inline progress display.
-      # Only sets up capture if $stdout is a TTY.
       # Creates TaskOutputRouter and replaces $stdout.
+      # Should only be called when progress display is active and not already set up.
       #
       # @param output_io [IO] The original output IO (usually $stdout)
       def setup_output_capture(output_io)
-        return unless output_io.tty?
-
-        capture = nil
         @monitor.synchronize do
           @original_stdout = output_io
           @output_capture = TaskOutputRouter.new(@original_stdout)
-          capture = @output_capture
-          $stdout = capture
+          $stdout = @output_capture
         end
 
-        notify_set_output_capture(capture)
+        notify_set_output_capture(@output_capture)
       end
 
       # Tear down output capture and restore original $stdout.
