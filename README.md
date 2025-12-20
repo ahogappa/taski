@@ -160,6 +160,22 @@ RandomTask.new.run  # => 123 (new instance)
 RandomTask.reset!
 ```
 
+### Aborting Execution
+
+Stop all pending tasks when a critical error occurs:
+
+```ruby
+class CriticalTask < Taski::Task
+  def run
+    if fatal_error?
+      raise Taski::TaskAbortException, "Cannot continue"
+    end
+  end
+end
+```
+
+When `TaskAbortException` is raised, no new tasks will start. Already running tasks will complete, then execution stops.
+
 ### Progress Display
 
 Tree-based progress visualization is enabled by default:
