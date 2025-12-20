@@ -567,37 +567,6 @@ module Taski
         end
       end
 
-      ##
-      # Maps a task state and selection flag to an ANSI-colored status icon string.
-      # @param [Symbol] state - The task lifecycle state (:pending, :running, :completed, :failed, :cleaning, :clean_completed, :clean_failed).
-      # @param [Boolean] is_selected - Whether the task is selected for display; when false a dimmed skipped icon is returned.
-      # @return [String] The ANSI-colored icon or spinner character representing the task's current status.
-      def task_status_icon(state, is_selected)
-        # If not selected (either direct impl candidate or child of unselected), show skipped
-        unless is_selected
-          return "#{COLORS[:dim]}#{ICONS[:skipped]}#{COLORS[:reset]}"
-        end
-
-        case state
-        # Run lifecycle states
-        when :completed
-          "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
-        when :failed
-          "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
-        when :running
-          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
-        # Clean lifecycle states
-        when :cleaning
-          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
-        when :clean_completed
-          "#{COLORS[:success]}#{ICONS[:clean_completed]}#{COLORS[:reset]}"
-        when :clean_failed
-          "#{COLORS[:error]}#{ICONS[:clean_failed]}#{COLORS[:reset]}"
-        else
-          "#{COLORS[:pending]}#{ICONS[:pending]}#{COLORS[:reset]}"
-        end
-      end
-
       def spinner_char
         SPINNER_FRAMES[@spinner_index % SPINNER_FRAMES.length]
       end
@@ -632,10 +601,12 @@ module Taski
       def run_phase_details(progress)
         case progress.run_state
         when :completed
+          return "" unless progress.run_duration
           " #{COLORS[:success]}(#{progress.run_duration}ms)#{COLORS[:reset]}"
         when :failed
           " #{COLORS[:error]}(failed)#{COLORS[:reset]}"
         when :running
+          return "" unless progress.run_start_time
           elapsed = ((Time.now - progress.run_start_time) * 1000).round(0)
           " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
         else
@@ -650,9 +621,11 @@ module Taski
       def clean_phase_details(progress)
         case progress.clean_state
         when :cleaning
+          return "" unless progress.clean_start_time
           elapsed = ((Time.now - progress.clean_start_time) * 1000).round(0)
           " #{COLORS[:running]}(cleaning #{elapsed}ms)#{COLORS[:reset]}"
         when :clean_completed
+          return "" unless progress.clean_duration
           " #{COLORS[:success]}(cleaned #{progress.clean_duration}ms)#{COLORS[:reset]}"
         when :clean_failed
           " #{COLORS[:error]}(clean failed)#{COLORS[:reset]}"
