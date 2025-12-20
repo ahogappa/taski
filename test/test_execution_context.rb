@@ -273,4 +273,22 @@ class TestExecutionContext < Minitest::Test
     context.teardown_output_capture
     assert_nil context.output_capture
   end
+
+  def test_output_capture_active
+    context = Taski::Execution::ExecutionContext.new
+    mock_io = StringIO.new
+
+    original_stdout = $stdout
+    begin
+      refute context.output_capture_active?, "Should be inactive before setup"
+
+      context.setup_output_capture(mock_io)
+      assert context.output_capture_active?, "Should be active after setup"
+
+      context.teardown_output_capture
+      refute context.output_capture_active?, "Should be inactive after teardown"
+    ensure
+      $stdout = original_stdout
+    end
+  end
 end
