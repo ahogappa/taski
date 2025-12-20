@@ -197,4 +197,56 @@ class TestSection < Minitest::Test
     assert impl_idx < condition_idx,
       "impl (#{impl_idx}) is called first, then blocks on ConditionTask (#{condition_idx})"
   end
+
+  # ========================================
+  # Section run_and_clean Tests
+  # ========================================
+
+  # Test that Section registers runtime dependency and implementation gets cleaned
+  def test_section_run_and_clean_cleans_implementation
+    require_relative "fixtures/section_clean_fixtures"
+
+    SectionCleanFixtures.reset_all
+
+    SectionCleanFixtures::MainTask.run_and_clean
+
+    clean_order = SectionCleanFixtures::CleanOrder.order
+
+    # MainTask depends on DatabaseSection which selects LocalDBImpl
+    # Clean order should be: MainTask → DatabaseSection → LocalDBImpl
+    assert_includes clean_order, :main_task, "MainTask should be cleaned"
+    assert_includes clean_order, :database_section, "DatabaseSection should be cleaned"
+    assert_includes clean_order, :local_db_impl, "LocalDBImpl (selected implementation) should be cleaned"
+
+    # Verify reverse order: MainTask cleans first, then Section, then Impl
+    main_idx = clean_order.index(:main_task)
+    section_idx = clean_order.index(:database_section)
+    impl_idx = clean_order.index(:local_db_impl)
+
+    assert main_idx < section_idx, "MainTask (#{main_idx}) should clean before Section (#{section_idx})"
+    assert section_idx < impl_idx, "Section (#{section_idx}) should clean before Impl (#{impl_idx})"
+  end
+
+  # Test that run_and_clean executes both run and clean for Section
+  def test_section_run_and_clean_executes_both_phases
+    require_relative "fixtures/section_clean_fixtures"
+
+    SectionCleanFixtures.reset_all
+
+    SectionCleanFixtures::DatabaseSection.run_and_clean
+
+    run_order = SectionCleanFixtures::RunOrder.order
+    clean_order = SectionCleanFixtures::CleanOrder.order
+
+    # Run phase should execute Section and its impl
+    assert_includes run_order, :database_section, "Section should be run"
+    assert_includes run_order, :local_db_impl, "Impl should be run"
+
+    # Clean phase should clean both
+    assert_includes clean_order, :database_section, "Section should be cleaned"
+    assert_includes clean_order, :local_db_impl, "Impl should be cleaned"
+
+    # Verify the Section exported value is accessible
+    assert_equal "localhost:5432", SectionCleanFixtures::DatabaseSection.connection_string
+  end
 end

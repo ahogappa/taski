@@ -85,6 +85,16 @@ module Taski
         @clean_result
       end
 
+      # Called by user code to run and clean. Runs execution followed by cleanup.
+      # Both phases share a single progress display session.
+      # If run fails, clean is still executed for resource release.
+      # @return [Object] The result of task execution
+      def run_and_clean
+        trigger_run_and_clean_and_wait
+        raise @error if @error # steep:ignore
+        @result
+      end
+
       # Called by user code to get exported value. Triggers execution if needed.
       # @param method_name [Symbol] The name of the exported method
       # @return [Object] The exported value
@@ -264,6 +274,36 @@ module Taski
             Executor.execute_clean(@task.class, registry: @registry)
           end
           # After execution returns, the task is completed
+        end
+      end
+
+      # Triggers task run followed by clean through the configured execution mechanism.
+      # Both phases share a single progress display session.
+      # If run fails, clean is still executed for resource release.
+      # @raise [Taski::TaskAbortException] if the registry has requested an abort.
+      def trigger_run_and_clean_and_wait
+        should_execute = false
+        @monitor.synchronize do
+          case @state
+          when STATE_PENDING
+            check_abort!
+            should_execute = true
+          when STATE_RUNNING
+            @condition.wait_until { @state == STATE_COMPLETED }
+          when STATE_COMPLETED
+            # Already done
+          end
+        end
+
+        if should_execute
+          # Execute outside the lock to avoid deadlock
+          if @execution_context
+            @execution_context.trigger_run_and_clean(@task.class, registry: @registry)
+          else
+            # Fallback for backward compatibility
+            Executor.execute_run_and_clean(@task.class, registry: @registry)
+          end
+          # After execution returns, both run and clean are completed
         end
       end
 

@@ -56,6 +56,18 @@ module Taski
         cached_wrapper.clean
       end
 
+      # Execute run followed by clean in a single operation.
+      # Both phases share a single progress display session.
+      # If run fails, clean is still executed for resource release.
+      #
+      # @param context [Hash] Context options passed to tasks
+      # @return [Object] The result of task execution
+      def run_and_clean(context: {})
+        Taski.start_context(options: context, root_task: self)
+        validate_no_circular_dependencies!
+        cached_wrapper.run_and_clean
+      end
+
       def registry
         Taski.global_registry
       end

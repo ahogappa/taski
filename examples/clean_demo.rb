@@ -147,3 +147,58 @@ CreateRelease.clean
 
 puts
 puts "Clean completed! All artifacts removed."
+
+puts
+puts "=" * 40
+puts "run_and_clean Demo"
+puts "=" * 40
+puts
+puts "The run_and_clean method executes both phases in a single operation."
+puts "Key benefits:"
+puts "  - Single progress display session for both phases"
+puts "  - Clean always runs, even if run fails (resource release)"
+puts "  - Cleaner API for the common use case"
+puts
+
+# Reset for new demonstration
+Taski::Task.reset!
+
+puts "--- Using run_and_clean ---"
+puts "This is equivalent to calling run followed by clean, but in a single operation."
+puts
+
+CreateRelease.run_and_clean
+
+puts
+puts "Both run and clean phases completed in a single call!"
+puts
+
+# Demonstrate error handling
+Taski::Task.reset!
+
+puts "--- Error Handling Demo ---"
+puts "When run fails, clean is still executed for resource release."
+puts
+
+# Task that fails during run
+class FailingBuild < Taski::Task
+  exports :result
+
+  def run
+    puts "[FailingBuild] Starting build..."
+    raise StandardError, "Build failed: missing dependencies"
+  end
+
+  def clean
+    puts "[FailingBuild] Cleaning up partial build artifacts..."
+  end
+end
+
+begin
+  FailingBuild.run_and_clean
+rescue => e
+  puts "[Error caught] #{e.message}"
+end
+
+puts
+puts "Notice: clean was still executed despite run failing!"

@@ -567,4 +567,93 @@ class TestParallelExecution < Minitest::Test
     assert wrapper.completed?
     assert_equal test_error, wrapper.error
   end
+
+  # ========================================
+  # run_and_clean Integration Tests
+  # ========================================
+
+  def test_run_and_clean_basic_execution
+    run_order = []
+    clean_order = []
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        run_order << :task
+        @value = "test_value"
+      end
+
+      define_method(:clean) do
+        clean_order << :task
+      end
+    end
+
+    result = task_class.run_and_clean
+    assert_equal "test_value", result
+    assert_equal [:task], run_order
+    assert_equal [:task], clean_order
+  end
+
+  def test_run_and_clean_with_dependencies
+    # Use fixtures for proper static analysis dependency detection
+    # We'll verify order using simple counters within fixture classes
+    require_relative "fixtures/run_and_clean_fixtures"
+
+    # Clear any previous state
+    RunAndCleanFixtures::RunOrder.clear
+    RunAndCleanFixtures::CleanOrder.clear
+
+    result = RunAndCleanFixtures::ChildTask.run_and_clean
+    assert_equal "base_child", result
+
+    # Run should execute base first, then child (dependency order)
+    assert_equal [:base, :child], RunAndCleanFixtures::RunOrder.order
+
+    # Clean should execute child first, then base (reverse dependency order)
+    assert_equal [:child, :base], RunAndCleanFixtures::CleanOrder.order
+  end
+
+  def test_run_and_clean_error_still_cleans
+    run_executed = false
+    clean_executed = false
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        run_executed = true
+        raise StandardError, "Run failed"
+      end
+
+      define_method(:clean) do
+        clean_executed = true
+      end
+    end
+
+    error = assert_raises(StandardError) do
+      task_class.run_and_clean
+    end
+
+    assert_equal "Run failed", error.message
+    assert run_executed, "Run should have been executed"
+    assert clean_executed, "Clean should still execute after run failure"
+  end
+
+  def test_run_and_clean_returns_result
+    task_class = Class.new(Taski::Task) do
+      exports :computed
+
+      def run
+        @computed = 42 * 2
+      end
+
+      def clean
+        # Cleanup logic
+      end
+    end
+
+    result = task_class.run_and_clean
+    assert_equal 84, result
+  end
 end
