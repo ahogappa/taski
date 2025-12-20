@@ -198,13 +198,21 @@ module Taski
         end
       end
 
-      # Wait until clean is completed
+      ##
+      # Blocks the current thread until the task's clean phase reaches the completed state.
+      # The caller will be suspended until the wrapper's clean_state becomes STATE_COMPLETED.
       def wait_for_clean_completion
         @monitor.synchronize do
           @clean_condition.wait_until { @clean_state == STATE_COMPLETED }
         end
       end
 
+      ##
+      # Delegates method calls to get_exported_value for exported task methods.
+      # @param method_name [Symbol] The method name being called.
+      # @param args [Array] Arguments passed to the method.
+      # @param block [Proc] Block passed to the method.
+      # @return [Object] The exported value for the method.
       def method_missing(method_name, *args, &block)
         if @task.class.method_defined?(method_name)
           get_exported_value(method_name)
@@ -213,6 +221,11 @@ module Taski
         end
       end
 
+      ##
+      # Returns true if the task class defines the given method.
+      # @param method_name [Symbol] The method name to check.
+      # @param include_private [Boolean] Whether to include private methods.
+      # @return [Boolean] true if the task responds to the method.
       def respond_to_missing?(method_name, include_private = false)
         @task.class.method_defined?(method_name) || super
       end
@@ -312,6 +325,12 @@ module Taski
         context
       end
 
+      ##
+      # Notifies the execution context of task completion or failure.
+      # Falls back to getting the current context if not set during initialization.
+      # @param state [Symbol] The completion state (unused, kept for API consistency).
+      # @param duration [Numeric, nil] The execution duration in milliseconds.
+      # @param error [Exception, nil] The error if the task failed.
       def update_progress(state, duration: nil, error: nil)
         # Defensive fallback: try to get current context if not set during initialization
         @execution_context ||= ExecutionContext.current
@@ -320,6 +339,12 @@ module Taski
         @execution_context.notify_task_completed(@task.class, duration: duration, error: error)
       end
 
+      ##
+      # Notifies the execution context of clean completion or failure.
+      # Falls back to getting the current context if not set during initialization.
+      # @param state [Symbol] The clean state (unused, kept for API consistency).
+      # @param duration [Numeric, nil] The clean duration in milliseconds.
+      # @param error [Exception, nil] The error if the clean failed.
       def update_clean_progress(state, duration: nil, error: nil)
         # Defensive fallback: try to get current context if not set during initialization
         @execution_context ||= ExecutionContext.current
@@ -328,6 +353,9 @@ module Taski
         @execution_context.notify_clean_completed(@task.class, duration: duration, error: error)
       end
 
+      ##
+      # Outputs a debug message if TASKI_DEBUG environment variable is set.
+      # @param message [String] The debug message to output.
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
         puts "[TaskWrapper] #{message}"

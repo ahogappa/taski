@@ -39,11 +39,19 @@ module Taski
         clean_failed: "✗"
       }.freeze
 
-      # Shared helper methods
+      ##
+      # Checks if a class is a Taski::Section subclass.
+      # @param klass [Class] The class to check.
+      # @return [Boolean] true if the class is a Section.
       def self.section_class?(klass)
         defined?(Taski::Section) && klass < Taski::Section
       end
 
+      ##
+      # Checks if a class is nested within another class by name prefix.
+      # @param child_class [Class] The potential nested class.
+      # @param parent_class [Class] The potential parent class.
+      # @return [Boolean] true if child_class name starts with parent_class name and "::".
       def self.nested_class?(child_class, parent_class)
         child_name = child_class.name.to_s
         parent_name = parent_class.name.to_s
@@ -567,10 +575,19 @@ module Taski
         end
       end
 
+      ##
+      # Returns the current spinner character for animation.
+      # Cycles through SPINNER_FRAMES based on the current spinner index.
+      # @return [String] The current spinner frame character.
       def spinner_char
         SPINNER_FRAMES[@spinner_index % SPINNER_FRAMES.length]
       end
 
+      ##
+      # Returns a colored type label for the task class.
+      # @param task_class [Class] The task class to get the label for.
+      # @param is_selected [Boolean] Whether the task is selected (affects color).
+      # @return [String] The colored type label (Section or Task).
       def type_label_for(task_class, is_selected = true)
         if section_class?(task_class)
           is_selected ? "#{COLORS[:section]}(Section)#{COLORS[:reset]}" : "#{COLORS[:dim]}(Section)#{COLORS[:reset]}"
@@ -694,6 +711,10 @@ module Taski
         " #{COLORS[:dim]}| #{truncated}#{COLORS[:reset]}"
       end
 
+      ##
+      # Returns the terminal width in columns.
+      # Defaults to 80 if the output IO doesn't support winsize.
+      # @return [Integer] The terminal width in columns.
       def terminal_width
         if @output.respond_to?(:winsize)
           _, cols = @output.winsize
@@ -703,10 +724,21 @@ module Taski
         end
       end
 
+      ##
+      # Checks if a class is a Taski::Section subclass.
+      # Delegates to the class method.
+      # @param klass [Class] The class to check.
+      # @return [Boolean] true if the class is a Section.
       def section_class?(klass)
         self.class.section_class?(klass)
       end
 
+      ##
+      # Checks if a class is nested within another class.
+      # Delegates to the class method.
+      # @param child_class [Class] The potential nested class.
+      # @param parent_class [Class] The potential parent class.
+      # @return [Boolean] true if child_class is nested within parent_class.
       def nested_class?(child_class, parent_class)
         self.class.nested_class?(child_class, parent_class)
       end

@@ -5,8 +5,23 @@ require_relative "execution/registry"
 require_relative "execution/task_wrapper"
 
 module Taski
+  # Base class for all tasks in the Taski framework.
+  # Tasks define units of work with dependencies and exported values.
+  #
+  # @example Defining a simple task
+  #   class MyTask < Taski::Task
+  #     exports :result
+  #
+  #     def run
+  #       @result = "completed"
+  #     end
+  #   end
   class Task
     class << self
+      ##
+      # Declares exported methods that will be accessible after task execution.
+      # Creates instance reader and class accessor methods for each export.
+      # @param export_methods [Array<Symbol>] The method names to export.
       def exports(*export_methods)
         @exported_methods = export_methods
 
@@ -16,12 +31,17 @@ module Taski
         end
       end
 
+      ##
+      # Returns the list of exported method names.
+      # @return [Array<Symbol>] The exported method names.
       def exported_methods
         @exported_methods ||= []
       end
 
-      # Each call creates a fresh TaskWrapper instance for re-execution support.
+      ##
+      # Creates a fresh TaskWrapper instance for re-execution support.
       # Use class methods (e.g., MyTask.result) for cached single execution.
+      # @return [Execution::TaskWrapper] A new wrapper for this task.
       def new
         fresh_registry = Execution::Registry.new
         task_instance = allocate
@@ -36,26 +56,42 @@ module Taski
         wrapper
       end
 
+      ##
+      # Returns cached static dependencies for this task class.
+      # Dependencies are analyzed from the run method body using static analysis.
+      # @return [Set<Class>] The set of task classes this task depends on.
       def cached_dependencies
         @dependencies_cache ||= StaticAnalysis::Analyzer.analyze(self)
       end
 
+      ##
+      # Clears the cached dependency analysis.
+      # Useful when task code has changed and dependencies need to be re-analyzed.
       def clear_dependency_cache
         @dependencies_cache = nil
       end
 
+      ##
+      # Executes the task and all its dependencies.
+      # @param context [Hash] Context options passed to tasks.
+      # @return [Object] The result of task execution.
       def run(context: {})
         Taski.start_context(options: context, root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.run
       end
 
+      ##
+      # Executes the clean phase for the task and all its dependencies.
+      # Clean is executed in reverse dependency order.
+      # @param context [Hash] Context options passed to tasks.
       def clean(context: {})
         Taski.start_context(options: context, root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.clean
       end
 
+      ##
       # Execute run followed by clean in a single operation.
       # If run fails, clean is still executed for resource release.
       #
@@ -67,10 +103,16 @@ module Taski
         cached_wrapper.run_and_clean
       end
 
+      ##
+      # Returns the global task registry.
+      # @return [Execution::Registry] The global registry.
       def registry
         Taski.global_registry
       end
 
+      ##
+      # Resets the task state, registry, context, and progress display.
+      # Useful for testing or re-running tasks from scratch.
       def reset!
         registry.reset!
         Taski.reset_global_registry!
@@ -79,14 +121,20 @@ module Taski
         @circular_dependency_checked = false
       end
 
+      ##
+      # Renders a static tree representation of the task dependencies.
+      # @return [String] The rendered tree string.
       def tree
         Execution::TreeProgressDisplay.render_static_tree(self)
       end
 
       private
 
-      # Use allocate + initialize instead of new to avoid infinite loop
-      # since new is overridden to return TaskWrapper
+      ##
+      # Returns or creates the cached TaskWrapper for this task class.
+      # Uses allocate + initialize instead of new to avoid infinite loop
+      # since new is overridden to return TaskWrapper.
+      # @return [Execution::TaskWrapper] The cached wrapper.
       def cached_wrapper
         registry.get_or_create(self) do
           task_instance = allocate
@@ -99,6 +147,9 @@ module Taski
         end
       end
 
+      ##
+      # Defines an instance reader method for an exported value.
+      # @param method [Symbol] The method name to define.
       def define_instance_reader(method)
         undef_method(method) if method_defined?(method)
 
@@ -108,6 +159,10 @@ module Taski
         end
       end
 
+      ##
+      # Defines a class accessor method for an exported value.
+      # The accessor triggers task execution if needed.
+      # @param method [Symbol] The method name to define.
       def define_class_accessor(method)
         singleton_class.undef_method(method) if singleton_class.method_defined?(method)
 
@@ -118,6 +173,9 @@ module Taski
         end
       end
 
+      ##
+      # Validates that no circular dependencies exist in the task graph.
+      # @raise [Taski::CircularDependencyError] If circular dependencies are detected.
       def validate_no_circular_dependencies!
         return if @circular_dependency_checked
 
@@ -132,10 +190,17 @@ module Taski
       end
     end
 
+    ##
+    # Executes the task's main logic.
+    # Subclasses must override this method to implement task behavior.
+    # @raise [NotImplementedError] If not overridden in a subclass.
     def run
       raise NotImplementedError, "Subclasses must implement the run method"
     end
 
+    ##
+    # Cleans up resources after task execution.
+    # Override in subclasses to implement cleanup logic.
     def clean
     end
 
@@ -157,6 +222,8 @@ module Taski
       end
     end
 
+    ##
+    # Resets the instance's exported values to nil.
     def reset!
       self.class.exported_methods.each do |method|
         instance_variable_set("@#{method}", nil)
