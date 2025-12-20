@@ -869,4 +869,22 @@ class TestTaskOutputRouter < Minitest::Test
       $stdout = original_stdout
     end
   end
+
+  def test_system_stderr_captured_via_pipe
+    original_stdout = $stdout
+    $stdout = @router
+    begin
+      @router.start_capture(SystemCallStderrTask)
+      task = SystemCallStderrTask.allocate
+      task.send(:initialize)
+      task.run
+      @router.stop_capture
+      @router.poll
+
+      # stderr output should be captured (merged into stdout via err: [:child, :out])
+      assert_equal "stderr_message", @router.last_line_for(SystemCallStderrTask)
+    ensure
+      $stdout = original_stdout
+    end
+  end
 end

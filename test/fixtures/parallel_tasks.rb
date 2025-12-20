@@ -571,6 +571,15 @@ class SystemCallFailingTask < Taski::Task
   end
 end
 
+class SystemCallStderrTask < Taski::Task
+  exports :result
+
+  def run
+    # Write to stderr - should be captured via err: [:child, :out]
+    @result = system("ruby -e 'STDERR.puts \"stderr_message\"'")
+  end
+end
+
 module LazyDependencyTest
   # Track which tasks have been executed with timestamps
   @executed_tasks = []
