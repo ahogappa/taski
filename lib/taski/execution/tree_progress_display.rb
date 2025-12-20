@@ -466,6 +466,11 @@ module Taski
         end
       end
 
+      ##
+      # Maps a task state and selection flag to an ANSI-colored status icon string.
+      # @param [Symbol] state - The task lifecycle state (:pending, :running, :completed, :failed, :cleaning, :clean_completed, :clean_failed).
+      # @param [Boolean] is_selected - Whether the task is selected for display; when false a dimmed skipped icon is returned.
+      # @return [String] The ANSI-colored icon or spinner character representing the task's current status.
       def task_status_icon(state, is_selected)
         # If not selected (either direct impl candidate or child of unselected), show skipped
         unless is_selected
@@ -504,6 +509,10 @@ module Taski
         end
       end
 
+      ##
+      # Formats a short status string for a task based on its lifecycle state.
+      # @param [TaskProgress] progress - Progress object with `state`, `start_time`, and `duration`.
+      # @return [String] A terminal-ready status fragment (may include ANSI color codes) such as durations, "failed", "cleaning ..." or an empty string when no detail applies.
       def task_details(progress)
         case progress.state
         # Run lifecycle states
@@ -528,7 +537,17 @@ module Taski
       end
 
       # Get task output suffix to display next to task
-      # Only shows output for running or cleaning tasks
+      ##
+      # Produces a trailing output suffix for a task when it is actively producing output.
+      #
+      # Fetches the last captured stdout/stderr line for the given task and returns a
+      # formatted, dimmed suffix containing that line only when the task `state` is
+      # `:running` or `:cleaning` and an output capture is available. The returned
+      # string is truncated to fit the terminal width (with a minimum visible length)
+      # and includes surrounding dim/reset color codes.
+      # @param [Class] task_class - The task class whose output to query.
+      # @param [Symbol] state - The task lifecycle state (only `:running` and `:cleaning` produce output).
+      # @return [String] A formatted, possibly truncated output suffix prefixed with a dim pipe, or an empty string when no output should be shown.
       def task_output_suffix(task_class, state)
         return "" unless state == :running || state == :cleaning
         return "" unless @output_capture

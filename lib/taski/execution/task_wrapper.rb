@@ -32,6 +32,12 @@ module Taski
       STATE_RUNNING = :running
       STATE_COMPLETED = :completed
 
+      ##
+      # Create a new TaskWrapper for the given task and registry.
+      # Initializes synchronization primitives, state tracking for execution and cleanup, and timing/result/error holders.
+      # @param [Object] task - The task instance being wrapped.
+      # @param [Object] registry - The registry used to query abort status and coordinate execution.
+      # @param [Object, nil] execution_context - Optional execution context used to trigger and report execution and cleanup.
       def initialize(task, registry:, execution_context: nil)
         @task = task
         @registry = registry
@@ -110,7 +116,10 @@ module Taski
       end
 
       # Called by Executor when task.run raises an error
-      # @param error [Exception] The error that occurred
+      ##
+      # Marks the task as failed and records the error.
+      # Records the provided error, sets the task state to completed, updates the timing end time, notifies threads waiting for completion, and reports the failure to the execution context.
+      # @param [Exception] error - The exception raised during task execution.
       def mark_failed(error)
         @timing = @timing&.with_end_now
         @monitor.synchronize do
@@ -122,7 +131,9 @@ module Taski
       end
 
       # Called by Executor to mark clean as running
-      # @return [Boolean] true if successfully transitioned to running
+      ##
+      # Mark the task's cleanup state as running.
+      # @return [Boolean] `true` if the clean state was changed from pending to running, `false` otherwise.
       def mark_clean_running
         @monitor.synchronize do
           return false unless @clean_state == STATE_PENDING
@@ -132,7 +143,9 @@ module Taski
       end
 
       # Called by Executor after clean completes
-      # @param result [Object] The result of cleanup
+      ##
+      # Marks the cleanup run as completed, stores the cleanup result, sets the clean state to COMPLETED, and notifies any waiters.
+      # @param [Object] result - The result of the cleanup operation.
       def mark_clean_completed(result)
         @monitor.synchronize do
           @clean_result = result
@@ -142,7 +155,9 @@ module Taski
       end
 
       # Called by Executor when clean raises an error
-      # @param error [Exception] The error that occurred
+      ##
+      # Marks the cleanup as failed by storing the cleanup error, transitioning the cleanup state to completed, and notifying any waiters.
+      # @param [Exception] error - The exception raised during the cleanup run.
       def mark_clean_failed(error)
         @monitor.synchronize do
           @clean_error = error
@@ -151,7 +166,11 @@ module Taski
         end
       end
 
-      # Wait until task is completed
+      ##
+      # Blocks the current thread until the task reaches the completed state.
+      #
+      # The caller will be suspended until the wrapper's state becomes STATE_COMPLETED.
+      # This method does not raise on its own; any errors from task execution are surfaced elsewhere.
       def wait_for_completion
         @monitor.synchronize do
           @condition.wait_until { @state == STATE_COMPLETED }
@@ -179,7 +198,10 @@ module Taski
 
       private
 
-      # Trigger execution via ExecutionContext or Executor and wait for completion
+      ##
+      # Ensures the task is executed if still pending and waits for completion.
+      # If the task is pending, triggers execution (via the configured ExecutionContext when present, otherwise via Executor) outside the monitor; if the task is running, waits until it becomes completed; if already completed, returns immediately.
+      # @raise [Taski::TaskAbortException] If the registry requested an abort before execution begins.
       def trigger_execution_and_wait
         should_execute = false
         @monitor.synchronize do
@@ -206,7 +228,11 @@ module Taski
         end
       end
 
-      # Trigger clean execution via ExecutionContext or Executor and wait for completion
+      ##
+      # Triggers task cleanup through the configured execution mechanism and waits until the cleanup completes.
+      #
+      # If an ExecutionContext is configured the cleanup is invoked through it; otherwise a fallback executor is used.
+      # @raise [Taski::TaskAbortException] if the registry has requested an abort.
       def trigger_clean_and_wait
         should_execute = false
         @monitor.synchronize do
@@ -233,6 +259,9 @@ module Taski
         end
       end
 
+      ##
+      # Checks whether the registry has requested an abort and raises an exception to stop starting new tasks.
+      # @raise [Taski::TaskAbortException] if `@registry.abort_requested?` is true — raised with the message "Execution aborted - no new tasks will start".
       def check_abort!
         if @registry.abort_requested?
           raise Taski::TaskAbortException, "Execution aborted - no new tasks will start"

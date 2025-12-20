@@ -50,6 +50,16 @@ module Taski
       CLEAN_STATE_ENQUEUED = :clean_enqueued
       CLEAN_STATE_COMPLETED = :clean_completed
 
+      ##
+      # Initializes internal data structures used to track normal and clean task execution.
+      #
+      # Sets up:
+      # - @dependencies: map from task class to its dependency task classes.
+      # - @task_states: map from task class to its normal execution state.
+      # - @completed_tasks: set of task classes that have completed normal execution.
+      # - @reverse_dependencies: map from task class to dependent task classes (used for clean ordering).
+      # - @clean_task_states: map from task class to its clean execution state.
+      # - @clean_completed_tasks: set of task classes that have completed clean execution.
       def initialize
         # Run execution state
         @dependencies = {}
@@ -120,7 +130,9 @@ module Taski
 
       # Check if there are any running (enqueued) tasks.
       #
-      # @return [Boolean] true if there are tasks currently running
+      ##
+      # Indicates whether any tasks are currently enqueued for execution.
+      # @return [Boolean] `true` if any task is enqueued, `false` otherwise.
       def running_tasks?
         @task_states.values.any? { |state| state == STATE_ENQUEUED }
       end
@@ -135,7 +147,13 @@ module Taski
       #
       # Also initializes clean states for all tasks to CLEAN_STATE_PENDING.
       #
-      # @param root_task_class [Class] The root task class to start from
+      ##
+      # Builds the reverse dependency graph and initializes per-task clean execution state starting from the given root task.
+      #
+      # Ensures the forward dependency graph is present, clears prior clean-state data, initializes each discovered task with
+      # an empty reverse-dependency set and `CLEAN_STATE_PENDING`, and populates reverse mappings so a task's clean run
+      # depends on the clean completion of tasks that depend on it.
+      # @param [Class] root_task_class The root task class from which to discover tasks and their dependencies.
       def build_reverse_dependency_graph(root_task_class)
         # First, ensure we have the forward dependency graph
         build_dependency_graph(root_task_class) if @dependencies.empty?
@@ -164,7 +182,10 @@ module Taski
       # A task is ready to clean when all its reverse dependencies (dependents)
       # have completed their clean operation.
       #
-      # @return [Array<Class>] Array of task classes ready for clean
+      ##
+      # Lists task classes that are ready for clean execution.
+      # A task is considered ready when its clean state is `CLEAN_STATE_PENDING` and all of its reverse dependencies have completed their clean execution.
+      # @return [Array<Class>] Array of task classes ready for clean execution.
       def next_ready_clean_tasks
         ready = []
         @clean_task_states.each_key do |task_class|
@@ -177,14 +198,18 @@ module Taski
 
       # Mark a task as enqueued for clean execution.
       #
-      # @param task_class [Class] The task class to mark
+      ##
+      # Marks the given task class as enqueued for clean execution.
+      # @param [Class] task_class The task class to mark as enqueued for clean execution.
       def mark_clean_enqueued(task_class)
         @clean_task_states[task_class] = CLEAN_STATE_ENQUEUED
       end
 
       # Mark a task as clean completed.
       #
-      # @param task_class [Class] The task class to mark
+      ##
+      # Marks the clean execution of the given task class as completed and records it.
+      # @param [Class] task_class - The task class to mark as clean completed.
       def mark_clean_completed(task_class)
         @clean_task_states[task_class] = CLEAN_STATE_COMPLETED
         @clean_completed_tasks.add(task_class)
@@ -193,14 +218,19 @@ module Taski
       # Check if a task's clean is completed.
       #
       # @param task_class [Class] The task class to check
-      # @return [Boolean] true if the task's clean is completed
+      ##
+      # Checks whether a task class has completed its clean execution.
+      # @param [Class] task_class - The task class to check.
+      # @return [Boolean] `true` if the task's clean is completed, `false` otherwise.
       def clean_completed?(task_class)
         @clean_completed_tasks.include?(task_class)
       end
 
       # Check if there are any running (enqueued) clean tasks.
       #
-      # @return [Boolean] true if there are clean tasks currently running
+      ##
+      # Indicates whether any clean tasks are currently enqueued for execution.
+      # @return [Boolean] `true` if at least one clean task is enqueued, `false` otherwise.
       def running_clean_tasks?
         @clean_task_states.values.any? { |state| state == CLEAN_STATE_ENQUEUED }
       end
@@ -210,7 +240,10 @@ module Taski
       # Check if a task is ready to execute (all dependencies completed).
       #
       # @param task_class [Class] The task class to check
-      # @return [Boolean] true if the task is ready
+      ##
+      # Determines whether a task's dependencies have all completed.
+      # @param [Class] task_class - The task class to check.
+      # @return [Boolean] `true` if every dependency of `task_class` is in the set of completed tasks, `false` otherwise.
       def ready_to_execute?(task_class)
         task_deps = @dependencies[task_class] || Set.new
         task_deps.subset?(@completed_tasks)
@@ -221,7 +254,10 @@ module Taski
       # be cleaned before this task can be cleaned.
       #
       # @param task_class [Class] The task class to check
-      # @return [Boolean] true if the task is ready to clean
+      ##
+      # Determines whether a task is ready for clean execution.
+      # @param [Class] task_class - The task class to check.
+      # @return [Boolean] `true` if all tasks that depend on `task_class` have completed their clean execution, `false` otherwise.
       def ready_to_clean?(task_class)
         reverse_deps = @reverse_dependencies[task_class] || Set.new
         reverse_deps.subset?(@clean_completed_tasks)
