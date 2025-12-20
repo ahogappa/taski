@@ -86,13 +86,16 @@ module Taski
       end
 
       # Called by user code to run and clean. Runs execution followed by cleanup.
-      # Both phases share a single progress display session.
       # If run fails, clean is still executed for resource release.
+      # Pre-increments progress display nest_level to prevent double rendering.
       # @return [Object] The result of task execution
       def run_and_clean
-        trigger_run_and_clean_and_wait
-        raise @error if @error # steep:ignore
-        @result
+        context = ensure_execution_context
+        context.notify_start # Pre-increment nest_level to prevent double rendering
+        run
+      ensure
+        clean
+        context&.notify_stop # Final decrement and render
       end
 
       # Called by user code to get exported value. Triggers execution if needed.
@@ -236,12 +239,9 @@ module Taski
 
         if should_execute
           # Execute outside the lock to avoid deadlock
-          if @execution_context
-            @execution_context.trigger_execution(@task.class, registry: @registry)
-          else
-            # Fallback for backward compatibility
-            Executor.execute(@task.class, registry: @registry)
-          end
+          # Use ensure_execution_context to create a shared context if not set
+          context = ensure_execution_context
+          context.trigger_execution(@task.class, registry: @registry)
           # After execution returns, the task is completed
         end
       end
@@ -267,43 +267,10 @@ module Taski
 
         if should_execute
           # Execute outside the lock to avoid deadlock
-          if @execution_context
-            @execution_context.trigger_clean(@task.class, registry: @registry)
-          else
-            # Fallback for backward compatibility
-            Executor.execute_clean(@task.class, registry: @registry)
-          end
+          # Use ensure_execution_context to reuse the context from run phase
+          context = ensure_execution_context
+          context.trigger_clean(@task.class, registry: @registry)
           # After execution returns, the task is completed
-        end
-      end
-
-      # Triggers task run followed by clean through the configured execution mechanism.
-      # Both phases share a single progress display session.
-      # If run fails, clean is still executed for resource release.
-      # @raise [Taski::TaskAbortException] if the registry has requested an abort.
-      def trigger_run_and_clean_and_wait
-        should_execute = false
-        @monitor.synchronize do
-          case @state
-          when STATE_PENDING
-            check_abort!
-            should_execute = true
-          when STATE_RUNNING
-            @condition.wait_until { @state == STATE_COMPLETED }
-          when STATE_COMPLETED
-            # Already done
-          end
-        end
-
-        if should_execute
-          # Execute outside the lock to avoid deadlock
-          if @execution_context
-            @execution_context.trigger_run_and_clean(@task.class, registry: @registry)
-          else
-            # Fallback for backward compatibility
-            Executor.execute_run_and_clean(@task.class, registry: @registry)
-          end
-          # After execution returns, both run and clean are completed
         end
       end
 
@@ -314,6 +281,35 @@ module Taski
         if @registry.abort_requested?
           raise Taski::TaskAbortException, "Execution aborted - no new tasks will start"
         end
+      end
+
+      ##
+      # Ensures an execution context exists for this wrapper.
+      # Returns the existing context if set, otherwise creates a shared context.
+      # This enables run and clean phases to share state like runtime dependencies.
+      # @return [ExecutionContext] The execution context for this wrapper
+      def ensure_execution_context
+        @execution_context ||= create_shared_context
+      end
+
+      ##
+      # Creates a shared execution context with proper triggers for run and clean.
+      # The context is configured to reuse itself when triggering nested executions.
+      # @return [ExecutionContext] A new execution context
+      def create_shared_context
+        context = ExecutionContext.new
+        progress = Taski.progress_display
+        context.add_observer(progress) if progress
+
+        # Set triggers to reuse this context for nested executions
+        context.execution_trigger = ->(task_class, registry) do
+          Executor.execute(task_class, registry: registry, execution_context: context)
+        end
+        context.clean_trigger = ->(task_class, registry) do
+          Executor.execute_clean(task_class, registry: registry, execution_context: context)
+        end
+
+        context
       end
 
       def update_progress(state, duration: nil, error: nil)

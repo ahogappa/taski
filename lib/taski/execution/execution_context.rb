@@ -78,7 +78,6 @@ module Taski
         @observers = []
         @execution_trigger = nil
         @clean_trigger = nil
-        @run_and_clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
         @runtime_dependencies = {}
@@ -181,34 +180,6 @@ module Taski
         else
           # Fallback for backward compatibility
           Executor.execute_clean(task_class, registry: registry, execution_context: self)
-        end
-      end
-
-      # ========================================
-      # Run and Clean Trigger
-      # ========================================
-
-      # Set the run_and_clean trigger callback.
-      # This is used to break the circular dependency between TaskWrapper and Executor.
-      # The trigger is a callable that takes (task_class, registry) and executes run followed by clean.
-      #
-      # @param [Proc, nil] trigger - A callback receiving `(task_class, registry)`, or `nil` to unset the custom trigger.
-      def run_and_clean_trigger=(trigger)
-        @monitor.synchronize { @run_and_clean_trigger = trigger }
-      end
-
-      # Trigger run_and_clean for a task.
-      # Falls back to Executor.execute_run_and_clean if no custom trigger is set.
-      #
-      # @param task_class [Class] The task class to run and clean
-      # @param registry [Registry] The task registry
-      def trigger_run_and_clean(task_class, registry:)
-        trigger = @monitor.synchronize { @run_and_clean_trigger }
-        if trigger
-          trigger.call(task_class, registry)
-        else
-          # Fallback for backward compatibility
-          Executor.execute_run_and_clean(task_class, registry: registry, execution_context: self)
         end
       end
 

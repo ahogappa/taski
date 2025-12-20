@@ -64,17 +64,6 @@ module Taski
         def execute_clean(root_task_class, registry:, execution_context: nil)
           new(registry: registry, execution_context: execution_context).execute_clean(root_task_class)
         end
-
-        # Execute run followed by clean for a task and all dependencies.
-        # Both phases share a single progress display session.
-        # If run fails, clean is still executed for resource release.
-        #
-        # @param root_task_class [Class] The root task class to run and clean
-        # @param registry [Registry] The task registry
-        # @param execution_context [ExecutionContext, nil] Optional execution context
-        def execute_run_and_clean(root_task_class, registry:, execution_context: nil)
-          new(registry: registry, execution_context: execution_context).execute_run_and_clean(root_task_class)
-        end
       end
 
       ##
@@ -151,7 +140,13 @@ module Taski
       # @param [Class] root_task_class - The root task class to clean
       def execute_clean(root_task_class)
         # Build reverse dependency graph for clean order
+        # This must happen first to ensure root task and all static dependencies are included
         @scheduler.build_reverse_dependency_graph(root_task_class)
+
+        # Merge runtime dependencies (e.g., Section's dynamically selected implementations)
+        # This allows clean to include tasks that were selected at runtime during run phase
+        runtime_deps = @execution_context.runtime_dependencies
+        @scheduler.merge_runtime_dependencies(runtime_deps)
 
         # Set up progress display with root task (if not already set)
         setup_progress_display(root_task_class)
@@ -185,62 +180,6 @@ module Taski
 
         # Restore original stdout (only if this executor set it up)
         teardown_output_capture if should_teardown_capture
-      end
-
-      # Execute run followed by clean for root task and all dependencies.
-      # Both phases share a single progress display session.
-      # If run fails, clean is still executed for resource release.
-      #
-      # @param root_task_class [Class] The root task class to run and clean
-      def execute_run_and_clean(root_task_class)
-        # ========================================
-        # Phase 1: Run
-        # ========================================
-        @scheduler.build_dependency_graph(root_task_class)
-        setup_progress_display(root_task_class)
-        should_teardown_capture = setup_output_capture_if_needed
-        start_progress_display
-
-        run_error = nil
-        begin
-          @worker_pool.start
-          enqueue_ready_tasks
-          run_main_loop(root_task_class)
-          @worker_pool.shutdown
-        rescue => e
-          run_error = e
-          @worker_pool.shutdown
-        end
-
-        # ========================================
-        # Phase 2: Clean (always execute, even if run failed)
-        # ========================================
-        # Merge runtime dependencies discovered during run phase
-        runtime_deps = @execution_context.runtime_dependencies
-        @scheduler.merge_runtime_dependencies(runtime_deps)
-
-        # Build reverse dependency graph including runtime dependencies
-        @scheduler.build_reverse_dependency_graph(root_task_class)
-
-        # Create worker pool for clean operations
-        @clean_worker_pool = WorkerPool.new(
-          registry: @registry,
-          worker_count: nil
-        ) { |task_class, wrapper| execute_clean_task(task_class, wrapper) }
-
-        @clean_worker_pool.start
-        enqueue_ready_clean_tasks
-        run_clean_main_loop(root_task_class)
-        @clean_worker_pool.shutdown
-
-        # ========================================
-        # Teardown
-        # ========================================
-        stop_progress_display
-        teardown_output_capture if should_teardown_capture
-
-        # Raise run error after teardown if present
-        raise run_error if run_error
       end
 
       private
@@ -484,11 +423,6 @@ module Taski
         # Set execution trigger to break circular dependency with TaskWrapper
         context.execution_trigger = ->(task_class, registry) do
           Executor.execute(task_class, registry: registry, execution_context: context)
-        end
-
-        # Set run_and_clean trigger for combined execution
-        context.run_and_clean_trigger = ->(task_class, registry) do
-          Executor.execute_run_and_clean(task_class, registry: registry, execution_context: context)
         end
 
         context

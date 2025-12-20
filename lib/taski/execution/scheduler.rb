@@ -145,6 +145,7 @@ module Taski
       # Used to incorporate dynamically selected dependencies (e.g., Section implementations)
       # that were determined during the run phase.
       #
+      # This method also updates reverse dependencies if they exist (for clean operations).
       # This method is idempotent - calling it multiple times with the same data is safe.
       #
       # @param runtime_deps [Hash{Class => Set<Class>}] Runtime dependencies from ExecutionContext
@@ -162,6 +163,16 @@ module Taski
             unless @dependencies.key?(to_class)
               @dependencies[to_class] = to_class.cached_dependencies
               @task_states[to_class] = STATE_PENDING
+            end
+
+            # Update reverse dependencies if they exist (for clean operations)
+            # If A depends on B (from_class→to_class), then B→[A] in reverse graph
+            if @reverse_dependencies.any?
+              @reverse_dependencies[to_class] ||= Set.new
+              @reverse_dependencies[to_class].add(from_class)
+
+              # Ensure to_class has clean state initialized
+              @clean_task_states[to_class] ||= CLEAN_STATE_PENDING
             end
           end
         end

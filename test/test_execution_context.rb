@@ -407,23 +407,4 @@ class TestExecutionContext < Minitest::Test
       assert deps.key?(cls), "Expected #{cls} to have dependencies registered"
     end
   end
-
-  # ========================================
-  # Run and Clean Trigger Tests
-  # ========================================
-
-  def test_run_and_clean_trigger_with_custom_trigger
-    context = Taski::Execution::ExecutionContext.new
-    triggered_with = nil
-
-    context.run_and_clean_trigger = ->(task_class, registry) do
-      triggered_with = {task_class: task_class, registry: registry}
-    end
-
-    registry = Taski::Execution::Registry.new
-    context.trigger_run_and_clean(String, registry: registry)
-
-    assert_equal String, triggered_with[:task_class]
-    assert_equal registry, triggered_with[:registry]
-  end
 end

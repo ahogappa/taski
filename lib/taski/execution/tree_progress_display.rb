@@ -162,16 +162,50 @@ module Taski
       end
 
       class TaskProgress
-        attr_accessor :state, :start_time, :end_time, :error, :duration
+        # Run lifecycle tracking
+        attr_accessor :run_state, :run_start_time, :run_end_time, :run_error, :run_duration
+        # Clean lifecycle tracking
+        attr_accessor :clean_state, :clean_start_time, :clean_end_time, :clean_error, :clean_duration
+        # Display properties
         attr_accessor :is_impl_candidate
 
         def initialize
-          @state = :pending
-          @start_time = nil
-          @end_time = nil
-          @error = nil
-          @duration = nil
+          # Run lifecycle
+          @run_state = :pending
+          @run_start_time = nil
+          @run_end_time = nil
+          @run_error = nil
+          @run_duration = nil
+          # Clean lifecycle
+          @clean_state = nil  # nil means clean hasn't started
+          @clean_start_time = nil
+          @clean_end_time = nil
+          @clean_error = nil
+          @clean_duration = nil
+          # Display
           @is_impl_candidate = false
+        end
+
+        # For backward compatibility - returns the most relevant state for display
+        def state
+          @clean_state || @run_state
+        end
+
+        # Legacy accessors for backward compatibility
+        def start_time
+          @clean_start_time || @run_start_time
+        end
+
+        def end_time
+          @clean_end_time || @run_end_time
+        end
+
+        def error
+          @clean_error || @run_error
+        end
+
+        def duration
+          @clean_duration || @run_duration
         end
       end
 
@@ -234,7 +268,7 @@ module Taski
       end
 
       # @param task_class [Class] The task class to update
-      # @param state [Symbol] The new state (:pending, :running, :completed, :failed)
+      # @param state [Symbol] The new state (:pending, :running, :completed, :failed, :cleaning, :clean_completed, :clean_failed)
       # @param duration [Float] Duration in milliseconds (for completed tasks)
       # @param error [Exception] Error object (for failed tasks)
       def update_task(task_class, state:, duration: nil, error: nil)
@@ -242,15 +276,33 @@ module Taski
           progress = @tasks[task_class]
           return unless progress
 
-          progress.state = state
-          progress.duration = duration if duration
-          progress.error = error if error
-
           case state
+          # Run lifecycle states
+          when :pending
+            progress.run_state = :pending
           when :running
-            progress.start_time = Time.now
-          when :completed, :failed
-            progress.end_time = Time.now
+            progress.run_state = :running
+            progress.run_start_time = Time.now
+          when :completed
+            progress.run_state = :completed
+            progress.run_end_time = Time.now
+            progress.run_duration = duration if duration
+          when :failed
+            progress.run_state = :failed
+            progress.run_end_time = Time.now
+            progress.run_error = error if error
+          # Clean lifecycle states
+          when :cleaning
+            progress.clean_state = :cleaning
+            progress.clean_start_time = Time.now
+          when :clean_completed
+            progress.clean_state = :clean_completed
+            progress.clean_end_time = Time.now
+            progress.clean_duration = duration if duration
+          when :clean_failed
+            progress.clean_state = :clean_failed
+            progress.clean_end_time = Time.now
+            progress.clean_error = error if error
           end
         end
       end
@@ -446,12 +498,12 @@ module Taski
           return "#{COLORS[:dim]}#{ICONS[:skipped]}#{COLORS[:reset]} #{impl_prefix}#{name} #{type_label}#{suffix}"
         end
 
-        status_icon = task_status_icon(progress.state, is_selected)
+        status_icons = combined_status_icons(progress)
         name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
-        details = task_details(progress)
+        details = combined_task_details(progress)
         output_suffix = task_output_suffix(task_class, progress.state)
 
-        "#{status_icon} #{impl_prefix}#{name} #{type_label}#{details}#{output_suffix}"
+        "#{status_icons} #{impl_prefix}#{name} #{type_label}#{details}#{output_suffix}"
       end
 
       def format_unknown_task(task_class, is_selected = true)
@@ -463,6 +515,55 @@ module Taski
           name = "#{COLORS[:dim]}#{task_class.name}#{COLORS[:reset]}"
           type_label = type_label_for(task_class, false)
           "#{COLORS[:dim]}#{ICONS[:skipped]}#{COLORS[:reset]} #{name} #{type_label}"
+        end
+      end
+
+      ##
+      # Returns combined status icons for both run and clean phases.
+      # Shows run icon first, then clean icon if clean phase has started.
+      # @param [TaskProgress] progress - The task progress object with run_state and clean_state.
+      # @return [String] The combined ANSI-colored icons.
+      def combined_status_icons(progress)
+        run_icon = run_status_icon(progress.run_state)
+
+        # If clean phase hasn't started, only show run icon
+        return run_icon unless progress.clean_state
+
+        clean_icon = clean_status_icon(progress.clean_state)
+        "#{run_icon} #{clean_icon}"
+      end
+
+      ##
+      # Returns the status icon for run phase.
+      # @param [Symbol] state - The run state (:pending, :running, :completed, :failed).
+      # @return [String] The ANSI-colored icon.
+      def run_status_icon(state)
+        case state
+        when :completed
+          "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
+        when :failed
+          "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
+        when :running
+          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        else
+          "#{COLORS[:pending]}#{ICONS[:pending]}#{COLORS[:reset]}"
+        end
+      end
+
+      ##
+      # Returns the status icon for clean phase.
+      # @param [Symbol] state - The clean state (:cleaning, :clean_completed, :clean_failed).
+      # @return [String] The ANSI-colored icon.
+      def clean_status_icon(state)
+        case state
+        when :cleaning
+          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        when :clean_completed
+          "#{COLORS[:success]}#{ICONS[:clean_completed]}#{COLORS[:reset]}"
+        when :clean_failed
+          "#{COLORS[:error]}#{ICONS[:clean_failed]}#{COLORS[:reset]}"
+        else
+          ""
         end
       end
 
@@ -506,6 +607,57 @@ module Taski
           is_selected ? "#{COLORS[:section]}(Section)#{COLORS[:reset]}" : "#{COLORS[:dim]}(Section)#{COLORS[:reset]}"
         else
           is_selected ? "#{COLORS[:task]}(Task)#{COLORS[:reset]}" : "#{COLORS[:dim]}(Task)#{COLORS[:reset]}"
+        end
+      end
+
+      ##
+      # Returns combined details for both run and clean phases.
+      # @param [TaskProgress] progress - Progress object with run_state, clean_state, etc.
+      # @return [String] Combined details for both phases.
+      def combined_task_details(progress)
+        run_detail = run_phase_details(progress)
+        clean_detail = clean_phase_details(progress)
+
+        if clean_detail.empty?
+          run_detail
+        else
+          "#{run_detail}#{clean_detail}"
+        end
+      end
+
+      ##
+      # Returns details for the run phase only.
+      # @param [TaskProgress] progress - Progress object.
+      # @return [String] Run phase details.
+      def run_phase_details(progress)
+        case progress.run_state
+        when :completed
+          " #{COLORS[:success]}(#{progress.run_duration}ms)#{COLORS[:reset]}"
+        when :failed
+          " #{COLORS[:error]}(failed)#{COLORS[:reset]}"
+        when :running
+          elapsed = ((Time.now - progress.run_start_time) * 1000).round(0)
+          " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
+        else
+          ""
+        end
+      end
+
+      ##
+      # Returns details for the clean phase only.
+      # @param [TaskProgress] progress - Progress object.
+      # @return [String] Clean phase details.
+      def clean_phase_details(progress)
+        case progress.clean_state
+        when :cleaning
+          elapsed = ((Time.now - progress.clean_start_time) * 1000).round(0)
+          " #{COLORS[:running]}(cleaning #{elapsed}ms)#{COLORS[:reset]}"
+        when :clean_completed
+          " #{COLORS[:success]}(cleaned #{progress.clean_duration}ms)#{COLORS[:reset]}"
+        when :clean_failed
+          " #{COLORS[:error]}(clean failed)#{COLORS[:reset]}"
+        else
+          ""
         end
       end
 
