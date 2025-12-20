@@ -26,6 +26,8 @@ module Taski
     #
     # - register_task(task_class) - Called when a task is registered
     # - update_task(task_class, state:, duration:, error:) - Called on state changes
+    #   State values for run: :pending, :running, :completed, :failed
+    #   State values for clean: :cleaning, :clean_completed, :clean_failed
     # - register_section_impl(section_class, impl_class) - Called on section impl selection
     # - set_root_task(task_class) - Called when root task is set
     # - set_output_capture(output_capture) - Called when output capture is configured
@@ -70,6 +72,7 @@ module Taski
         @monitor = Monitor.new
         @observers = []
         @execution_trigger = nil
+        @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
       end
@@ -123,6 +126,15 @@ module Taski
         @monitor.synchronize { @execution_trigger = trigger }
       end
 
+      # Set the clean trigger callback.
+      # This is used to break the circular dependency between TaskWrapper and Executor.
+      # The trigger is a callable that takes (task_class, registry) and cleans the task.
+      #
+      # @param trigger [Proc, nil] The clean trigger callback
+      def clean_trigger=(trigger)
+        @monitor.synchronize { @clean_trigger = trigger }
+      end
+
       # Trigger execution of a task.
       # Falls back to Executor.execute if no custom trigger is set.
       #
@@ -135,6 +147,21 @@ module Taski
         else
           # Fallback for backward compatibility
           Executor.execute(task_class, registry: registry, execution_context: self)
+        end
+      end
+
+      # Trigger clean of a task.
+      # Falls back to Executor.execute_clean if no custom trigger is set.
+      #
+      # @param task_class [Class] The task class to clean
+      # @param registry [Registry] The task registry
+      def trigger_clean(task_class, registry:)
+        trigger = @monitor.synchronize { @clean_trigger }
+        if trigger
+          trigger.call(task_class, registry)
+        else
+          # Fallback for backward compatibility
+          Executor.execute_clean(task_class, registry: registry, execution_context: self)
         end
       end
 
@@ -221,6 +248,27 @@ module Taski
       # Notify observers to stop.
       def notify_stop
         dispatch(:stop)
+      end
+
+      # ========================================
+      # Clean Lifecycle Notifications
+      # ========================================
+
+      # Notify observers that a task's clean has started.
+      #
+      # @param task_class [Class] The task class that started cleaning
+      def notify_clean_started(task_class)
+        dispatch(:update_task, task_class, state: :cleaning)
+      end
+
+      # Notify observers that a task's clean has completed.
+      #
+      # @param task_class [Class] The task class that completed cleaning
+      # @param duration [Float, nil] The clean duration in milliseconds
+      # @param error [Exception, nil] The error if the clean failed
+      def notify_clean_completed(task_class, duration: nil, error: nil)
+        state = error ? :clean_failed : :clean_completed
+        dispatch(:update_task, task_class, state: state, duration: duration, error: error)
       end
 
       private

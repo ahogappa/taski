@@ -39,6 +39,7 @@ module Taski
         @result = nil
         @clean_result = nil
         @error = nil
+        @clean_error = nil
         @monitor = Monitor.new
         @condition = @monitor.new_cond
         @clean_condition = @monitor.new_cond
@@ -120,11 +121,31 @@ module Taski
         update_progress(:failed, error: error)
       end
 
+      # Called by Executor to mark clean as running
+      # @return [Boolean] true if successfully transitioned to running
+      def mark_clean_running
+        @monitor.synchronize do
+          return false unless @clean_state == STATE_PENDING
+          @clean_state = STATE_RUNNING
+          true
+        end
+      end
+
       # Called by Executor after clean completes
       # @param result [Object] The result of cleanup
       def mark_clean_completed(result)
         @monitor.synchronize do
           @clean_result = result
+          @clean_state = STATE_COMPLETED
+          @clean_condition.broadcast
+        end
+      end
+
+      # Called by Executor when clean raises an error
+      # @param error [Exception] The error that occurred
+      def mark_clean_failed(error)
+        @monitor.synchronize do
+          @clean_error = error
           @clean_state = STATE_COMPLETED
           @clean_condition.broadcast
         end
@@ -185,40 +206,31 @@ module Taski
         end
       end
 
-      # Trigger clean execution and wait for completion
+      # Trigger clean execution via ExecutionContext or Executor and wait for completion
       def trigger_clean_and_wait
+        should_execute = false
         @monitor.synchronize do
           case @clean_state
           when STATE_PENDING
-            @clean_state = STATE_RUNNING
-            # Execute clean in a thread (clean doesn't use Producer-Consumer)
-            thread = Thread.new { execute_clean }
-            @registry.register_thread(thread)
-            @clean_condition.wait_until { @clean_state == STATE_COMPLETED }
+            check_abort!
+            should_execute = true
           when STATE_RUNNING
             @clean_condition.wait_until { @clean_state == STATE_COMPLETED }
           when STATE_COMPLETED
             # Already done
           end
         end
-      end
 
-      def execute_clean
-        debug_log("Cleaning #{@task.class}...")
-        result = @task.clean
-        wait_for_clean_dependencies
-        mark_clean_completed(result)
-        debug_log("Clean #{@task.class} completed.")
-      end
-
-      def wait_for_clean_dependencies
-        dependencies = @task.class.cached_dependencies
-        return if dependencies.empty?
-
-        wait_threads = dependencies.map do |dep_class|
-          Thread.new { dep_class.clean }
+        if should_execute
+          # Execute outside the lock to avoid deadlock
+          if @execution_context
+            @execution_context.trigger_clean(@task.class, registry: @registry)
+          else
+            # Fallback for backward compatibility
+            Executor.execute_clean(@task.class, registry: @registry)
+          end
+          # After execution returns, the task is completed
         end
-        wait_threads.each(&:join)
       end
 
       def check_abort!

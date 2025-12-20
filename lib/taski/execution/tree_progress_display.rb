@@ -27,11 +27,16 @@ module Taski
 
       # Status icons
       ICONS = {
+        # Run lifecycle states
         pending: "⏸",        # Pause for waiting
         running_prefix: "",  # Will use spinner
         completed: "✓",
         failed: "✗",
-        skipped: "⊘"         # Prohibition sign for unselected impl candidates
+        skipped: "⊘",        # Prohibition sign for unselected impl candidates
+        # Clean lifecycle states
+        cleaning_prefix: "",  # Will use spinner
+        clean_completed: "♻",
+        clean_failed: "✗"
       }.freeze
 
       # Shared helper methods
@@ -468,12 +473,20 @@ module Taski
         end
 
         case state
+        # Run lifecycle states
         when :completed
           "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
         when :failed
           "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
         when :running
           "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        # Clean lifecycle states
+        when :cleaning
+          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        when :clean_completed
+          "#{COLORS[:success]}#{ICONS[:clean_completed]}#{COLORS[:reset]}"
+        when :clean_failed
+          "#{COLORS[:error]}#{ICONS[:clean_failed]}#{COLORS[:reset]}"
         else
           "#{COLORS[:pending]}#{ICONS[:pending]}#{COLORS[:reset]}"
         end
@@ -493,6 +506,7 @@ module Taski
 
       def task_details(progress)
         case progress.state
+        # Run lifecycle states
         when :completed
           " #{COLORS[:success]}(#{progress.duration}ms)#{COLORS[:reset]}"
         when :failed
@@ -500,15 +514,23 @@ module Taski
         when :running
           elapsed = ((Time.now - progress.start_time) * 1000).round(0)
           " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
+        # Clean lifecycle states
+        when :cleaning
+          elapsed = ((Time.now - progress.start_time) * 1000).round(0)
+          " #{COLORS[:running]}(cleaning #{elapsed}ms)#{COLORS[:reset]}"
+        when :clean_completed
+          " #{COLORS[:success]}(cleaned #{progress.duration}ms)#{COLORS[:reset]}"
+        when :clean_failed
+          " #{COLORS[:error]}(clean failed)#{COLORS[:reset]}"
         else
           ""
         end
       end
 
       # Get task output suffix to display next to task
-      # Only shows output for running tasks
+      # Only shows output for running or cleaning tasks
       def task_output_suffix(task_class, state)
-        return "" unless state == :running
+        return "" unless state == :running || state == :cleaning
         return "" unless @output_capture
 
         last_line = @output_capture.last_line_for(task_class)

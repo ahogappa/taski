@@ -291,4 +291,55 @@ class TestExecutionContext < Minitest::Test
       $stdout = original_stdout
     end
   end
+
+  # ========================================
+  # Clean Lifecycle Notification Tests
+  # ========================================
+
+  def test_notify_clean_started
+    context = Taski::Execution::ExecutionContext.new
+    called_with = nil
+    observer = Object.new
+    observer.define_singleton_method(:update_task) do |task_class, state:, **_kwargs|
+      called_with = {task_class: task_class, state: state}
+    end
+
+    context.add_observer(observer)
+    context.notify_clean_started(String)
+
+    assert_equal({task_class: String, state: :cleaning}, called_with)
+  end
+
+  def test_notify_clean_completed_success
+    context = Taski::Execution::ExecutionContext.new
+    called_with = nil
+    observer = Object.new
+    observer.define_singleton_method(:update_task) do |task_class, state:, duration:, error:|
+      called_with = {task_class: task_class, state: state, duration: duration, error: error}
+    end
+
+    context.add_observer(observer)
+    context.notify_clean_completed(String, duration: 2.5)
+
+    assert_equal String, called_with[:task_class]
+    assert_equal :clean_completed, called_with[:state]
+    assert_equal 2.5, called_with[:duration]
+    assert_nil called_with[:error]
+  end
+
+  def test_notify_clean_completed_with_error
+    context = Taski::Execution::ExecutionContext.new
+    called_with = nil
+    observer = Object.new
+    observer.define_singleton_method(:update_task) do |task_class, state:, duration:, error:|
+      called_with = {task_class: task_class, state: state, duration: duration, error: error}
+    end
+
+    test_error = StandardError.new("clean error")
+    context.add_observer(observer)
+    context.notify_clean_completed(String, error: test_error)
+
+    assert_equal :clean_failed, called_with[:state]
+    assert_equal test_error, called_with[:error]
+  end
 end
