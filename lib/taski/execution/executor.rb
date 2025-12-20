@@ -140,7 +140,13 @@ module Taski
       # @param [Class] root_task_class - The root task class to clean
       def execute_clean(root_task_class)
         # Build reverse dependency graph for clean order
+        # This must happen first to ensure root task and all static dependencies are included
         @scheduler.build_reverse_dependency_graph(root_task_class)
+
+        # Merge runtime dependencies (e.g., Section's dynamically selected implementations)
+        # This allows clean to include tasks that were selected at runtime during run phase
+        runtime_deps = @execution_context.runtime_dependencies
+        @scheduler.merge_runtime_dependencies(runtime_deps)
 
         # Set up progress display with root task (if not already set)
         setup_progress_display(root_task_class)

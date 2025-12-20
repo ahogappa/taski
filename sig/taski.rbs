@@ -288,10 +288,8 @@ module Taski
       def render_children: (Hash[Symbol, untyped] node, String prefix, Array[String] lines, Class parent_task_class, bool ancestor_selected) -> void
       def format_tree_line: (Class task_class, TaskProgress? progress, bool is_impl, bool is_selected) -> String
       def format_unknown_task: (Class task_class, ?bool is_selected) -> String
-      def task_status_icon: (Symbol state, bool is_selected) -> String
       def spinner_char: () -> String
       def type_label_for: (Class task_class, ?bool is_selected) -> String
-      def task_details: (TaskProgress progress) -> String
       def section_class?: (Class klass) -> bool
       def nested_class?: (Class child_class, Class parent_class) -> bool
     end

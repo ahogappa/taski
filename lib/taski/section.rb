@@ -24,6 +24,9 @@ module Taski
         raise "Section #{self.class} does not have an implementation. Override 'impl' method."
       end
 
+      # Register runtime dependency for clean phase (before register_impl_selection)
+      register_runtime_dependency(implementation_class)
+
       # Register selected impl for progress display
       register_impl_selection(implementation_class)
 
@@ -42,6 +45,16 @@ module Taski
     end
 
     private
+
+    # Register the selected implementation as a runtime dependency.
+    # This allows the clean phase to include the dynamically selected impl.
+    # Handles nil ExecutionContext gracefully.
+    #
+    # @param impl_class [Class] The selected implementation class
+    def register_runtime_dependency(impl_class)
+      context = Execution::ExecutionContext.current
+      context&.register_runtime_dependency(self.class, impl_class)
+    end
 
     def register_impl_selection(implementation_class)
       context = Execution::ExecutionContext.current

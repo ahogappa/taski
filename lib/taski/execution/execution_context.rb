@@ -80,6 +80,7 @@ module Taski
         @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
+        @runtime_dependencies = {}
       end
 
       # Check if output capture is already active.
@@ -179,6 +180,34 @@ module Taski
         else
           # Fallback for backward compatibility
           Executor.execute_clean(task_class, registry: registry, execution_context: self)
+        end
+      end
+
+      # ========================================
+      # Runtime Dependency Tracking
+      # ========================================
+
+      # Register a runtime dependency between task classes.
+      # Used by Section to track dynamically selected implementations.
+      # Thread-safe for access from worker threads.
+      #
+      # @param from_class [Class] The task class that depends on to_class
+      # @param to_class [Class] The dependency task class
+      def register_runtime_dependency(from_class, to_class)
+        @monitor.synchronize do
+          @runtime_dependencies[from_class] ||= Set.new
+          @runtime_dependencies[from_class].add(to_class)
+        end
+      end
+
+      # Get a copy of the runtime dependencies.
+      # Returns a hash mapping from_class to Set of to_classes.
+      # Thread-safe accessor.
+      #
+      # @return [Hash{Class => Set<Class>}] Copy of runtime dependencies
+      def runtime_dependencies
+        @monitor.synchronize do
+          @runtime_dependencies.transform_values(&:dup)
         end
       end
 

@@ -85,6 +85,19 @@ module Taski
         @clean_result
       end
 
+      # Called by user code to run and clean. Runs execution followed by cleanup.
+      # If run fails, clean is still executed for resource release.
+      # Pre-increments progress display nest_level to prevent double rendering.
+      # @return [Object] The result of task execution
+      def run_and_clean
+        context = ensure_execution_context
+        context.notify_start # Pre-increment nest_level to prevent double rendering
+        run
+      ensure
+        clean
+        context&.notify_stop # Final decrement and render
+      end
+
       # Called by user code to get exported value. Triggers execution if needed.
       # @param method_name [Symbol] The name of the exported method
       # @return [Object] The exported value
@@ -185,13 +198,21 @@ module Taski
         end
       end
 
-      # Wait until clean is completed
+      ##
+      # Blocks the current thread until the task's clean phase reaches the completed state.
+      # The caller will be suspended until the wrapper's clean_state becomes STATE_COMPLETED.
       def wait_for_clean_completion
         @monitor.synchronize do
           @clean_condition.wait_until { @clean_state == STATE_COMPLETED }
         end
       end
 
+      ##
+      # Delegates method calls to get_exported_value for exported task methods.
+      # @param method_name [Symbol] The method name being called.
+      # @param args [Array] Arguments passed to the method.
+      # @param block [Proc] Block passed to the method.
+      # @return [Object] The exported value for the method.
       def method_missing(method_name, *args, &block)
         if @task.class.method_defined?(method_name)
           get_exported_value(method_name)
@@ -200,6 +221,11 @@ module Taski
         end
       end
 
+      ##
+      # Returns true if the task class defines the given method.
+      # @param method_name [Symbol] The method name to check.
+      # @param include_private [Boolean] Whether to include private methods.
+      # @return [Boolean] true if the task responds to the method.
       def respond_to_missing?(method_name, include_private = false)
         @task.class.method_defined?(method_name) || super
       end
@@ -226,12 +252,9 @@ module Taski
 
         if should_execute
           # Execute outside the lock to avoid deadlock
-          if @execution_context
-            @execution_context.trigger_execution(@task.class, registry: @registry)
-          else
-            # Fallback for backward compatibility
-            Executor.execute(@task.class, registry: @registry)
-          end
+          # Use ensure_execution_context to create a shared context if not set
+          context = ensure_execution_context
+          context.trigger_execution(@task.class, registry: @registry)
           # After execution returns, the task is completed
         end
       end
@@ -257,12 +280,9 @@ module Taski
 
         if should_execute
           # Execute outside the lock to avoid deadlock
-          if @execution_context
-            @execution_context.trigger_clean(@task.class, registry: @registry)
-          else
-            # Fallback for backward compatibility
-            Executor.execute_clean(@task.class, registry: @registry)
-          end
+          # Use ensure_execution_context to reuse the context from run phase
+          context = ensure_execution_context
+          context.trigger_clean(@task.class, registry: @registry)
           # After execution returns, the task is completed
         end
       end
@@ -276,6 +296,41 @@ module Taski
         end
       end
 
+      ##
+      # Ensures an execution context exists for this wrapper.
+      # Returns the existing context if set, otherwise creates a shared context.
+      # This enables run and clean phases to share state like runtime dependencies.
+      # @return [ExecutionContext] The execution context for this wrapper
+      def ensure_execution_context
+        @execution_context ||= create_shared_context
+      end
+
+      ##
+      # Creates a shared execution context with proper triggers for run and clean.
+      # The context is configured to reuse itself when triggering nested executions.
+      # @return [ExecutionContext] A new execution context
+      def create_shared_context
+        context = ExecutionContext.new
+        progress = Taski.progress_display
+        context.add_observer(progress) if progress
+
+        # Set triggers to reuse this context for nested executions
+        context.execution_trigger = ->(task_class, registry) do
+          Executor.execute(task_class, registry: registry, execution_context: context)
+        end
+        context.clean_trigger = ->(task_class, registry) do
+          Executor.execute_clean(task_class, registry: registry, execution_context: context)
+        end
+
+        context
+      end
+
+      ##
+      # Notifies the execution context of task completion or failure.
+      # Falls back to getting the current context if not set during initialization.
+      # @param state [Symbol] The completion state (unused, kept for API consistency).
+      # @param duration [Numeric, nil] The execution duration in milliseconds.
+      # @param error [Exception, nil] The error if the task failed.
       def update_progress(state, duration: nil, error: nil)
         # Defensive fallback: try to get current context if not set during initialization
         @execution_context ||= ExecutionContext.current
@@ -284,6 +339,12 @@ module Taski
         @execution_context.notify_task_completed(@task.class, duration: duration, error: error)
       end
 
+      ##
+      # Notifies the execution context of clean completion or failure.
+      # Falls back to getting the current context if not set during initialization.
+      # @param state [Symbol] The clean state (unused, kept for API consistency).
+      # @param duration [Numeric, nil] The clean duration in milliseconds.
+      # @param error [Exception, nil] The error if the clean failed.
       def update_clean_progress(state, duration: nil, error: nil)
         # Defensive fallback: try to get current context if not set during initialization
         @execution_context ||= ExecutionContext.current
@@ -292,6 +353,9 @@ module Taski
         @execution_context.notify_clean_completed(@task.class, duration: duration, error: error)
       end
 
+      ##
+      # Outputs a debug message if TASKI_DEBUG environment variable is set.
+      # @param message [String] The debug message to output.
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
         puts "[TaskWrapper] #{message}"
