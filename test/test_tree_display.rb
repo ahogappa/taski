@@ -235,7 +235,7 @@ class TestTreeProgressDisplay < Minitest::Test
   end
 
   def test_set_output_capture
-    capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+    capture = Taski::Execution::TaskOutputRouter.new(StringIO.new)
     @display.set_output_capture(capture)
     # Verify no error is raised and capture is accepted
     assert true
@@ -442,7 +442,7 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
 
   def test_render_with_output_capture
     # Create a mock output capture that returns a last line
-    output_capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+    output_capture = Taski::Execution::TaskOutputRouter.new(StringIO.new)
 
     @display.set_root_task(FixtureTaskA)
     @display.set_output_capture(output_capture)
@@ -475,7 +475,7 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
     end
 
     display = Taski::Execution::TreeProgressDisplay.new(output: tty_output)
-    output_capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+    output_capture = Taski::Execution::TaskOutputRouter.new(StringIO.new)
 
     display.set_root_task(FixtureTaskA)
     display.set_output_capture(output_capture)
@@ -503,7 +503,7 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
     end
 
     display = Taski::Execution::TreeProgressDisplay.new(output: tty_output)
-    output_capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+    output_capture = Taski::Execution::TaskOutputRouter.new(StringIO.new)
 
     display.set_root_task(FixtureTaskA)
     display.set_output_capture(output_capture)
@@ -556,69 +556,79 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
   end
 end
 
-# Tests for ThreadOutputCapture class
-class TestThreadOutputCapture < Minitest::Test
+# Tests for TaskOutputRouter class (pipe-based output capture)
+class TestTaskOutputRouter < Minitest::Test
   def setup
     @original = StringIO.new
-    @capture = Taski::Execution::ThreadOutputCapture.new(@original)
+    @router = Taski::Execution::TaskOutputRouter.new(@original)
+  end
+
+  def teardown
+    @router.close_all
   end
 
   def test_write_passes_through_when_not_capturing
-    @capture.write("hello")
+    @router.write("hello")
     assert_equal "hello", @original.string
   end
 
   def test_write_suppresses_output_when_capturing
-    @capture.start_capture(FixtureTaskA)
-    @capture.write("hello")
-    @capture.stop_capture
+    @router.start_capture(FixtureTaskA)
+    @router.write("hello")
+    @router.stop_capture
     # Output should be suppressed (not written to original)
     assert_equal "", @original.string
   end
 
   def test_puts_passes_through_when_not_capturing
-    @capture.puts("hello")
+    @router.puts("hello")
     assert_equal "hello\n", @original.string
   end
 
   def test_puts_suppresses_output_when_capturing
-    @capture.start_capture(FixtureTaskA)
-    @capture.puts("hello")
-    @capture.stop_capture
+    @router.start_capture(FixtureTaskA)
+    @router.puts("hello")
+    @router.stop_capture
     # Output should be suppressed (not written to original)
     assert_equal "", @original.string
   end
 
   def test_start_and_stop_capture
-    @capture.start_capture(FixtureTaskA)
-    @capture.write("test output")
-    result = @capture.stop_capture
-    assert_equal "test output", result
+    @router.start_capture(FixtureTaskA)
+    @router.write("test output")
+    @router.stop_capture
+    # Pipe-based capture does not return captured content
+    # Instead, poll and check last_line_for
+    @router.poll
+    assert_equal "test output", @router.last_line_for(FixtureTaskA)
   end
 
   def test_last_line_for_returns_captured_line
-    @capture.start_capture(FixtureTaskA)
-    @capture.puts("line 1")
-    @capture.puts("line 2")
-    @capture.puts("line 3")
-    @capture.stop_capture
+    @router.start_capture(FixtureTaskA)
+    @router.puts("line 1")
+    @router.puts("line 2")
+    @router.puts("line 3")
+    @router.stop_capture
+    @router.poll
 
-    assert_equal "line 3", @capture.last_line_for(FixtureTaskA)
+    assert_equal "line 3", @router.last_line_for(FixtureTaskA)
   end
 
   def test_last_line_for_returns_nil_for_unknown_task
-    assert_nil @capture.last_line_for(FixtureTaskA)
+    assert_nil @router.last_line_for(FixtureTaskA)
   end
 
-  def test_last_line_updates_in_real_time
-    @capture.start_capture(FixtureTaskA)
-    @capture.puts("first line")
-    assert_equal "first line", @capture.last_line_for(FixtureTaskA)
+  def test_last_line_updates_after_poll
+    @router.start_capture(FixtureTaskA)
+    @router.puts("first line")
+    @router.poll
+    assert_equal "first line", @router.last_line_for(FixtureTaskA)
 
-    @capture.puts("second line")
-    assert_equal "second line", @capture.last_line_for(FixtureTaskA)
+    @router.puts("second line")
+    @router.poll
+    assert_equal "second line", @router.last_line_for(FixtureTaskA)
 
-    @capture.stop_capture
+    @router.stop_capture
   end
 
   def test_multiple_threads_capture_independently
@@ -626,13 +636,16 @@ class TestThreadOutputCapture < Minitest::Test
     threads = 2.times.map do |i|
       task = (i == 0) ? FixtureTaskA : FixtureTaskB
       Thread.new do
-        @capture.start_capture(task)
-        @capture.puts("output from thread #{i}")
-        @capture.stop_capture
-        results[task] = @capture.last_line_for(task)
+        @router.start_capture(task)
+        @router.puts("output from thread #{i}")
+        @router.stop_capture
       end
     end
     threads.each(&:join)
+    @router.poll
+
+    results[FixtureTaskA] = @router.last_line_for(FixtureTaskA)
+    results[FixtureTaskB] = @router.last_line_for(FixtureTaskB)
 
     assert_equal "output from thread 0", results[FixtureTaskA]
     assert_equal "output from thread 1", results[FixtureTaskB]
@@ -644,58 +657,61 @@ class TestThreadOutputCapture < Minitest::Test
       true
     end
 
-    capture = Taski::Execution::ThreadOutputCapture.new(tty_io)
-    assert capture.tty?
+    router = Taski::Execution::TaskOutputRouter.new(tty_io)
+    assert router.tty?
+    router.close_all
   end
 
   def test_flush_delegation
-    @capture.flush
+    @router.flush
     # Should not raise error
     assert true
   end
 
   def test_puts_with_no_args
-    @capture.puts
+    @router.puts
     assert_equal "\n", @original.string
   end
 
   def test_puts_with_no_args_when_capturing
-    @capture.start_capture(FixtureTaskA)
-    @capture.puts
-    result = @capture.stop_capture
-    assert_equal "\n", result
+    @router.start_capture(FixtureTaskA)
+    @router.puts
+    @router.stop_capture
+    # Newline only is not captured as last_line (whitespace is ignored)
     assert_equal "", @original.string
   end
 
   def test_print_method
-    @capture.print("hello", " ", "world")
+    @router.print("hello", " ", "world")
     assert_equal "hello world", @original.string
   end
 
   def test_print_method_when_capturing
-    @capture.start_capture(FixtureTaskA)
-    @capture.print("hello", " ", "world")
-    result = @capture.stop_capture
-    assert_equal "hello world", result
+    @router.start_capture(FixtureTaskA)
+    @router.print("hello", " ", "world")
+    @router.stop_capture
+    @router.poll
+    assert_equal "hello world", @router.last_line_for(FixtureTaskA)
     assert_equal "", @original.string
   end
 
   def test_append_operator
-    @capture << "hello"
+    @router << "hello"
     assert_equal "hello", @original.string
   end
 
   def test_append_operator_when_capturing
-    @capture.start_capture(FixtureTaskA)
-    @capture << "hello"
-    result = @capture.stop_capture
-    assert_equal "hello", result
+    @router.start_capture(FixtureTaskA)
+    @router << "hello"
+    @router.stop_capture
+    @router.poll
+    assert_equal "hello", @router.last_line_for(FixtureTaskA)
     assert_equal "", @original.string
   end
 
   def test_append_operator_returns_self
-    result = @capture << "test"
-    assert_same @capture, result
+    result = @router << "test"
+    assert_same @router, result
   end
 
   def test_isatty_delegation
@@ -704,8 +720,9 @@ class TestThreadOutputCapture < Minitest::Test
       true
     end
 
-    capture = Taski::Execution::ThreadOutputCapture.new(tty_io)
-    assert capture.isatty
+    router = Taski::Execution::TaskOutputRouter.new(tty_io)
+    assert router.isatty
+    router.close_all
   end
 
   def test_winsize_delegation
@@ -714,8 +731,9 @@ class TestThreadOutputCapture < Minitest::Test
       [24, 80]
     end
 
-    capture = Taski::Execution::ThreadOutputCapture.new(io_with_winsize)
-    assert_equal [24, 80], capture.winsize
+    router = Taski::Execution::TaskOutputRouter.new(io_with_winsize)
+    assert_equal [24, 80], router.winsize
+    router.close_all
   end
 
   def test_method_missing_delegation
@@ -724,8 +742,9 @@ class TestThreadOutputCapture < Minitest::Test
       "custom_result"
     end
 
-    capture = Taski::Execution::ThreadOutputCapture.new(io)
-    assert_equal "custom_result", capture.custom_method
+    router = Taski::Execution::TaskOutputRouter.new(io)
+    assert_equal "custom_result", router.custom_method
+    router.close_all
   end
 
   def test_respond_to_missing
@@ -734,28 +753,48 @@ class TestThreadOutputCapture < Minitest::Test
       "custom_result"
     end
 
-    capture = Taski::Execution::ThreadOutputCapture.new(io)
-    assert capture.respond_to?(:custom_method)
-    refute capture.respond_to?(:nonexistent_method)
+    router = Taski::Execution::TaskOutputRouter.new(io)
+    assert router.respond_to?(:custom_method)
+    refute router.respond_to?(:nonexistent_method)
+    router.close_all
   end
 
   def test_extract_last_line_with_only_whitespace
-    @capture.start_capture(FixtureTaskA)
-    @capture.puts("   ")
-    @capture.puts("   ")
-    @capture.stop_capture
+    @router.start_capture(FixtureTaskA)
+    @router.puts("   ")
+    @router.puts("   ")
+    @router.stop_capture
+    @router.poll
 
     # When all lines are whitespace only, last_line should be nil
-    assert_nil @capture.last_line_for(FixtureTaskA)
+    assert_nil @router.last_line_for(FixtureTaskA)
   end
 
   def test_extract_last_line_with_trailing_empty_lines
-    @capture.start_capture(FixtureTaskA)
-    @capture.puts("actual content")
-    @capture.puts("")
-    @capture.puts("")
-    @capture.stop_capture
+    @router.start_capture(FixtureTaskA)
+    @router.puts("actual content")
+    @router.puts("")
+    @router.puts("")
+    @router.stop_capture
+    @router.poll
 
-    assert_equal "actual content", @capture.last_line_for(FixtureTaskA)
+    assert_equal "actual content", @router.last_line_for(FixtureTaskA)
+  end
+
+  def test_active_returns_true_when_pipes_open
+    @router.start_capture(FixtureTaskA)
+    @router.puts("test")
+    @router.stop_capture
+    # Read pipe should still be open until poll reads and EOF
+    assert @router.active?
+    @router.poll
+  end
+
+  def test_close_all_cleans_up_resources
+    @router.start_capture(FixtureTaskA)
+    @router.puts("test")
+    @router.stop_capture
+    @router.close_all
+    refute @router.active?
   end
 end

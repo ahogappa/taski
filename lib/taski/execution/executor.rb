@@ -2,7 +2,7 @@
 
 require "monitor"
 require "etc"
-require_relative "thread_output_capture"
+require_relative "task_output_router"
 
 module Taski
   module Execution
@@ -191,9 +191,6 @@ module Taski
         end
       end
 
-      # Execute task run method
-      # Note: stdout capture is handled by ThreadOutputCapture wrapper
-      # which is set up in setup_output_capture before execution starts.
       def execute_task_run(wrapper)
         wrapper.task.run
       end
@@ -241,7 +238,7 @@ module Taski
         return unless $stdout.tty?
 
         @original_stdout = $stdout
-        @output_capture = ThreadOutputCapture.new(@original_stdout)
+        @output_capture = TaskOutputRouter.new(@original_stdout)
         $stdout = @output_capture
         progress.set_output_capture(@output_capture)
       end
