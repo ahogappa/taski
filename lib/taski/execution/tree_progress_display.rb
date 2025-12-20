@@ -317,6 +317,9 @@ module Taski
       end
 
       def render_live
+        # Poll for new output from task pipes
+        @output_capture&.poll
+
         lines = nil
 
         @monitor.synchronize do
