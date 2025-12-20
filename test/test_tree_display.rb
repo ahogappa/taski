@@ -233,6 +233,19 @@ class TestTreeProgressDisplay < Minitest::Test
     assert Taski::Execution::TreeProgressDisplay.nested_class?(NestedSection::LocalDB, NestedSection)
     refute Taski::Execution::TreeProgressDisplay.nested_class?(FixtureTaskA, NestedSection)
   end
+
+  def test_set_output_capture
+    capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+    @display.set_output_capture(capture)
+    # Verify no error is raised and capture is accepted
+    assert true
+  end
+
+  def test_set_output_capture_with_nil
+    @display.set_output_capture(nil)
+    # Should accept nil without error
+    assert true
+  end
 end
 
 # Tests for TreeProgressDisplay with TTY-like output
@@ -426,6 +439,121 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
     assert_includes output, "TaskD"
     assert_includes output, "ParallelTaskC"
   end
+
+  def test_render_with_output_capture
+    # Create a mock output capture that returns a last line
+    output_capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+
+    @display.set_root_task(FixtureTaskA)
+    @display.set_output_capture(output_capture)
+
+    # Simulate output capture in a thread
+    thread = Thread.new do
+      output_capture.start_capture(FixtureTaskA)
+      output_capture.puts("Processing data...")
+      sleep 0.2
+      output_capture.stop_capture
+    end
+
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    thread.join
+    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    @display.stop
+
+    output = @output.string
+    # Should include the task name
+    assert_includes output, "FixtureTaskA"
+  end
+
+  def test_task_output_suffix_with_running_task_and_capture
+    # Custom TTY output with winsize
+    tty_output = TTYStringIO.new
+    def tty_output.winsize
+      [24, 120]
+    end
+
+    display = Taski::Execution::TreeProgressDisplay.new(output: tty_output)
+    output_capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+
+    display.set_root_task(FixtureTaskA)
+    display.set_output_capture(output_capture)
+
+    # Capture some output
+    output_capture.start_capture(FixtureTaskA)
+    output_capture.puts("Working on step 1...")
+    output_capture.stop_capture
+
+    display.start
+    display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    display.stop
+
+    output = tty_output.string
+    # The output should show some indication of the task
+    assert_includes output, "FixtureTaskA"
+  end
+
+  def test_task_output_truncation_with_long_output
+    # Output with narrow width to trigger truncation
+    tty_output = TTYStringIO.new
+    def tty_output.winsize
+      [24, 80]  # Narrow terminal
+    end
+
+    display = Taski::Execution::TreeProgressDisplay.new(output: tty_output)
+    output_capture = Taski::Execution::ThreadOutputCapture.new(StringIO.new)
+
+    display.set_root_task(FixtureTaskA)
+    display.set_output_capture(output_capture)
+
+    # Capture very long output
+    output_capture.start_capture(FixtureTaskA)
+    output_capture.puts("This is a very long output line that should definitely be truncated when displayed inline next to the task name")
+    output_capture.stop_capture
+
+    display.start
+    display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    display.stop
+
+    output = tty_output.string
+    assert_includes output, "FixtureTaskA"
+  end
+
+  def test_terminal_width_without_winsize
+    # Output without winsize method
+    output_without_winsize = TTYStringIO.new
+
+    display = Taski::Execution::TreeProgressDisplay.new(output: output_without_winsize)
+    display.set_root_task(FixtureTaskA)
+    display.start
+    sleep 0.15
+    display.stop
+
+    # Should not raise error, uses default width
+    output = output_without_winsize.string
+    assert_includes output, "FixtureTaskA"
+  end
+
+  def test_terminal_width_returns_nil_from_winsize
+    # Output where winsize returns nil values
+    tty_output = TTYStringIO.new
+    def tty_output.winsize
+      [nil, nil]
+    end
+
+    display = Taski::Execution::TreeProgressDisplay.new(output: tty_output)
+    display.set_root_task(FixtureTaskA)
+    display.start
+    sleep 0.15
+    display.stop
+
+    # Should use default width of 80
+    output = tty_output.string
+    assert_includes output, "FixtureTaskA"
+  end
 end
 
 # Tests for ThreadOutputCapture class
@@ -524,5 +652,110 @@ class TestThreadOutputCapture < Minitest::Test
     @capture.flush
     # Should not raise error
     assert true
+  end
+
+  def test_puts_with_no_args
+    @capture.puts
+    assert_equal "\n", @original.string
+  end
+
+  def test_puts_with_no_args_when_capturing
+    @capture.start_capture(FixtureTaskA)
+    @capture.puts
+    result = @capture.stop_capture
+    assert_equal "\n", result
+    assert_equal "", @original.string
+  end
+
+  def test_print_method
+    @capture.print("hello", " ", "world")
+    assert_equal "hello world", @original.string
+  end
+
+  def test_print_method_when_capturing
+    @capture.start_capture(FixtureTaskA)
+    @capture.print("hello", " ", "world")
+    result = @capture.stop_capture
+    assert_equal "hello world", result
+    assert_equal "", @original.string
+  end
+
+  def test_append_operator
+    @capture << "hello"
+    assert_equal "hello", @original.string
+  end
+
+  def test_append_operator_when_capturing
+    @capture.start_capture(FixtureTaskA)
+    @capture << "hello"
+    result = @capture.stop_capture
+    assert_equal "hello", result
+    assert_equal "", @original.string
+  end
+
+  def test_append_operator_returns_self
+    result = @capture << "test"
+    assert_same @capture, result
+  end
+
+  def test_isatty_delegation
+    tty_io = StringIO.new
+    def tty_io.isatty
+      true
+    end
+
+    capture = Taski::Execution::ThreadOutputCapture.new(tty_io)
+    assert capture.isatty
+  end
+
+  def test_winsize_delegation
+    io_with_winsize = StringIO.new
+    def io_with_winsize.winsize
+      [24, 80]
+    end
+
+    capture = Taski::Execution::ThreadOutputCapture.new(io_with_winsize)
+    assert_equal [24, 80], capture.winsize
+  end
+
+  def test_method_missing_delegation
+    io = StringIO.new
+    def io.custom_method
+      "custom_result"
+    end
+
+    capture = Taski::Execution::ThreadOutputCapture.new(io)
+    assert_equal "custom_result", capture.custom_method
+  end
+
+  def test_respond_to_missing
+    io = StringIO.new
+    def io.custom_method
+      "custom_result"
+    end
+
+    capture = Taski::Execution::ThreadOutputCapture.new(io)
+    assert capture.respond_to?(:custom_method)
+    refute capture.respond_to?(:nonexistent_method)
+  end
+
+  def test_extract_last_line_with_only_whitespace
+    @capture.start_capture(FixtureTaskA)
+    @capture.puts("   ")
+    @capture.puts("   ")
+    @capture.stop_capture
+
+    # When all lines are whitespace only, last_line should be nil
+    assert_nil @capture.last_line_for(FixtureTaskA)
+  end
+
+  def test_extract_last_line_with_trailing_empty_lines
+    @capture.start_capture(FixtureTaskA)
+    @capture.puts("actual content")
+    @capture.puts("")
+    @capture.puts("")
+    @capture.stop_capture
+
+    assert_equal "actual content", @capture.last_line_for(FixtureTaskA)
   end
 end
