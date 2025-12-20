@@ -191,9 +191,6 @@ module Taski
         end
       end
 
-      # Execute task run method
-      # Note: stdout capture is handled by ThreadOutputCapture wrapper
-      # which is set up in setup_output_capture before execution starts.
       def execute_task_run(wrapper)
         wrapper.task.run
       end
