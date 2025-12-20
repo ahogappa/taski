@@ -82,4 +82,62 @@ class TestSubprocessOutput < Minitest::Test
     task.run
     assert_equal true, task.result
   end
+
+  # Tests for option handling
+
+  def test_system_with_environment_variables
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def run
+        # Environment variable hash as first argument
+        @result = system({"TEST_VAR" => "hello_from_env"}, "echo $TEST_VAR")
+      end
+    end
+
+    task_class.run
+    assert_equal true, task_class.result
+  end
+
+  def test_system_with_chdir_option
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def run
+        # :chdir option should be preserved and passed through
+        @result = system("pwd", chdir: "/tmp")
+      end
+    end
+
+    task_class.run
+    assert_equal true, task_class.result
+  end
+
+  def test_system_respects_user_provided_out_option
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def run
+        # When user provides :out, it should not be overwritten
+        @result = system("echo test", out: File::NULL)
+      end
+    end
+
+    task_class.run
+    assert_equal true, task_class.result
+  end
+
+  def test_system_with_env_and_options_combined
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def run
+        # Environment variables + options should both work
+        @result = system({"MY_VAR" => "value"}, "echo $MY_VAR", chdir: "/tmp")
+      end
+    end
+
+    task_class.run
+    assert_equal true, task_class.result
+  end
 end
