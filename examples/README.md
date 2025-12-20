@@ -87,7 +87,7 @@ ruby examples/data_pipeline_demo.rb
 Real-time progress visualization during parallel execution.
 
 ```bash
-TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
+ruby examples/parallel_progress_demo.rb
 ```
 
 **Covers:**
@@ -114,8 +114,8 @@ TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
 # Run each example
 for f in examples/*.rb; do echo "=== $f ===" && ruby "$f" && echo; done
 
-# With progress display (for parallel_progress_demo)
-TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
+# Disable progress display if needed
+TASKI_PROGRESS_DISABLE=1 ruby examples/parallel_progress_demo.rb
 ```
 
 ## Next Steps

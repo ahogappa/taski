@@ -4,7 +4,7 @@
 require_relative "../lib/taski"
 
 # Demo tasks that simulate parallel execution with progress display
-# Run with: TASKI_FORCE_PROGRESS=1 ruby examples/parallel_progress_demo.rb
+# Run with: ruby examples/parallel_progress_demo.rb
 
 class DownloadLayer1 < Taski::Task
   exports :layer1_data

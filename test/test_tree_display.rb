@@ -77,8 +77,10 @@ class TestTreeDisplay < Minitest::Test
     assert_includes result, "DeepDependency::TaskD (Task)"
     assert_includes result, "ParallelTaskC (Task)"
     assert_includes result, "ParallelSection (Section)"
-    assert_includes result, "[impl]"
+    # ParallelSectionImpl2 is not a nested class of ParallelSection,
+    # so it should NOT have [impl] label (only nested classes get [impl])
     assert_includes result, "ParallelSectionImpl2 (Task)"
+    refute_includes result, "[impl] ParallelSectionImpl2"
   end
 
   def test_tree_includes_ansi_color_codes
@@ -126,5 +128,267 @@ class TestTreeDisplay < Minitest::Test
     assert_includes result, "IndirectCircular::TaskY"
     assert_includes result, "IndirectCircular::TaskZ"
     assert_includes result, "(circular)"
+  end
+end
+
+# Tests for TreeProgressDisplay class (dynamic progress display)
+class TestTreeProgressDisplay < Minitest::Test
+  def setup
+    Taski.reset_global_registry!
+    Taski.reset_progress_display!
+    @output = StringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+  end
+
+  def teardown
+    Taski.reset_global_registry!
+    Taski.reset_progress_display!
+  end
+
+  def test_register_task
+    @display.register_task(FixtureTaskA)
+    assert @display.task_registered?(FixtureTaskA)
+  end
+
+  def test_task_registered_returns_false_for_unregistered_task
+    refute @display.task_registered?(FixtureTaskA)
+  end
+
+  def test_register_task_is_idempotent
+    @display.register_task(FixtureTaskA)
+    @display.register_task(FixtureTaskA)
+    assert @display.task_registered?(FixtureTaskA)
+  end
+
+  def test_update_task_state
+    @display.register_task(FixtureTaskA)
+    @display.update_task(FixtureTaskA, state: :running)
+    assert_equal :running, @display.task_state(FixtureTaskA)
+  end
+
+  def test_update_task_state_to_completed
+    @display.register_task(FixtureTaskA)
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    assert_equal :completed, @display.task_state(FixtureTaskA)
+  end
+
+  def test_update_task_state_to_failed
+    @display.register_task(FixtureTaskA)
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
+    assert_equal :failed, @display.task_state(FixtureTaskA)
+  end
+
+  def test_task_state_returns_nil_for_unregistered_task
+    assert_nil @display.task_state(FixtureTaskA)
+  end
+
+  def test_set_root_task
+    @display.set_root_task(FixtureTaskB)
+    # After setting root task, the root and its dependencies should be registered
+    assert @display.task_registered?(FixtureTaskB)
+    assert @display.task_registered?(FixtureTaskA)
+  end
+
+  def test_set_root_task_is_idempotent
+    @display.set_root_task(FixtureTaskB)
+    @display.set_root_task(FixtureTaskA) # Should be ignored
+    # Only the first root task's dependencies should be registered
+    assert @display.task_registered?(FixtureTaskB)
+    assert @display.task_registered?(FixtureTaskA)
+  end
+
+  def test_register_section_impl
+    @display.set_root_task(NestedSection)
+    @display.register_section_impl(NestedSection, NestedSection::LocalDB)
+    # Verify registration was successful (no error raised)
+    assert @display.task_registered?(NestedSection)
+  end
+
+  def test_start_and_stop_without_tty
+    # When output is not a TTY, start should do nothing
+    @display.start
+    @display.stop
+    # No error should be raised
+    assert true
+  end
+
+  def test_nested_start_stop_calls
+    # Multiple start/stop calls should be properly nested
+    @display.start
+    @display.start
+    @display.stop
+    @display.stop
+    # No error should be raised
+    assert true
+  end
+
+  def test_section_class_helper
+    assert Taski::Execution::TreeProgressDisplay.section_class?(NestedSection)
+    refute Taski::Execution::TreeProgressDisplay.section_class?(FixtureTaskA)
+  end
+
+  def test_nested_class_helper
+    assert Taski::Execution::TreeProgressDisplay.nested_class?(NestedSection::LocalDB, NestedSection)
+    refute Taski::Execution::TreeProgressDisplay.nested_class?(FixtureTaskA, NestedSection)
+  end
+end
+
+# Tests for TreeProgressDisplay with TTY-like output
+class TestTreeProgressDisplayWithTTY < Minitest::Test
+  # Custom StringIO that pretends to be a TTY for testing
+  class TTYStringIO < StringIO
+    def tty?
+      true
+    end
+  end
+
+  def setup
+    Taski.reset_global_registry!
+    Taski.reset_progress_display!
+    @output = TTYStringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+  end
+
+  def teardown
+    @display&.stop
+    Taski.reset_global_registry!
+    Taski.reset_progress_display!
+  end
+
+  def test_start_with_tty_starts_renderer_thread
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    # Give the renderer thread a moment to run
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should contain ANSI escape codes for cursor control
+    assert_match(/\e\[/, output)
+  end
+
+  def test_render_shows_task_progress
+    @display.set_root_task(FixtureTaskB)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    @display.update_task(FixtureTaskA, state: :completed, duration: 50)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should contain task names
+    assert_includes output, "FixtureTaskB"
+    assert_includes output, "FixtureTaskA"
+  end
+
+  def test_render_shows_section_with_impl
+    @display.set_root_task(NestedSection)
+    @display.register_section_impl(NestedSection, NestedSection::LocalDB)
+    @display.start
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    assert_includes output, "NestedSection"
+    assert_includes output, "LocalDB"
+  end
+
+  def test_render_shows_spinner_for_running_task
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should contain one of the spinner characters
+    spinner_chars = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]
+    has_spinner = spinner_chars.any? { |char| output.include?(char) }
+    assert has_spinner, "Output should contain a spinner character"
+  end
+
+  def test_render_shows_checkmark_for_completed_task
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    assert_includes output, "✓"
+  end
+
+  def test_render_shows_x_for_failed_task
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test"))
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    assert_includes output, "✗"
+  end
+
+  def test_render_shows_duration_for_completed_task
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_task(FixtureTaskA, state: :completed, duration: 150)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    assert_includes output, "150ms"
+  end
+
+  def test_render_shows_unselected_impl_as_dimmed
+    # Use LazyDependencyTest::MySection which has both OptionA and OptionB detected by static analysis
+    @display.set_root_task(LazyDependencyTest::MySection)
+    # Register OptionB as selected, so OptionA should be unselected
+    @display.register_section_impl(LazyDependencyTest::MySection, LazyDependencyTest::MySection::OptionB)
+    @display.start
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # OptionA should be in the output (as unselected)
+    assert_includes output, "OptionA"
+    # OptionB should also be in the output (as selected)
+    assert_includes output, "OptionB"
+    # Should have the skipped icon for unselected impl
+    assert_includes output, "⊘"
+  end
+
+  def test_render_final_clears_and_reprints
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should contain cursor hide and show sequences
+    assert_includes output, "\e[?25l" # Hide cursor
+    assert_includes output, "\e[?25h" # Show cursor
+  end
+
+  def test_deep_dependency_tree_rendering
+    @display.set_root_task(FixtureNamespace::TaskD)
+    @display.start
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should show all tasks in the tree
+    assert_includes output, "TaskD"
+    assert_includes output, "TaskC"
+    assert_includes output, "FixtureTaskA"
+    # Should have tree connectors
+    assert_match(/[├└]/, output)
   end
 end

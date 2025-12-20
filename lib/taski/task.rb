@@ -67,88 +67,10 @@ module Taski
       end
 
       def tree
-        build_tree(self, "", {}, false)
+        Execution::TreeProgressDisplay.render_static_tree(self)
       end
 
       private
-
-      # ANSI color codes
-      COLORS = {
-        reset: "\e[0m",
-        task: "\e[32m",      # green
-        section: "\e[34m",   # blue
-        impl: "\e[33m",      # yellow
-        tree: "\e[90m",      # gray
-        name: "\e[1m"        # bold
-      }.freeze
-
-      def build_tree(task_class, prefix, task_index_map, is_impl, ancestors = Set.new)
-        type_label = colored_type_label(task_class)
-        impl_prefix = is_impl ? "#{COLORS[:impl]}[impl]#{COLORS[:reset]} " : ""
-        task_number = get_task_number(task_class, task_index_map)
-        name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
-
-        # Detect circular reference
-        if ancestors.include?(task_class)
-          circular_marker = "#{COLORS[:impl]}(circular)#{COLORS[:reset]}"
-          return "#{impl_prefix}#{task_number} #{name} #{type_label} #{circular_marker}\n"
-        end
-
-        result = "#{impl_prefix}#{task_number} #{name} #{type_label}\n"
-
-        # Register task number if not already registered
-        task_index_map[task_class] = task_index_map.size + 1 unless task_index_map.key?(task_class)
-
-        # Add to ancestors for circular detection
-        new_ancestors = ancestors + [task_class]
-
-        # Use static analysis to include Section.impl candidates for visualization
-        dependencies = StaticAnalysis::Analyzer.analyze(task_class).to_a
-        is_section = section_class?(task_class)
-
-        dependencies.each_with_index do |dep, index|
-          is_last = (index == dependencies.size - 1)
-          result += format_dependency_branch(dep, prefix, is_last, task_index_map, is_section, new_ancestors)
-        end
-
-        result
-      end
-
-      def format_dependency_branch(dep, prefix, is_last, task_index_map, is_impl, ancestors)
-        connector, extension = tree_connector_chars(is_last)
-        dep_tree = build_tree(dep, "#{prefix}#{extension}", task_index_map, is_impl, ancestors)
-
-        result = "#{prefix}#{COLORS[:tree]}#{connector}#{COLORS[:reset]}"
-        lines = dep_tree.lines
-        result += lines.first
-        lines.drop(1).each { |line| result += line }
-        result
-      end
-
-      def tree_connector_chars(is_last)
-        if is_last
-          ["└── ", "    "]
-        else
-          ["├── ", "│   "]
-        end
-      end
-
-      def get_task_number(task_class, task_index_map)
-        number = task_index_map[task_class] || (task_index_map.size + 1)
-        "#{COLORS[:tree]}[#{number}]#{COLORS[:reset]}"
-      end
-
-      def colored_type_label(klass)
-        if section_class?(klass)
-          "#{COLORS[:section]}(Section)#{COLORS[:reset]}"
-        else
-          "#{COLORS[:task]}(Task)#{COLORS[:reset]}"
-        end
-      end
-
-      def section_class?(klass)
-        defined?(Taski::Section) && klass < Taski::Section
-      end
 
       # Use allocate + initialize instead of new to avoid infinite loop
       # since new is overridden to return TaskWrapper
