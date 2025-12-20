@@ -144,6 +144,15 @@ module Taski
         @tree_structure = nil
         @section_impl_map = {}  # Section -> selected impl class
         @last_line_count = 0
+        @output_capture = nil  # ThreadOutputCapture for getting task output
+      end
+
+      # Set the output capture for getting task output
+      # @param capture [ThreadOutputCapture] The output capture instance
+      def set_output_capture(capture)
+        @monitor.synchronize do
+          @output_capture = capture
+        end
       end
 
       # Set the root task to build tree structure
@@ -226,8 +235,7 @@ module Taski
 
         return unless should_start
 
-        # Hide cursor (outside monitor to avoid holding lock during I/O)
-        @output.print "\e[?25l"
+        @output.print "\e[?25l"  # Hide cursor
         @renderer_thread = Thread.new do
           loop do
             break unless @running
@@ -251,8 +259,7 @@ module Taski
         return unless should_stop
 
         @renderer_thread&.join
-        # Show cursor
-        @output.print "\e[?25h"
+        @output.print "\e[?25h"  # Show cursor
         render_final
       end
 
@@ -311,24 +318,22 @@ module Taski
 
       def render_live
         lines = nil
-        line_count = nil
 
         @monitor.synchronize do
           @spinner_index += 1
           lines = build_tree_display
-          line_count = @last_line_count
         end
 
         return if lines.nil? || lines.empty?
 
-        # Move cursor up to beginning of display area
-        if line_count && line_count > 0
-          @output.print "\e[#{line_count}A\r"
+        # Move cursor up to clear previous output, then redraw
+        if @last_line_count > 0
+          @output.print "\e[#{@last_line_count}A"  # Move up
         end
 
         # Redraw all lines
         lines.each do |line|
-          @output.print "\e[K#{line}\n"
+          @output.print "\e[K#{line}\n"  # Clear line and print
         end
 
         @monitor.synchronize do
@@ -343,11 +348,9 @@ module Taski
           lines = build_tree_display
           return if lines.empty?
 
-          # Clear previous animated output
-          if @last_line_count && @last_line_count > 0
-            @last_line_count.times do
-              @output.print "\e[1A\e[K"
-            end
+          # Move cursor up to clear previous output
+          if @last_line_count > 0
+            @output.print "\e[#{@last_line_count}A"
           end
 
           # Print final state
@@ -434,8 +437,9 @@ module Taski
         status_icon = task_status_icon(progress.state, is_selected)
         name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
         details = task_details(progress)
+        output_suffix = task_output_suffix(task_class, progress.state)
 
-        "#{status_icon} #{impl_prefix}#{name} #{type_label}#{details}"
+        "#{status_icon} #{impl_prefix}#{name} #{type_label}#{details}#{output_suffix}"
       end
 
       def format_unknown_task(task_class, is_selected = true)
@@ -491,6 +495,38 @@ module Taski
           " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
         else
           ""
+        end
+      end
+
+      # Get task output suffix to display next to task
+      # Only shows output for running tasks
+      def task_output_suffix(task_class, state)
+        return "" unless state == :running
+        return "" unless @output_capture
+
+        last_line = @output_capture.last_line_for(task_class)
+        return "" unless last_line && !last_line.empty?
+
+        # Truncate if too long (leave space for tree structure)
+        terminal_cols = terminal_width
+        max_output_length = terminal_cols - 50
+        max_output_length = 20 if max_output_length < 20
+
+        truncated = if last_line.length > max_output_length
+          last_line[0, max_output_length - 3] + "..."
+        else
+          last_line
+        end
+
+        " #{COLORS[:dim]}| #{truncated}#{COLORS[:reset]}"
+      end
+
+      def terminal_width
+        if @output.respond_to?(:winsize)
+          _, cols = @output.winsize
+          cols || 80
+        else
+          80
         end
       end
 
