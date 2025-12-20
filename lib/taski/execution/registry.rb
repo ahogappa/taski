@@ -16,7 +16,9 @@ module Taski
       # @yield Block to create the task instance if it doesn't exist
       # @return [Object] The task instance
       def get_or_create(task_class)
-        @tasks[task_class] ||= yield
+        @monitor.synchronize do
+          @tasks[task_class] ||= yield
+        end
       end
 
       # @param task_class [Class] The task class
