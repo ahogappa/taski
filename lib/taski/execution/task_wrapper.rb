@@ -228,6 +228,8 @@ module Taski
       end
 
       def update_progress(state, duration: nil, error: nil)
+        # Defensive fallback: try to get current context if not set during initialization
+        @execution_context ||= ExecutionContext.current
         return unless @execution_context
 
         @execution_context.notify_task_completed(@task.class, duration: duration, error: error)

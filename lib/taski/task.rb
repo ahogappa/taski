@@ -28,7 +28,8 @@ module Taski
         task_instance.send(:initialize)
         wrapper = Execution::TaskWrapper.new(
           task_instance,
-          registry: fresh_registry
+          registry: fresh_registry,
+          execution_context: Execution::ExecutionContext.current
         )
         # Pre-register to prevent Executor from creating a duplicate wrapper
         fresh_registry.register(self, wrapper)
@@ -80,7 +81,8 @@ module Taski
           task_instance.send(:initialize)
           Execution::TaskWrapper.new(
             task_instance,
-            registry: registry
+            registry: registry,
+            execution_context: Execution::ExecutionContext.current
           )
         end
       end
