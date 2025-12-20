@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "monitor"
+require_relative "task_output_router"
+
 module Taski
   module Execution
     # ExecutionContext manages execution state and notifies observers about execution events.
@@ -35,6 +38,46 @@ module Taski
         @monitor = Monitor.new
         @observers = []
         @execution_trigger = nil
+        @output_capture = nil
+        @original_stdout = nil
+      end
+
+      # Set up output capture for inline progress display.
+      # Only sets up capture if $stdout is a TTY.
+      # Creates TaskOutputRouter and replaces $stdout.
+      #
+      # @param output_io [IO] The original output IO (usually $stdout)
+      def setup_output_capture(output_io)
+        return unless output_io.tty?
+
+        @monitor.synchronize do
+          @original_stdout = output_io
+          @output_capture = TaskOutputRouter.new(@original_stdout)
+        end
+
+        $stdout = @output_capture
+        notify_set_output_capture(@output_capture)
+      end
+
+      # Tear down output capture and restore original $stdout.
+      def teardown_output_capture
+        original = @monitor.synchronize { @original_stdout }
+        return unless original
+
+        $stdout = original
+
+        @monitor.synchronize do
+          @output_capture = nil
+          @original_stdout = nil
+        end
+      end
+
+      # Get the current output capture instance.
+      # Thread-safe accessor for worker threads.
+      #
+      # @return [TaskOutputRouter, nil] The output capture or nil if not set
+      def output_capture
+        @monitor.synchronize { @output_capture }
       end
 
       # Set the execution trigger callback.

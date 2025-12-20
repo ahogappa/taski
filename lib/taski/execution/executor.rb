@@ -43,11 +43,7 @@ module Taski
         @task_states = {}
         @completed_tasks = Set.new
 
-        # Output capture for displaying task output in progress tree
-        @output_capture = nil
-        @original_stdout = nil
-
-        # ExecutionContext for observer pattern
+        # ExecutionContext for observer pattern and output capture
         @execution_context = execution_context || create_default_execution_context
       end
 
@@ -175,8 +171,10 @@ module Taski
       def execute_task(task_class, wrapper)
         return if @registry.abort_requested?
 
+        output_capture = @execution_context.output_capture
+
         # Start capturing output for this task
-        @output_capture&.start_capture(task_class)
+        output_capture&.start_capture(task_class)
 
         # Set thread-local execution context for task access (e.g., Section)
         ExecutionContext.current = @execution_context
@@ -194,7 +192,7 @@ module Taski
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e})
         ensure
           # Stop capturing output for this task
-          @output_capture&.stop_capture
+          output_capture&.stop_capture
           # Clear thread-local execution context
           ExecutionContext.current = nil
         end
@@ -241,20 +239,11 @@ module Taski
         @execution_context.notify_set_root_task(root_task_class)
 
         # Set up output capture for inline display (only for TTY)
-        return unless $stdout.tty?
-
-        @original_stdout = $stdout
-        @output_capture = TaskOutputRouter.new(@original_stdout)
-        $stdout = @output_capture
-        @execution_context.notify_set_output_capture(@output_capture)
+        @execution_context.setup_output_capture($stdout)
       end
 
       def teardown_output_capture
-        return unless @original_stdout
-
-        $stdout = @original_stdout
-        @output_capture = nil
-        @original_stdout = nil
+        @execution_context.teardown_output_capture
       end
 
       def start_progress_display
