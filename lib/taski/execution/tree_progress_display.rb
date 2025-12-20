@@ -651,33 +651,6 @@ module Taski
         end
       end
 
-      ##
-      # Formats a short status string for a task based on its lifecycle state.
-      # @param [TaskProgress] progress - Progress object with `state`, `start_time`, and `duration`.
-      # @return [String] A terminal-ready status fragment (may include ANSI color codes) such as durations, "failed", "cleaning ..." or an empty string when no detail applies.
-      def task_details(progress)
-        case progress.state
-        # Run lifecycle states
-        when :completed
-          " #{COLORS[:success]}(#{progress.duration}ms)#{COLORS[:reset]}"
-        when :failed
-          " #{COLORS[:error]}(failed)#{COLORS[:reset]}"
-        when :running
-          elapsed = ((Time.now - progress.start_time) * 1000).round(0)
-          " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
-        # Clean lifecycle states
-        when :cleaning
-          elapsed = ((Time.now - progress.start_time) * 1000).round(0)
-          " #{COLORS[:running]}(cleaning #{elapsed}ms)#{COLORS[:reset]}"
-        when :clean_completed
-          " #{COLORS[:success]}(cleaned #{progress.duration}ms)#{COLORS[:reset]}"
-        when :clean_failed
-          " #{COLORS[:error]}(clean failed)#{COLORS[:reset]}"
-        else
-          ""
-        end
-      end
-
       # Get task output suffix to display next to task
       ##
       # Produces a trailing output suffix for a task when it is actively producing output.
