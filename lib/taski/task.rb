@@ -57,7 +57,6 @@ module Taski
       end
 
       # Execute run followed by clean in a single operation.
-      # Both phases share a single progress display session.
       # If run fails, clean is still executed for resource release.
       #
       # @param context [Hash] Context options passed to tasks
@@ -76,6 +75,7 @@ module Taski
         registry.reset!
         Taski.reset_global_registry!
         Taski.reset_context!
+        Taski.reset_progress_display!
         @circular_dependency_checked = false
       end
 
