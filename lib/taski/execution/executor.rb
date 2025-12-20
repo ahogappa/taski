@@ -43,12 +43,34 @@ module Taski
         # Execute a task and all its dependencies
         # @param root_task_class [Class] The root task class to execute
         # @param registry [Registry] The task registry
-        # @param execution_context [ExecutionContext, nil] Optional execution context
+        ##
+        # Create a new Executor and run execution for the specified root task class.
+        # @param root_task_class [Class] The top-level task class to execute.
+        # @param registry [Taski::Registry] Registry providing task definitions and state.
+        # @param execution_context [ExecutionContext, nil] Optional execution context to use; when nil a default context is created.
+        # @return [Object] The result returned by the execution of the root task.
         def execute(root_task_class, registry:, execution_context: nil)
           new(registry: registry, execution_context: execution_context).execute(root_task_class)
         end
+
+        # Execute clean for a task and all its dependencies (in reverse order)
+        # @param root_task_class [Class] The root task class to clean
+        # @param registry [Registry] The task registry
+        ##
+        # Runs reverse-order clean execution beginning at the given root task class.
+        # @param [Class] root_task_class - The root task class whose dependency graph will drive the clean run.
+        # @param [Object] registry - Task registry used to resolve and track tasks during execution.
+        # @param [ExecutionContext, nil] execution_context - Optional execution context for observers and output capture; if `nil`, a default context is created.
+        def execute_clean(root_task_class, registry:, execution_context: nil)
+          new(registry: registry, execution_context: execution_context).execute_clean(root_task_class)
+        end
       end
 
+      ##
+      # Initialize an Executor and its internal coordination components.
+      # @param [Object] registry - Task registry used to look up task definitions and state.
+      # @param [Integer, nil] worker_count - Optional number of worker threads to use; when `nil` the WorkerPool default is used.
+      # @param [Taski::Execution::ExecutionContext, nil] execution_context - Optional execution context for observers and output capture; when `nil` a default context (with progress observer and execution trigger) is created.
       def initialize(registry:, worker_count: nil, execution_context: nil)
         @registry = registry
         @completion_queue = Queue.new
@@ -67,7 +89,15 @@ module Taski
       end
 
       # Execute root task and all dependencies
-      # @param root_task_class [Class] The root task class to execute
+      ##
+      # Execute the task graph rooted at the given task class.
+      #
+      # Builds the dependency graph, starts progress reporting and worker threads,
+      # enqueues tasks that are ready (no unmet dependencies), and processes worker
+      # completion events until the root task finishes. After completion or abort,
+      # shuts down workers, stops progress reporting, and restores stdout capture if
+      # this executor configured it.
+      # @param root_task_class [Class] The root task class to execute.
       def execute(root_task_class)
         # Build dependency graph from static analysis
         @scheduler.build_dependency_graph(root_task_class)
@@ -92,6 +122,52 @@ module Taski
 
         # Shutdown workers
         @worker_pool.shutdown
+
+        # Stop progress display
+        stop_progress_display
+
+        # Restore original stdout (only if this executor set it up)
+        teardown_output_capture if should_teardown_capture
+      end
+
+      # Execute clean for root task and all dependencies (in reverse dependency order)
+      # Clean operations run in reverse: root task cleans first, then dependencies
+      ##
+      # Executes the clean workflow for the given root task in reverse dependency order.
+      # Sets up progress display and optional output capture, starts a dedicated clean worker pool,
+      # enqueues ready-to-clean tasks, processes completion events until all tasks are cleaned,
+      # then shuts down workers and tears down progress and output capture as needed.
+      # @param [Class] root_task_class - The root task class to clean
+      def execute_clean(root_task_class)
+        # Build reverse dependency graph for clean order
+        @scheduler.build_reverse_dependency_graph(root_task_class)
+
+        # Set up progress display with root task (if not already set)
+        setup_progress_display(root_task_class)
+
+        # Set up output capture (returns true if this executor set it up)
+        should_teardown_capture = setup_output_capture_if_needed
+
+        # Start progress display
+        start_progress_display
+
+        # Create a new worker pool for clean operations
+        @clean_worker_pool = WorkerPool.new(
+          registry: @registry,
+          worker_count: nil
+        ) { |task_class, wrapper| execute_clean_task(task_class, wrapper) }
+
+        # Start worker threads
+        @clean_worker_pool.start
+
+        # Enqueue tasks ready for clean (no reverse dependencies)
+        enqueue_ready_clean_tasks
+
+        # Main event loop - continues until all tasks are cleaned
+        run_clean_main_loop(root_task_class)
+
+        # Shutdown workers
+        @clean_worker_pool.shutdown
 
         # Stop progress display
         stop_progress_display
@@ -174,7 +250,10 @@ module Taski
         end
       end
 
-      # Handle task completion event
+      ##
+      # Marks the given task as completed in the scheduler and enqueues any tasks that become ready as a result.
+      # @param [Hash] event - Completion event containing information about the finished task.
+      # @param [Class] event[:task_class] - The task class that completed.
       def handle_completion(event)
         task_class = event[:task_class]
 
@@ -184,6 +263,119 @@ module Taski
 
         # Enqueue newly ready tasks
         enqueue_ready_tasks
+      end
+
+      # ========================================
+      # Clean Execution Methods
+      # ========================================
+
+      ##
+      # Enqueues all tasks that are currently ready to be cleaned.
+      def enqueue_ready_clean_tasks
+        @scheduler.next_ready_clean_tasks.each do |task_class|
+          enqueue_clean_task(task_class)
+        end
+      end
+
+      ##
+      # Enqueues a single task for reverse-order (clean) execution.
+      # If execution has been aborted, does nothing. Marks the task as clean-enqueued,
+      # skips if the task is not registered or not eligible to run, notifies the
+      # execution context that cleaning has started, and schedules the task on the
+      # clean worker pool.
+      # @param [Class] task_class - The task class to enqueue for clean execution.
+      def enqueue_clean_task(task_class)
+        return if @registry.abort_requested?
+
+        @scheduler.mark_clean_enqueued(task_class)
+
+        wrapper = @registry.get_task(task_class)
+        return unless wrapper
+        return unless wrapper.mark_clean_running
+
+        @execution_context.notify_clean_started(task_class)
+
+        @clean_worker_pool.enqueue(task_class, wrapper)
+      end
+
+      ##
+      # Executes the clean lifecycle for a task and emits a completion event.
+      #
+      # Runs the task's `clean` method, updates the provided wrapper with success or failure
+      # (which handles timing and observer notification), and pushes a completion event onto
+      # the executor's completion queue.
+      # This method respects an abort requested state from the registry (no-op if abort already requested)
+      # and triggers a registry abort when a `Taski::TaskAbortException` is raised.
+      # It also starts and stops per-task output capture when available and sets the thread-local
+      # `ExecutionContext.current` for the duration of the clean.
+      # @param [Class] task_class - The task class being cleaned.
+      # @param [Taski::Execution::TaskWrapper] wrapper - The wrapper instance for the task, used to record clean success or failure.
+      def execute_clean_task(task_class, wrapper)
+        return if @registry.abort_requested?
+
+        output_capture = @execution_context.output_capture
+
+        # Start capturing output for this task
+        output_capture&.start_capture(task_class)
+
+        # Set thread-local execution context for task access
+        ExecutionContext.current = @execution_context
+
+        begin
+          result = wrapper.task.clean
+          wrapper.mark_clean_completed(result)
+          @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
+        rescue Taski::TaskAbortException => e
+          @registry.request_abort!
+          wrapper.mark_clean_failed(e)
+          @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
+        rescue => e
+          wrapper.mark_clean_failed(e)
+          @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
+        ensure
+          # Stop capturing output for this task
+          output_capture&.stop_capture
+          # Clear thread-local execution context
+          ExecutionContext.current = nil
+        end
+      end
+
+      ##
+      # Runs the main event loop that processes clean completion events until all tasks have been cleaned.
+      # Continuously pops events from the internal completion queue and delegates them to the clean completion handler,
+      # stopping early if an abort is requested and no clean tasks are running.
+      # @param [Class] root_task_class - The root task class that defines the overall clean lifecycle.
+      def run_clean_main_loop(root_task_class)
+        # Find all tasks in the dependency graph
+        # Continue until all tasks have been cleaned
+        until all_tasks_cleaned?
+          break if @registry.abort_requested? && !@scheduler.running_clean_tasks?
+
+          event = @completion_queue.pop
+          handle_clean_completion(event)
+        end
+      end
+
+      ##
+      # Processes a clean completion event and advances the cleaning workflow.
+      # Marks the completed task in the scheduler and enqueues any tasks that become ready to clean.
+      # @param [Hash] event - A completion event hash containing the `:task_class` key for the task that finished cleaning.
+      def handle_clean_completion(event)
+        task_class = event[:task_class]
+
+        debug_log("Clean completed: #{task_class}")
+
+        @scheduler.mark_clean_completed(task_class)
+
+        # Enqueue newly ready clean tasks
+        enqueue_ready_clean_tasks
+      end
+
+      ##
+      # Determines whether all tasks have finished their clean phase.
+      # @return [Boolean] `true` if there are no ready-to-clean tasks and no running clean tasks, `false` otherwise.
+      def all_tasks_cleaned?
+        @scheduler.next_ready_clean_tasks.empty? && !@scheduler.running_clean_tasks?
       end
 
       # Notify observers about the root task

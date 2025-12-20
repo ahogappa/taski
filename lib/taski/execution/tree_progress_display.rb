@@ -27,11 +27,16 @@ module Taski
 
       # Status icons
       ICONS = {
+        # Run lifecycle states
         pending: "⏸",        # Pause for waiting
         running_prefix: "",  # Will use spinner
         completed: "✓",
         failed: "✗",
-        skipped: "⊘"         # Prohibition sign for unselected impl candidates
+        skipped: "⊘",        # Prohibition sign for unselected impl candidates
+        # Clean lifecycle states
+        cleaning_prefix: "",  # Will use spinner
+        clean_completed: "♻",
+        clean_failed: "✗"
       }.freeze
 
       # Shared helper methods
@@ -461,6 +466,11 @@ module Taski
         end
       end
 
+      ##
+      # Maps a task state and selection flag to an ANSI-colored status icon string.
+      # @param [Symbol] state - The task lifecycle state (:pending, :running, :completed, :failed, :cleaning, :clean_completed, :clean_failed).
+      # @param [Boolean] is_selected - Whether the task is selected for display; when false a dimmed skipped icon is returned.
+      # @return [String] The ANSI-colored icon or spinner character representing the task's current status.
       def task_status_icon(state, is_selected)
         # If not selected (either direct impl candidate or child of unselected), show skipped
         unless is_selected
@@ -468,12 +478,20 @@ module Taski
         end
 
         case state
+        # Run lifecycle states
         when :completed
           "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
         when :failed
           "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
         when :running
           "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        # Clean lifecycle states
+        when :cleaning
+          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        when :clean_completed
+          "#{COLORS[:success]}#{ICONS[:clean_completed]}#{COLORS[:reset]}"
+        when :clean_failed
+          "#{COLORS[:error]}#{ICONS[:clean_failed]}#{COLORS[:reset]}"
         else
           "#{COLORS[:pending]}#{ICONS[:pending]}#{COLORS[:reset]}"
         end
@@ -491,8 +509,13 @@ module Taski
         end
       end
 
+      ##
+      # Formats a short status string for a task based on its lifecycle state.
+      # @param [TaskProgress] progress - Progress object with `state`, `start_time`, and `duration`.
+      # @return [String] A terminal-ready status fragment (may include ANSI color codes) such as durations, "failed", "cleaning ..." or an empty string when no detail applies.
       def task_details(progress)
         case progress.state
+        # Run lifecycle states
         when :completed
           " #{COLORS[:success]}(#{progress.duration}ms)#{COLORS[:reset]}"
         when :failed
@@ -500,15 +523,33 @@ module Taski
         when :running
           elapsed = ((Time.now - progress.start_time) * 1000).round(0)
           " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
+        # Clean lifecycle states
+        when :cleaning
+          elapsed = ((Time.now - progress.start_time) * 1000).round(0)
+          " #{COLORS[:running]}(cleaning #{elapsed}ms)#{COLORS[:reset]}"
+        when :clean_completed
+          " #{COLORS[:success]}(cleaned #{progress.duration}ms)#{COLORS[:reset]}"
+        when :clean_failed
+          " #{COLORS[:error]}(clean failed)#{COLORS[:reset]}"
         else
           ""
         end
       end
 
       # Get task output suffix to display next to task
-      # Only shows output for running tasks
+      ##
+      # Produces a trailing output suffix for a task when it is actively producing output.
+      #
+      # Fetches the last captured stdout/stderr line for the given task and returns a
+      # formatted, dimmed suffix containing that line only when the task `state` is
+      # `:running` or `:cleaning` and an output capture is available. The returned
+      # string is truncated to fit the terminal width (with a minimum visible length)
+      # and includes surrounding dim/reset color codes.
+      # @param [Class] task_class - The task class whose output to query.
+      # @param [Symbol] state - The task lifecycle state (only `:running` and `:cleaning` produce output).
+      # @return [String] A formatted, possibly truncated output suffix prefixed with a dim pipe, or an empty string when no output should be shown.
       def task_output_suffix(task_class, state)
-        return "" unless state == :running
+        return "" unless state == :running || state == :cleaning
         return "" unless @output_capture
 
         last_line = @output_capture.last_line_for(task_class)
