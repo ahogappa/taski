@@ -52,6 +52,7 @@ module Taski
         @state = STATE_PENDING
         @clean_state = STATE_PENDING
         @timing = nil
+        @clean_timing = nil
       end
 
       # @return [Symbol] Current state
@@ -132,38 +133,45 @@ module Taski
 
       # Called by Executor to mark clean as running
       ##
-      # Mark the task's cleanup state as running.
+      # Mark the task's cleanup state as running and start timing.
       # @return [Boolean] `true` if the clean state was changed from pending to running, `false` otherwise.
       def mark_clean_running
         @monitor.synchronize do
           return false unless @clean_state == STATE_PENDING
           @clean_state = STATE_RUNNING
+          @clean_timing = TaskTiming.start_now
           true
         end
       end
 
       # Called by Executor after clean completes
       ##
-      # Marks the cleanup run as completed, stores the cleanup result, sets the clean state to COMPLETED, and notifies any waiters.
+      # Marks the cleanup run as completed, stores the cleanup result, sets the clean state to COMPLETED,
+      # notifies any waiters, and reports completion to observers.
       # @param [Object] result - The result of the cleanup operation.
       def mark_clean_completed(result)
+        @clean_timing = @clean_timing&.with_end_now
         @monitor.synchronize do
           @clean_result = result
           @clean_state = STATE_COMPLETED
           @clean_condition.broadcast
         end
+        update_clean_progress(:clean_completed, duration: @clean_timing&.duration_ms)
       end
 
       # Called by Executor when clean raises an error
       ##
-      # Marks the cleanup as failed by storing the cleanup error, transitioning the cleanup state to completed, and notifying any waiters.
+      # Marks the cleanup as failed by storing the cleanup error, transitioning the cleanup state to completed,
+      # notifying any waiters, and reports failure to observers.
       # @param [Exception] error - The exception raised during the cleanup run.
       def mark_clean_failed(error)
+        @clean_timing = @clean_timing&.with_end_now
         @monitor.synchronize do
           @clean_error = error
           @clean_state = STATE_COMPLETED
           @clean_condition.broadcast
         end
+        update_clean_progress(:clean_failed, duration: @clean_timing&.duration_ms, error: error)
       end
 
       ##
@@ -274,6 +282,14 @@ module Taski
         return unless @execution_context
 
         @execution_context.notify_task_completed(@task.class, duration: duration, error: error)
+      end
+
+      def update_clean_progress(state, duration: nil, error: nil)
+        # Defensive fallback: try to get current context if not set during initialization
+        @execution_context ||= ExecutionContext.current
+        return unless @execution_context
+
+        @execution_context.notify_clean_completed(@task.class, duration: duration, error: error)
       end
 
       def debug_log(message)

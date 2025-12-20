@@ -301,9 +301,9 @@ module Taski
       ##
       # Executes the clean lifecycle for a task and emits a completion event.
       #
-      # Runs the task's `clean` method, measures its duration in milliseconds, updates the provided
-      # wrapper with success or failure, notifies the execution context of completion (including
-      # duration and any error), and pushes a completion event onto the executor's completion queue.
+      # Runs the task's `clean` method, updates the provided wrapper with success or failure
+      # (which handles timing and observer notification), and pushes a completion event onto
+      # the executor's completion queue.
       # This method respects an abort requested state from the registry (no-op if abort already requested)
       # and triggers a registry abort when a `Taski::TaskAbortException` is raised.
       # It also starts and stops per-task output capture when available and sets the thread-local
@@ -321,23 +321,16 @@ module Taski
         # Set thread-local execution context for task access
         ExecutionContext.current = @execution_context
 
-        start_time = Time.now
         begin
           result = wrapper.task.clean
-          duration_ms = ((Time.now - start_time) * 1000).round(1)
           wrapper.mark_clean_completed(result)
-          @execution_context.notify_clean_completed(task_class, duration: duration_ms)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
         rescue Taski::TaskAbortException => e
           @registry.request_abort!
-          duration_ms = ((Time.now - start_time) * 1000).round(1)
           wrapper.mark_clean_failed(e)
-          @execution_context.notify_clean_completed(task_class, duration: duration_ms, error: e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
         rescue => e
-          duration_ms = ((Time.now - start_time) * 1000).round(1)
           wrapper.mark_clean_failed(e)
-          @execution_context.notify_clean_completed(task_class, duration: duration_ms, error: e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
         ensure
           # Stop capturing output for this task
