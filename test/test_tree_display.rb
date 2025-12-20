@@ -391,4 +391,138 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
     # Should have tree connectors
     assert_match(/[├└]/, output)
   end
+
+  def test_hides_and_shows_cursor
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    sleep 0.05
+    @display.stop
+
+    output = @output.string
+    # Should hide cursor on start and show on stop
+    assert_includes output, "\e[?25l", "Should hide cursor"
+    assert_includes output, "\e[?25h", "Should show cursor"
+  end
+
+  def test_very_deep_dependency_tree_with_state_updates
+    # Test with a very deep dependency tree (DeepDependency::Nested::TaskH)
+    @display.set_root_task(DeepDependency::Nested::TaskH)
+    @display.start
+    # Update multiple tasks to simulate execution
+    @display.update_task(DeepDependency::TaskD, state: :running)
+    @display.update_task(ParallelTaskC, state: :running)
+    sleep 0.15
+    @display.update_task(DeepDependency::TaskD, state: :completed, duration: 50)
+    @display.update_task(ParallelTaskC, state: :completed, duration: 60)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should contain all tasks in the deep tree
+    assert_includes output, "TaskH"
+    assert_includes output, "TaskG"
+    assert_includes output, "TaskE"
+    assert_includes output, "TaskF"
+    assert_includes output, "TaskD"
+    assert_includes output, "ParallelTaskC"
+  end
+end
+
+# Tests for ThreadOutputCapture class
+class TestThreadOutputCapture < Minitest::Test
+  def setup
+    @original = StringIO.new
+    @capture = Taski::Execution::ThreadOutputCapture.new(@original)
+  end
+
+  def test_write_passes_through_when_not_capturing
+    @capture.write("hello")
+    assert_equal "hello", @original.string
+  end
+
+  def test_write_suppresses_output_when_capturing
+    @capture.start_capture(FixtureTaskA)
+    @capture.write("hello")
+    @capture.stop_capture
+    # Output should be suppressed (not written to original)
+    assert_equal "", @original.string
+  end
+
+  def test_puts_passes_through_when_not_capturing
+    @capture.puts("hello")
+    assert_equal "hello\n", @original.string
+  end
+
+  def test_puts_suppresses_output_when_capturing
+    @capture.start_capture(FixtureTaskA)
+    @capture.puts("hello")
+    @capture.stop_capture
+    # Output should be suppressed (not written to original)
+    assert_equal "", @original.string
+  end
+
+  def test_start_and_stop_capture
+    @capture.start_capture(FixtureTaskA)
+    @capture.write("test output")
+    result = @capture.stop_capture
+    assert_equal "test output", result
+  end
+
+  def test_last_line_for_returns_captured_line
+    @capture.start_capture(FixtureTaskA)
+    @capture.puts("line 1")
+    @capture.puts("line 2")
+    @capture.puts("line 3")
+    @capture.stop_capture
+
+    assert_equal "line 3", @capture.last_line_for(FixtureTaskA)
+  end
+
+  def test_last_line_for_returns_nil_for_unknown_task
+    assert_nil @capture.last_line_for(FixtureTaskA)
+  end
+
+  def test_last_line_updates_in_real_time
+    @capture.start_capture(FixtureTaskA)
+    @capture.puts("first line")
+    assert_equal "first line", @capture.last_line_for(FixtureTaskA)
+
+    @capture.puts("second line")
+    assert_equal "second line", @capture.last_line_for(FixtureTaskA)
+
+    @capture.stop_capture
+  end
+
+  def test_multiple_threads_capture_independently
+    results = {}
+    threads = 2.times.map do |i|
+      task = (i == 0) ? FixtureTaskA : FixtureTaskB
+      Thread.new do
+        @capture.start_capture(task)
+        @capture.puts("output from thread #{i}")
+        @capture.stop_capture
+        results[task] = @capture.last_line_for(task)
+      end
+    end
+    threads.each(&:join)
+
+    assert_equal "output from thread 0", results[FixtureTaskA]
+    assert_equal "output from thread 1", results[FixtureTaskB]
+  end
+
+  def test_tty_delegation
+    tty_io = StringIO.new
+    def tty_io.tty?
+      true
+    end
+
+    capture = Taski::Execution::ThreadOutputCapture.new(tty_io)
+    assert capture.tty?
+  end
+
+  def test_flush_delegation
+    @capture.flush
+    # Should not raise error
+    assert true
+  end
 end

@@ -2,6 +2,7 @@
 
 require "monitor"
 require "etc"
+require_relative "thread_output_capture"
 
 module Taski
   module Execution
@@ -40,6 +41,10 @@ module Taski
         @dependencies = {}
         @task_states = {}
         @completed_tasks = Set.new
+
+        # Output capture for displaying task output in progress tree
+        @output_capture = nil
+        @original_stdout = nil
       end
 
       # Execute root task and all dependencies
@@ -48,10 +53,10 @@ module Taski
         # Build dependency graph from static analysis
         build_dependency_graph(root_task_class)
 
-        # Set up tree progress display with root task (before start)
-        setup_tree_progress(root_task_class)
+        # Set up progress display with root task and output capture
+        setup_progress_display(root_task_class)
 
-        # Start progress display automatically for tree progress
+        # Start progress display
         start_progress_display
 
         # Start worker threads
@@ -68,6 +73,9 @@ module Taski
 
         # Stop progress display
         stop_progress_display
+
+        # Restore original stdout
+        teardown_output_capture
       end
 
       private
@@ -163,6 +171,9 @@ module Taski
       def execute_task(task_class, wrapper)
         return if @registry.abort_requested?
 
+        # Start capturing output for this task
+        @output_capture&.start_capture(task_class)
+
         begin
           result = execute_task_run(wrapper)
           wrapper.mark_completed(result)
@@ -174,12 +185,15 @@ module Taski
         rescue => e
           wrapper.mark_failed(e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e})
+        ensure
+          # Stop capturing output for this task
+          @output_capture&.stop_capture
         end
       end
 
       # Execute task run method
-      # Note: Previously captured stdout for progress display, but this was removed
-      # due to thread-safety concerns with global $stdout mutation.
+      # Note: stdout capture is handled by ThreadOutputCapture wrapper
+      # which is set up in setup_output_capture before execution starts.
       def execute_task_run(wrapper)
         wrapper.task.run
       end
@@ -217,11 +231,27 @@ module Taski
         @workers.each(&:join)
       end
 
-      def setup_tree_progress(root_task_class)
+      def setup_progress_display(root_task_class)
         progress = Taski.progress_display
         return unless progress.is_a?(TreeProgressDisplay)
 
         progress.set_root_task(root_task_class)
+
+        # Set up output capture for inline display (only for TTY)
+        return unless $stdout.tty?
+
+        @original_stdout = $stdout
+        @output_capture = ThreadOutputCapture.new(@original_stdout)
+        $stdout = @output_capture
+        progress.set_output_capture(@output_capture)
+      end
+
+      def teardown_output_capture
+        return unless @original_stdout
+
+        $stdout = @original_stdout
+        @output_capture = nil
+        @original_stdout = nil
       end
 
       def start_progress_display
