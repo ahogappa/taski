@@ -84,7 +84,14 @@ module Taski
 
           debug_log("Worker executing: #{task_class}")
 
-          @on_execute.call(task_class, wrapper)
+          begin
+            @on_execute.call(task_class, wrapper)
+          rescue => e
+            # Log error but don't crash the worker thread.
+            # Task-level errors are handled in the execute callback.
+            # This catches unexpected errors in the callback itself.
+            warn "[WorkerPool] Unexpected error executing #{task_class}: #{e.message}"
+          end
         end
       end
 

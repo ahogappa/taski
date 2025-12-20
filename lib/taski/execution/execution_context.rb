@@ -82,23 +82,23 @@ module Taski
       def setup_output_capture(output_io)
         return unless output_io.tty?
 
+        capture = nil
         @monitor.synchronize do
           @original_stdout = output_io
           @output_capture = TaskOutputRouter.new(@original_stdout)
+          capture = @output_capture
+          $stdout = capture
         end
 
-        $stdout = @output_capture
-        notify_set_output_capture(@output_capture)
+        notify_set_output_capture(capture)
       end
 
       # Tear down output capture and restore original $stdout.
       def teardown_output_capture
-        original = @monitor.synchronize { @original_stdout }
-        return unless original
-
-        $stdout = original
-
         @monitor.synchronize do
+          return unless @original_stdout
+
+          $stdout = @original_stdout
           @output_capture = nil
           @original_stdout = nil
         end
@@ -132,7 +132,7 @@ module Taski
           trigger.call(task_class, registry)
         else
           # Fallback for backward compatibility
-          Executor.execute(task_class, registry: registry)
+          Executor.execute(task_class, registry: registry, execution_context: self)
         end
       end
 
@@ -234,10 +234,14 @@ module Taski
         current_observers.each do |observer|
           next unless observer.respond_to?(method_name)
 
-          if kwargs.empty?
-            observer.public_send(method_name, *args)
-          else
-            observer.public_send(method_name, *args, **kwargs)
+          begin
+            if kwargs.empty?
+              observer.public_send(method_name, *args)
+            else
+              observer.public_send(method_name, *args, **kwargs)
+            end
+          rescue => e
+            warn "[ExecutionContext] Observer #{observer.class} raised error in #{method_name}: #{e.message}"
           end
         end
       end
