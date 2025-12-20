@@ -253,15 +253,17 @@ class TestExecutionContext < Minitest::Test
     end
   end
 
-  def test_setup_output_capture_without_tty
+  def test_setup_output_capture_always_sets_capture
     context = Taski::Execution::ExecutionContext.new
 
-    # Non-TTY IO
+    # setup_output_capture now always sets up capture when called
+    # The caller (Executor) is responsible for checking if progress display is enabled
     mock_io = StringIO.new
 
     context.setup_output_capture(mock_io)
 
-    assert_nil context.output_capture
+    # Capture should be set up regardless of TTY status
+    assert_instance_of Taski::Execution::TaskOutputRouter, context.output_capture
   end
 
   def test_teardown_output_capture_when_not_set

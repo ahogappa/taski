@@ -186,8 +186,11 @@ module Taski
       def setup_progress_display(root_task_class)
         @execution_context.notify_set_root_task(root_task_class)
 
-        # Set up output capture for inline display (only for TTY)
-        @execution_context.setup_output_capture($stdout)
+        # Set up output capture only when progress display is active
+        # Skip output capture when progress display is disabled to maintain non-interactive behavior
+        if Taski.progress_display
+          @execution_context.setup_output_capture($stdout)
+        end
       end
 
       def teardown_output_capture

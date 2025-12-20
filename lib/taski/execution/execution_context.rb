@@ -75,13 +75,11 @@ module Taski
       end
 
       # Set up output capture for inline progress display.
-      # Only sets up capture if $stdout is a TTY.
       # Creates TaskOutputRouter and replaces $stdout.
+      # Should only be called when progress display is active.
       #
       # @param output_io [IO] The original output IO (usually $stdout)
       def setup_output_capture(output_io)
-        return unless output_io.tty?
-
         capture = nil
         @monitor.synchronize do
           @original_stdout = output_io
