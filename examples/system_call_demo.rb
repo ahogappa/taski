@@ -7,7 +7,7 @@ require_relative "../lib/taski"
 #
 # This example demonstrates how Taski captures output from system() calls
 # and displays them in the progress spinner.
-# Run with: TASKI_FORCE_PROGRESS=1 ruby examples/system_call_demo.rb
+# Run with: ruby examples/system_call_demo.rb
 
 class SlowOutputTask < Taski::Task
   exports :success
