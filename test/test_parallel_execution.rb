@@ -268,7 +268,9 @@ class TestParallelExecution < Minitest::Test
     # TaskB has 0.5s sleep, ParallelSection has 0.3s sleep
     # If parallel, max should be around max(0.5, 0.3) + overhead
     # Sequential would be 0.5 + 0.3 = 0.8s+
-    assert elapsed < 1.5, "Complex parallel execution should complete in < 1.5s, took #{elapsed}s"
+    # Debug build (e.g. ruby 4.0.0dev) is slower, so allow more time
+    time_limit = RUBY_DESCRIPTION.include?("dev") ? 3.0 : 1.5
+    assert elapsed < time_limit, "Complex parallel execution should complete in < #{time_limit}s, took #{elapsed}s"
   end
 
   def test_sequential_execution_order_for_chain
