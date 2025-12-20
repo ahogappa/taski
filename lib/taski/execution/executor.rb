@@ -25,12 +25,13 @@ module Taski
         # Execute a task and all its dependencies
         # @param root_task_class [Class] The root task class to execute
         # @param registry [Registry] The task registry
-        def execute(root_task_class, registry:)
-          new(registry: registry).execute(root_task_class)
+        # @param execution_context [ExecutionContext, nil] Optional execution context
+        def execute(root_task_class, registry:, execution_context: nil)
+          new(registry: registry, execution_context: execution_context).execute(root_task_class)
         end
       end
 
-      def initialize(registry:, worker_count: nil)
+      def initialize(registry:, worker_count: nil, execution_context: nil)
         @registry = registry
         @worker_count = worker_count || default_worker_count
         @execution_queue = Queue.new
@@ -45,6 +46,9 @@ module Taski
         # Output capture for displaying task output in progress tree
         @output_capture = nil
         @original_stdout = nil
+
+        # ExecutionContext for observer pattern
+        @execution_context = execution_context || create_default_execution_context
       end
 
       # Execute root task and all dependencies
@@ -126,8 +130,8 @@ module Taski
         wrapper = get_or_create_wrapper(task_class)
         return unless wrapper.mark_running
 
-        Taski.progress_display&.register_task(task_class)
-        Taski.progress_display&.update_task(task_class, state: :running)
+        @execution_context.notify_task_registered(task_class)
+        @execution_context.notify_task_started(task_class)
 
         @execution_queue.push({task_class: task_class, wrapper: wrapper})
 
@@ -139,7 +143,7 @@ module Taski
         @registry.get_or_create(task_class) do
           task_instance = task_class.allocate
           task_instance.send(:initialize)
-          TaskWrapper.new(task_instance, registry: @registry)
+          TaskWrapper.new(task_instance, registry: @registry, execution_context: @execution_context)
         end
       end
 
@@ -174,6 +178,9 @@ module Taski
         # Start capturing output for this task
         @output_capture&.start_capture(task_class)
 
+        # Set thread-local execution context for task access (e.g., Section)
+        ExecutionContext.current = @execution_context
+
         begin
           result = execute_task_run(wrapper)
           wrapper.mark_completed(result)
@@ -188,6 +195,8 @@ module Taski
         ensure
           # Stop capturing output for this task
           @output_capture&.stop_capture
+          # Clear thread-local execution context
+          ExecutionContext.current = nil
         end
       end
 
@@ -229,10 +238,7 @@ module Taski
       end
 
       def setup_progress_display(root_task_class)
-        progress = Taski.progress_display
-        return unless progress.is_a?(TreeProgressDisplay)
-
-        progress.set_root_task(root_task_class)
+        @execution_context.notify_set_root_task(root_task_class)
 
         # Set up output capture for inline display (only for TTY)
         return unless $stdout.tty?
@@ -240,7 +246,7 @@ module Taski
         @original_stdout = $stdout
         @output_capture = TaskOutputRouter.new(@original_stdout)
         $stdout = @output_capture
-        progress.set_output_capture(@output_capture)
+        @execution_context.notify_set_output_capture(@output_capture)
       end
 
       def teardown_output_capture
@@ -252,17 +258,24 @@ module Taski
       end
 
       def start_progress_display
-        progress = Taski.progress_display
-        return unless progress.is_a?(TreeProgressDisplay)
-
-        progress.start
+        @execution_context.notify_start
       end
 
       def stop_progress_display
-        progress = Taski.progress_display
-        return unless progress.is_a?(TreeProgressDisplay)
+        @execution_context.notify_stop
+      end
 
-        progress.stop
+      def create_default_execution_context
+        context = ExecutionContext.new
+        progress = Taski.progress_display
+        context.add_observer(progress) if progress
+
+        # Set execution trigger to break circular dependency with TaskWrapper
+        context.execution_trigger = ->(task_class, registry) do
+          Executor.execute(task_class, registry: registry, execution_context: context)
+        end
+
+        context
       end
 
       def debug_log(message)
