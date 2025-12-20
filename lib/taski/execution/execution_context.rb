@@ -291,7 +291,7 @@ module Taski
       # Observers receive an `:update_task` notification with `state` set to `:clean_completed` when
       # `error` is nil, or `:clean_failed` when `error` is provided.
       # @param [Class] task_class - The task class that finished cleaning.
-      # @param [Numeric, nil] duration - The duration of the clean operation in seconds, or `nil` if unknown.
+      # @param [Numeric, nil] duration - The duration of the clean operation in milliseconds, or `nil` if unknown.
       # @param [Exception, nil] error - The error raised during cleaning, or `nil` if the clean succeeded.
       def notify_clean_completed(task_class, duration: nil, error: nil)
         state = error ? :clean_failed : :clean_completed
