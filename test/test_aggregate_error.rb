@@ -68,6 +68,47 @@ class TestAggregateError < Minitest::Test
     assert_equal "Test error", failure.error.message
   end
 
+  # Test AggregateError#includes? (like Go's errors.Is)
+  def test_aggregate_error_includes
+    errors = [
+      Taski::TaskFailure.new(task_class: String, error: RuntimeError.new("Runtime")),
+      Taski::TaskFailure.new(task_class: Integer, error: ArgumentError.new("Argument"))
+    ]
+
+    aggregate = Taski::AggregateError.new(errors)
+
+    assert aggregate.includes?(RuntimeError)
+    assert aggregate.includes?(ArgumentError)
+    assert aggregate.includes?(StandardError) # Parent class
+    refute aggregate.includes?(TypeError)
+  end
+
+  # Test AggregateError#find (like Go's errors.As)
+  def test_aggregate_error_find
+    runtime_error = RuntimeError.new("Runtime")
+    argument_error = ArgumentError.new("Argument")
+
+    errors = [
+      Taski::TaskFailure.new(task_class: String, error: runtime_error),
+      Taski::TaskFailure.new(task_class: Integer, error: argument_error)
+    ]
+
+    aggregate = Taski::AggregateError.new(errors)
+
+    assert_equal runtime_error, aggregate.find(RuntimeError)
+    assert_equal argument_error, aggregate.find(ArgumentError)
+    assert_equal runtime_error, aggregate.find(StandardError) # Returns first matching parent
+    assert_nil aggregate.find(TypeError)
+  end
+
+  # Test includes? and find with empty errors
+  def test_aggregate_error_includes_and_find_empty
+    aggregate = Taski::AggregateError.new([])
+
+    refute aggregate.includes?(RuntimeError)
+    assert_nil aggregate.find(RuntimeError)
+  end
+
   # ========================================
   # Integration Tests
   # ========================================

@@ -44,6 +44,7 @@ module Taski
   end
 
   # Raised when multiple tasks fail during parallel execution
+  # Provides Go-style error inspection via includes? and find methods
   class AggregateError < StandardError
     attr_reader :errors
 
@@ -57,6 +58,21 @@ module Taski
     # @return [Exception, nil] The first error or nil if no errors
     def cause
       errors.first&.error
+    end
+
+    # Check if this aggregate contains an error of the given type (like Go's errors.Is)
+    # @param exception_class [Class] The exception class to check for
+    # @return [Boolean] true if any contained error is of the given type
+    def includes?(exception_class)
+      errors.any? { |f| f.error.is_a?(exception_class) }
+    end
+
+    # Find the first error of the given type (like Go's errors.As)
+    # @param exception_class [Class] The exception class to find
+    # @return [Exception, nil] The first matching error or nil
+    def find(exception_class)
+      failure = errors.find { |f| f.error.is_a?(exception_class) }
+      failure&.error
     end
 
     private
