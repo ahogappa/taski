@@ -31,6 +31,42 @@ module Taski
     end
   end
 
+  # Represents a single task failure with its context
+  class TaskFailure
+    attr_reader :task_class, :error
+
+    # @param task_class [Class] The task class that failed
+    # @param error [Exception] The exception that was raised
+    def initialize(task_class:, error:)
+      @task_class = task_class
+      @error = error
+    end
+  end
+
+  # Raised when multiple tasks fail during parallel execution
+  class AggregateError < StandardError
+    attr_reader :errors
+
+    # @param errors [Array<TaskFailure>] List of task failures
+    def initialize(errors)
+      @errors = errors
+      super(build_message)
+    end
+
+    # Returns the first error for compatibility with exception chaining
+    # @return [Exception, nil] The first error or nil if no errors
+    def cause
+      errors.first&.error
+    end
+
+    private
+
+    def build_message
+      "#{errors.size} tasks failed:\n" +
+        errors.map { |f| "  - #{f.task_class.name}: #{f.error.message}" }.join("\n")
+    end
+  end
+
   @args_monitor = Monitor.new
 
   # Get the current runtime arguments

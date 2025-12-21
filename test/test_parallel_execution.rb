@@ -511,10 +511,11 @@ class TestParallelExecution < Minitest::Test
       end
     end
 
-    error = assert_raises(StandardError) do
+    error = assert_raises(Taski::AggregateError) do
       task_class.run
     end
-    assert_equal "Test error", error.message
+    assert_equal 1, error.errors.size
+    assert_equal "Test error", error.errors.first.error.message
   end
 
   # Test that wrapper timing is recorded
@@ -633,11 +634,12 @@ class TestParallelExecution < Minitest::Test
       end
     end
 
-    error = assert_raises(StandardError) do
+    error = assert_raises(Taski::AggregateError) do
       task_class.run_and_clean
     end
 
-    assert_equal "Run failed", error.message
+    assert_equal 1, error.errors.size
+    assert_equal "Run failed", error.errors.first.error.message
     assert run_executed, "Run should have been executed"
     assert clean_executed, "Clean should still execute after run failure"
   end

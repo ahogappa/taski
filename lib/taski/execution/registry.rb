@@ -63,6 +63,20 @@ module Taski
         @monitor.synchronize { @abort_requested }
       end
 
+      # @return [Array<TaskWrapper>] All wrappers that have errors
+      def failed_wrappers
+        @monitor.synchronize do
+          @tasks.values.select { |w| w.error }
+        end
+      end
+
+      # @return [Array<TaskWrapper>] All wrappers that have clean errors
+      def failed_clean_wrappers
+        @monitor.synchronize do
+          @tasks.values.select { |w| w.clean_error }
+        end
+      end
+
       # @param task_class [Class] The task class to run
       # @param exported_methods [Array<Symbol>] Methods to call to trigger execution
       # @return [Object] The result of the task execution

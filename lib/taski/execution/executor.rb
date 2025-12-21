@@ -133,6 +133,9 @@ module Taski
 
         # Restore original stdout (only if this executor set it up)
         teardown_output_capture if should_teardown_capture
+
+        # Raise aggregated errors if any tasks failed
+        raise_if_any_failures
       end
 
       # Execute clean for root task and all dependencies (in reverse dependency order)
@@ -186,6 +189,9 @@ module Taski
 
         # Restore original stdout (only if this executor set it up)
         teardown_output_capture if should_teardown_capture
+
+        # Raise aggregated errors if any clean tasks failed
+        raise_if_any_clean_failures
       end
 
       private
@@ -437,6 +443,66 @@ module Taski
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
         puts "[Executor] #{message}"
+      end
+
+      # Raise error(s) if any tasks failed during execution
+      # TaskAbortException: raised directly (abort takes priority)
+      # All other errors: raises AggregateError containing all failures
+      def raise_if_any_failures
+        failed = @registry.failed_wrappers
+        return if failed.empty?
+
+        # TaskAbortException takes priority - raise the first one directly
+        abort_wrapper = failed.find { |w| w.error.is_a?(TaskAbortException) }
+        raise abort_wrapper.error if abort_wrapper
+
+        # Flatten nested AggregateErrors and deduplicate by error object_id
+        failures = flatten_failures(failed)
+        unique_failures = failures.uniq { |f| f.error.object_id }
+
+        raise AggregateError.new(unique_failures)
+      end
+
+      # Flatten AggregateErrors into individual TaskFailure objects
+      def flatten_failures(failed_wrappers)
+        failed_wrappers.flat_map do |wrapper|
+          case wrapper.error
+          when AggregateError
+            wrapper.error.errors
+          else
+            [TaskFailure.new(task_class: wrapper.task.class, error: wrapper.error)]
+          end
+        end
+      end
+
+      # Raise error(s) if any tasks failed during clean execution
+      # TaskAbortException: raised directly (abort takes priority)
+      # All other errors: raises AggregateError containing all failures
+      def raise_if_any_clean_failures
+        failed = @registry.failed_clean_wrappers
+        return if failed.empty?
+
+        # TaskAbortException takes priority - raise the first one directly
+        abort_wrapper = failed.find { |w| w.clean_error.is_a?(TaskAbortException) }
+        raise abort_wrapper.clean_error if abort_wrapper
+
+        # Flatten nested AggregateErrors and deduplicate by error object_id
+        failures = flatten_clean_failures(failed)
+        unique_failures = failures.uniq { |f| f.error.object_id }
+
+        raise AggregateError.new(unique_failures)
+      end
+
+      # Flatten AggregateErrors into individual TaskFailure objects for clean errors
+      def flatten_clean_failures(failed_wrappers)
+        failed_wrappers.flat_map do |wrapper|
+          case wrapper.clean_error
+          when AggregateError
+            wrapper.clean_error.errors
+          else
+            [TaskFailure.new(task_class: wrapper.task.class, error: wrapper.clean_error)]
+          end
+        end
       end
     end
   end
