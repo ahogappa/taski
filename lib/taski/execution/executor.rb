@@ -524,7 +524,7 @@ module Taski
       # Returns a unique identifier for an error, used for deduplication
       # For TaskError, uses the wrapped cause's object_id
       def error_identity(error)
-        error.is_a?(TaskError) ? error.cause.object_id : error.object_id
+        error.is_a?(TaskError) ? error.cause&.object_id || error.object_id : error.object_id
       end
     end
   end

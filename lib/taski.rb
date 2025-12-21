@@ -116,7 +116,8 @@ module Taski
     private
 
     def build_message
-      "#{errors.size} tasks failed:\n" +
+      task_word = (errors.size == 1) ? "task" : "tasks"
+      "#{errors.size} #{task_word} failed:\n" +
         errors.map { |f| "  - #{f.task_class.name}: #{f.error.message}" }.join("\n")
     end
   end

@@ -261,7 +261,7 @@ class TestAggregateError < Minitest::Test
 
     assert_equal 1, error.errors.size
     assert_equal "Single task failed", error.errors.first.error.message
-    assert_includes error.message, "1 tasks failed"
+    assert_includes error.message, "1 task failed"
   end
 
   # Test that TaskAbortException takes priority
