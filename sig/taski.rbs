@@ -3,7 +3,8 @@ module Taski
 
   self.@global_registry: Execution::Registry?
   self.@progress_display: Execution::TreeProgressDisplay?
-  self.@context: Context?
+  self.@args: Args?
+  self.@args_monitor: Monitor
 
   # Type alias for Task class (singleton type with class methods)
   # This represents a Class that inherits from Taski::Task
@@ -15,9 +16,10 @@ module Taski
   def self.progress_display: () -> Execution::TreeProgressDisplay?
   def self.progress_disabled?: () -> bool
   def self.reset_progress_display!: () -> void
-  def self.context: () -> Hash[Symbol, untyped]
-  def self.start_context: (options: Hash[Symbol, untyped], root_task: Class) -> void
-  def self.reset_context!: () -> void
+  def self.args: () -> Args?
+  def self.start_args: (options: Hash[Symbol, untyped], root_task: Class) -> void
+  def self.reset_args!: () -> void
+  def self.args_worker_count: () -> Integer?
 
   # Custom exceptions
   class TaskAbortException < StandardError
@@ -31,8 +33,52 @@ module Taski
     def initialize: (Array[Array[Class]] cyclic_tasks) -> void
   end
 
-  # Context class for execution context management
-  class Context
+  # Represents a single task failure with its context
+  class TaskFailure
+    @task_class: Class
+    @error: Exception
+
+    attr_reader task_class: Class
+    attr_reader error: Exception
+
+    def initialize: (task_class: Class, error: Exception) -> void
+  end
+
+  # Mixin for exception classes to enable transparent rescue matching with AggregateError
+  module AggregateAware
+    def ===: (untyped other) -> bool
+  end
+
+  # Base class for task-specific error wrappers
+  class TaskError < StandardError
+    extend AggregateAware
+
+    @cause: Exception
+    @task_class: Class
+
+    attr_reader cause: Exception
+    attr_reader task_class: Class
+
+    def initialize: (Exception cause, task_class: Class) -> void
+  end
+
+  # Raised when multiple tasks fail during parallel execution
+  class AggregateError < StandardError
+    @errors: Array[TaskFailure]
+
+    attr_reader errors: Array[TaskFailure]
+
+    def initialize: (Array[TaskFailure] errors) -> void
+    def cause: () -> Exception?
+    def includes?: (Class exception_class) -> bool
+
+    private
+
+    def build_message: () -> String
+  end
+
+  # Args class for execution arguments management
+  class Args
     @options: Hash[Symbol | String, untyped]
     @root_task: Class
     @started_at: Time
@@ -55,13 +101,15 @@ module Taski
     self.@circular_dependency_checked: bool
 
     # Class methods
+    def self.inherited: (Class subclass) -> void
     def self.exports: (*Symbol names) -> void
     def self.exported_methods: () -> Array[Symbol]
     def self.new: () -> Execution::TaskWrapper
     def self.cached_dependencies: () -> Set[task_class]
     def self.clear_dependency_cache: () -> void
-    def self.run: (?context: Hash[Symbol, untyped]) -> untyped
-    def self.clean: (?context: Hash[Symbol, untyped]) -> void
+    def self.run: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> untyped
+    def self.clean: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> void
+    def self.run_and_clean: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> untyped
     def self.registry: () -> Execution::Registry
     def self.reset!: () -> void
     def self.tree: () -> String
@@ -69,6 +117,7 @@ module Taski
     # Instance methods
     def run: () -> void
     def clean: () -> void
+    def system: (*untyped args, **untyped opts) -> bool?
     def reset!: () -> void
 
     private
@@ -78,6 +127,7 @@ module Taski
     def self.define_instance_reader: (Symbol method_name) -> void
     def self.define_class_accessor: (Symbol method_name) -> void
     def self.validate_no_circular_dependencies!: () -> void
+    def self.validate_workers!: (untyped workers) -> void
   end
 
   # Section class for abstraction layers (inherits from Task)
@@ -129,43 +179,166 @@ module Taski
       def request_abort!: () -> void
       def abort_requested?: () -> bool
       def run: (Class task_class, Array[Symbol] exported_methods) -> untyped
+      def failed_wrappers: () -> Array[TaskWrapper]
+      def failed_clean_wrappers: () -> Array[TaskWrapper]
     end
 
-    # Executor class for parallel task execution (Producer-Consumer pattern)
-    class Executor
+    # ExecutionContext manages execution state and notifies observers about execution events
+    class ExecutionContext
+      THREAD_LOCAL_KEY: Symbol
+
+      @monitor: Monitor
+      @observers: Array[untyped]
+      @execution_trigger: (^(Class, Registry) -> void)?
+      @clean_trigger: (^(Class, Registry) -> void)?
+      @output_capture: TaskOutputRouter?
+      @original_stdout: IO?
+      @runtime_dependencies: Hash[Class, Set[Class]]
+
+      def self.current: () -> ExecutionContext?
+      def self.current=: (ExecutionContext? context) -> void
+
+      def initialize: () -> void
+      def output_capture_active?: () -> bool
+      def setup_output_capture: (IO output_io) -> void
+      def teardown_output_capture: () -> void
+      def output_capture: () -> TaskOutputRouter?
+      def execution_trigger=: ((^(Class, Registry) -> void)? trigger) -> void
+      def clean_trigger=: ((^(Class, Registry) -> void)? trigger) -> void
+      def trigger_execution: (Class task_class, registry: Registry) -> void
+      def trigger_clean: (Class task_class, registry: Registry) -> untyped
+      def register_runtime_dependency: (Class from_class, Class to_class) -> void
+      def runtime_dependencies: () -> Hash[Class, Set[Class]]
+      def add_observer: (untyped observer) -> void
+      def remove_observer: (untyped observer) -> void
+      def observers: () -> Array[untyped]
+      def notify_task_registered: (Class task_class) -> void
+      def notify_task_started: (Class task_class) -> void
+      def notify_task_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
+      def notify_section_impl_selected: (Class section_class, Class impl_class) -> void
+      def notify_set_root_task: (Class task_class) -> void
+      def notify_set_output_capture: (TaskOutputRouter output_capture) -> void
+      def notify_start: () -> void
+      def notify_stop: () -> void
+      def notify_clean_started: (Class task_class) -> void
+      def notify_clean_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
+
+      private
+
+      def dispatch: (Symbol method_name, *untyped args, **untyped kwargs) -> void
+    end
+
+    # TaskOutputRouter for routing task output
+    class TaskOutputRouter
+      def initialize: (IO original_io) -> void
+      def current_write_io: () -> IO?
+      def start_capture: (Class task_class) -> void
+      def stop_capture: () -> void
+    end
+
+    # Scheduler manages task dependency state and determines execution order
+    class Scheduler
       STATE_PENDING: Symbol
       STATE_ENQUEUED: Symbol
       STATE_COMPLETED: Symbol
+      CLEAN_STATE_PENDING: Symbol
+      CLEAN_STATE_ENQUEUED: Symbol
+      CLEAN_STATE_COMPLETED: Symbol
 
-      @registry: Registry
-      @worker_count: Integer
-      @execution_queue: Thread::Queue
-      @completion_queue: Thread::Queue
-      @workers: Array[Thread]
       @dependencies: Hash[Class, Set[Class]]
       @task_states: Hash[Class, Symbol]
       @completed_tasks: Set[Class]
+      @reverse_dependencies: Hash[Class, Set[Class]]
+      @clean_task_states: Hash[Class, Symbol]
+      @clean_completed_tasks: Set[Class]
 
-      def self.execute: (Class root_task_class, registry: Registry) -> void
-      def initialize: (registry: Registry, ?worker_count: Integer?) -> void
-      def execute: (Class root_task_class) -> void
+      def initialize: () -> void
+      def build_dependency_graph: (Class root_task_class) -> void
+      def next_ready_tasks: () -> Array[Class]
+      def mark_enqueued: (Class task_class) -> void
+      def mark_completed: (Class task_class) -> void
+      def completed?: (Class task_class) -> bool
+      def running_tasks?: () -> bool
+      def merge_runtime_dependencies: (Hash[Class, Set[Class]] runtime_deps) -> void
+      def build_reverse_dependency_graph: (Class root_task_class) -> void
+      def next_ready_clean_tasks: () -> Array[Class]
+      def mark_clean_enqueued: (Class task_class) -> void
+      def mark_clean_completed: (Class task_class) -> void
+      def clean_completed?: (Class task_class) -> bool
+      def running_clean_tasks?: () -> bool
+
+      private
+
+      def ready_to_execute?: (Class task_class) -> bool
+      def ready_to_clean?: (Class task_class) -> bool
+    end
+
+    # WorkerPool manages a pool of worker threads that execute tasks
+    class WorkerPool
+      attr_reader execution_queue: Thread::Queue
+
+      @worker_count: Integer
+      @registry: Registry
+      @on_execute: ^(Class, TaskWrapper) -> void
+      @execution_queue: Thread::Queue
+      @workers: Array[Thread]
+
+      def initialize: (registry: Registry, ?worker_count: Integer?) { (Class, TaskWrapper) -> void } -> void
+      def start: () -> void
+      def enqueue: (Class task_class, TaskWrapper wrapper) -> void
+      def shutdown: () -> void
+      def enqueue_shutdown_signals: () -> void
 
       private
 
       def default_worker_count: () -> Integer
-      def build_dependency_graph: (Class root_task_class) -> void
+      def worker_loop: () -> void
+      def debug_log: (String message) -> void
+    end
+
+    # Executor class for parallel task execution (Producer-Consumer pattern)
+    class Executor
+      @registry: Registry
+      @completion_queue: Thread::Queue
+      @execution_context: ExecutionContext
+      @scheduler: Scheduler
+      @effective_worker_count: Integer?
+      @worker_pool: WorkerPool
+      @clean_worker_pool: WorkerPool?
+
+      def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
+      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
+      def initialize: (registry: Registry, ?worker_count: Integer?, ?execution_context: ExecutionContext?) -> void
+      def execute: (Class root_task_class) -> void
+      def execute_clean: (Class root_task_class) -> void
+
+      private
+
       def enqueue_ready_tasks: () -> void
-      def ready_to_execute?: (Class task_class) -> bool
       def enqueue_task: (Class task_class) -> void
       def get_or_create_wrapper: (Class task_class) -> TaskWrapper
-      def start_workers: () -> void
-      def worker_loop: () -> void
       def execute_task: (Class task_class, TaskWrapper wrapper) -> void
       def run_main_loop: (Class root_task_class) -> void
-      def no_running_tasks?: () -> bool
       def handle_completion: (Hash[Symbol, untyped] event) -> void
-      def shutdown_workers: () -> void
+      def enqueue_ready_clean_tasks: () -> void
+      def enqueue_clean_task: (Class task_class) -> void
+      def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
+      def run_clean_main_loop: (Class root_task_class) -> void
+      def handle_clean_completion: (Hash[Symbol, untyped] event) -> void
+      def all_tasks_cleaned?: () -> bool
+      def setup_progress_display: (Class root_task_class) -> void
+      def setup_output_capture_if_needed: () -> bool
+      def teardown_output_capture: () -> void
+      def start_progress_display: () -> void
+      def stop_progress_display: () -> void
+      def create_default_execution_context: () -> ExecutionContext
       def debug_log: (String message) -> void
+      def raise_if_any_failures: () -> void
+      def flatten_failures: (Array[TaskWrapper] failed_wrappers) -> Array[TaskFailure]
+      def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
+      def raise_if_any_clean_failures: () -> void
+      def flatten_clean_failures: (Array[TaskWrapper] failed_wrappers) -> Array[TaskFailure]
+      def error_identity: (Exception error) -> Integer
     end
 
     # TaskWrapper class for task execution
@@ -173,13 +346,16 @@ module Taski
       attr_reader task: Task
       attr_reader result: untyped
       attr_reader error: StandardError?
+      attr_reader clean_error: StandardError?
       attr_reader timing: TaskTiming?
 
       @task: Task
       @registry: Registry
+      @execution_context: ExecutionContext?
       @result: untyped
       @clean_result: untyped
       @error: StandardError?
+      @clean_error: StandardError?
       @monitor: Monitor
       @condition: MonitorMixin::ConditionVariable
       @clean_condition: MonitorMixin::ConditionVariable
@@ -190,18 +366,24 @@ module Taski
       STATE_PENDING: Symbol
       STATE_RUNNING: Symbol
       STATE_COMPLETED: Symbol
+      STATE_FAILED: Symbol
 
-      def initialize: (Task task, registry: Registry) -> void
+      def initialize: (Task task, registry: Registry, ?execution_context: ExecutionContext?) -> void
       def state: () -> Symbol
       def pending?: () -> bool
       def completed?: () -> bool
+      def failed?: () -> bool
+      def clean_failed?: () -> bool
       def run: () -> untyped
       def clean: () -> untyped
+      def run_and_clean: () -> untyped
       def get_exported_value: (Symbol method_name) -> untyped
       def mark_running: () -> bool
       def mark_completed: (untyped result) -> void
       def mark_failed: (StandardError error) -> void
+      def mark_clean_running: () -> bool
       def mark_clean_completed: (untyped result) -> void
+      def mark_clean_failed: (StandardError error) -> void
       def wait_for_completion: () -> void
       def wait_for_clean_completion: () -> void
       def method_missing: (Symbol name, *untyped args) ?{ (*untyped) -> untyped } -> untyped

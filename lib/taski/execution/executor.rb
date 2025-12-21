@@ -133,6 +133,9 @@ module Taski
 
         # Restore original stdout (only if this executor set it up)
         teardown_output_capture if should_teardown_capture
+
+        # Raise aggregated errors if any tasks failed
+        raise_if_any_failures
       end
 
       # Execute clean for root task and all dependencies (in reverse dependency order)
@@ -186,6 +189,9 @@ module Taski
 
         # Restore original stdout (only if this executor set it up)
         teardown_output_capture if should_teardown_capture
+
+        # Raise aggregated errors if any clean tasks failed
+        raise_if_any_clean_failures
       end
 
       private
@@ -437,6 +443,88 @@ module Taski
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
         puts "[Executor] #{message}"
+      end
+
+      # Raise error(s) if any tasks failed during execution
+      # TaskAbortException: raised directly (abort takes priority)
+      # All other errors: raises AggregateError containing all failures
+      def raise_if_any_failures
+        failed = @registry.failed_wrappers
+        return if failed.empty?
+
+        # TaskAbortException takes priority - raise the first one directly
+        abort_wrapper = failed.find { |w| w.error.is_a?(TaskAbortException) }
+        raise abort_wrapper.error if abort_wrapper
+
+        # Flatten nested AggregateErrors and deduplicate by original error object_id
+        failures = flatten_failures(failed)
+        unique_failures = failures.uniq { |f| error_identity(f.error) }
+
+        raise AggregateError.new(unique_failures)
+      end
+
+      # Flatten AggregateErrors into individual TaskFailure objects
+      # Wraps original errors with task-specific Error class for rescue matching
+      def flatten_failures(failed_wrappers)
+        failed_wrappers.flat_map do |wrapper|
+          case wrapper.error
+          when AggregateError
+            wrapper.error.errors
+          else
+            wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.error)
+            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error)]
+          end
+        end
+      end
+
+      # Wraps an error with the task-specific Error class
+      # @param task_class [Class] The task class
+      # @param error [Exception] The original error
+      # @return [TaskError] The wrapped error
+      def wrap_with_task_error(task_class, error)
+        # Don't double-wrap if already a TaskError
+        return error if error.is_a?(TaskError)
+
+        error_class = task_class.const_get(:Error)
+        error_class.new(error, task_class: task_class)
+      end
+
+      # Raise error(s) if any tasks failed during clean execution
+      # TaskAbortException: raised directly (abort takes priority)
+      # All other errors: raises AggregateError containing all failures
+      def raise_if_any_clean_failures
+        failed = @registry.failed_clean_wrappers
+        return if failed.empty?
+
+        # TaskAbortException takes priority - raise the first one directly
+        abort_wrapper = failed.find { |w| w.clean_error.is_a?(TaskAbortException) }
+        raise abort_wrapper.clean_error if abort_wrapper
+
+        # Flatten nested AggregateErrors and deduplicate by original error object_id
+        failures = flatten_clean_failures(failed)
+        unique_failures = failures.uniq { |f| error_identity(f.error) }
+
+        raise AggregateError.new(unique_failures)
+      end
+
+      # Flatten AggregateErrors into individual TaskFailure objects for clean errors
+      # Wraps original errors with task-specific Error class for rescue matching
+      def flatten_clean_failures(failed_wrappers)
+        failed_wrappers.flat_map do |wrapper|
+          case wrapper.clean_error
+          when AggregateError
+            wrapper.clean_error.errors
+          else
+            wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.clean_error)
+            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error)]
+          end
+        end
+      end
+
+      # Returns a unique identifier for an error, used for deduplication
+      # For TaskError, uses the wrapped cause's object_id
+      def error_identity(error)
+        error.is_a?(TaskError) ? error.cause&.object_id || error.object_id : error.object_id
       end
     end
   end

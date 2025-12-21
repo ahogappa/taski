@@ -19,6 +19,17 @@ module Taski
   class Task
     class << self
       ##
+      # Callback invoked when a subclass is created.
+      # Automatically creates a task-specific Error class for each subclass.
+      # @param subclass [Class] The newly created subclass.
+      def inherited(subclass)
+        super
+        # Create TaskClass::Error that inherits from Taski::TaskError
+        error_class = Class.new(Taski::TaskError)
+        subclass.const_set(:Error, error_class)
+      end
+
+      ##
       # Declares exported methods that will be accessible after task execution.
       # Creates instance reader and class accessor methods for each export.
       # @param export_methods [Array<Symbol>] The method names to export.

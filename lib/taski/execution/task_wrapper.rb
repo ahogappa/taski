@@ -26,7 +26,7 @@ module Taski
     # In the Producer-Consumer pattern, TaskWrapper does NOT start threads.
     # The Executor controls all scheduling and execution.
     class TaskWrapper
-      attr_reader :task, :result, :error, :timing
+      attr_reader :task, :result, :error, :timing, :clean_error
 
       STATE_PENDING = :pending
       STATE_RUNNING = :running

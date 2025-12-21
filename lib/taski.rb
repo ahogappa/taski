@@ -12,8 +12,6 @@ require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
 require_relative "taski/execution/tree_progress_display"
 require_relative "taski/args"
-require_relative "taski/task"
-require_relative "taski/section"
 
 module Taski
   class TaskAbortException < StandardError
@@ -28,6 +26,99 @@ module Taski
       @cyclic_tasks = cyclic_tasks
       task_names = cyclic_tasks.map { |group| group.map(&:name).join(" <-> ") }.join(", ")
       super("Circular dependency detected: #{task_names}")
+    end
+  end
+
+  # Represents a single task failure with its context
+  class TaskFailure
+    attr_reader :task_class, :error
+
+    # @param task_class [Class] The task class that failed
+    # @param error [Exception] The exception that was raised
+    def initialize(task_class:, error:)
+      @task_class = task_class
+      @error = error
+    end
+  end
+
+  # Mixin for exception classes to enable transparent rescue matching with AggregateError.
+  # When extended by an exception class, `rescue ThatError` will also match
+  # an AggregateError that contains ThatError.
+  #
+  # @note TaskError and all TaskClass::Error classes already extend this module.
+  #
+  # @example
+  #   begin
+  #     MyTask.value  # raises AggregateError containing MyTask::Error
+  #   rescue MyTask::Error => e
+  #     puts "MyTask failed: #{e.message}"
+  #   end
+  module AggregateAware
+    def ===(other)
+      return super unless other.is_a?(Taski::AggregateError)
+
+      other.includes?(self)
+    end
+  end
+
+  # Base class for task-specific error wrappers.
+  # Each Task subclass automatically gets a ::Error class that inherits from this.
+  # This allows rescuing errors by task class: rescue MyTask::Error => e
+  #
+  # @example Rescuing task-specific errors
+  #   begin
+  #     MyTask.value
+  #   rescue MyTask::Error => e
+  #     puts "MyTask failed: #{e.message}"
+  #   end
+  class TaskError < StandardError
+    extend AggregateAware
+
+    # @return [Exception] The original error that occurred in the task
+    attr_reader :cause
+
+    # @return [Class] The task class where the error occurred
+    attr_reader :task_class
+
+    # @param cause [Exception] The original error
+    # @param task_class [Class] The task class where the error occurred
+    def initialize(cause, task_class:)
+      @cause = cause
+      @task_class = task_class
+      super(cause.message)
+      set_backtrace(cause.backtrace)
+    end
+  end
+
+  # Raised when multiple tasks fail during parallel execution
+  class AggregateError < StandardError
+    attr_reader :errors
+
+    # @param errors [Array<TaskFailure>] List of task failures
+    def initialize(errors)
+      @errors = errors
+      super(build_message)
+    end
+
+    # Returns the first error for compatibility with exception chaining
+    # @return [Exception, nil] The first error or nil if no errors
+    def cause
+      errors.first&.error
+    end
+
+    # Check if this aggregate contains an error of the given type
+    # @param exception_class [Class] The exception class to check for
+    # @return [Boolean] true if any contained error is of the given type
+    def includes?(exception_class)
+      errors.any? { |f| f.error.is_a?(exception_class) }
+    end
+
+    private
+
+    def build_message
+      task_word = (errors.size == 1) ? "task" : "tasks"
+      "#{errors.size} #{task_word} failed:\n" +
+        errors.map { |f| "  - #{f.task_class.name}: #{f.error.message}" }.join("\n")
     end
   end
 
@@ -86,3 +177,7 @@ module Taski
     args&.fetch(:_workers, nil)
   end
 end
+
+# Load Task and Section after Taski module is defined (they depend on TaskError)
+require_relative "taski/task"
+require_relative "taski/section"
