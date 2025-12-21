@@ -92,8 +92,8 @@ class TestSection < Minitest::Test
   def test_section_lazy_dependency_resolution
     LazyDependencyTest.reset
 
-    # Run with context that selects OptionB
-    LazyDependencyTest::MySection.run(context: {use_option_a: false})
+    # Run with args that selects OptionB
+    LazyDependencyTest::MySection.run(args: {use_option_a: false})
 
     executed = LazyDependencyTest.executed_tasks
 
@@ -119,7 +119,7 @@ class TestSection < Minitest::Test
     ImplDependsOnTaskTest.reset
 
     # Run with fast_mode = true
-    ImplDependsOnTaskTest::FinalTask.run(context: {fast_mode: true})
+    ImplDependsOnTaskTest::FinalTask.run(args: {fast_mode: true})
 
     executed = ImplDependsOnTaskTest.executed_tasks
 
@@ -149,7 +149,7 @@ class TestSection < Minitest::Test
     ImplDependsOnTaskTest.reset
 
     # Run with fast_mode = false (default)
-    ImplDependsOnTaskTest::FinalTask.run(context: {fast_mode: false})
+    ImplDependsOnTaskTest::FinalTask.run(args: {fast_mode: false})
 
     executed = ImplDependsOnTaskTest.executed_tasks
 
@@ -181,7 +181,7 @@ class TestSection < Minitest::Test
   def test_section_impl_blocks_on_dependency
     ImplDependsOnTaskTest.reset
 
-    ImplDependsOnTaskTest::ConditionalSection.run(context: {fast_mode: true})
+    ImplDependsOnTaskTest::ConditionalSection.run(args: {fast_mode: true})
 
     executed = ImplDependsOnTaskTest.executed_tasks
 

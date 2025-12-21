@@ -3,10 +3,10 @@
 require "monitor"
 
 module Taski
-  # Runtime context accessible from any task.
+  # Runtime arguments accessible from any task.
   # Holds user-defined options and execution metadata.
-  # Context is immutable after creation - options cannot be modified during task execution.
-  class Context
+  # Args is immutable after creation - options cannot be modified during task execution.
+  class Args
     attr_reader :started_at, :working_directory, :root_task
 
     # @param options [Hash] User-defined options (immutable after creation)

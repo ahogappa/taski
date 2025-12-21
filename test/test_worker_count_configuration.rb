@@ -5,13 +5,13 @@ require_relative "test_helper"
 class TestWorkerCountConfiguration < Minitest::Test
   def setup
     Taski.reset_global_registry!
-    Taski.reset_context!
+    Taski.reset_args!
     Taski.reset_progress_display!
   end
 
   def teardown
     Taski.reset_global_registry!
-    Taski.reset_context!
+    Taski.reset_args!
     Taski.reset_progress_display!
   end
 
@@ -89,21 +89,21 @@ class TestWorkerCountConfiguration < Minitest::Test
   end
 
   # ========================================
-  # Context worker count API
+  # Args worker count API
   # ========================================
 
-  def test_context_worker_count_returns_nil_without_context
-    assert_nil Taski.context_worker_count
+  def test_args_worker_count_returns_nil_without_args
+    assert_nil Taski.args_worker_count
   end
 
-  def test_context_worker_count_returns_nil_when_not_set
-    Taski.start_context(options: {}, root_task: nil)
-    assert_nil Taski.context_worker_count
+  def test_args_worker_count_returns_nil_when_not_set
+    Taski.start_args(options: {}, root_task: nil)
+    assert_nil Taski.args_worker_count
   end
 
-  def test_context_worker_count_returns_value_when_set
-    Taski.start_context(options: {_workers: 4}, root_task: nil)
-    assert_equal 4, Taski.context_worker_count
+  def test_args_worker_count_returns_value_when_set
+    Taski.start_args(options: {_workers: 4}, root_task: nil)
+    assert_equal 4, Taski.args_worker_count
   end
 
   # ========================================
@@ -141,12 +141,12 @@ class TestWorkerCountConfiguration < Minitest::Test
   end
 
   # ========================================
-  # Combined context and workers test
+  # Combined args and workers test
   # ========================================
 
-  def test_workers_parameter_with_context_options
+  def test_workers_parameter_with_args_options
     SimpleTask.reset!
-    SimpleTask.run(context: {custom_key: "value"}, workers: 4)
+    SimpleTask.run(args: {custom_key: "value"}, workers: 4)
     assert_equal "done", SimpleTask.result
   end
 end

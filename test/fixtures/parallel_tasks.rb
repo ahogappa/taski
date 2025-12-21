@@ -396,8 +396,8 @@ module ImplDependsOnTaskTest
 
     def run
       ImplDependsOnTaskTest.record(:condition_task)
-      # Use context to control condition for testing
-      @use_fast_mode = Taski.context[:fast_mode] || false
+      # Use args to control condition for testing
+      @use_fast_mode = Taski.args[:fast_mode] || false
     end
   end
 
@@ -673,7 +673,7 @@ module LazyDependencyTest
       LazyDependencyTest.impl_call_order = Time.now
       # Conditional selection - both OptionA and OptionB are referenced in impl
       # Only the selected option's dependencies should be executed
-      if Taski.context[:use_option_a]
+      if Taski.args[:use_option_a]
         OptionA
       else
         OptionB

@@ -70,7 +70,7 @@ module Taski
       # Initialize an Executor and its internal coordination components.
       # @param [Object] registry - Task registry used to look up task definitions and state.
       # @param [Integer, nil] worker_count - Optional number of worker threads to use; when `nil`,
-      #   uses Taski.context_worker_count which retrieves the worker count from the execution context.
+      #   uses Taski.args_worker_count which retrieves the worker count from the runtime args.
       # @param [Taski::Execution::ExecutionContext, nil] execution_context - Optional execution context for observers and output capture; when `nil` a default context (with progress observer and execution trigger) is created.
       def initialize(registry:, worker_count: nil, execution_context: nil)
         @registry = registry
@@ -82,9 +82,9 @@ module Taski
         # Scheduler for dependency management
         @scheduler = Scheduler.new
 
-        # Determine effective worker count: explicit param > context > default
+        # Determine effective worker count: explicit param > args > default
         # Store as instance variable for consistent use in both run and clean phases
-        @effective_worker_count = worker_count || Taski.context_worker_count
+        @effective_worker_count = worker_count || Taski.args_worker_count
 
         # WorkerPool for thread management
         @worker_pool = WorkerPool.new(
