@@ -83,30 +83,11 @@ class TestAggregateError < Minitest::Test
     refute aggregate.includes?(TypeError)
   end
 
-  # Test AggregateError#find (like Go's errors.As)
-  def test_aggregate_error_find
-    runtime_error = RuntimeError.new("Runtime")
-    argument_error = ArgumentError.new("Argument")
-
-    errors = [
-      Taski::TaskFailure.new(task_class: String, error: runtime_error),
-      Taski::TaskFailure.new(task_class: Integer, error: argument_error)
-    ]
-
-    aggregate = Taski::AggregateError.new(errors)
-
-    assert_equal runtime_error, aggregate.find(RuntimeError)
-    assert_equal argument_error, aggregate.find(ArgumentError)
-    assert_equal runtime_error, aggregate.find(StandardError) # Returns first matching parent
-    assert_nil aggregate.find(TypeError)
-  end
-
-  # Test includes? and find with empty errors
-  def test_aggregate_error_includes_and_find_empty
+  # Test includes? with empty errors
+  def test_aggregate_error_includes_empty
     aggregate = Taski::AggregateError.new([])
 
     refute aggregate.includes?(RuntimeError)
-    assert_nil aggregate.find(RuntimeError)
   end
 
   # ========================================
@@ -192,6 +173,72 @@ class TestAggregateError < Minitest::Test
 
     # Parent class should match aggregate containing child error
     assert parent_error === aggregate
+  end
+
+  # ========================================
+  # TaskClass::Error Auto-generation Tests
+  # ========================================
+
+  # Test that Task subclass automatically gets an Error class
+  def test_task_subclass_has_error_class
+    task_class = Class.new(Taski::Task)
+
+    assert task_class.const_defined?(:Error)
+    assert task_class::Error < Taski::TaskError
+  end
+
+  # Test that TaskClass::Error wraps the original error
+  def test_task_error_wraps_original_error
+    original_error = RuntimeError.new("Original error")
+    task_class = Class.new(Taski::Task)
+
+    task_error = task_class::Error.new(original_error, task_class: task_class)
+
+    assert_equal original_error, task_error.cause
+    assert_equal task_class, task_error.task_class
+    assert_equal "Original error", task_error.message
+  end
+
+  # Test rescuing by TaskClass::Error
+  def test_rescue_by_task_error_class
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise "Task failed"
+      end
+    end
+
+    rescued = false
+    rescued_exception = nil
+
+    begin
+      task_class.value
+    rescue task_class::Error => e
+      rescued = true
+      rescued_exception = e
+    end
+
+    assert rescued, "Should have been rescued by task_class::Error"
+    assert_instance_of Taski::AggregateError, rescued_exception
+  end
+
+  # Test includes? works with TaskClass::Error
+  def test_aggregate_error_includes_task_error
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise "Task failed"
+      end
+    end
+
+    error = assert_raises(Taski::AggregateError) do
+      task_class.value
+    end
+
+    assert error.includes?(task_class::Error)
+    assert error.includes?(Taski::TaskError)
   end
 
   # ========================================

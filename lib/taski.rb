@@ -12,8 +12,6 @@ require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
 require_relative "taski/execution/tree_progress_display"
 require_relative "taski/args"
-require_relative "taski/task"
-require_relative "taski/section"
 
 module Taski
   class TaskAbortException < StandardError
@@ -47,25 +45,52 @@ module Taski
   # When extended by an exception class, `rescue ThatError` will also match
   # an AggregateError that contains ThatError.
   #
-  # @example
-  #   class MyCustomError < StandardError
-  #     extend Taski::AggregateAware
-  #   end
+  # @note TaskError and all TaskClass::Error classes already extend this module.
   #
+  # @example
   #   begin
-  #     SomeTask.run  # raises AggregateError containing MyCustomError
-  #   rescue MyCustomError => e
-  #     # This block executes! e is the AggregateError instance
+  #     MyTask.value  # raises AggregateError containing MyTask::Error
+  #   rescue MyTask::Error => e
+  #     puts "MyTask failed: #{e.message}"
   #   end
   module AggregateAware
     def ===(other)
       return super unless other.is_a?(Taski::AggregateError)
+
       other.includes?(self)
     end
   end
 
+  # Base class for task-specific error wrappers.
+  # Each Task subclass automatically gets a ::Error class that inherits from this.
+  # This allows rescuing errors by task class: rescue MyTask::Error => e
+  #
+  # @example Rescuing task-specific errors
+  #   begin
+  #     MyTask.value
+  #   rescue MyTask::Error => e
+  #     puts "MyTask failed: #{e.message}"
+  #   end
+  class TaskError < StandardError
+    extend AggregateAware
+
+    # @return [Exception] The original error that occurred in the task
+    attr_reader :cause
+
+    # @return [Class] The task class where the error occurred
+    attr_reader :task_class
+
+    # @param cause [Exception] The original error
+    # @param task_class [Class] The task class where the error occurred
+    def initialize(cause, task_class:)
+      @cause = cause
+      @task_class = task_class
+      super(cause.message)
+      set_backtrace(cause.backtrace)
+    end
+  end
+
   # Raised when multiple tasks fail during parallel execution
-  # Provides Go-style error inspection via includes? and find methods
   class AggregateError < StandardError
     attr_reader :errors
 
@@ -81,19 +106,11 @@ module Taski
       errors.first&.error
     end
 
-    # Check if this aggregate contains an error of the given type (like Go's errors.Is)
+    # Check if this aggregate contains an error of the given type
     # @param exception_class [Class] The exception class to check for
     # @return [Boolean] true if any contained error is of the given type
     def includes?(exception_class)
       errors.any? { |f| f.error.is_a?(exception_class) }
-    end
-
-    # Find the first error of the given type (like Go's errors.As)
-    # @param exception_class [Class] The exception class to find
-    # @return [Exception, nil] The first matching error or nil
-    def find(exception_class)
-      failure = errors.find { |f| f.error.is_a?(exception_class) }
-      failure&.error
     end
 
     private
@@ -159,3 +176,7 @@ module Taski
     args&.fetch(:_workers, nil)
   end
 end
+
+# Load Task and Section after Taski module is defined (they depend on TaskError)
+require_relative "taski/task"
+require_relative "taski/section"
