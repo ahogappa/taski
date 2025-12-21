@@ -105,4 +105,48 @@ class TestWorkerCountConfiguration < Minitest::Test
     Taski.start_context(options: {_workers: 4}, root_task: nil)
     assert_equal 4, Taski.context_worker_count
   end
+
+  # ========================================
+  # Validation tests
+  # ========================================
+
+  def test_run_raises_error_for_zero_workers
+    SimpleTask.reset!
+    error = assert_raises(ArgumentError) { SimpleTask.run(workers: 0) }
+    assert_match(/workers must be a positive integer or nil/, error.message)
+  end
+
+  def test_run_raises_error_for_negative_workers
+    SimpleTask.reset!
+    error = assert_raises(ArgumentError) { SimpleTask.run(workers: -1) }
+    assert_match(/workers must be a positive integer or nil/, error.message)
+  end
+
+  def test_run_raises_error_for_non_integer_workers
+    SimpleTask.reset!
+    error = assert_raises(ArgumentError) { SimpleTask.run(workers: "4") }
+    assert_match(/workers must be a positive integer or nil/, error.message)
+  end
+
+  def test_clean_raises_error_for_invalid_workers
+    SimpleTask.reset!
+    error = assert_raises(ArgumentError) { SimpleTask.clean(workers: 0) }
+    assert_match(/workers must be a positive integer or nil/, error.message)
+  end
+
+  def test_run_and_clean_raises_error_for_invalid_workers
+    SimpleTask.reset!
+    error = assert_raises(ArgumentError) { SimpleTask.run_and_clean(workers: -5) }
+    assert_match(/workers must be a positive integer or nil/, error.message)
+  end
+
+  # ========================================
+  # Combined context and workers test
+  # ========================================
+
+  def test_workers_parameter_with_context_options
+    SimpleTask.reset!
+    SimpleTask.run(context: {custom_key: "value"}, workers: 4)
+    assert_equal "done", SimpleTask.result
+  end
 end

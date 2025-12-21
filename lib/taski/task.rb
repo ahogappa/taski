@@ -75,10 +75,12 @@ module Taski
       # Executes the task and all its dependencies.
       # @param context [Hash] Context options passed to tasks.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
-      #   Overrides global configuration and environment variable settings.
+      #   Must be a positive integer or nil.
       #   Use workers: 1 for sequential execution (useful for debugging).
+      # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution.
       def run(context: {}, workers: nil)
+        validate_workers!(workers)
         Taski.start_context(options: context.merge(_workers: workers), root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.run
@@ -89,8 +91,10 @@ module Taski
       # Clean is executed in reverse dependency order.
       # @param context [Hash] Context options passed to tasks.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
-      #   Overrides global configuration and environment variable settings.
+      #   Must be a positive integer or nil.
+      # @raise [ArgumentError] If workers is not a positive integer or nil.
       def clean(context: {}, workers: nil)
+        validate_workers!(workers)
         Taski.start_context(options: context.merge(_workers: workers), root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.clean
@@ -102,9 +106,11 @@ module Taski
       #
       # @param context [Hash] Context options passed to tasks.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
-      #   Overrides global configuration and environment variable settings.
+      #   Must be a positive integer or nil.
+      # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution
       def run_and_clean(context: {}, workers: nil)
+        validate_workers!(workers)
         Taski.start_context(options: context.merge(_workers: workers), root_task: self)
         validate_no_circular_dependencies!
         cached_wrapper.run_and_clean
@@ -194,6 +200,18 @@ module Taski
         end
 
         @circular_dependency_checked = true
+      end
+
+      ##
+      # Validates the workers parameter.
+      # @param workers [Object] The workers parameter to validate.
+      # @raise [ArgumentError] If workers is not a positive integer or nil.
+      def validate_workers!(workers)
+        return if workers.nil?
+
+        unless workers.is_a?(Integer) && workers >= 1
+          raise ArgumentError, "workers must be a positive integer or nil, got: #{workers.inspect}"
+        end
       end
     end
 

@@ -70,7 +70,7 @@ module Taski
       # Initialize an Executor and its internal coordination components.
       # @param [Object] registry - Task registry used to look up task definitions and state.
       # @param [Integer, nil] worker_count - Optional number of worker threads to use; when `nil`,
-      #   uses Taski.effective_worker_count which checks context, config, and environment.
+      #   uses Taski.context_worker_count which retrieves the worker count from the execution context.
       # @param [Taski::Execution::ExecutionContext, nil] execution_context - Optional execution context for observers and output capture; when `nil` a default context (with progress observer and execution trigger) is created.
       def initialize(registry:, worker_count: nil, execution_context: nil)
         @registry = registry
@@ -83,12 +83,13 @@ module Taski
         @scheduler = Scheduler.new
 
         # Determine effective worker count: explicit param > context > default
-        effective_workers = worker_count || Taski.context_worker_count
+        # Store as instance variable for consistent use in both run and clean phases
+        @effective_worker_count = worker_count || Taski.context_worker_count
 
         # WorkerPool for thread management
         @worker_pool = WorkerPool.new(
           registry: @registry,
-          worker_count: effective_workers
+          worker_count: @effective_worker_count
         ) { |task_class, wrapper| execute_task(task_class, wrapper) }
       end
 
@@ -162,10 +163,10 @@ module Taski
         start_progress_display
 
         # Create a new worker pool for clean operations
-        # Uses the same worker count as the run phase (from context)
+        # Uses the same worker count as the run phase
         @clean_worker_pool = WorkerPool.new(
           registry: @registry,
-          worker_count: Taski.context_worker_count
+          worker_count: @effective_worker_count
         ) { |task_class, wrapper| execute_clean_task(task_class, wrapper) }
 
         # Start worker threads
