@@ -78,4 +78,11 @@ module Taski
     @progress_display&.stop
     @progress_display = nil
   end
+
+  # Get the worker count from the current context (set via Task.run(workers: n))
+  # @return [Integer, nil] The worker count or nil to use WorkerPool default
+  # @api private
+  def self.context_worker_count
+    context&.fetch(:_workers, nil)
+  end
 end
