@@ -11,7 +11,7 @@ require_relative "taski/execution/scheduler"
 require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
 require_relative "taski/execution/tree_progress_display"
-require_relative "taski/context"
+require_relative "taski/args"
 require_relative "taski/task"
 require_relative "taski/section"
 
@@ -31,27 +31,27 @@ module Taski
     end
   end
 
-  @context_monitor = Monitor.new
+  @args_monitor = Monitor.new
 
-  # Get the current execution context
-  # @return [Context, nil] The current context or nil if no task is running
-  def self.context
-    @context_monitor.synchronize { @context }
+  # Get the current runtime arguments
+  # @return [Args, nil] The current args or nil if no task is running
+  def self.args
+    @args_monitor.synchronize { @args }
   end
 
-  # Start a new execution context (internal use only)
+  # Start new runtime arguments (internal use only)
   # @api private
-  def self.start_context(options:, root_task:)
-    @context_monitor.synchronize do
-      return if @context
-      @context = Context.new(options: options, root_task: root_task)
+  def self.start_args(options:, root_task:)
+    @args_monitor.synchronize do
+      return if @args
+      @args = Args.new(options: options, root_task: root_task)
     end
   end
 
-  # Reset the execution context (internal use only)
+  # Reset the runtime arguments (internal use only)
   # @api private
-  def self.reset_context!
-    @context_monitor.synchronize { @context = nil }
+  def self.reset_args!
+    @args_monitor.synchronize { @args = nil }
   end
 
   def self.global_registry
@@ -79,10 +79,10 @@ module Taski
     @progress_display = nil
   end
 
-  # Get the worker count from the current context (set via Task.run(workers: n))
+  # Get the worker count from the current args (set via Task.run(workers: n))
   # @return [Integer, nil] The worker count or nil to use WorkerPool default
   # @api private
-  def self.context_worker_count
-    context&.fetch(:_workers, nil)
+  def self.args_worker_count
+    args&.fetch(:_workers, nil)
   end
 end

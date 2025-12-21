@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class TestContext < Minitest::Test
+class TestArgs < Minitest::Test
   def setup
     # Reset the task system before each test
     Taski::Task.reset! if defined?(Taski::Task)
@@ -15,7 +15,7 @@ class TestContext < Minitest::Test
       exports :captured_dir
 
       def run
-        @captured_dir = Taski.context.working_directory
+        @captured_dir = Taski.args.working_directory
       end
     end
 
@@ -28,7 +28,7 @@ class TestContext < Minitest::Test
       exports :captured_time
 
       def run
-        @captured_time = Taski.context.started_at
+        @captured_time = Taski.args.started_at
       end
     end
 
@@ -50,7 +50,7 @@ class TestContext < Minitest::Test
     # even though it depends on ParallelTaskA and ParallelTaskB
     ParallelTaskC.task_c_value
 
-    assert_equal ParallelTaskC, Taski.context.root_task
+    assert_equal ParallelTaskC, Taski.args.root_task
   end
 
   def test_root_task_is_set_only_once
@@ -72,17 +72,17 @@ class TestContext < Minitest::Test
 
     # First task call sets root_task
     task_a.value
-    first_root = Taski.context.root_task
+    first_root = Taski.args.root_task
 
     # Second task call should not change root_task
     task_b.value
-    second_root = Taski.context.root_task
+    second_root = Taski.args.root_task
 
     assert_equal task_a, first_root
     assert_equal task_a, second_root
   end
 
-  def test_reset_clears_context
+  def test_reset_clears_args
     task_class = Class.new(Taski::Task) do
       exports :value
 
@@ -93,30 +93,30 @@ class TestContext < Minitest::Test
 
     task_class.run
 
-    # Context values should be set
-    assert_equal task_class, Taski.context.root_task
-    refute_nil Taski.context.working_directory
-    refute_nil Taski.context.started_at
+    # Args values should be set
+    assert_equal task_class, Taski.args.root_task
+    refute_nil Taski.args.working_directory
+    refute_nil Taski.args.started_at
 
     # Reset should clear all values
     Taski::Task.reset!
 
-    assert_nil Taski.context
+    assert_nil Taski.args
   end
 
-  def test_context_is_not_dependency
+  def test_args_is_not_dependency
     require_relative "fixtures/parallel_tasks"
 
     Taski::Task.reset!
 
-    # Context should not appear in dependencies
+    # Args should not appear in dependencies
     # Note: Static analysis requires actual source files, so we just verify
-    # that Context is not a Task subclass (which is how dependencies are filtered)
-    refute Taski::Context < Taski::Task
-    refute Taski::Context < Taski::Section
+    # that Args is not a Task subclass (which is how dependencies are filtered)
+    refute Taski::Args < Taski::Task
+    refute Taski::Args < Taski::Section
   end
 
-  def test_context_thread_safety
+  def test_args_thread_safety
     Taski::Task.reset!
 
     results = []
@@ -135,7 +135,7 @@ class TestContext < Minitest::Test
 
       threads << Thread.new do
         task_class.value
-        mutex.synchronize { results << Taski.context.root_task }
+        mutex.synchronize { results << Taski.args.root_task }
       end
     end
 
@@ -145,144 +145,144 @@ class TestContext < Minitest::Test
     assert_equal 1, results.uniq.size, "All threads should see the same root_task"
   end
 
-  def test_context_values_are_consistent_during_execution
+  def test_args_values_are_consistent_during_execution
     require_relative "fixtures/parallel_tasks"
 
     Taski::Task.reset!
 
-    # Define tasks that capture context values
+    # Define tasks that capture args values
     task_a = Class.new(Taski::Task) do
-      exports :context_info
+      exports :args_info
 
       define_method(:run) do
         sleep 0.05 # Small delay to ensure parallel execution
-        @context_info = {
-          root: Taski.context.root_task,
-          dir: Taski.context.working_directory,
-          time: Taski.context.started_at
+        @args_info = {
+          root: Taski.args.root_task,
+          dir: Taski.args.working_directory,
+          time: Taski.args.started_at
         }
       end
     end
 
     task_b = Class.new(Taski::Task) do
-      exports :context_info
+      exports :args_info
 
       define_method(:run) do
         sleep 0.05
-        @context_info = {
-          root: Taski.context.root_task,
-          dir: Taski.context.working_directory,
-          time: Taski.context.started_at
+        @args_info = {
+          root: Taski.args.root_task,
+          dir: Taski.args.working_directory,
+          time: Taski.args.started_at
         }
       end
     end
 
     # Access both tasks
-    task_a.context_info
-    task_b.context_info
+    task_a.args_info
+    task_b.args_info
 
-    # Both tasks should see consistent context values
-    assert_equal task_a.context_info[:dir], task_b.context_info[:dir]
-    assert_equal task_a.context_info[:time], task_b.context_info[:time]
+    # Both tasks should see consistent args values
+    assert_equal task_a.args_info[:dir], task_b.args_info[:dir]
+    assert_equal task_a.args_info[:time], task_b.args_info[:time]
   end
 
-  # New tests for user-defined options
+  # Tests for user-defined options
 
-  def test_context_options_are_accessible
+  def test_args_options_are_accessible
     task_class = Class.new(Taski::Task) do
       exports :env_value
 
       def run
-        @env_value = Taski.context[:env]
+        @env_value = Taski.args[:env]
       end
     end
 
-    task_class.run(context: {env: "production"})
+    task_class.run(args: {env: "production"})
     assert_equal "production", task_class.env_value
   end
 
-  def test_context_options_return_nil_for_missing_keys
+  def test_args_options_return_nil_for_missing_keys
     task_class = Class.new(Taski::Task) do
       exports :missing_value
 
       def run
-        @missing_value = Taski.context[:nonexistent]
+        @missing_value = Taski.args[:nonexistent]
       end
     end
 
-    task_class.run(context: {env: "production"})
+    task_class.run(args: {env: "production"})
     assert_nil task_class.missing_value
   end
 
-  def test_context_fetch_with_default_value
+  def test_args_fetch_with_default_value
     task_class = Class.new(Taski::Task) do
       exports :timeout_value
 
       def run
-        @timeout_value = Taski.context.fetch(:timeout, 30)
+        @timeout_value = Taski.args.fetch(:timeout, 30)
       end
     end
 
-    task_class.run(context: {})
+    task_class.run(args: {})
     assert_equal 30, task_class.timeout_value
   end
 
-  def test_context_fetch_with_block
+  def test_args_fetch_with_block
     task_class = Class.new(Taski::Task) do
       exports :computed_value
 
       def run
-        @computed_value = Taski.context.fetch(:computed) { 10 * 5 }
+        @computed_value = Taski.args.fetch(:computed) { 10 * 5 }
       end
     end
 
-    task_class.run(context: {})
+    task_class.run(args: {})
     assert_equal 50, task_class.computed_value
   end
 
-  def test_context_fetch_returns_existing_value_over_default
+  def test_args_fetch_returns_existing_value_over_default
     task_class = Class.new(Taski::Task) do
       exports :timeout_value
 
       def run
-        @timeout_value = Taski.context.fetch(:timeout, 30)
+        @timeout_value = Taski.args.fetch(:timeout, 30)
       end
     end
 
-    task_class.run(context: {timeout: 60})
+    task_class.run(args: {timeout: 60})
     assert_equal 60, task_class.timeout_value
   end
 
-  def test_context_key_check
+  def test_args_key_check
     task_class = Class.new(Taski::Task) do
       exports :has_env, :has_missing
 
       def run
-        @has_env = Taski.context.key?(:env)
-        @has_missing = Taski.context.key?(:missing)
+        @has_env = Taski.args.key?(:env)
+        @has_missing = Taski.args.key?(:missing)
       end
     end
 
-    task_class.run(context: {env: "production"})
+    task_class.run(args: {env: "production"})
     assert task_class.has_env
     refute task_class.has_missing
   end
 
-  def test_context_options_are_immutable
+  def test_args_options_are_immutable
     task_class = Class.new(Taski::Task) do
       exports :result
 
       def run
         # Options hash should be frozen
-        @result = Taski.context.instance_variable_get(:@options).frozen?
+        @result = Taski.args.instance_variable_get(:@options).frozen?
       end
     end
 
-    task_class.run(context: {env: "production"})
+    task_class.run(args: {env: "production"})
     assert task_class.result
   end
 
-  def test_context_options_shared_across_dependent_tasks
+  def test_args_options_shared_across_dependent_tasks
     Taski::Task.reset!
 
     dependency_env = nil
@@ -291,7 +291,7 @@ class TestContext < Minitest::Test
       exports :dep_value
 
       define_method(:run) do
-        dependency_env = Taski.context[:env]
+        dependency_env = Taski.args[:env]
         @dep_value = "from_dep"
       end
     end
@@ -306,7 +306,7 @@ class TestContext < Minitest::Test
       end
     end
 
-    main_task_class.run(context: {env: "staging"})
+    main_task_class.run(args: {env: "staging"})
     assert_equal "staging", dependency_env
   end
 end
