@@ -110,6 +110,91 @@ class TestAggregateError < Minitest::Test
   end
 
   # ========================================
+  # AggregateAware Module Tests
+  # ========================================
+
+  # Test AggregateAware enables rescue matching with AggregateError
+  def test_aggregate_aware_rescue_matching
+    # Create a custom error class with AggregateAware
+    custom_error_class = Class.new(StandardError) do
+      extend Taski::AggregateAware
+    end
+
+    aggregate = Taski::AggregateError.new([
+      Taski::TaskFailure.new(task_class: String, error: custom_error_class.new("Custom error"))
+    ])
+
+    # The custom error class should match AggregateError via ===
+    assert custom_error_class === aggregate
+  end
+
+  # Test AggregateAware does not match when error type is not contained
+  def test_aggregate_aware_no_match_when_not_contained
+    custom_error_class = Class.new(StandardError) do
+      extend Taski::AggregateAware
+    end
+
+    aggregate = Taski::AggregateError.new([
+      Taski::TaskFailure.new(task_class: String, error: RuntimeError.new("Runtime"))
+    ])
+
+    # Should not match because aggregate doesn't contain custom_error_class
+    refute custom_error_class === aggregate
+  end
+
+  # Test AggregateAware still works with normal exceptions
+  def test_aggregate_aware_normal_exception_matching
+    custom_error_class = Class.new(StandardError) do
+      extend Taski::AggregateAware
+    end
+
+    normal_error = custom_error_class.new("Normal error")
+
+    # Normal exception matching should still work
+    assert custom_error_class === normal_error
+    refute custom_error_class === RuntimeError.new("Other")
+  end
+
+  # Test AggregateAware works with actual rescue clause
+  def test_aggregate_aware_actual_rescue
+    custom_error_class = Class.new(StandardError) do
+      extend Taski::AggregateAware
+    end
+
+    aggregate = Taski::AggregateError.new([
+      Taski::TaskFailure.new(task_class: String, error: custom_error_class.new("Test"))
+    ])
+
+    rescued = false
+    rescued_exception = nil
+
+    begin
+      raise aggregate
+    rescue custom_error_class => e
+      rescued = true
+      rescued_exception = e
+    end
+
+    assert rescued, "Should have been rescued by custom_error_class"
+    assert_instance_of Taski::AggregateError, rescued_exception
+  end
+
+  # Test AggregateAware with inheritance
+  def test_aggregate_aware_with_inheritance
+    parent_error = Class.new(StandardError) do
+      extend Taski::AggregateAware
+    end
+    child_error = Class.new(parent_error)
+
+    aggregate = Taski::AggregateError.new([
+      Taski::TaskFailure.new(task_class: String, error: child_error.new("Child"))
+    ])
+
+    # Parent class should match aggregate containing child error
+    assert parent_error === aggregate
+  end
+
+  # ========================================
   # Integration Tests
   # ========================================
 

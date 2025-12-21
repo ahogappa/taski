@@ -43,6 +43,27 @@ module Taski
     end
   end
 
+  # Mixin for exception classes to enable transparent rescue matching with AggregateError.
+  # When extended by an exception class, `rescue ThatError` will also match
+  # an AggregateError that contains ThatError.
+  #
+  # @example
+  #   class MyCustomError < StandardError
+  #     extend Taski::AggregateAware
+  #   end
+  #
+  #   begin
+  #     SomeTask.run  # raises AggregateError containing MyCustomError
+  #   rescue MyCustomError => e
+  #     # This block executes! e is the AggregateError instance
+  #   end
+  module AggregateAware
+    def ===(other)
+      return super unless other.is_a?(Taski::AggregateError)
+      other.includes?(self)
+    end
+  end
+
   # Raised when multiple tasks fail during parallel execution
   # Provides Go-style error inspection via includes? and find methods
   class AggregateError < StandardError
