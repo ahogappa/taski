@@ -402,7 +402,9 @@ module Taski
 
         return unless should_start
 
-        @output.print "\e[?25l"  # Hide cursor
+        @output.print "\e[?1049h" # Switch to alternate screen buffer
+        @output.print "\e[H"      # Move cursor to home (top-left)
+        @output.print "\e[?25l"   # Hide cursor
         @renderer_thread = Thread.new do
           loop do
             break unless @running
@@ -426,7 +428,8 @@ module Taski
         return unless should_stop
 
         @renderer_thread&.join
-        @output.print "\e[?25h"  # Show cursor
+        @output.print "\e[?25h"   # Show cursor
+        @output.print "\e[?1049l" # Switch back to main screen buffer
         render_final
       end
 
@@ -488,13 +491,8 @@ module Taski
           lines = build_tree_display
           return if lines.empty?
 
-          # Move cursor up by the number of lines previously drawn
-          if @last_line_count > 0
-            @output.print "\e[#{@last_line_count}A"  # Move cursor up n lines
-          end
-          @output.print "\e[J"  # Clear from cursor to end of screen
-
-          # Print final state
+          # Simply print final state on main screen (no cursor movement needed
+          # since we just switched back from alternate screen buffer)
           lines.each { |line| @output.puts line }
         end
       end
