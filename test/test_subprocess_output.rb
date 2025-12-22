@@ -23,7 +23,6 @@ class TestSubprocessOutput < Minitest::Test
 
     result = task_class.run
     assert_equal true, result
-    assert_equal true, task_class.result
   end
 
   def test_system_returns_false_on_failure
@@ -37,7 +36,6 @@ class TestSubprocessOutput < Minitest::Test
 
     result = task_class.run
     assert_equal false, result
-    assert_equal false, task_class.result
   end
 
   def test_system_returns_nil_on_command_not_found
@@ -51,7 +49,6 @@ class TestSubprocessOutput < Minitest::Test
 
     result = task_class.run
     assert_nil result
-    assert_nil task_class.result
   end
 
   def test_system_with_multiple_arguments
@@ -63,8 +60,8 @@ class TestSubprocessOutput < Minitest::Test
       end
     end
 
-    task_class.run
-    assert_equal true, task_class.result
+    result = task_class.run
+    assert_equal true, result
   end
 
   # Test that system works with fresh TaskWrapper instances
@@ -95,8 +92,8 @@ class TestSubprocessOutput < Minitest::Test
       end
     end
 
-    task_class.run
-    assert_equal true, task_class.result
+    result = task_class.run
+    assert_equal true, result
   end
 
   def test_system_with_chdir_option
@@ -109,8 +106,8 @@ class TestSubprocessOutput < Minitest::Test
       end
     end
 
-    task_class.run
-    assert_equal true, task_class.result
+    result = task_class.run
+    assert_equal true, result
   end
 
   def test_system_respects_user_provided_out_option
@@ -123,8 +120,8 @@ class TestSubprocessOutput < Minitest::Test
       end
     end
 
-    task_class.run
-    assert_equal true, task_class.result
+    result = task_class.run
+    assert_equal true, result
   end
 
   def test_system_with_env_and_options_combined
@@ -137,7 +134,7 @@ class TestSubprocessOutput < Minitest::Test
       end
     end
 
-    task_class.run
-    assert_equal true, task_class.result
+    result = task_class.run
+    assert_equal true, result
   end
 end

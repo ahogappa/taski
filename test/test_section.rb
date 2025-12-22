@@ -141,8 +141,8 @@ class TestSection < Minitest::Test
     refute_includes executed, :slow_dependency,
       "SlowDependency should NOT be executed when fast_mode is true"
 
-    # Final result should use FastImpl
-    assert_equal "final: fast result", ImplDependsOnTaskTest::FinalTask.output
+    # Final result should use FastImpl (use captured value, not class accessor)
+    assert_equal "final: fast result", ImplDependsOnTaskTest.captured_output
   end
 
   def test_section_impl_depends_on_task_slow_mode
@@ -171,8 +171,8 @@ class TestSection < Minitest::Test
     refute_includes executed, :fast_impl,
       "FastImpl should NOT be executed when fast_mode is false"
 
-    # Final result should use SlowImpl
-    assert_equal "final: slow result with slow data", ImplDependsOnTaskTest::FinalTask.output
+    # Final result should use SlowImpl (use captured value, not class accessor)
+    assert_equal "final: slow result with slow data", ImplDependsOnTaskTest.captured_output
   end
 
   # Test execution order: impl is called first, then blocks on ConditionTask

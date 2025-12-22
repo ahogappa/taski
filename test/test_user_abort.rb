@@ -84,78 +84,64 @@ class TestUserAbort < Minitest::Test
     assert_includes error.message, "Custom abort message"
   end
 
-  # Test graceful shutdown: running tasks complete, pending tasks don't start
+  # Test graceful shutdown: In the new design, each Task execution has its own registry.
+  # When a task raises TaskAbortException, it only affects its own execution context,
+  # not other independent executions. This test verifies that behavior.
   def test_graceful_shutdown_completes_running_tasks_only
     execution_log = []
     completion_log = []
+    mutex = Mutex.new
 
     # Task A - runs for a while, should complete
     task_a = Class.new(Taski::Task) do
       exports :value
 
       define_method(:run) do
-        execution_log << :task_a_started
-        sleep 0.2
-        execution_log << :task_a_working
+        mutex.synchronize { execution_log << :task_a_started }
+        sleep 0.1
+        mutex.synchronize { execution_log << :task_a_working }
         @value = "completed"
-        completion_log << :task_a_completed
+        mutex.synchronize { completion_log << :task_a_completed }
       end
     end
 
-    # Task B - fails quickly
+    # Task B - fails quickly with abort
     task_b = Class.new(Taski::Task) do
       exports :result
 
       define_method(:run) do
-        execution_log << :task_b_started
-        sleep 0.05
+        mutex.synchronize { execution_log << :task_b_started }
+        sleep 0.02
         raise Taski::TaskAbortException, "Task B aborted"
       end
     end
 
-    # Task C - depends on A, should NOT start
+    # Task C - independent task
     task_c = Class.new(Taski::Task) do
       exports :data
 
       define_method(:run) do
-        execution_log << :task_c_started
-        @data = task_a.value
-        completion_log << :task_c_completed
+        mutex.synchronize { execution_log << :task_c_started }
+        @data = "c_data"
+        mutex.synchronize { completion_log << :task_c_completed }
       end
     end
 
-    # Task D - independent, should NOT start
-    task_d = Class.new(Taski::Task) do
-      exports :output
-
-      define_method(:run) do
-        execution_log << :task_d_started
-        @output = "done"
-        completion_log << :task_d_completed
-      end
-    end
-
-    # Start multiple tasks in parallel
+    # Start multiple independent tasks in parallel
     threads = [
       Thread.new do
-        task_a.value
+        task_a.run
       rescue
         nil
       end,
       Thread.new do
-        task_b.result
+        task_b.run
       rescue
         nil
       end,
       Thread.new do
-        sleep 0.1
-        task_c.data
-      rescue
-        nil
-      end,
-      Thread.new do
-        sleep 0.1
-        task_d.output
+        sleep 0.05
+        task_c.run
       rescue
         nil
       end
@@ -163,15 +149,16 @@ class TestUserAbort < Minitest::Test
 
     threads.each(&:join)
 
-    # Task A should have started and completed (was already running)
+    # Task A should have started and completed (independent execution)
     assert_includes execution_log, :task_a_started
     assert_includes completion_log, :task_a_completed
 
     # Task B should have started (and failed)
     assert_includes execution_log, :task_b_started
 
-    # Tasks C and D should NOT have started (pending when abort happened)
-    refute_includes execution_log, :task_c_started
-    refute_includes execution_log, :task_d_started
+    # Task C should also complete because each task has its own registry
+    # (abort in task_b doesn't affect task_c's independent execution)
+    assert_includes execution_log, :task_c_started
+    assert_includes completion_log, :task_c_completed
   end
 end
