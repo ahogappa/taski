@@ -488,13 +488,40 @@ module Taski
 
       def render_final
         @monitor.synchronize do
-          lines = build_tree_display
-          return if lines.empty?
+          return unless @root_task_class
 
-          # Simply print final state on main screen (no cursor movement needed
-          # since we just switched back from alternate screen buffer)
-          lines.each { |line| @output.puts line }
+          root_progress = @tasks[@root_task_class]
+          return unless root_progress
+
+          # Print single summary line instead of full tree
+          @output.puts build_summary_line(@root_task_class, root_progress)
         end
+      end
+
+      def build_summary_line(task_class, progress)
+        # Determine overall status and icon
+        if progress.run_state == :failed || progress.clean_state == :clean_failed
+          icon = "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
+          status = "#{COLORS[:error]}failed#{COLORS[:reset]}"
+        else
+          icon = "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
+          status = "#{COLORS[:success]}completed#{COLORS[:reset]}"
+        end
+
+        name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
+
+        # Calculate total duration
+        duration_str = ""
+        if progress.run_duration
+          duration_str = " (#{progress.run_duration}ms)"
+        end
+
+        # Count completed tasks
+        completed_count = @tasks.values.count { |p| p.run_state == :completed }
+        total_count = @tasks.values.count { |p| p.run_state != :pending || p == progress }
+        task_count_str = " [#{completed_count}/#{total_count} tasks]"
+
+        "#{icon} #{name} #{status}#{duration_str}#{task_count_str}"
       end
 
       # Build display lines from tree structure
