@@ -9,7 +9,7 @@
 # - root_task: The first task class that was called
 # - User-defined options: Custom values passed via run(args: {...})
 #
-# Run: ruby examples/context_demo.rb
+# Run: ruby examples/args_demo.rb
 
 require_relative "../lib/taski"
 
@@ -40,7 +40,7 @@ class FileProcessor < Taski::Task
   exports :output_path
 
   def run
-    # Use context to determine output location
+    # Use args to determine output location
     base_dir = Taski.args.working_directory
     env = Taski.args.fetch(:env, "development")
     @output_path = File.join(base_dir, "tmp", env, "output.txt")
