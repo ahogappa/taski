@@ -46,4 +46,12 @@ class TestParallelStaticAnalysis < Minitest::Test
     dependencies = Taski::StaticAnalysis::Analyzer.analyze(MethodCallSection)
     assert_includes dependencies.map(&:name), "MethodCallSectionImpl"
   end
+
+  # Test for namespace resolution in helper methods
+  # When a helper method uses a relative constant, it should be resolved
+  # using the target class's namespace context
+  def test_analyze_follows_method_call_with_relative_constant_in_namespace
+    dependencies = Taski::StaticAnalysis::Analyzer.analyze(NamespacedHelper::HelperTask)
+    assert_includes dependencies.map(&:name), "NamespacedHelper::DependencyTask"
+  end
 end

@@ -558,6 +558,34 @@ class MethodCallSection < Taski::Section
   end
 end
 
+# Test fixture for namespaced helper method with relative constant reference
+# When Helper.run calls collect_data which references RelativeTask,
+# static analysis should resolve RelativeTask within the Helper namespace
+module NamespacedHelper
+  class DependencyTask < Taski::Task
+    exports :data
+
+    def run
+      @data = "dependency_data"
+    end
+  end
+
+  class HelperTask < Taski::Task
+    exports :result
+
+    def run
+      @result = collect_dependencies
+    end
+
+    private
+
+    def collect_dependencies
+      # Relative constant reference - should resolve to NamespacedHelper::DependencyTask
+      DependencyTask.data + "_processed"
+    end
+  end
+end
+
 # Test fixtures for subprocess output capture (system() and backticks)
 
 class SystemCallTask < Taski::Task
