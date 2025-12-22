@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-12-23
+
+### Added
+- Group block for organizing progress display messages (`Taski.group`) ([#105](https://github.com/ahogappa/taski/pull/105))
+- Scope-based execution with thread-local registry for independent task execution ([#103](https://github.com/ahogappa/taski/pull/103))
+- `TaskClass::Error` auto-generation for task-specific error handling ([#95](https://github.com/ahogappa/taski/pull/95))
+- `AggregateAware` module for transparent rescue matching with `AggregateError` ([#95](https://github.com/ahogappa/taski/pull/95))
+- `AggregateError#includes?` and `AggregateError#find` methods for searching aggregated errors ([#95](https://github.com/ahogappa/taski/pull/95))
+- Aggregation of multiple errors in parallel execution ([#95](https://github.com/ahogappa/taski/pull/95))
+- `workers` parameter to `Task.run`, `Task.clean`, and `Task.run_and_clean` for configurable parallelism ([#92](https://github.com/ahogappa/taski/pull/92))
+
+### Changed
+- Renamed `context` to `args` for API clarity (BREAKING CHANGE) ([#94](https://github.com/ahogappa/taski/pull/94))
+
+### Fixed
+- Thread-safety improvements in `Registry#get_or_create` ([#90](https://github.com/ahogappa/taski/pull/90))
+
 ## [0.6.0] - 2025-12-21
 
 ### Added
