@@ -70,19 +70,42 @@ module Taski
         state == STATE_COMPLETED
       end
 
+      # Resets the wrapper state to allow re-execution.
+      # Clears all cached results and returns state to pending.
+      def reset!
+        @monitor.synchronize do
+          @state = STATE_PENDING
+          @clean_state = STATE_PENDING
+          @result = nil
+          @clean_result = nil
+          @error = nil
+          @clean_error = nil
+          @timing = nil
+          @clean_timing = nil
+        end
+        @task.reset! if @task.respond_to?(:reset!)
+        @registry.reset!
+      end
+
       # Called by user code to get result. Triggers execution if needed.
+      # Sets up args if not already set (for Task.new.run usage).
       # @return [Object] The result of task execution
       def run
-        trigger_execution_and_wait
-        raise @error if @error # steep:ignore
-        @result
+        with_args_lifecycle do
+          trigger_execution_and_wait
+          raise @error if @error # steep:ignore
+          @result
+        end
       end
 
       # Called by user code to clean. Triggers clean execution if needed.
+      # Sets up args if not already set (for Task.new.clean usage).
       # @return [Object] The result of cleanup
       def clean
-        trigger_clean_and_wait
-        @clean_result
+        with_args_lifecycle do
+          trigger_clean_and_wait
+          @clean_result
+        end
       end
 
       # Called by user code to run and clean. Runs execution followed by cleanup.
@@ -99,12 +122,15 @@ module Taski
       end
 
       # Called by user code to get exported value. Triggers execution if needed.
+      # Sets up args if not already set (for Task.new usage).
       # @param method_name [Symbol] The name of the exported method
       # @return [Object] The exported value
       def get_exported_value(method_name)
-        trigger_execution_and_wait
-        raise @error if @error # steep:ignore
-        @task.public_send(method_name)
+        with_args_lifecycle do
+          trigger_execution_and_wait
+          raise @error if @error # steep:ignore
+          @task.public_send(method_name)
+        end
       end
 
       # Called by Executor to mark task as running
@@ -231,6 +257,19 @@ module Taski
       end
 
       private
+
+      ##
+      # Ensures args are set during block execution, then resets if they weren't set before.
+      # This allows Task.new.run usage without requiring explicit args setup.
+      # @yield The block to execute with args lifecycle management
+      # @return [Object] The result of the block
+      def with_args_lifecycle
+        args_was_nil = Taski.args.nil?
+        Taski.start_args(options: {}, root_task: @task.class) if args_was_nil
+        yield
+      ensure
+        Taski.reset_args! if args_was_nil
+      end
 
       ##
       # Ensures the task is executed if still pending and waits for completion.

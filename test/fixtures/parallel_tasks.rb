@@ -372,6 +372,7 @@ end
 # Example: def impl = TaskA.value ? TaskB : TaskC
 module ImplDependsOnTaskTest
   @executed_tasks = []
+  @captured_output = nil
   @mutex = Mutex.new
 
   class << self
@@ -385,8 +386,19 @@ module ImplDependsOnTaskTest
       @mutex.synchronize { @executed_tasks.dup }
     end
 
+    def capture_output(value)
+      @mutex.synchronize { @captured_output = value }
+    end
+
+    def captured_output
+      @mutex.synchronize { @captured_output }
+    end
+
     def reset
-      @mutex.synchronize { @executed_tasks = [] }
+      @mutex.synchronize do
+        @executed_tasks = []
+        @captured_output = nil
+      end
     end
   end
 
@@ -453,6 +465,7 @@ module ImplDependsOnTaskTest
     def run
       ImplDependsOnTaskTest.record(:final_task)
       @output = "final: #{ConditionalSection.result}"
+      ImplDependsOnTaskTest.capture_output(@output)
     end
   end
 end

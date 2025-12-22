@@ -19,8 +19,10 @@ class TestArgs < Minitest::Test
       end
     end
 
-    task_class.run
-    assert_equal expected_dir, task_class.captured_dir
+    # Use Task.new to cache the result within the instance
+    task = task_class.new
+    task.run
+    assert_equal expected_dir, task.captured_dir
   end
 
   def test_started_at_returns_time
@@ -33,74 +35,90 @@ class TestArgs < Minitest::Test
     end
 
     before_run = Time.now
-    task_class.run
+    # Use instance to get cached value
+    task = task_class.new
+    task.run
     after_run = Time.now
 
-    assert_kind_of Time, task_class.captured_time
-    assert task_class.captured_time >= before_run
-    assert task_class.captured_time <= after_run
+    assert_kind_of Time, task.captured_time
+    assert task.captured_time >= before_run
+    assert task.captured_time <= after_run
   end
 
   def test_root_task_returns_first_called_task
-    require_relative "fixtures/parallel_tasks"
+    captured_root = nil
 
-    Taski::Task.reset!
-
-    # When we call ParallelTaskC, it should be the root task
-    # even though it depends on ParallelTaskA and ParallelTaskB
-    ParallelTaskC.task_c_value
-
-    assert_equal ParallelTaskC, Taski.args.root_task
-  end
-
-  def test_root_task_is_set_only_once
-    task_a = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "A"
-      end
-    end
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "B"
-      end
-    end
-
-    # First task call sets root_task
-    task_a.value
-    first_root = Taski.args.root_task
-
-    # Second task call should not change root_task
-    task_b.value
-    second_root = Taski.args.root_task
-
-    assert_equal task_a, first_root
-    assert_equal task_a, second_root
-  end
-
-  def test_reset_clears_args
     task_class = Class.new(Taski::Task) do
       exports :value
 
-      def run
+      define_method(:run) do
+        captured_root = Taski.args.root_task
         @value = "test"
       end
     end
 
     task_class.run
 
-    # Args values should be set
-    assert_equal task_class, Taski.args.root_task
-    refute_nil Taski.args.working_directory
-    refute_nil Taski.args.started_at
+    # root_task is captured during execution (before reset_args!)
+    assert_equal task_class, captured_root
+  end
 
-    # Reset should clear all values
-    Taski::Task.reset!
+  def test_root_task_is_consistent_during_dependency_execution
+    captured_roots = []
 
+    dep_task = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        captured_roots << Taski.args.root_task
+        @value = "dep"
+      end
+    end
+
+    # Use Object.const_set to make dep_task accessible
+    Object.const_set(:TempDepTask, dep_task) unless Object.const_defined?(:TempDepTask)
+
+    root_task = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        captured_roots << Taski.args.root_task
+        TempDepTask.value
+        captured_roots << Taski.args.root_task
+        @value = "root"
+      end
+    end
+
+    root_task.run
+
+    # All captured root_tasks should be the same (root_task, not dep_task)
+    assert_equal 3, captured_roots.size
+    assert(captured_roots.all? { |r| r == root_task }, "root_task should be consistent during execution")
+  ensure
+    Object.send(:remove_const, :TempDepTask) if Object.const_defined?(:TempDepTask)
+  end
+
+  def test_args_cleared_after_execution
+    captured_args = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        captured_args = Taski.args
+        @value = "test"
+      end
+    end
+
+    task_class.run
+
+    # Args should be set during execution
+    refute_nil captured_args
+    assert_equal task_class, captured_args.root_task
+    refute_nil captured_args.working_directory
+    refute_nil captured_args.started_at
+
+    # Args should be cleared after execution
     assert_nil Taski.args
   end
 
@@ -117,169 +135,200 @@ class TestArgs < Minitest::Test
   end
 
   def test_args_thread_safety
-    Taski::Task.reset!
-
+    # In the new design, each Task.run is independent
+    # Test that concurrent executions don't interfere with each other
     results = []
     mutex = Mutex.new
     threads = []
 
-    # Create multiple threads that try to set root_task simultaneously
     10.times do |i|
+      # Each task captures its own value through closure
+      execution_values = []
+
       task_class = Class.new(Taski::Task) do
         exports :value
 
         define_method(:run) do
+          execution_values << i
           @value = i
         end
       end
 
       threads << Thread.new do
-        task_class.value
-        mutex.synchronize { results << Taski.args.root_task }
+        task_class.run
+        mutex.synchronize { results << [i, execution_values.first] }
       end
     end
 
     threads.each(&:join)
 
-    # All threads should see the same root_task (the first one that was set)
-    assert_equal 1, results.uniq.size, "All threads should see the same root_task"
+    # Each execution should capture its own value correctly
+    results.each do |expected_value, actual_value|
+      assert_equal expected_value, actual_value, "Each execution should capture its own value"
+    end
   end
 
   def test_args_values_are_consistent_during_execution
-    require_relative "fixtures/parallel_tasks"
+    # Test that args values are consistent within a single execution
+    captured_values = []
 
-    Taski::Task.reset!
-
-    # Define tasks that capture args values
-    task_a = Class.new(Taski::Task) do
-      exports :args_info
+    dep_task = Class.new(Taski::Task) do
+      exports :value
 
       define_method(:run) do
-        sleep 0.05 # Small delay to ensure parallel execution
-        @args_info = {
+        captured_values << {
           root: Taski.args.root_task,
           dir: Taski.args.working_directory,
           time: Taski.args.started_at
         }
+        @value = "dep"
       end
     end
 
-    task_b = Class.new(Taski::Task) do
-      exports :args_info
+    Object.const_set(:TempConsistencyDepTask, dep_task) unless Object.const_defined?(:TempConsistencyDepTask)
+
+    root_task = Class.new(Taski::Task) do
+      exports :value
 
       define_method(:run) do
-        sleep 0.05
-        @args_info = {
+        captured_values << {
           root: Taski.args.root_task,
           dir: Taski.args.working_directory,
           time: Taski.args.started_at
         }
+        TempConsistencyDepTask.value
+        @value = "root"
       end
     end
 
-    # Access both tasks
-    task_a.args_info
-    task_b.args_info
+    root_task.run
 
-    # Both tasks should see consistent args values
-    assert_equal task_a.args_info[:dir], task_b.args_info[:dir]
-    assert_equal task_a.args_info[:time], task_b.args_info[:time]
+    # Both tasks should see consistent args values within the same execution
+    assert_equal 2, captured_values.size
+    assert_equal captured_values[0][:dir], captured_values[1][:dir]
+    assert_equal captured_values[0][:time], captured_values[1][:time]
+    assert_equal captured_values[0][:root], captured_values[1][:root]
+  ensure
+    Object.send(:remove_const, :TempConsistencyDepTask) if Object.const_defined?(:TempConsistencyDepTask)
   end
 
   # Tests for user-defined options
 
   def test_args_options_are_accessible
+    captured_env = nil
+
     task_class = Class.new(Taski::Task) do
       exports :env_value
 
-      def run
-        @env_value = Taski.args[:env]
+      define_method(:run) do
+        captured_env = Taski.args[:env]
+        @env_value = captured_env
       end
     end
 
     task_class.run(args: {env: "production"})
-    assert_equal "production", task_class.env_value
+    assert_equal "production", captured_env
   end
 
   def test_args_options_return_nil_for_missing_keys
+    captured_value = nil
+
     task_class = Class.new(Taski::Task) do
       exports :missing_value
 
-      def run
-        @missing_value = Taski.args[:nonexistent]
+      define_method(:run) do
+        captured_value = Taski.args[:nonexistent]
+        @missing_value = captured_value
       end
     end
 
     task_class.run(args: {env: "production"})
-    assert_nil task_class.missing_value
+    assert_nil captured_value
   end
 
   def test_args_fetch_with_default_value
+    captured_timeout = nil
+
     task_class = Class.new(Taski::Task) do
       exports :timeout_value
 
-      def run
-        @timeout_value = Taski.args.fetch(:timeout, 30)
+      define_method(:run) do
+        captured_timeout = Taski.args.fetch(:timeout, 30)
+        @timeout_value = captured_timeout
       end
     end
 
     task_class.run(args: {})
-    assert_equal 30, task_class.timeout_value
+    assert_equal 30, captured_timeout
   end
 
   def test_args_fetch_with_block
+    captured_computed = nil
+
     task_class = Class.new(Taski::Task) do
       exports :computed_value
 
-      def run
-        @computed_value = Taski.args.fetch(:computed) { 10 * 5 }
+      define_method(:run) do
+        captured_computed = Taski.args.fetch(:computed) { 10 * 5 }
+        @computed_value = captured_computed
       end
     end
 
     task_class.run(args: {})
-    assert_equal 50, task_class.computed_value
+    assert_equal 50, captured_computed
   end
 
   def test_args_fetch_returns_existing_value_over_default
+    captured_timeout = nil
+
     task_class = Class.new(Taski::Task) do
       exports :timeout_value
 
-      def run
-        @timeout_value = Taski.args.fetch(:timeout, 30)
+      define_method(:run) do
+        captured_timeout = Taski.args.fetch(:timeout, 30)
+        @timeout_value = captured_timeout
       end
     end
 
     task_class.run(args: {timeout: 60})
-    assert_equal 60, task_class.timeout_value
+    assert_equal 60, captured_timeout
   end
 
   def test_args_key_check
+    captured_has_env = nil
+    captured_has_missing = nil
+
     task_class = Class.new(Taski::Task) do
       exports :has_env, :has_missing
 
-      def run
-        @has_env = Taski.args.key?(:env)
-        @has_missing = Taski.args.key?(:missing)
+      define_method(:run) do
+        captured_has_env = Taski.args.key?(:env)
+        captured_has_missing = Taski.args.key?(:missing)
+        @has_env = captured_has_env
+        @has_missing = captured_has_missing
       end
     end
 
     task_class.run(args: {env: "production"})
-    assert task_class.has_env
-    refute task_class.has_missing
+    assert captured_has_env
+    refute captured_has_missing
   end
 
   def test_args_options_are_immutable
+    captured_frozen = nil
+
     task_class = Class.new(Taski::Task) do
       exports :result
 
-      def run
+      define_method(:run) do
         # Options hash should be frozen
-        @result = Taski.args.instance_variable_get(:@options).frozen?
+        captured_frozen = Taski.args.instance_variable_get(:@options).frozen?
+        @result = captured_frozen
       end
     end
 
     task_class.run(args: {env: "production"})
-    assert task_class.result
+    assert captured_frozen
   end
 
   def test_args_options_shared_across_dependent_tasks

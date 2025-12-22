@@ -145,14 +145,6 @@ module Taski
     @args_monitor.synchronize { @args = nil }
   end
 
-  def self.global_registry
-    @global_registry ||= Execution::Registry.new
-  end
-
-  def self.reset_global_registry!
-    @global_registry = nil
-  end
-
   # Progress display is enabled by default (tree-style).
   # Environment variables:
   # - TASKI_PROGRESS_DISABLE=1: Disable progress display entirely
@@ -175,6 +167,25 @@ module Taski
   # @api private
   def self.args_worker_count
     args&.fetch(:_workers, nil)
+  end
+
+  # Get the current registry for this thread (used during dependency resolution)
+  # @return [Execution::Registry, nil] The current registry or nil
+  # @api private
+  def self.current_registry
+    Thread.current[:taski_current_registry]
+  end
+
+  # Set the current registry for this thread (internal use only)
+  # @api private
+  def self.set_current_registry(registry)
+    Thread.current[:taski_current_registry] = registry
+  end
+
+  # Clear the current registry for this thread (internal use only)
+  # @api private
+  def self.clear_current_registry
+    Thread.current[:taski_current_registry] = nil
   end
 end
 

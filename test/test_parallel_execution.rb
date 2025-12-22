@@ -13,13 +13,19 @@ class TestParallelExecution < Minitest::Test
       exports :value
 
       def run
-        @value = "test_value"
+        @value = "exported_value"
+        "run_return_value"
       end
     end
 
+    # Test run's return value
     result = task_class.run
-    assert_equal "test_value", result
-    assert_equal "test_value", task_class.value
+    assert_equal "run_return_value", result
+
+    # Test exported value via instance (cached)
+    task = task_class.new
+    task.run
+    assert_equal "exported_value", task.value
   end
 
   def test_task_with_exported_method_override
@@ -37,10 +43,9 @@ class TestParallelExecution < Minitest::Test
 
     result = task_class.run
     assert_equal "test_value", result
-    assert_equal "test_value", task_class.value
   end
 
-  def test_task_caching
+  def test_class_method_always_fresh_execution
     task_class = Class.new(Taski::Task) do
       exports :value
 
@@ -49,12 +54,28 @@ class TestParallelExecution < Minitest::Test
       end
     end
 
-    # First call
+    # Class method calls should be fresh each time (no caching)
     value1 = task_class.value
-    # Second call should return cached value
     value2 = task_class.value
 
-    assert_equal value1, value2, "Values should be the same (cached)"
+    refute_equal value1, value2, "Class method calls should execute fresh each time"
+  end
+
+  def test_instance_caching
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "value_#{rand(10000)}"
+      end
+    end
+
+    # Instance should cache the value
+    task = task_class.new
+    value1 = task.value
+    value2 = task.value
+
+    assert_equal value1, value2, "Instance should cache the value"
   end
 
   def test_new_creates_fresh_instance_for_re_execution
@@ -344,10 +365,8 @@ class TestParallelExecution < Minitest::Test
     assert_equal ["CleanTaskA"], CleanTaskB.cached_dependencies.map(&:name)
 
     # Clean should execute D -> C -> B -> A (reverse of run)
+    # Note: clean method is now synchronous and waits for completion
     clean_result = CleanTaskD.clean
-
-    # Wait for all clean threads to complete
-    Taski::Task.registry.wait_all
 
     # Verify clean was called (values should be nil now)
     # Note: We can't directly verify execution order in the test without instrumentation
@@ -384,26 +403,26 @@ class TestParallelExecution < Minitest::Test
     assert_match(/Subclasses must implement the run method/, error.message)
   end
 
-  # Test that Task instance reset! clears exported values
+  # Test that Task.new instance reset! clears exported values and allows re-execution
   def test_task_instance_reset_clears_exported_values
     task_class = Class.new(Taski::Task) do
       exports :value
 
       def run
-        @value = "test_value"
+        @value = "value_#{rand(10000)}"
       end
     end
 
-    task_class.run
-    assert_equal "test_value", task_class.value
+    # Create instance and run
+    task = task_class.new
+    value1 = task.run
+    assert_equal value1, task.value
 
-    # Get the underlying task instance and call reset!
-    registry = Taski.global_registry
-    wrapper = registry.instance_variable_get(:@tasks)[task_class]
-    wrapper.task.reset!
+    # Reset and run again - should get new value
+    task.reset!
+    value2 = task.run
 
-    # After reset!, the instance variable should be nil
-    assert_nil wrapper.task.instance_variable_get(:@value)
+    refute_equal value1, value2, "After reset!, re-execution should produce new value"
   end
 
   # Test Registry#get_task raises error for unregistered task

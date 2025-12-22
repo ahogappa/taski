@@ -134,14 +134,12 @@ end
 # Tests for TreeProgressDisplay class (dynamic progress display)
 class TestTreeProgressDisplay < Minitest::Test
   def setup
-    Taski.reset_global_registry!
     Taski.reset_progress_display!
     @output = StringIO.new
     @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
   end
 
   def teardown
-    Taski.reset_global_registry!
     Taski.reset_progress_display!
   end
 
@@ -258,7 +256,6 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
   end
 
   def setup
-    Taski.reset_global_registry!
     Taski.reset_progress_display!
     @output = TTYStringIO.new
     @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
@@ -266,7 +263,6 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
 
   def teardown
     @display&.stop
-    Taski.reset_global_registry!
     Taski.reset_progress_display!
   end
 
