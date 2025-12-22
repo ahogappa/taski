@@ -254,7 +254,7 @@ end
 
 Progress display output:
 
-```
+```text
 During execution:
 ⠋ DeployTask (Task) | Deploying: Uploading files...
 
