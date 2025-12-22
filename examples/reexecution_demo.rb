@@ -1,21 +1,21 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Taski Re-execution Demo
+# Taski Scope-Based Execution Demo
 #
-# This example demonstrates cache control and re-execution:
-# - Default caching behavior
-# - Task.new for fresh instances
-# - Task.reset! for clearing all caches
+# This example demonstrates the execution model:
+# - Task.run / Task.value: Fresh execution every time
+# - Task.new.run: Instance-level caching
+# - Dependencies within same execution scope share results
 #
-# Run: ruby examples/reexecution_demo.rb
+# Run: TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
 
 require_relative "../lib/taski"
 
-puts "Taski Re-execution Demo"
-puts "=" * 40
+puts "Taski Scope-Based Execution Demo"
+puts "=" * 50
 
-# Task that generates random values (to demonstrate caching)
+# Task that generates random values (to demonstrate execution behavior)
 class RandomGenerator < Taski::Task
   exports :value, :timestamp
 
@@ -23,6 +23,7 @@ class RandomGenerator < Taski::Task
     @value = rand(1000)
     @timestamp = Time.now.strftime("%H:%M:%S.%L")
     puts "  RandomGenerator.run called: value=#{@value}, time=#{@timestamp}"
+    @value
   end
 end
 
@@ -32,96 +33,108 @@ class Consumer < Taski::Task
 
   def run
     random_value = RandomGenerator.value
-    @result = "Consumed value: #{random_value}"
-    puts "  Consumer.run called: #{@result}"
+    @result = "Consumed: #{random_value}"
+    puts "  Consumer.run called with RandomGenerator.value=#{random_value}"
+    @result
   end
 end
 
-puts "\n1. Default Caching Behavior"
-puts "-" * 40
-puts "First call to RandomGenerator.value:"
+# Task that accesses RandomGenerator twice
+class DoubleConsumer < Taski::Task
+  exports :first_value, :second_value
+
+  def run
+    @first_value = RandomGenerator.value
+    puts "  DoubleConsumer: first access = #{@first_value}"
+    @second_value = RandomGenerator.value
+    puts "  DoubleConsumer: second access = #{@second_value}"
+  end
+end
+
+puts "\n1. Class Method Calls: Fresh Execution Every Time"
+puts "-" * 50
+puts "Each Task.value call creates a NEW execution:"
+puts "\nFirst call:"
 value1 = RandomGenerator.value
 puts "  => #{value1}"
 
-puts "\nSecond call to RandomGenerator.value (cached, no run):"
+puts "\nSecond call (NEW execution, different value):"
 value2 = RandomGenerator.value
 puts "  => #{value2}"
 
-puts "\nValues are identical: #{value1 == value2}"
+puts "\nValues are different: #{value1 != value2}"
 
-puts "\n" + "=" * 40
-puts "\n2. Using Task.new for Fresh Instance"
-puts "-" * 40
-puts "Creating new instance with RandomGenerator.new:"
+puts "\n" + "=" * 50
+puts "\n2. Task.new: Instance-Level Caching"
+puts "-" * 50
+puts "Same instance caches the result:"
+
+instance = RandomGenerator.new
+puts "\nFirst run on instance:"
+result1 = instance.run
+puts "  instance.value = #{instance.value}"
+
+puts "\nSecond run on same instance (returns cached):"
+result2 = instance.run
+puts "  instance.value = #{instance.value}"
+
+puts "\nSame result: #{result1 == result2}"
+
+puts "\n" + "=" * 50
+puts "\n3. Different Instances: Independent Executions"
+puts "-" * 50
 
 instance1 = RandomGenerator.new
 instance1.run
-puts "  instance1.value = #{instance1.value}"
+puts "instance1.value = #{instance1.value}"
 
 instance2 = RandomGenerator.new
 instance2.run
-puts "  instance2.value = #{instance2.value}"
+puts "instance2.value = #{instance2.value}"
 
-puts "\nNote: Each .new creates independent instance"
-puts "Class-level cache unchanged: RandomGenerator.value = #{RandomGenerator.value}"
+puts "\nDifferent values: #{instance1.value != instance2.value}"
 
-puts "\n" + "=" * 40
-puts "\n3. Using reset! to Clear Cache"
-puts "-" * 40
-puts "Before reset!:"
-puts "  RandomGenerator.value = #{RandomGenerator.value}"
+puts "\n" + "=" * 50
+puts "\n4. Scope-Based Caching for Dependencies"
+puts "-" * 50
+puts "Within ONE execution, dependencies are cached:"
 
-puts "\nCalling RandomGenerator.reset!..."
-RandomGenerator.reset!
+puts "\nDoubleConsumer accesses RandomGenerator.value twice:"
+DoubleConsumer.run
 
-puts "\nAfter reset! (fresh execution):"
-new_value = RandomGenerator.value
-puts "  RandomGenerator.value = #{new_value}"
+puts "\nNote: Both accesses return the SAME value!"
+puts "(Because they're in the same execution scope)"
 
-puts "\n" + "=" * 40
-puts "\n4. Dependency Chain with Re-execution"
-puts "-" * 40
+puts "\n" + "=" * 50
+puts "\n5. Dependency Chain with Fresh Execution"
+puts "-" * 50
 
-# Reset both tasks
-RandomGenerator.reset!
-Consumer.reset!
+puts "Each Consumer.run creates fresh RandomGenerator:"
+puts "\nFirst Consumer.run:"
+Consumer.run
 
-puts "First Consumer execution:"
-result1 = Consumer.result
-puts "  => #{result1}"
+puts "\nSecond Consumer.run (different RandomGenerator value):"
+Consumer.run
 
-puts "\nSecond Consumer execution (cached):"
-result2 = Consumer.result
-puts "  => #{result2}"
-
-puts "\nReset Consumer and re-execute:"
-Consumer.reset!
-result3 = Consumer.result
-puts "  => #{result3}"
-puts "  (Dependencies are re-resolved when task is reset)"
-
-puts "\nReset both tasks:"
-RandomGenerator.reset!
-Consumer.reset!
-result4 = Consumer.result
-puts "  => #{result4}"
-puts "  (New random value because both were reset)"
-
-puts "\n" + "=" * 40
-puts "\n5. Use Cases Summary"
-puts "-" * 40
+puts "\n" + "=" * 50
+puts "\n6. Use Cases Summary"
+puts "-" * 50
 puts <<~SUMMARY
   TaskClass.run / TaskClass.value
-    => Normal execution with caching (recommended for dependency graphs)
+    => Fresh execution every time
+    => Dependencies within same execution are cached
+    => Use for: Independent executions, scripts
 
   TaskClass.new.run
-    => Re-execute only this task (dependencies still use cache)
-    => Useful for: testing, one-off executions
+    => Instance caches results
+    => Multiple .run calls return cached value
+    => Use for: Re-execution control, testing
 
-  TaskClass.reset!
-    => Clear this task's cache, next call will re-execute
-    => Useful for: environment changes, refreshing data
+  instance.reset!
+    => Clears instance cache
+    => Next .run will execute fresh
+    => Use for: Re-running same instance
 SUMMARY
 
-puts "\n" + "=" * 40
-puts "Re-execution demonstration complete!"
+puts "\n" + "=" * 50
+puts "Scope-Based Execution demonstration complete!"
