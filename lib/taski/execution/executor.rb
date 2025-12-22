@@ -238,6 +238,8 @@ module Taski
 
         # Set thread-local execution context for task access (e.g., Section)
         ExecutionContext.current = @execution_context
+        # Set thread-local registry for dependency resolution
+        Taski.set_current_registry(@registry)
 
         begin
           result = wrapper.task.run
@@ -255,6 +257,8 @@ module Taski
           output_capture&.stop_capture
           # Clear thread-local execution context
           ExecutionContext.current = nil
+          # Clear thread-local registry
+          Taski.clear_current_registry
         end
       end
 
@@ -307,8 +311,7 @@ module Taski
 
         @scheduler.mark_clean_enqueued(task_class)
 
-        wrapper = @registry.get_task(task_class)
-        return unless wrapper
+        wrapper = get_or_create_wrapper(task_class)
         return unless wrapper.mark_clean_running
 
         @execution_context.notify_clean_started(task_class)
@@ -338,6 +341,8 @@ module Taski
 
         # Set thread-local execution context for task access
         ExecutionContext.current = @execution_context
+        # Set thread-local registry for dependency resolution
+        Taski.set_current_registry(@registry)
 
         begin
           result = wrapper.task.clean
@@ -355,6 +360,8 @@ module Taski
           output_capture&.stop_capture
           # Clear thread-local execution context
           ExecutionContext.current = nil
+          # Clear thread-local registry
+          Taski.clear_current_registry
         end
       end
 

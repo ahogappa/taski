@@ -54,17 +54,7 @@ module Taski
       # Use class methods (e.g., MyTask.result) for cached single execution.
       # @return [Execution::TaskWrapper] A new wrapper for this task.
       def new
-        fresh_registry = Execution::Registry.new
-        task_instance = allocate
-        task_instance.send(:initialize)
-        wrapper = Execution::TaskWrapper.new(
-          task_instance,
-          registry: fresh_registry,
-          execution_context: Execution::ExecutionContext.current
-        )
-        # Pre-register to prevent Executor from creating a duplicate wrapper
-        fresh_registry.register(self, wrapper)
-        wrapper
+        fresh_wrapper
       end
 
       ##
@@ -84,6 +74,7 @@ module Taski
 
       ##
       # Executes the task and all its dependencies.
+      # Creates a fresh registry each time for independent execution.
       # @param args [Hash] User-defined arguments accessible via Taski.args.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
       #   Must be a positive integer or nil.
@@ -94,12 +85,15 @@ module Taski
         validate_workers!(workers)
         Taski.start_args(options: args.merge(_workers: workers), root_task: self)
         validate_no_circular_dependencies!
-        cached_wrapper.run
+        fresh_wrapper.run
+      ensure
+        Taski.reset_args!
       end
 
       ##
       # Executes the clean phase for the task and all its dependencies.
       # Clean is executed in reverse dependency order.
+      # Creates a fresh registry each time for independent execution.
       # @param args [Hash] User-defined arguments accessible via Taski.args.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
       #   Must be a positive integer or nil.
@@ -108,12 +102,15 @@ module Taski
         validate_workers!(workers)
         Taski.start_args(options: args.merge(_workers: workers), root_task: self)
         validate_no_circular_dependencies!
-        cached_wrapper.clean
+        fresh_wrapper.clean
+      ensure
+        Taski.reset_args!
       end
 
       ##
       # Execute run followed by clean in a single operation.
       # If run fails, clean is still executed for resource release.
+      # Creates a fresh registry for both operations to share.
       #
       # @param args [Hash] User-defined arguments accessible via Taski.args.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
@@ -124,22 +121,15 @@ module Taski
         validate_workers!(workers)
         Taski.start_args(options: args.merge(_workers: workers), root_task: self)
         validate_no_circular_dependencies!
-        cached_wrapper.run_and_clean
+        fresh_wrapper.run_and_clean
+      ensure
+        Taski.reset_args!
       end
 
       ##
-      # Returns the global task registry.
-      # @return [Execution::Registry] The global registry.
-      def registry
-        Taski.global_registry
-      end
-
-      ##
-      # Resets the task state, registry, args, and progress display.
+      # Resets the task state and progress display.
       # Useful for testing or re-running tasks from scratch.
       def reset!
-        registry.reset!
-        Taski.reset_global_registry!
         Taski.reset_args!
         Taski.reset_progress_display!
         @circular_dependency_checked = false
@@ -155,20 +145,20 @@ module Taski
       private
 
       ##
-      # Returns or creates the cached TaskWrapper for this task class.
-      # Uses allocate + initialize instead of new to avoid infinite loop
-      # since new is overridden to return TaskWrapper.
-      # @return [Execution::TaskWrapper] The cached wrapper.
-      def cached_wrapper
-        registry.get_or_create(self) do
-          task_instance = allocate
-          task_instance.send(:initialize)
-          Execution::TaskWrapper.new(
-            task_instance,
-            registry: registry,
-            execution_context: Execution::ExecutionContext.current
-          )
-        end
+      # Creates a fresh TaskWrapper with its own registry.
+      # Used for class method execution (Task.run) where each call is independent.
+      # @return [Execution::TaskWrapper] A new wrapper with fresh registry.
+      def fresh_wrapper
+        fresh_registry = Execution::Registry.new
+        task_instance = allocate
+        task_instance.__send__(:initialize)
+        wrapper = Execution::TaskWrapper.new(
+          task_instance,
+          registry: fresh_registry,
+          execution_context: Execution::ExecutionContext.current
+        )
+        fresh_registry.register(self, wrapper)
+        wrapper
       end
 
       ##
@@ -185,15 +175,40 @@ module Taski
 
       ##
       # Defines a class accessor method for an exported value.
-      # The accessor triggers task execution if needed.
+      # When called inside an execution, returns cached value from registry.
+      # When called outside execution, creates fresh execution.
       # @param method [Symbol] The method name to define.
       def define_class_accessor(method)
         singleton_class.undef_method(method) if singleton_class.method_defined?(method)
 
         define_singleton_method(method) do
-          Taski.start_args(options: {}, root_task: self)
-          validate_no_circular_dependencies!
-          cached_wrapper.get_exported_value(method)
+          # Check if running inside an execution with a registry
+          registry = Taski.current_registry
+          if registry
+            # Inside execution - get or create wrapper in current registry
+            # This handles both pre-registered dependencies and dynamic ones (like Section impl)
+            wrapper = registry.get_or_create(self) do
+              task_instance = allocate
+              task_instance.__send__(:initialize)
+              Execution::TaskWrapper.new(
+                task_instance,
+                registry: registry,
+                execution_context: Execution::ExecutionContext.current
+              )
+            end
+            wrapper.get_exported_value(method)
+          else
+            # Outside execution - fresh execution (top-level call)
+            args_was_nil = Taski.args.nil?
+            begin
+              Taski.start_args(options: {}, root_task: self) if args_was_nil
+              validate_no_circular_dependencies!
+              fresh_wrapper.get_exported_value(method)
+            ensure
+              # Only reset if we set args
+              Taski.reset_args! if args_was_nil
+            end
+          end
         end
       end
 
