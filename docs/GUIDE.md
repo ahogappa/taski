@@ -222,9 +222,59 @@ Taski provides real-time progress visualization during task execution.
 ### Features
 
 - **Spinner Animation**: Animated spinner during execution
-- **Output Capture**: Real-time display of task output (last 5 lines)
+- **Output Capture**: Real-time display of task output (last line)
 - **Status Indicators**: Success/failure icons with execution time
+- **Group Blocks**: Organize output messages into logical phases
 - **TTY Detection**: Clean output when redirected to files
+
+### Group Blocks
+
+Use `group` blocks to organize output within a task into logical phases. Groups are displayed as children of the task in the progress tree.
+
+```ruby
+class DeployTask < Taski::Task
+  def run
+    group("Preparing environment") do
+      puts "Checking dependencies..."
+      puts "Validating config..."
+    end
+
+    group("Building application") do
+      puts "Compiling source..."
+      puts "Running tests..."
+    end
+
+    group("Deploying") do
+      puts "Uploading files..."
+      puts "Restarting server..."
+    end
+  end
+end
+```
+
+Progress display output:
+
+```
+During execution:
+⠋ DeployTask (Task)
+├── ✓ Preparing environment (120ms)
+├── ✓ Building application (350ms)
+└── ⠹ Deploying | Uploading files...
+
+After completion:
+✓ DeployTask (Task) 520ms
+├── ✓ Preparing environment (120ms)
+├── ✓ Building application (350ms)
+└── ✓ Deploying (50ms)
+```
+
+Groups support:
+- **State tracking**: pending, running, completed, failed
+- **Duration display**: Shows execution time for completed groups
+- **Error handling**: Marks failed groups with ✗ icon
+- **Output capture**: Shows last output line during execution
+
+Groups cannot be nested - each `group` call creates a sibling in the tree.
 
 ### Example Output
 
