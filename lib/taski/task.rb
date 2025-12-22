@@ -273,6 +273,42 @@ module Taski
       end
     end
 
+    # Groups related output within a task for organized progress display.
+    # The group name is shown in the progress tree as a child of the task.
+    # Groups cannot be nested.
+    #
+    # @param name [String] The group name to display
+    # @yield The block to execute within the group
+    # @return [Object] The result of the block
+    # @raise Re-raises any exception from the block after marking group as failed
+    #
+    # @example
+    #   def run
+    #     group("Preparing") do
+    #       puts "Checking dependencies..."
+    #       puts "Validating config..."
+    #     end
+    #     group("Deploying") do
+    #       puts "Uploading files..."
+    #     end
+    #   end
+    def group(name)
+      context = Execution::ExecutionContext.current
+      context&.notify_group_started(self.class, name)
+      start_time = Time.now
+
+      begin
+        result = yield
+        duration_ms = ((Time.now - start_time) * 1000).round(0)
+        context&.notify_group_completed(self.class, name, duration: duration_ms)
+        result
+      rescue => e
+        duration_ms = ((Time.now - start_time) * 1000).round(0)
+        context&.notify_group_completed(self.class, name, duration: duration_ms, error: e)
+        raise
+      end
+    end
+
     ##
     # Resets the instance's exported values to nil.
     def reset!

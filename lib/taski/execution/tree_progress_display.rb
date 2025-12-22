@@ -169,6 +169,21 @@ module Taski
         end
       end
 
+      # Tracks the progress of a group within a task
+      class GroupProgress
+        attr_accessor :name, :state, :start_time, :end_time, :duration, :error, :last_message
+
+        def initialize(name)
+          @name = name
+          @state = :pending
+          @start_time = nil
+          @end_time = nil
+          @duration = nil
+          @error = nil
+          @last_message = nil
+        end
+      end
+
       class TaskProgress
         # Run lifecycle tracking
         attr_accessor :run_state, :run_start_time, :run_end_time, :run_error, :run_duration
@@ -176,6 +191,8 @@ module Taski
         attr_accessor :clean_state, :clean_start_time, :clean_end_time, :clean_error, :clean_duration
         # Display properties
         attr_accessor :is_impl_candidate
+        # Group tracking
+        attr_accessor :groups, :current_group_index
 
         def initialize
           # Run lifecycle
@@ -192,6 +209,9 @@ module Taski
           @clean_duration = nil
           # Display
           @is_impl_candidate = false
+          # Groups
+          @groups = []
+          @current_group_index = nil
         end
 
         # For backward compatibility - returns the most relevant state for display
@@ -320,6 +340,50 @@ module Taski
       def task_state(task_class)
         @monitor.synchronize do
           @tasks[task_class]&.state
+        end
+      end
+
+      # Update group state for a task.
+      # Called by ExecutionContext when group lifecycle events occur.
+      #
+      # @param task_class [Class] The task class containing the group
+      # @param group_name [String] The name of the group
+      # @param state [Symbol] The new state (:running, :completed, :failed)
+      # @param duration [Float, nil] Duration in milliseconds (for completed groups)
+      # @param error [Exception, nil] Error object (for failed groups)
+      def update_group(task_class, group_name, state:, duration: nil, error: nil)
+        @monitor.synchronize do
+          progress = @tasks[task_class]
+          return unless progress
+
+          case state
+          when :running
+            # Create new group and set as current
+            group = GroupProgress.new(group_name)
+            group.state = :running
+            group.start_time = Time.now
+            progress.groups << group
+            progress.current_group_index = progress.groups.size - 1
+          when :completed
+            # Find the group by name and mark completed
+            group = progress.groups.find { |g| g.name == group_name && g.state == :running }
+            if group
+              group.state = :completed
+              group.end_time = Time.now
+              group.duration = duration
+            end
+            progress.current_group_index = nil
+          when :failed
+            # Find the group by name and mark failed
+            group = progress.groups.find { |g| g.name == group_name && g.state == :running }
+            if group
+              group.state = :failed
+              group.end_time = Time.now
+              group.duration = duration
+              group.error = error
+            end
+            progress.current_group_index = nil
+          end
         end
       end
 
@@ -670,15 +734,24 @@ module Taski
         last_line = @output_capture.last_line_for(task_class)
         return "" unless last_line && !last_line.empty?
 
+        # Get current group name if any
+        progress = @tasks[task_class]
+        group_prefix = ""
+        if progress&.current_group_index
+          current_group = progress.groups[progress.current_group_index]
+          group_prefix = "#{current_group.name}: " if current_group
+        end
+
         # Truncate if too long (leave space for tree structure)
         terminal_cols = terminal_width
         max_output_length = terminal_cols - 50
         max_output_length = 20 if max_output_length < 20
 
-        truncated = if last_line.length > max_output_length
-          last_line[0, max_output_length - 3] + "..."
+        full_output = "#{group_prefix}#{last_line}"
+        truncated = if full_output.length > max_output_length
+          full_output[0, max_output_length - 3] + "..."
         else
-          last_line
+          full_output
         end
 
         " #{COLORS[:dim]}| #{truncated}#{COLORS[:reset]}"

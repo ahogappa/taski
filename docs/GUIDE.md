@@ -222,9 +222,52 @@ Taski provides real-time progress visualization during task execution.
 ### Features
 
 - **Spinner Animation**: Animated spinner during execution
-- **Output Capture**: Real-time display of task output (last 5 lines)
+- **Output Capture**: Real-time display of task output (last line)
 - **Status Indicators**: Success/failure icons with execution time
+- **Group Blocks**: Organize output messages into logical phases
 - **TTY Detection**: Clean output when redirected to files
+
+### Group Blocks
+
+Use `group` blocks to organize output within a task into logical phases. The current group name is displayed alongside the task's output in the progress display.
+
+```ruby
+class DeployTask < Taski::Task
+  def run
+    group("Preparing environment") do
+      puts "Checking dependencies..."
+      puts "Validating config..."
+    end
+
+    group("Building application") do
+      puts "Compiling source..."
+      puts "Running tests..."
+    end
+
+    group("Deploying") do
+      puts "Uploading files..."
+      puts "Restarting server..."
+    end
+  end
+end
+```
+
+Progress display output:
+
+```text
+During execution:
+⠋ DeployTask (Task) | Deploying: Uploading files...
+
+After completion:
+✓ DeployTask (Task) 520ms
+```
+
+The group name appears as a prefix to the output message: `| GroupName: output...`
+
+Groups are useful for:
+- **Logical organization**: Group related operations together
+- **Progress visibility**: See which phase is currently executing
+- **Error context**: Know which phase failed when errors occur
 
 ### Example Output
 

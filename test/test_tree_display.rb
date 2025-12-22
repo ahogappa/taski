@@ -884,3 +884,266 @@ class TestTaskOutputRouter < Minitest::Test
     end
   end
 end
+
+# Tests for Group functionality
+class TestGroupProgress < Minitest::Test
+  def setup
+    Taski.reset_progress_display!
+    @output = StringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+  end
+
+  def teardown
+    Taski.reset_progress_display!
+  end
+
+  def test_group_progress_initialization
+    group = Taski::Execution::TreeProgressDisplay::GroupProgress.new("Test Group")
+    assert_equal "Test Group", group.name
+    assert_equal :pending, group.state
+    assert_nil group.start_time
+    assert_nil group.end_time
+    assert_nil group.duration
+    assert_nil group.error
+    assert_nil group.last_message
+  end
+
+  def test_task_progress_has_groups_array
+    progress = Taski::Execution::TreeProgressDisplay::TaskProgress.new
+    assert_kind_of Array, progress.groups
+    assert_empty progress.groups
+    assert_nil progress.current_group_index
+  end
+
+  def test_update_group_creates_running_group
+    @display.register_task(FixtureTaskA)
+    @display.update_group(FixtureTaskA, "Setup", state: :running)
+
+    # Access internal state for testing
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 1, progress.groups.size
+    assert_equal "Setup", progress.groups.first.name
+    assert_equal :running, progress.groups.first.state
+    assert_equal 0, progress.current_group_index
+  end
+
+  def test_update_group_completes_running_group
+    @display.register_task(FixtureTaskA)
+    @display.update_group(FixtureTaskA, "Setup", state: :running)
+    @display.update_group(FixtureTaskA, "Setup", state: :completed, duration: 100)
+
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal :completed, progress.groups.first.state
+    assert_equal 100, progress.groups.first.duration
+    assert_nil progress.current_group_index
+  end
+
+  def test_update_group_marks_failed_group
+    @display.register_task(FixtureTaskA)
+    @display.update_group(FixtureTaskA, "Setup", state: :running)
+    error = StandardError.new("test error")
+    @display.update_group(FixtureTaskA, "Setup", state: :failed, duration: 50, error: error)
+
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal :failed, progress.groups.first.state
+    assert_equal 50, progress.groups.first.duration
+    assert_equal error, progress.groups.first.error
+    assert_nil progress.current_group_index
+  end
+
+  def test_multiple_groups_tracked_independently
+    @display.register_task(FixtureTaskA)
+    @display.update_group(FixtureTaskA, "Setup", state: :running)
+    @display.update_group(FixtureTaskA, "Setup", state: :completed, duration: 50)
+    @display.update_group(FixtureTaskA, "Deploy", state: :running)
+    @display.update_group(FixtureTaskA, "Deploy", state: :completed, duration: 100)
+
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 2, progress.groups.size
+    assert_equal "Setup", progress.groups[0].name
+    assert_equal :completed, progress.groups[0].state
+    assert_equal "Deploy", progress.groups[1].name
+    assert_equal :completed, progress.groups[1].state
+  end
+end
+
+# Tests for Task#group method
+class TestTaskGroup < Minitest::Test
+  def setup
+    Taski.reset_progress_display!
+  end
+
+  def teardown
+    Taski.reset_progress_display!
+  end
+
+  def test_group_method_executes_block
+    executed = false
+    task = Class.new(Taski::Task) do
+      define_method(:run) do
+        group("Test") { executed = true }
+      end
+    end
+
+    task_instance = task.allocate
+    task_instance.send(:initialize)
+    task_instance.run
+    assert executed, "Block should be executed"
+  end
+
+  def test_group_method_returns_block_result
+    task = Class.new(Taski::Task) do
+      define_method(:run) do
+        group("Test") { 42 }
+      end
+    end
+
+    task_instance = task.allocate
+    task_instance.send(:initialize)
+    result = task_instance.run
+    assert_equal 42, result
+  end
+
+  def test_group_method_reraises_exception
+    task = Class.new(Taski::Task) do
+      define_method(:run) do
+        group("Test") { raise StandardError, "test error" }
+      end
+    end
+
+    task_instance = task.allocate
+    task_instance.send(:initialize)
+    assert_raises(StandardError) do
+      task_instance.run
+    end
+  end
+
+  def test_group_method_works_without_execution_context
+    # When run outside of Executor, there's no ExecutionContext
+    task = Class.new(Taski::Task) do
+      define_method(:run) do
+        group("Test") { "result" }
+      end
+    end
+
+    task_instance = task.allocate
+    task_instance.send(:initialize)
+    result = task_instance.run
+    assert_equal "result", result
+  end
+end
+
+# Tests for Group display with TTY
+# In the new design, group names are shown in the task's output line as "| GroupName: output"
+# rather than as children in the tree. This requires output capture to have captured output.
+class TestGroupDisplayWithTTY < Minitest::Test
+  class TTYStringIO < StringIO
+    def tty?
+      true
+    end
+  end
+
+  # Mock output capture for testing
+  class MockOutputCapture
+    def initialize
+      @last_lines = {}
+    end
+
+    def set_last_line(task_class, line)
+      @last_lines[task_class] = line
+    end
+
+    def last_line_for(task_class)
+      @last_lines[task_class]
+    end
+
+    def poll
+      # No-op for mock
+    end
+  end
+
+  def setup
+    Taski.reset_progress_display!
+    @output = TTYStringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+    @mock_capture = MockOutputCapture.new
+    @display.set_output_capture(@mock_capture)
+  end
+
+  def teardown
+    @display&.stop
+    Taski.reset_progress_display!
+  end
+
+  def test_render_shows_running_group_in_output_suffix
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_group(FixtureTaskA, "Setup Phase", state: :running)
+    # Set mock output for the task
+    @mock_capture.set_last_line(FixtureTaskA, "Initializing...")
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Group name should appear in output suffix: "| Setup Phase: Initializing..."
+    assert_includes output, "Setup Phase"
+    assert_includes output, "Initializing..."
+    # Should have spinner for running task
+    spinner_chars = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]
+    has_spinner = spinner_chars.any? { |char| output.include?(char) }
+    assert has_spinner, "Output should contain a spinner character"
+  end
+
+  def test_group_state_updated_correctly
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_group(FixtureTaskA, "Setup", state: :running)
+    @display.update_group(FixtureTaskA, "Setup", state: :completed, duration: 100)
+    @display.stop
+
+    # Verify internal state was updated
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 1, progress.groups.size
+    assert_equal "Setup", progress.groups.first.name
+    assert_equal :completed, progress.groups.first.state
+    assert_equal 100, progress.groups.first.duration
+  end
+
+  def test_group_failed_state_updated_correctly
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_group(FixtureTaskA, "Deploy", state: :running)
+    error = StandardError.new("fail")
+    @display.update_group(FixtureTaskA, "Deploy", state: :failed, error: error)
+    @display.stop
+
+    # Verify internal state was updated
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 1, progress.groups.size
+    assert_equal "Deploy", progress.groups.first.name
+    assert_equal :failed, progress.groups.first.state
+    assert_equal error, progress.groups.first.error
+  end
+
+  def test_multiple_groups_tracked_correctly
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    @display.update_group(FixtureTaskA, "Step 1", state: :running)
+    @display.update_group(FixtureTaskA, "Step 1", state: :completed, duration: 50)
+    @display.update_group(FixtureTaskA, "Step 2", state: :running)
+    @display.update_group(FixtureTaskA, "Step 2", state: :completed, duration: 75)
+    @display.stop
+
+    # Verify internal state was updated
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 2, progress.groups.size
+    assert_equal "Step 1", progress.groups[0].name
+    assert_equal :completed, progress.groups[0].state
+    assert_equal "Step 2", progress.groups[1].name
+    assert_equal :completed, progress.groups[1].state
+  end
+end
