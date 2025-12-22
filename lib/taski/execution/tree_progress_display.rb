@@ -249,6 +249,7 @@ module Taski
         @tree_structure = nil
         @section_impl_map = {}  # Section -> selected impl class
         @output_capture = nil  # ThreadOutputCapture for getting task output
+        @last_line_count = 0  # Track number of lines drawn for cursor movement
       end
 
       # Set the output capture for getting task output
@@ -402,7 +403,6 @@ module Taski
         return unless should_start
 
         @output.print "\e[?25l"  # Hide cursor
-        @output.print "\e7"      # Save cursor position (before any tree output)
         @renderer_thread = Thread.new do
           loop do
             break unless @running
@@ -468,15 +468,18 @@ module Taski
 
         return if lines.nil? || lines.empty?
 
-        # Restore cursor to saved position (from start) and clear
-        @output.print "\e8"  # Restore cursor position
-        @output.print "\e[J" # Clear from cursor to end of screen
+        # Move cursor up by the number of lines previously drawn
+        if @last_line_count > 0
+          @output.print "\e[#{@last_line_count}A"  # Move cursor up n lines
+        end
+        @output.print "\e[J"  # Clear from cursor to end of screen
 
         # Redraw all lines
         lines.each do |line|
           @output.print "#{line}\n"
         end
 
+        @last_line_count = lines.size
         @output.flush
       end
 
@@ -485,9 +488,11 @@ module Taski
           lines = build_tree_display
           return if lines.empty?
 
-          # Restore cursor to saved position (from start) and clear
-          @output.print "\e8"  # Restore cursor position
-          @output.print "\e[J" # Clear from cursor to end of screen
+          # Move cursor up by the number of lines previously drawn
+          if @last_line_count > 0
+            @output.print "\e[#{@last_line_count}A"  # Move cursor up n lines
+          end
+          @output.print "\e[J"  # Clear from cursor to end of screen
 
           # Print final state
           lines.each { |line| @output.puts line }
