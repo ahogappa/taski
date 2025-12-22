@@ -1034,6 +1034,8 @@ class TestTaskGroup < Minitest::Test
 end
 
 # Tests for Group display with TTY
+# In the new design, group names are shown in the task's output line as "| GroupName: output"
+# rather than as children in the tree. This requires output capture to have captured output.
 class TestGroupDisplayWithTTY < Minitest::Test
   class TTYStringIO < StringIO
     def tty?
@@ -1041,10 +1043,31 @@ class TestGroupDisplayWithTTY < Minitest::Test
     end
   end
 
+  # Mock output capture for testing
+  class MockOutputCapture
+    def initialize
+      @last_lines = {}
+    end
+
+    def set_last_line(task_class, line)
+      @last_lines[task_class] = line
+    end
+
+    def last_line_for(task_class)
+      @last_lines[task_class]
+    end
+
+    def poll
+      # No-op for mock
+    end
+  end
+
   def setup
     Taski.reset_progress_display!
     @output = TTYStringIO.new
     @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+    @mock_capture = MockOutputCapture.new
+    @display.set_output_capture(@mock_capture)
   end
 
   def teardown
@@ -1052,53 +1075,60 @@ class TestGroupDisplayWithTTY < Minitest::Test
     Taski.reset_progress_display!
   end
 
-  def test_render_shows_running_group
+  def test_render_shows_running_group_in_output_suffix
     @display.set_root_task(FixtureTaskA)
     @display.start
     @display.update_task(FixtureTaskA, state: :running)
     @display.update_group(FixtureTaskA, "Setup Phase", state: :running)
+    # Set mock output for the task
+    @mock_capture.set_last_line(FixtureTaskA, "Initializing...")
     sleep 0.15
     @display.stop
 
     output = @output.string
+    # Group name should appear in output suffix: "| Setup Phase: Initializing..."
     assert_includes output, "Setup Phase"
-    # Should have spinner for running group
+    assert_includes output, "Initializing..."
+    # Should have spinner for running task
     spinner_chars = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]
     has_spinner = spinner_chars.any? { |char| output.include?(char) }
     assert has_spinner, "Output should contain a spinner character"
   end
 
-  def test_render_shows_completed_group_with_checkmark
+  def test_group_state_updated_correctly
     @display.set_root_task(FixtureTaskA)
     @display.start
     @display.update_task(FixtureTaskA, state: :running)
     @display.update_group(FixtureTaskA, "Setup", state: :running)
     @display.update_group(FixtureTaskA, "Setup", state: :completed, duration: 100)
-    sleep 0.15
     @display.stop
 
-    output = @output.string
-    assert_includes output, "Setup"
-    assert_includes output, "✓"
-    assert_includes output, "100ms"
+    # Verify internal state was updated
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 1, progress.groups.size
+    assert_equal "Setup", progress.groups.first.name
+    assert_equal :completed, progress.groups.first.state
+    assert_equal 100, progress.groups.first.duration
   end
 
-  def test_render_shows_failed_group_with_x
+  def test_group_failed_state_updated_correctly
     @display.set_root_task(FixtureTaskA)
     @display.start
     @display.update_task(FixtureTaskA, state: :running)
     @display.update_group(FixtureTaskA, "Deploy", state: :running)
-    @display.update_group(FixtureTaskA, "Deploy", state: :failed, error: StandardError.new("fail"))
-    sleep 0.15
+    error = StandardError.new("fail")
+    @display.update_group(FixtureTaskA, "Deploy", state: :failed, error: error)
     @display.stop
 
-    output = @output.string
-    assert_includes output, "Deploy"
-    assert_includes output, "✗"
-    assert_includes output, "(failed)"
+    # Verify internal state was updated
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 1, progress.groups.size
+    assert_equal "Deploy", progress.groups.first.name
+    assert_equal :failed, progress.groups.first.state
+    assert_equal error, progress.groups.first.error
   end
 
-  def test_render_shows_multiple_groups
+  def test_multiple_groups_tracked_correctly
     @display.set_root_task(FixtureTaskA)
     @display.start
     @display.update_task(FixtureTaskA, state: :running)
@@ -1106,11 +1136,14 @@ class TestGroupDisplayWithTTY < Minitest::Test
     @display.update_group(FixtureTaskA, "Step 1", state: :completed, duration: 50)
     @display.update_group(FixtureTaskA, "Step 2", state: :running)
     @display.update_group(FixtureTaskA, "Step 2", state: :completed, duration: 75)
-    sleep 0.15
     @display.stop
 
-    output = @output.string
-    assert_includes output, "Step 1"
-    assert_includes output, "Step 2"
+    # Verify internal state was updated
+    progress = @display.instance_variable_get(:@tasks)[FixtureTaskA]
+    assert_equal 2, progress.groups.size
+    assert_equal "Step 1", progress.groups[0].name
+    assert_equal :completed, progress.groups[0].state
+    assert_equal "Step 2", progress.groups[1].name
+    assert_equal :completed, progress.groups[1].state
   end
 end

@@ -229,7 +229,7 @@ Taski provides real-time progress visualization during task execution.
 
 ### Group Blocks
 
-Use `group` blocks to organize output within a task into logical phases. Groups are displayed as children of the task in the progress tree.
+Use `group` blocks to organize output within a task into logical phases. The current group name is displayed alongside the task's output in the progress display.
 
 ```ruby
 class DeployTask < Taski::Task
@@ -256,25 +256,18 @@ Progress display output:
 
 ```
 During execution:
-⠋ DeployTask (Task)
-├── ✓ Preparing environment (120ms)
-├── ✓ Building application (350ms)
-└── ⠹ Deploying | Uploading files...
+⠋ DeployTask (Task) | Deploying: Uploading files...
 
 After completion:
 ✓ DeployTask (Task) 520ms
-├── ✓ Preparing environment (120ms)
-├── ✓ Building application (350ms)
-└── ✓ Deploying (50ms)
 ```
 
-Groups support:
-- **State tracking**: pending, running, completed, failed
-- **Duration display**: Shows execution time for completed groups
-- **Error handling**: Marks failed groups with ✗ icon
-- **Output capture**: Shows last output line during execution
+The group name appears as a prefix to the output message: `| GroupName: output...`
 
-Groups cannot be nested - each `group` call creates a sibling in the tree.
+Groups are useful for:
+- **Logical organization**: Group related operations together
+- **Progress visibility**: See which phase is currently executing
+- **Error context**: Know which phase failed when errors occur
 
 ### Example Output
 
