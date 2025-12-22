@@ -327,6 +327,29 @@ module Taski
         dispatch(:update_task, task_class, state: state, duration: duration, error: error)
       end
 
+      # ========================================
+      # Group Lifecycle Notifications
+      # ========================================
+
+      # Notify observers that a group has started within a task.
+      #
+      # @param task_class [Class] The task class containing the group
+      # @param group_name [String] The name of the group
+      def notify_group_started(task_class, group_name)
+        dispatch(:update_group, task_class, group_name, state: :running)
+      end
+
+      # Notify observers that a group has completed within a task.
+      #
+      # @param task_class [Class] The task class containing the group
+      # @param group_name [String] The name of the group
+      # @param duration [Float, nil] The group duration in milliseconds
+      # @param error [Exception, nil] The error if the group failed
+      def notify_group_completed(task_class, group_name, duration: nil, error: nil)
+        state = error ? :failed : :completed
+        dispatch(:update_group, task_class, group_name, state: state, duration: duration, error: error)
+      end
+
       private
 
       # Dispatch a method call to all observers that respond to the method.

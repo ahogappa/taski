@@ -169,6 +169,21 @@ module Taski
         end
       end
 
+      # Tracks the progress of a group within a task
+      class GroupProgress
+        attr_accessor :name, :state, :start_time, :end_time, :duration, :error, :last_message
+
+        def initialize(name)
+          @name = name
+          @state = :pending
+          @start_time = nil
+          @end_time = nil
+          @duration = nil
+          @error = nil
+          @last_message = nil
+        end
+      end
+
       class TaskProgress
         # Run lifecycle tracking
         attr_accessor :run_state, :run_start_time, :run_end_time, :run_error, :run_duration
@@ -176,6 +191,8 @@ module Taski
         attr_accessor :clean_state, :clean_start_time, :clean_end_time, :clean_error, :clean_duration
         # Display properties
         attr_accessor :is_impl_candidate
+        # Group tracking
+        attr_accessor :groups, :current_group_index
 
         def initialize
           # Run lifecycle
@@ -192,6 +209,9 @@ module Taski
           @clean_duration = nil
           # Display
           @is_impl_candidate = false
+          # Groups
+          @groups = []
+          @current_group_index = nil
         end
 
         # For backward compatibility - returns the most relevant state for display
@@ -323,6 +343,50 @@ module Taski
         end
       end
 
+      # Update group state for a task.
+      # Called by ExecutionContext when group lifecycle events occur.
+      #
+      # @param task_class [Class] The task class containing the group
+      # @param group_name [String] The name of the group
+      # @param state [Symbol] The new state (:running, :completed, :failed)
+      # @param duration [Float, nil] Duration in milliseconds (for completed groups)
+      # @param error [Exception, nil] Error object (for failed groups)
+      def update_group(task_class, group_name, state:, duration: nil, error: nil)
+        @monitor.synchronize do
+          progress = @tasks[task_class]
+          return unless progress
+
+          case state
+          when :running
+            # Create new group and set as current
+            group = GroupProgress.new(group_name)
+            group.state = :running
+            group.start_time = Time.now
+            progress.groups << group
+            progress.current_group_index = progress.groups.size - 1
+          when :completed
+            # Find the group by name and mark completed
+            group = progress.groups.find { |g| g.name == group_name && g.state == :running }
+            if group
+              group.state = :completed
+              group.end_time = Time.now
+              group.duration = duration
+            end
+            progress.current_group_index = nil
+          when :failed
+            # Find the group by name and mark failed
+            group = progress.groups.find { |g| g.name == group_name && g.state == :running }
+            if group
+              group.state = :failed
+              group.end_time = Time.now
+              group.duration = duration
+              group.error = error
+            end
+            progress.current_group_index = nil
+          end
+        end
+      end
+
       def start
         should_start = false
         @monitor.synchronize do
@@ -451,6 +515,9 @@ module Taski
         line = format_tree_line(task_class, progress, false, true)
         lines << "#{prefix}#{line}"
 
+        # Render groups before children
+        render_groups(task_class, progress, prefix, lines, node[:children].any?)
+
         render_children(node, prefix, lines, task_class, true)
       end
 
@@ -486,10 +553,112 @@ module Taski
           )
           lines << "#{prefix}#{COLORS[:tree]}#{connector}#{COLORS[:reset]}#{child_line}"
 
+          # Render groups for this child task (only if selected)
+          if child_effective_selected
+            child_prefix = "#{prefix}#{COLORS[:tree]}#{extension}#{COLORS[:reset]}"
+            render_groups(child[:task_class], child_progress, child_prefix, lines, child[:children].any?)
+          end
+
           if child[:children].any?
             render_children(child, "#{prefix}#{COLORS[:tree]}#{extension}#{COLORS[:reset]}", lines, child[:task_class], child_effective_selected)
           end
         end
+      end
+
+      # Render groups for a task
+      # @param task_class [Class] The task class
+      # @param progress [TaskProgress] The task progress (may be nil)
+      # @param prefix [String] Line prefix for tree drawing
+      # @param lines [Array<String>] Accumulated output lines
+      # @param has_children [Boolean] Whether this task has child dependencies
+      def render_groups(task_class, progress, prefix, lines, has_children)
+        return unless progress
+        return if progress.groups.empty?
+
+        groups = progress.groups
+        groups.each_with_index do |group, index|
+          # Determine if this is the last item (considering both groups and children)
+          is_last_group = (index == groups.size - 1)
+          is_last = is_last_group && !has_children
+
+          connector = is_last ? "└── " : "├── "
+          group_line = format_group_line(group, task_class)
+          lines << "#{prefix}#{COLORS[:tree]}#{connector}#{COLORS[:reset]}#{group_line}"
+        end
+      end
+
+      # Format a group line for display
+      # @param group [GroupProgress] The group progress
+      # @param task_class [Class] The parent task class (for output lookup)
+      # @return [String] Formatted group line
+      def format_group_line(group, task_class)
+        icon = group_status_icon(group.state)
+        name = "#{COLORS[:name]}#{group.name}#{COLORS[:reset]}"
+        details = group_details(group)
+        output_suffix = group_output_suffix(group, task_class)
+
+        "#{icon} #{name}#{details}#{output_suffix}"
+      end
+
+      # Returns the status icon for a group
+      # @param state [Symbol] The group state
+      # @return [String] The colored icon
+      def group_status_icon(state)
+        case state
+        when :completed
+          "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
+        when :failed
+          "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
+        when :running
+          "#{COLORS[:running]}#{spinner_char}#{COLORS[:reset]}"
+        else
+          "#{COLORS[:pending]}#{ICONS[:pending]}#{COLORS[:reset]}"
+        end
+      end
+
+      # Returns details for a group (duration, error)
+      # @param group [GroupProgress] The group progress
+      # @return [String] Formatted details
+      def group_details(group)
+        case group.state
+        when :completed
+          return "" unless group.duration
+          " #{COLORS[:success]}(#{group.duration}ms)#{COLORS[:reset]}"
+        when :failed
+          " #{COLORS[:error]}(failed)#{COLORS[:reset]}"
+        when :running
+          return "" unless group.start_time
+          elapsed = ((Time.now - group.start_time) * 1000).round(0)
+          " #{COLORS[:running]}(#{elapsed}ms)#{COLORS[:reset]}"
+        else
+          ""
+        end
+      end
+
+      # Returns output suffix for a running group
+      # @param group [GroupProgress] The group progress
+      # @param task_class [Class] The parent task class
+      # @return [String] Formatted output suffix
+      def group_output_suffix(group, task_class)
+        return "" unless group.state == :running
+        return "" unless @output_capture
+
+        # Get last line from task's output (groups share the task's output)
+        last_line = @output_capture.last_line_for(task_class)
+        return "" unless last_line && !last_line.empty?
+
+        # Truncate if too long
+        terminal_cols = terminal_width
+        max_output_length = terminal_cols - 60
+        max_output_length = 20 if max_output_length < 20
+
+        truncated = if last_line.length > max_output_length
+          last_line[0, max_output_length - 3] + "..."
+        else
+          last_line
+        end
+
+        " #{COLORS[:dim]}| #{truncated}#{COLORS[:reset]}"
       end
 
       def format_tree_line(task_class, progress, is_impl, is_selected)
