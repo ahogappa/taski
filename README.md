@@ -115,7 +115,7 @@ end
 
 ## Advanced Usage
 
-### Context - Runtime Information and Options
+### Args - Runtime Information and Options
 
 Pass custom options and access execution context from any task:
 
@@ -123,41 +123,44 @@ Pass custom options and access execution context from any task:
 class DeployTask < Taski::Task
   def run
     # User-defined options
-    env = Taski.context[:env]
-    debug = Taski.context.fetch(:debug, false)
+    env = Taski.args[:env]
+    debug = Taski.args.fetch(:debug, false)
 
     # Runtime information
-    puts "Working directory: #{Taski.context.working_directory}"
-    puts "Started at: #{Taski.context.started_at}"
-    puts "Root task: #{Taski.context.root_task}"
+    puts "Working directory: #{Taski.args.working_directory}"
+    puts "Started at: #{Taski.args.started_at}"
+    puts "Root task: #{Taski.args.root_task}"
     puts "Deploying to: #{env}"
   end
 end
 
 # Pass options when running
-DeployTask.run(context: { env: "production", debug: true })
+DeployTask.run(args: { env: "production", debug: true })
 ```
 
-Context API:
-- `Taski.context[:key]` - Get option value (nil if not set)
-- `Taski.context.fetch(:key, default)` - Get with default value
-- `Taski.context.key?(:key)` - Check if option exists
-- `Taski.context.working_directory` - Execution directory
-- `Taski.context.started_at` - Execution start time
-- `Taski.context.root_task` - First task class called
+Args API:
+- `Taski.args[:key]` - Get option value (nil if not set)
+- `Taski.args.fetch(:key, default)` - Get with default value
+- `Taski.args.key?(:key)` - Check if option exists
+- `Taski.args.working_directory` - Execution directory
+- `Taski.args.started_at` - Execution start time
+- `Taski.args.root_task` - First task class called
 
-### Re-execution
+### Execution Model
 
 ```ruby
-# Cached execution (default)
+# Each class method call creates fresh execution
 RandomTask.value  # => 42
-RandomTask.value  # => 42 (cached)
+RandomTask.value  # => 99 (different value - fresh execution)
 
-# Fresh execution
-RandomTask.new.run  # => 123 (new instance)
+# Instance-level caching
+instance = RandomTask.new
+instance.run        # => 42
+instance.run        # => 42 (cached within instance)
+instance.value      # => 42
 
-# Reset all caches
-RandomTask.reset!
+# Dependencies within same execution share results
+DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 ```
 
 ### Aborting Execution

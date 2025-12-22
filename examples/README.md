@@ -34,36 +34,36 @@ ruby examples/section_demo.rb
 
 ---
 
-### 3. context_demo.rb - Runtime Context and Options
+### 3. args_demo.rb - Runtime Args and Options
 
-Access execution context and pass custom options to tasks.
+Access execution args and pass custom options to tasks.
 
 ```bash
-ruby examples/context_demo.rb
+ruby examples/args_demo.rb
 ```
 
 **Covers:**
-- User-defined options via `run(context: {...})`
-- `Taski.context[:key]` for option access
-- `Taski.context.fetch(:key, default)` for defaults
-- `Taski.context.working_directory`
-- `Taski.context.started_at`
-- `Taski.context.root_task`
+- User-defined options via `run(args: {...})`
+- `Taski.args[:key]` for option access
+- `Taski.args.fetch(:key, default)` for defaults
+- `Taski.args.working_directory`
+- `Taski.args.started_at`
+- `Taski.args.root_task`
 
 ---
 
-### 4. reexecution_demo.rb - Cache Control
+### 4. reexecution_demo.rb - Scope-Based Execution
 
-Understand caching behavior and re-execution patterns.
+Understand scope-based execution and caching behavior.
 
 ```bash
-ruby examples/reexecution_demo.rb
+TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
 ```
 
 **Covers:**
-- Default caching behavior
-- `Task.new` for fresh instances
-- `Task.reset!` for clearing caches
+- Fresh execution for each class method call
+- Instance-level caching with `Task.new`
+- Scope-based dependency caching
 
 ---
 
@@ -97,16 +97,64 @@ ruby examples/parallel_progress_demo.rb
 
 ---
 
+### 7. clean_demo.rb - Lifecycle Management
+
+Demonstrates resource cleanup with clean methods.
+
+```bash
+ruby examples/clean_demo.rb
+```
+
+**Covers:**
+- Defining `clean` methods for resource cleanup
+- Reverse dependency order execution
+- `run_and_clean` combined operation
+
+---
+
+### 8. system_call_demo.rb - Subprocess Output
+
+Capture subprocess output in progress display.
+
+```bash
+ruby examples/system_call_demo.rb
+```
+
+**Covers:**
+- `system()` output capture
+- Streaming output display
+- Parallel subprocess execution
+
+---
+
+### 9. nested_section_demo.rb - Nested Sections
+
+Sections that depend on other tasks for implementation selection.
+
+```bash
+TASKI_PROGRESS_DISABLE=1 ruby examples/nested_section_demo.rb
+```
+
+**Covers:**
+- Section inside Section
+- Dynamic implementation selection
+- Complex dependency hierarchies
+
+---
+
 ## Quick Reference
 
 | Example | Feature | Complexity |
 |---------|---------|------------|
 | quick_start | Exports API | Basic |
 | section_demo | Section API | Intermediate |
-| context_demo | Context API | Intermediate |
-| reexecution_demo | Cache Control | Intermediate |
+| args_demo | Args API | Intermediate |
+| reexecution_demo | Scope-Based Execution | Intermediate |
 | data_pipeline_demo | ETL Pipeline | Advanced |
 | parallel_progress_demo | Progress Display | Advanced |
+| clean_demo | Lifecycle Management | Intermediate |
+| system_call_demo | Subprocess Output | Advanced |
+| nested_section_demo | Nested Sections | Advanced |
 
 ## Running All Examples
 

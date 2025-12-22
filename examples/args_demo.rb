@@ -1,36 +1,36 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Taski Context API Example
+# Taski Args API Example
 #
-# This example demonstrates the Context API for accessing runtime information:
+# This example demonstrates the Args API for accessing runtime information:
 # - working_directory: Where execution started
 # - started_at: When execution began
 # - root_task: The first task class that was called
-# - User-defined options: Custom values passed via run(context: {...})
+# - User-defined options: Custom values passed via run(args: {...})
 #
-# Run: ruby examples/context_demo.rb
+# Run: ruby examples/args_demo.rb
 
 require_relative "../lib/taski"
 
-puts "Taski Context API Example"
+puts "Taski Args API Example"
 puts "=" * 40
 
-# Task that uses context information for logging
+# Task that uses args information for logging
 class SetupTask < Taski::Task
   exports :setup_info
 
   def run
     puts "Setup running..."
-    puts "  Working directory: #{Taski.context.working_directory}"
-    puts "  Started at: #{Taski.context.started_at}"
-    puts "  Root task: #{Taski.context.root_task}"
-    puts "  Environment: #{Taski.context[:env]}"
+    puts "  Working directory: #{Taski.args.working_directory}"
+    puts "  Started at: #{Taski.args.started_at}"
+    puts "  Root task: #{Taski.args.root_task}"
+    puts "  Environment: #{Taski.args[:env]}"
 
     @setup_info = {
-      directory: Taski.context.working_directory,
-      timestamp: Taski.context.started_at,
-      env: Taski.context[:env]
+      directory: Taski.args.working_directory,
+      timestamp: Taski.args.started_at,
+      env: Taski.args[:env]
     }
   end
 end
@@ -40,9 +40,9 @@ class FileProcessor < Taski::Task
   exports :output_path
 
   def run
-    # Use context to determine output location
-    base_dir = Taski.context.working_directory
-    env = Taski.context.fetch(:env, "development")
+    # Use args to determine output location
+    base_dir = Taski.args.working_directory
+    env = Taski.args.fetch(:env, "development")
     @output_path = File.join(base_dir, "tmp", env, "output.txt")
 
     puts "FileProcessor: Would write to #{@output_path}"
@@ -55,12 +55,12 @@ class TimingTask < Taski::Task
   exports :duration_info
 
   def run
-    start_time = Taski.context.started_at
+    start_time = Taski.args.started_at
     current_time = Time.now
     elapsed = current_time - start_time
 
     puts "TimingTask: #{elapsed.round(3)}s since execution started"
-    puts "  Debug mode: #{Taski.context.fetch(:debug, false)}"
+    puts "  Debug mode: #{Taski.args.fetch(:debug, false)}"
 
     @duration_info = {
       started: start_time,
@@ -76,8 +76,8 @@ class MainTask < Taski::Task
 
   def run
     puts "\nMainTask executing..."
-    puts "  Root task is: #{Taski.context.root_task}"
-    puts "  Environment: #{Taski.context[:env]}"
+    puts "  Root task is: #{Taski.args.root_task}"
+    puts "  Environment: #{Taski.args[:env]}"
 
     # Access dependencies
     setup = SetupTask.setup_info
@@ -88,7 +88,7 @@ class MainTask < Taski::Task
       setup: setup,
       output_path: output,
       timing: timing,
-      root_task: Taski.context.root_task.to_s
+      root_task: Taski.args.root_task.to_s
     }
 
     puts "\nExecution Summary:"
@@ -98,15 +98,15 @@ class MainTask < Taski::Task
   end
 end
 
-puts "\n1. Running MainTask with context options"
+puts "\n1. Running MainTask with args options"
 puts "-" * 40
-MainTask.run(context: {env: "production", debug: true})
+MainTask.run(args: {env: "production", debug: true})
 
 puts "\n" + "=" * 40
-puts "\n2. Running SetupTask directly with different context"
+puts "\n2. Running SetupTask directly with different args"
 puts "-" * 40
 SetupTask.reset!
-SetupTask.run(context: {env: "staging"})
+SetupTask.run(args: {env: "staging"})
 
 puts "\n" + "=" * 40
 puts "\n3. Dependency Tree"
@@ -114,5 +114,5 @@ puts "-" * 40
 puts MainTask.tree
 
 puts "\n" + "=" * 40
-puts "Context API demonstration complete!"
-puts "Note: Context provides runtime information and user options without affecting dependency analysis."
+puts "Args API demonstration complete!"
+puts "Note: Args provides runtime information and user options without affecting dependency analysis."
