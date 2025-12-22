@@ -34,12 +34,12 @@ ruby examples/section_demo.rb
 
 ---
 
-### 3. context_demo.rb - Runtime Args and Options
+### 3. args_demo.rb - Runtime Args and Options
 
 Access execution args and pass custom options to tasks.
 
 ```bash
-ruby examples/context_demo.rb
+ruby examples/args_demo.rb
 ```
 
 **Covers:**
@@ -148,7 +148,7 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/nested_section_demo.rb
 |---------|---------|------------|
 | quick_start | Exports API | Basic |
 | section_demo | Section API | Intermediate |
-| context_demo | Args API | Intermediate |
+| args_demo | Args API | Intermediate |
 | reexecution_demo | Scope-Based Execution | Intermediate |
 | data_pipeline_demo | ETL Pipeline | Advanced |
 | parallel_progress_demo | Progress Display | Advanced |
