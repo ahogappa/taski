@@ -263,12 +263,8 @@ module Taski
       # This allows Task.new.run usage without requiring explicit args setup.
       # @yield The block to execute with args lifecycle management
       # @return [Object] The result of the block
-      def with_args_lifecycle
-        args_was_nil = Taski.args.nil?
-        Taski.start_args(options: {}, root_task: @task.class) if args_was_nil
-        yield
-      ensure
-        Taski.reset_args! if args_was_nil
+      def with_args_lifecycle(&block)
+        Taski.with_args(options: {}, root_task: @task.class, &block)
       end
 
       ##
