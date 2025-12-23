@@ -19,13 +19,14 @@ module Taski
 
       POLL_TIMEOUT = 0.05 # 50ms timeout for IO.select
       READ_BUFFER_SIZE = 4096
+      MAX_RECENT_LINES = 10 # Maximum number of recent lines to keep per task
 
       def initialize(original_stdout)
         super()
         @original = original_stdout
-        @pipes = {}       # task_class => TaskOutputPipe
-        @thread_map = {}  # Thread => task_class
-        @last_lines = {}  # task_class => String
+        @pipes = {}         # task_class => TaskOutputPipe
+        @thread_map = {}    # Thread => task_class
+        @recent_lines = {}  # task_class => Array<String>
       end
 
       # Start capturing output for the current thread
@@ -41,8 +42,11 @@ module Taski
       end
 
       # Stop capturing output for the current thread
-      # Closes the write end of the pipe
+      # Closes the write end of the pipe and drains remaining data
       def stop_capture
+        task_class = nil
+        pipe = nil
+
         synchronize do
           task_class = @thread_map.delete(Thread.current)
           unless task_class
@@ -53,6 +57,28 @@ module Taski
           pipe = @pipes[task_class]
           pipe&.close_write
           debug_log("Stopped capture for #{task_class} on thread #{Thread.current.object_id}")
+        end
+
+        # Drain any remaining data from the pipe after closing write end
+        drain_pipe(pipe) if pipe
+      end
+
+      # Drain all remaining data from a pipe
+      # Called after close_write to ensure all output is captured
+      def drain_pipe(pipe)
+        return if pipe.read_closed?
+
+        loop do
+          data = pipe.read_io.read_nonblock(READ_BUFFER_SIZE)
+          store_output_lines(pipe.task_class, data)
+        rescue IO::WaitReadable
+          # Check if there's more data with a very short timeout
+          ready, _, _ = IO.select([pipe.read_io], nil, nil, 0.001)
+          break unless ready
+        rescue EOFError
+          # All data has been read
+          synchronize { pipe.close_read }
+          break
         end
       end
 
@@ -79,7 +105,14 @@ module Taski
       # @param task_class [Class] The task class
       # @return [String, nil] The last output line
       def last_line_for(task_class)
-        synchronize { @last_lines[task_class] }
+        synchronize { @recent_lines[task_class]&.last }
+      end
+
+      # Get recent output lines for a task (up to MAX_RECENT_LINES)
+      # @param task_class [Class] The task class
+      # @return [Array<String>] Recent output lines
+      def recent_lines_for(task_class)
+        synchronize { (@recent_lines[task_class] || []).dup }
       end
 
       # Close all pipes and clean up
@@ -106,12 +139,6 @@ module Taski
         if pipe && !pipe.write_closed?
           pipe.write_io.write(str)
         else
-          # Fallback to original stdout - log why capture failed
-          if @thread_map.empty?
-            debug_log("Output not captured: no threads registered")
-          else
-            debug_log("Output not captured: thread #{Thread.current.object_id} not mapped")
-          end
           @original.write(str)
         end
       end
@@ -189,7 +216,7 @@ module Taski
 
       def read_from_pipe(pipe)
         data = pipe.read_io.read_nonblock(READ_BUFFER_SIZE)
-        update_last_line(pipe.task_class, data)
+        store_output_lines(pipe.task_class, data)
       rescue IO::WaitReadable
         # No data available yet
       rescue EOFError
@@ -197,13 +224,20 @@ module Taski
         synchronize { pipe.close_read }
       end
 
-      def update_last_line(task_class, data)
+      def store_output_lines(task_class, data)
         return if data.nil? || data.empty?
 
         lines = data.lines
-        last_non_empty = lines.reverse.find { |l| !l.strip.empty? }
         synchronize do
-          @last_lines[task_class] = last_non_empty&.strip if last_non_empty
+          @recent_lines[task_class] ||= []
+          lines.each do |line|
+            stripped = line.chomp
+            @recent_lines[task_class] << stripped unless stripped.strip.empty?
+          end
+          # Keep only the last MAX_RECENT_LINES
+          if @recent_lines[task_class].size > MAX_RECENT_LINES
+            @recent_lines[task_class] = @recent_lines[task_class].last(MAX_RECENT_LINES)
+          end
         end
       end
 

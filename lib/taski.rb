@@ -31,13 +31,15 @@ module Taski
 
   # Represents a single task failure with its context
   class TaskFailure
-    attr_reader :task_class, :error
+    attr_reader :task_class, :error, :output_lines
 
     # @param task_class [Class] The task class that failed
     # @param error [Exception] The exception that was raised
-    def initialize(task_class:, error:)
+    # @param output_lines [Array<String>] Recent output lines from the failed task
+    def initialize(task_class:, error:, output_lines: [])
       @task_class = task_class
       @error = error
+      @output_lines = output_lines
     end
   end
 
