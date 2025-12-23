@@ -210,7 +210,16 @@ module Taski
         @scheduler.mark_enqueued(task_class)
 
         wrapper = get_or_create_wrapper(task_class)
-        return unless wrapper.mark_running
+        unless wrapper.mark_running
+          # Task is either already running or completed in another context (e.g., parent Executor)
+          # Wait for the task to complete if it's running elsewhere
+          wrapper.wait_for_completion
+
+          # Now mark it as completed in the scheduler and enqueue newly ready tasks
+          @scheduler.mark_completed(task_class)
+          enqueue_ready_tasks
+          return
+        end
 
         @execution_context.notify_task_registered(task_class)
         @execution_context.notify_task_started(task_class)
