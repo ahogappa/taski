@@ -19,7 +19,7 @@ module Taski
 
       POLL_TIMEOUT = 0.05 # 50ms timeout for IO.select
       READ_BUFFER_SIZE = 4096
-      MAX_RECENT_LINES = 10 # Maximum number of recent lines to keep per task
+      MAX_RECENT_LINES = 30 # Maximum number of recent lines to keep per task
 
       def initialize(original_stdout)
         super()
