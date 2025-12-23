@@ -443,15 +443,34 @@ module Taski
       # TaskAbortException: raised directly (abort takes priority)
       # All other errors: raises AggregateError containing all failures
       def raise_if_any_failures
-        failed = @registry.failed_wrappers
-        return if failed.empty?
+        raise_if_any_failures_from(
+          @registry.failed_wrappers,
+          error_accessor: ->(w) { w.error }
+        )
+      end
+
+      # Raise error(s) if any tasks failed during clean execution
+      # TaskAbortException: raised directly (abort takes priority)
+      # All other errors: raises AggregateError containing all failures
+      def raise_if_any_clean_failures
+        raise_if_any_failures_from(
+          @registry.failed_clean_wrappers,
+          error_accessor: ->(w) { w.clean_error }
+        )
+      end
+
+      # Generic method to raise errors from failed wrappers
+      # @param failed_wrappers [Array<TaskWrapper>] Failed wrappers
+      # @param error_accessor [Proc] Lambda to extract error from wrapper
+      def raise_if_any_failures_from(failed_wrappers, error_accessor:)
+        return if failed_wrappers.empty?
 
         # TaskAbortException takes priority - raise the first one directly
-        abort_wrapper = failed.find { |w| w.error.is_a?(TaskAbortException) }
-        raise abort_wrapper.error if abort_wrapper
+        abort_wrapper = failed_wrappers.find { |w| error_accessor.call(w).is_a?(TaskAbortException) }
+        raise error_accessor.call(abort_wrapper) if abort_wrapper
 
         # Flatten nested AggregateErrors and deduplicate by original error object_id
-        failures = flatten_failures(failed)
+        failures = flatten_failures_from(failed_wrappers, error_accessor: error_accessor)
         unique_failures = failures.uniq { |f| error_identity(f.error) }
 
         raise AggregateError.new(unique_failures)
@@ -459,15 +478,18 @@ module Taski
 
       # Flatten AggregateErrors into individual TaskFailure objects
       # Wraps original errors with task-specific Error class for rescue matching
-      def flatten_failures(failed_wrappers)
+      # @param failed_wrappers [Array<TaskWrapper>] Failed wrappers
+      # @param error_accessor [Proc] Lambda to extract error from wrapper
+      def flatten_failures_from(failed_wrappers, error_accessor:)
         output_capture = @saved_output_capture
 
         failed_wrappers.flat_map do |wrapper|
-          case wrapper.error
+          error = error_accessor.call(wrapper)
+          case error
           when AggregateError
-            wrapper.error.errors
+            error.errors
           else
-            wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.error)
+            wrapped_error = wrap_with_task_error(wrapper.task.class, error)
             output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
             [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
           end
@@ -484,41 +506,6 @@ module Taski
 
         error_class = task_class.const_get(:Error)
         error_class.new(error, task_class: task_class)
-      end
-
-      # Raise error(s) if any tasks failed during clean execution
-      # TaskAbortException: raised directly (abort takes priority)
-      # All other errors: raises AggregateError containing all failures
-      def raise_if_any_clean_failures
-        failed = @registry.failed_clean_wrappers
-        return if failed.empty?
-
-        # TaskAbortException takes priority - raise the first one directly
-        abort_wrapper = failed.find { |w| w.clean_error.is_a?(TaskAbortException) }
-        raise abort_wrapper.clean_error if abort_wrapper
-
-        # Flatten nested AggregateErrors and deduplicate by original error object_id
-        failures = flatten_clean_failures(failed)
-        unique_failures = failures.uniq { |f| error_identity(f.error) }
-
-        raise AggregateError.new(unique_failures)
-      end
-
-      # Flatten AggregateErrors into individual TaskFailure objects for clean errors
-      # Wraps original errors with task-specific Error class for rescue matching
-      def flatten_clean_failures(failed_wrappers)
-        output_capture = @saved_output_capture
-
-        failed_wrappers.flat_map do |wrapper|
-          case wrapper.clean_error
-          when AggregateError
-            wrapper.clean_error.errors
-          else
-            wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.clean_error)
-            output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
-            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
-          end
-        end
       end
 
       # Returns a unique identifier for an error, used for deduplication
