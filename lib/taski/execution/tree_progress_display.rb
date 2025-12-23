@@ -249,6 +249,7 @@ module Taski
         @tree_structure = nil
         @section_impl_map = {}  # Section -> selected impl class
         @output_capture = nil  # ThreadOutputCapture for getting task output
+        @last_line_count = 0  # Track number of lines drawn for cursor movement
       end
 
       # Set the output capture for getting task output
@@ -401,8 +402,9 @@ module Taski
 
         return unless should_start
 
-        @output.print "\e[?25l"  # Hide cursor
-        @output.print "\e7"      # Save cursor position (before any tree output)
+        @output.print "\e[?1049h" # Switch to alternate screen buffer
+        @output.print "\e[H"      # Move cursor to home (top-left)
+        @output.print "\e[?25l"   # Hide cursor
         @renderer_thread = Thread.new do
           loop do
             break unless @running
@@ -426,7 +428,8 @@ module Taski
         return unless should_stop
 
         @renderer_thread&.join
-        @output.print "\e[?25h"  # Show cursor
+        @output.print "\e[?25h"   # Show cursor
+        @output.print "\e[?1049l" # Switch back to main screen buffer
         render_final
       end
 
@@ -468,30 +471,57 @@ module Taski
 
         return if lines.nil? || lines.empty?
 
-        # Restore cursor to saved position (from start) and clear
-        @output.print "\e8"  # Restore cursor position
-        @output.print "\e[J" # Clear from cursor to end of screen
+        # Move cursor up by the number of lines previously drawn
+        if @last_line_count > 0
+          @output.print "\e[#{@last_line_count}A"  # Move cursor up n lines
+        end
+        @output.print "\e[J"  # Clear from cursor to end of screen
 
         # Redraw all lines
         lines.each do |line|
           @output.print "#{line}\n"
         end
 
+        @last_line_count = lines.size
         @output.flush
       end
 
       def render_final
         @monitor.synchronize do
-          lines = build_tree_display
-          return if lines.empty?
+          return unless @root_task_class
 
-          # Restore cursor to saved position (from start) and clear
-          @output.print "\e8"  # Restore cursor position
-          @output.print "\e[J" # Clear from cursor to end of screen
+          root_progress = @tasks[@root_task_class]
+          return unless root_progress
 
-          # Print final state
-          lines.each { |line| @output.puts line }
+          # Print single summary line instead of full tree
+          @output.puts build_summary_line(@root_task_class, root_progress)
         end
+      end
+
+      def build_summary_line(task_class, progress)
+        # Determine overall status and icon
+        if progress.run_state == :failed || progress.clean_state == :clean_failed
+          icon = "#{COLORS[:error]}#{ICONS[:failed]}#{COLORS[:reset]}"
+          status = "#{COLORS[:error]}failed#{COLORS[:reset]}"
+        else
+          icon = "#{COLORS[:success]}#{ICONS[:completed]}#{COLORS[:reset]}"
+          status = "#{COLORS[:success]}completed#{COLORS[:reset]}"
+        end
+
+        name = "#{COLORS[:name]}#{task_class.name}#{COLORS[:reset]}"
+
+        # Calculate total duration
+        duration_str = ""
+        if progress.run_duration
+          duration_str = " (#{progress.run_duration}ms)"
+        end
+
+        # Count completed tasks
+        completed_count = @tasks.values.count { |p| p.run_state == :completed }
+        total_count = @tasks.values.count { |p| p.run_state != :pending || p == progress }
+        task_count_str = " [#{completed_count}/#{total_count} tasks]"
+
+        "#{icon} #{name} #{status}#{duration_str}#{task_count_str}"
       end
 
       # Build display lines from tree structure

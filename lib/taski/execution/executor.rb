@@ -116,23 +116,25 @@ module Taski
         # Start progress display
         start_progress_display
 
-        # Start worker threads
-        @worker_pool.start
+        begin
+          # Start worker threads
+          @worker_pool.start
 
-        # Enqueue tasks with no dependencies
-        enqueue_ready_tasks
+          # Enqueue tasks with no dependencies
+          enqueue_ready_tasks
 
-        # Main event loop - continues until root task completes
-        run_main_loop(root_task_class)
+          # Main event loop - continues until root task completes
+          run_main_loop(root_task_class)
 
-        # Shutdown workers
-        @worker_pool.shutdown
+          # Shutdown workers
+          @worker_pool.shutdown
+        ensure
+          # Stop progress display (ensure cleanup even on interrupt)
+          stop_progress_display
 
-        # Stop progress display
-        stop_progress_display
-
-        # Restore original stdout (only if this executor set it up)
-        teardown_output_capture if should_teardown_capture
+          # Restore original stdout (only if this executor set it up)
+          teardown_output_capture if should_teardown_capture
+        end
 
         # Raise aggregated errors if any tasks failed
         raise_if_any_failures
@@ -165,30 +167,32 @@ module Taski
         # Start progress display
         start_progress_display
 
-        # Create a new worker pool for clean operations
-        # Uses the same worker count as the run phase
-        @clean_worker_pool = WorkerPool.new(
-          registry: @registry,
-          worker_count: @effective_worker_count
-        ) { |task_class, wrapper| execute_clean_task(task_class, wrapper) }
+        begin
+          # Create a new worker pool for clean operations
+          # Uses the same worker count as the run phase
+          @clean_worker_pool = WorkerPool.new(
+            registry: @registry,
+            worker_count: @effective_worker_count
+          ) { |task_class, wrapper| execute_clean_task(task_class, wrapper) }
 
-        # Start worker threads
-        @clean_worker_pool.start
+          # Start worker threads
+          @clean_worker_pool.start
 
-        # Enqueue tasks ready for clean (no reverse dependencies)
-        enqueue_ready_clean_tasks
+          # Enqueue tasks ready for clean (no reverse dependencies)
+          enqueue_ready_clean_tasks
 
-        # Main event loop - continues until all tasks are cleaned
-        run_clean_main_loop(root_task_class)
+          # Main event loop - continues until all tasks are cleaned
+          run_clean_main_loop(root_task_class)
 
-        # Shutdown workers
-        @clean_worker_pool.shutdown
+          # Shutdown workers
+          @clean_worker_pool.shutdown
+        ensure
+          # Stop progress display (ensure cleanup even on interrupt)
+          stop_progress_display
 
-        # Stop progress display
-        stop_progress_display
-
-        # Restore original stdout (only if this executor set it up)
-        teardown_output_capture if should_teardown_capture
+          # Restore original stdout (only if this executor set it up)
+          teardown_output_capture if should_teardown_capture
+        end
 
         # Raise aggregated errors if any clean tasks failed
         raise_if_any_clean_failures

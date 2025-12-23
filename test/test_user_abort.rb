@@ -161,4 +161,47 @@ class TestUserAbort < Minitest::Test
     assert_includes execution_log, :task_c_started
     assert_includes completion_log, :task_c_completed
   end
+
+  # Test that progress display is cleaned up even when task raises an exception
+  def test_progress_display_cleanup_on_exception
+    # Temporarily enable progress display for this test
+    original_env = ENV["TASKI_PROGRESS_DISABLE"]
+    ENV.delete("TASKI_PROGRESS_DISABLE")
+
+    stop_called = false
+
+    # Create a spy progress display
+    progress_spy = Object.new
+    progress_spy.define_singleton_method(:set_root_task) { |_| }
+    progress_spy.define_singleton_method(:set_output_capture) { |_| }
+    progress_spy.define_singleton_method(:register_task) { |_| }
+    progress_spy.define_singleton_method(:task_registered?) { |_| false }
+    progress_spy.define_singleton_method(:update_task) { |_, **_| }
+    progress_spy.define_singleton_method(:register_section_impl) { |_, _| }
+    progress_spy.define_singleton_method(:start) {}
+    progress_spy.define_singleton_method(:stop) { stop_called = true }
+
+    # Set the spy as the progress display
+    Taski.instance_variable_set(:@progress_display, progress_spy)
+
+    # Task that raises an exception
+    task_class = Class.new(Taski::Task) do
+      exports :result
+
+      def run
+        raise "Task failed"
+      end
+    end
+
+    # Run the task (it should raise but still clean up)
+    assert_raises(Taski::AggregateError) do
+      task_class.result
+    end
+
+    # Verify stop was called despite the exception
+    assert stop_called, "Progress display stop should be called even on exception"
+  ensure
+    ENV["TASKI_PROGRESS_DISABLE"] = original_env if original_env
+    Taski.reset_progress_display!
+  end
 end
