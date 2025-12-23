@@ -15,6 +15,11 @@ module Taski
       OUTPUT_MIN_LENGTH = 70      # Minimum visible output length
       OUTPUT_SEPARATOR = ">"      # Separator before task output
       GROUP_SEPARATOR = "|"       # Separator between group name and task name
+      TRUNCATION_ELLIPSIS = "..." # Ellipsis for truncated output
+
+      # Display settings
+      RENDER_INTERVAL = 0.1       # Seconds between display updates
+      DEFAULT_TERMINAL_WIDTH = 80 # Default terminal width when unknown
 
       # ANSI color codes (matching Task.tree)
       COLORS = {
@@ -415,7 +420,7 @@ module Taski
           loop do
             break unless @running
             render_live
-            sleep 0.1
+            sleep RENDER_INTERVAL
           end
         end
       end
@@ -785,7 +790,7 @@ module Taski
 
         full_output = "#{group_prefix}#{last_line}"
         truncated = if full_output.length > max_output_length
-          full_output[0, max_output_length - 3] + "..."
+          full_output[0, max_output_length - TRUNCATION_ELLIPSIS.length] + TRUNCATION_ELLIPSIS
         else
           full_output
         end
@@ -800,9 +805,9 @@ module Taski
       def terminal_width
         if @output.respond_to?(:winsize)
           _, cols = @output.winsize
-          cols || 80
+          cols || DEFAULT_TERMINAL_WIDTH
         else
-          80
+          DEFAULT_TERMINAL_WIDTH
         end
       end
 
