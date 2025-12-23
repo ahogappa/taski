@@ -107,16 +107,7 @@ module Taski
         # Build dependency graph from static analysis
         @scheduler.build_dependency_graph(root_task_class)
 
-        # Set up progress display with root task
-        setup_progress_display(root_task_class)
-
-        # Set up output capture (returns true if this executor set it up)
-        should_teardown_capture = setup_output_capture_if_needed
-
-        # Start progress display
-        start_progress_display
-
-        begin
+        with_display_lifecycle(root_task_class) do
           # Start worker threads
           @worker_pool.start
 
@@ -128,15 +119,6 @@ module Taski
 
           # Shutdown workers
           @worker_pool.shutdown
-        ensure
-          # Stop progress display (ensure cleanup even on interrupt)
-          stop_progress_display
-
-          # Save output capture reference before teardown (needed for error output)
-          @saved_output_capture = @execution_context.output_capture
-
-          # Restore original stdout (only if this executor set it up)
-          teardown_output_capture if should_teardown_capture
         end
 
         # Raise aggregated errors if any tasks failed
@@ -161,16 +143,7 @@ module Taski
         runtime_deps = @execution_context.runtime_dependencies
         @scheduler.merge_runtime_dependencies(runtime_deps)
 
-        # Set up progress display with root task (if not already set)
-        setup_progress_display(root_task_class)
-
-        # Set up output capture (returns true if this executor set it up)
-        should_teardown_capture = setup_output_capture_if_needed
-
-        # Start progress display
-        start_progress_display
-
-        begin
+        with_display_lifecycle(root_task_class) do
           # Create a new worker pool for clean operations
           # Uses the same worker count as the run phase
           @clean_worker_pool = WorkerPool.new(
@@ -189,15 +162,6 @@ module Taski
 
           # Shutdown workers
           @clean_worker_pool.shutdown
-        ensure
-          # Stop progress display (ensure cleanup even on interrupt)
-          stop_progress_display
-
-          # Save output capture reference before teardown (needed for error output)
-          @saved_output_capture = @execution_context.output_capture
-
-          # Restore original stdout (only if this executor set it up)
-          teardown_output_capture if should_teardown_capture
         end
 
         # Raise aggregated errors if any clean tasks failed
@@ -250,17 +214,7 @@ module Taski
       def execute_task(task_class, wrapper)
         return if @registry.abort_requested?
 
-        output_capture = @execution_context.output_capture
-
-        # Start capturing output for this task
-        output_capture&.start_capture(task_class)
-
-        # Set thread-local execution context for task access (e.g., Section)
-        ExecutionContext.current = @execution_context
-        # Set thread-local registry for dependency resolution
-        Taski.set_current_registry(@registry)
-
-        begin
+        with_task_context(task_class) do
           result = wrapper.task.run
           wrapper.mark_completed(result)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
@@ -271,13 +225,6 @@ module Taski
         rescue => e
           wrapper.mark_failed(e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e})
-        ensure
-          # Stop capturing output for this task
-          output_capture&.stop_capture
-          # Clear thread-local execution context
-          ExecutionContext.current = nil
-          # Clear thread-local registry
-          Taski.clear_current_registry
         end
       end
 
@@ -353,17 +300,7 @@ module Taski
       def execute_clean_task(task_class, wrapper)
         return if @registry.abort_requested?
 
-        output_capture = @execution_context.output_capture
-
-        # Start capturing output for this task
-        output_capture&.start_capture(task_class)
-
-        # Set thread-local execution context for task access
-        ExecutionContext.current = @execution_context
-        # Set thread-local registry for dependency resolution
-        Taski.set_current_registry(@registry)
-
-        begin
+        with_task_context(task_class) do
           result = wrapper.task.clean
           wrapper.mark_clean_completed(result)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
@@ -374,13 +311,6 @@ module Taski
         rescue => e
           wrapper.mark_clean_failed(e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
-        ensure
-          # Stop capturing output for this task
-          output_capture&.stop_capture
-          # Clear thread-local execution context
-          ExecutionContext.current = nil
-          # Clear thread-local registry
-          Taski.clear_current_registry
         end
       end
 
@@ -451,6 +381,44 @@ module Taski
 
       def stop_progress_display
         @execution_context.notify_stop
+      end
+
+      # Execute a block with task-local context set up.
+      # Sets ExecutionContext.current, Taski.current_registry, and output capture.
+      # Cleans up all context in ensure block.
+      #
+      # @param task_class [Class] The task class being executed
+      # @yield The block to execute with context set up
+      def with_task_context(task_class)
+        output_capture = @execution_context.output_capture
+        output_capture&.start_capture(task_class)
+
+        ExecutionContext.current = @execution_context
+        Taski.set_current_registry(@registry)
+
+        yield
+      ensure
+        output_capture&.stop_capture
+        ExecutionContext.current = nil
+        Taski.clear_current_registry
+      end
+
+      # Execute a block with progress display and output capture lifecycle.
+      # Sets up progress display, output capture, starts display, then yields.
+      # Ensures proper cleanup even on interrupt.
+      #
+      # @param root_task_class [Class] The root task class
+      # @yield The block to execute
+      def with_display_lifecycle(root_task_class)
+        setup_progress_display(root_task_class)
+        should_teardown_capture = setup_output_capture_if_needed
+        start_progress_display
+
+        yield
+      ensure
+        stop_progress_display
+        @saved_output_capture = @execution_context.output_capture
+        teardown_output_capture if should_teardown_capture
       end
 
       def create_default_execution_context
