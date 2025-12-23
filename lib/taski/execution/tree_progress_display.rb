@@ -10,6 +10,10 @@ module Taski
     class TreeProgressDisplay
       SPINNER_FRAMES = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏].freeze
 
+      # Output display settings
+      OUTPUT_RESERVED_WIDTH = 30  # Characters reserved for tree structure
+      OUTPUT_MIN_LENGTH = 70      # Minimum visible output length
+
       # ANSI color codes (matching Task.tree)
       COLORS = {
         reset: "\e[0m",
@@ -774,8 +778,8 @@ module Taski
 
         # Truncate if too long (leave space for tree structure)
         terminal_cols = terminal_width
-        max_output_length = terminal_cols - 50
-        max_output_length = 20 if max_output_length < 20
+        max_output_length = terminal_cols - OUTPUT_RESERVED_WIDTH
+        max_output_length = OUTPUT_MIN_LENGTH if max_output_length < OUTPUT_MIN_LENGTH
 
         full_output = "#{group_prefix}#{last_line}"
         truncated = if full_output.length > max_output_length

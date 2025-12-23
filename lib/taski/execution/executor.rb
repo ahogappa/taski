@@ -486,9 +486,6 @@ module Taski
         failures = flatten_failures(failed)
         unique_failures = failures.uniq { |f| error_identity(f.error) }
 
-        # Print captured output for failed tasks
-        print_failure_output(unique_failures)
-
         raise AggregateError.new(unique_failures)
       end
 
@@ -506,21 +503,6 @@ module Taski
             output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
             [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
           end
-        end
-      end
-
-      # Print captured output for failed tasks to stderr
-      def print_failure_output(failures)
-        failures_with_output = failures.select { |f| !f.output_lines.empty? }
-        return if failures_with_output.empty?
-
-        warn ""
-        failures_with_output.each do |failure|
-          warn "Output from #{failure.task_class}:"
-          failure.output_lines.each do |line|
-            warn "  #{line}"
-          end
-          warn ""
         end
       end
 
@@ -550,9 +532,6 @@ module Taski
         # Flatten nested AggregateErrors and deduplicate by original error object_id
         failures = flatten_clean_failures(failed)
         unique_failures = failures.uniq { |f| error_identity(f.error) }
-
-        # Print captured output for failed tasks
-        print_failure_output(unique_failures)
 
         raise AggregateError.new(unique_failures)
       end

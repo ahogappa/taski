@@ -119,8 +119,19 @@ module Taski
 
     def build_message
       task_word = (errors.size == 1) ? "task" : "tasks"
-      "#{errors.size} #{task_word} failed:\n" +
-        errors.map { |f| "  - #{f.task_class.name}: #{f.error.message}" }.join("\n")
+      parts = ["#{errors.size} #{task_word} failed:"]
+
+      errors.each do |f|
+        parts << "  - #{f.task_class.name}: #{f.error.message}"
+
+        # Include captured output if available
+        if f.output_lines && !f.output_lines.empty?
+          parts << "    Output:"
+          f.output_lines.each { |line| parts << "      #{line}" }
+        end
+      end
+
+      parts.join("\n")
     end
   end
 

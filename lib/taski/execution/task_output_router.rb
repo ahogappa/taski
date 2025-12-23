@@ -70,6 +70,7 @@ module Taski
 
         loop do
           data = pipe.read_io.read_nonblock(READ_BUFFER_SIZE)
+          debug_log("drain_pipe read #{data.bytesize} bytes for #{pipe.task_class}")
           store_output_lines(pipe.task_class, data)
         rescue IO::WaitReadable
           # Check if there's more data with a very short timeout
@@ -90,6 +91,7 @@ module Taski
         end
         return if readable_pipes.empty?
 
+        # Handle race condition: pipe may be closed between check and select
         ready, _, _ = IO.select(readable_pipes, nil, nil, POLL_TIMEOUT)
         return unless ready
 
@@ -99,6 +101,8 @@ module Taski
 
           read_from_pipe(pipe)
         end
+      rescue IOError
+        # Pipe was closed by another thread (drain_pipe), ignore
       end
 
       # Get the last output line for a task
@@ -238,12 +242,13 @@ module Taski
           if @recent_lines[task_class].size > MAX_RECENT_LINES
             @recent_lines[task_class] = @recent_lines[task_class].last(MAX_RECENT_LINES)
           end
+          debug_log("store_output_lines: #{task_class} now has #{@recent_lines[task_class].size} lines")
         end
       end
 
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
-        @original.puts "[TaskOutputRouter] #{message}"
+        warn "[TaskOutputRouter] #{message}"
       end
     end
   end
