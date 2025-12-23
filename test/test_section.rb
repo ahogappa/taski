@@ -249,4 +249,92 @@ class TestSection < Minitest::Test
     # Verify the Section exported value is accessible
     assert_equal "localhost:5432", SectionCleanFixtures::DatabaseSection.connection_string
   end
+
+  # ========================================
+  # Nested Executor Tests
+  # ========================================
+
+  # Test that Section's nested executor correctly handles pre-completed dependencies
+  # This tests a critical scenario:
+  # 1. ParentTask depends on SharedDependency and TestSection
+  # 2. SharedDependency completes first (parallel execution)
+  # 3. TestSection triggers a nested executor to run SectionImpl
+  # 4. SectionImpl depends on SharedDependency (already completed)
+  # 5. The nested executor must recognize SharedDependency as completed
+  #    and not deadlock waiting for it
+  def test_nested_executor_with_pre_completed_dependency
+    require_relative "fixtures/nested_executor_fixtures"
+
+    NestedExecutorFixtures.reset_all
+
+    # This should complete without deadlock
+    Timeout.timeout(5) do
+      NestedExecutorFixtures::ParentTask.run
+    end
+
+    # Verify all tasks executed
+    order = NestedExecutorFixtures::ExecutionOrder.order
+    assert_includes order, :shared_dependency, "SharedDependency should execute"
+    assert_includes order, :test_section, "TestSection should execute"
+    assert_includes order, :section_impl, "SectionImpl should execute"
+    assert_includes order, :parent_task, "ParentTask should execute"
+
+    # Verify the final output is correct
+    assert_equal "shared data + impl using: shared data",
+      NestedExecutorFixtures::ParentTask.output
+  end
+
+  # Test that Section's nested executor correctly waits for RUNNING dependencies
+  # This tests a critical race condition scenario:
+  # 1. SlowSection and FastSection start running in parallel
+  # 2. FastSection triggers a nested executor for DependsOnSlowSection
+  # 3. DependsOnSlowSection depends on SlowSection which is still RUNNING
+  # 4. The nested executor must WAIT for SlowSection to complete
+  #    (not just check if completed, but actively wait)
+  # This was the root cause of the Kompo2 deadlock bug.
+  def test_nested_executor_waits_for_running_dependency
+    require_relative "fixtures/nested_executor_fixtures"
+
+    NestedExecutorFixtures.reset_all
+
+    # Run in a separate thread so we can control timing
+    result_thread = Thread.new do
+      Timeout.timeout(5) do
+        NestedExecutorFixtures::RaceConditionTask.run
+      end
+    end
+
+    # Give time for tasks to start and reach the barrier
+    sleep 0.1
+
+    # At this point, SlowImpl should be running and waiting at the barrier
+    # FastSection should be trying to run DependsOnSlowSection
+    # which needs SlowSection to complete first
+    order_before_release = NestedExecutorFixtures::ExecutionOrder.order
+    assert_includes order_before_release, :slow_impl_start,
+      "SlowImpl should have started"
+
+    # Release the barrier to let SlowImpl complete
+    NestedExecutorFixtures.slow_task_barrier.release
+
+    # Wait for completion
+    result_thread.join
+
+    # Verify all tasks executed in correct order
+    order = NestedExecutorFixtures::ExecutionOrder.order
+
+    # SlowImpl must complete before DependsOnSlowSection can access its value
+    slow_end_idx = order.index(:slow_impl_end)
+    depends_end_idx = order.index(:depends_on_slow_end)
+
+    assert slow_end_idx, "SlowImpl should complete"
+    assert depends_end_idx, "DependsOnSlowSection should complete"
+    assert slow_end_idx < depends_end_idx,
+      "SlowImpl must complete before DependsOnSlowSection finishes " \
+      "(slow_end=#{slow_end_idx}, depends_end=#{depends_end_idx})"
+
+    # Verify the final output is correct
+    assert_equal "/slow/path + using: /slow/path",
+      NestedExecutorFixtures::RaceConditionTask.output
+  end
 end
