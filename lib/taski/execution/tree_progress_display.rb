@@ -13,6 +13,8 @@ module Taski
       # Output display settings
       OUTPUT_RESERVED_WIDTH = 30  # Characters reserved for tree structure
       OUTPUT_MIN_LENGTH = 70      # Minimum visible output length
+      OUTPUT_SEPARATOR = ">"      # Separator before task output
+      GROUP_SEPARATOR = "|"       # Separator between group name and task name
 
       # ANSI color codes (matching Task.tree)
       COLORS = {
@@ -773,7 +775,7 @@ module Taski
         group_prefix = ""
         if progress&.current_group_index
           current_group = progress.groups[progress.current_group_index]
-          group_prefix = "#{current_group.name}: " if current_group
+          group_prefix = "#{current_group.name}#{GROUP_SEPARATOR} " if current_group
         end
 
         # Truncate if too long (leave space for tree structure)
@@ -788,7 +790,7 @@ module Taski
           full_output
         end
 
-        " #{COLORS[:dim]}| #{truncated}#{COLORS[:reset]}"
+        " #{COLORS[:dim]}#{OUTPUT_SEPARATOR} #{truncated}#{COLORS[:reset]}"
       end
 
       ##
