@@ -92,6 +92,9 @@ module Taski
         # Re-analyze the class methods
         # Preserve impl chain context: methods called from impl should continue
         # detecting constants as impl candidates
+        # Set namespace path from target class name for constant resolution
+        @current_namespace_path = @target_task_class.name.split("::")
+
         @class_method_defs.each do |method_name, method_node|
           next unless new_methods.include?(method_name)
 
