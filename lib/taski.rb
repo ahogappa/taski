@@ -31,13 +31,15 @@ module Taski
 
   # Represents a single task failure with its context
   class TaskFailure
-    attr_reader :task_class, :error
+    attr_reader :task_class, :error, :output_lines
 
     # @param task_class [Class] The task class that failed
     # @param error [Exception] The exception that was raised
-    def initialize(task_class:, error:)
+    # @param output_lines [Array<String>] Recent output lines from the failed task
+    def initialize(task_class:, error:, output_lines: [])
       @task_class = task_class
       @error = error
+      @output_lines = output_lines
     end
   end
 
@@ -117,8 +119,19 @@ module Taski
 
     def build_message
       task_word = (errors.size == 1) ? "task" : "tasks"
-      "#{errors.size} #{task_word} failed:\n" +
-        errors.map { |f| "  - #{f.task_class.name}: #{f.error.message}" }.join("\n")
+      parts = ["#{errors.size} #{task_word} failed:"]
+
+      errors.each do |f|
+        parts << "  - #{f.task_class.name}: #{f.error.message}"
+
+        # Include captured output if available
+        if f.output_lines && !f.output_lines.empty?
+          parts << "    Output:"
+          f.output_lines.each { |line| parts << "      #{line}" }
+        end
+      end
+
+      parts.join("\n")
     end
   end
 

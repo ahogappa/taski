@@ -132,6 +132,9 @@ module Taski
           # Stop progress display (ensure cleanup even on interrupt)
           stop_progress_display
 
+          # Save output capture reference before teardown (needed for error output)
+          @saved_output_capture = @execution_context.output_capture
+
           # Restore original stdout (only if this executor set it up)
           teardown_output_capture if should_teardown_capture
         end
@@ -189,6 +192,9 @@ module Taski
         ensure
           # Stop progress display (ensure cleanup even on interrupt)
           stop_progress_display
+
+          # Save output capture reference before teardown (needed for error output)
+          @saved_output_capture = @execution_context.output_capture
 
           # Restore original stdout (only if this executor set it up)
           teardown_output_capture if should_teardown_capture
@@ -486,13 +492,16 @@ module Taski
       # Flatten AggregateErrors into individual TaskFailure objects
       # Wraps original errors with task-specific Error class for rescue matching
       def flatten_failures(failed_wrappers)
+        output_capture = @saved_output_capture
+
         failed_wrappers.flat_map do |wrapper|
           case wrapper.error
           when AggregateError
             wrapper.error.errors
           else
             wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.error)
-            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error)]
+            output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
+            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
           end
         end
       end
@@ -530,13 +539,16 @@ module Taski
       # Flatten AggregateErrors into individual TaskFailure objects for clean errors
       # Wraps original errors with task-specific Error class for rescue matching
       def flatten_clean_failures(failed_wrappers)
+        output_capture = @saved_output_capture
+
         failed_wrappers.flat_map do |wrapper|
           case wrapper.clean_error
           when AggregateError
             wrapper.clean_error.errors
           else
             wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.clean_error)
-            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error)]
+            output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
+            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
           end
         end
       end

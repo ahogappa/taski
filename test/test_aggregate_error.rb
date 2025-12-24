@@ -308,4 +308,52 @@ class TestAggregateError < Minitest::Test
     assert_equal 1, error.errors.size
     assert_equal "Task A failed", error.errors.first.error.message
   end
+
+  # Test TaskFailure includes output_lines attribute
+  def test_task_failure_output_lines_attribute
+    error = RuntimeError.new("Test error")
+    output = ["line 1", "line 2", "line 3"]
+    failure = Taski::TaskFailure.new(task_class: String, error: error, output_lines: output)
+
+    assert_equal String, failure.task_class
+    assert_equal error, failure.error
+    assert_equal output, failure.output_lines
+  end
+
+  # Test TaskFailure output_lines defaults to empty array
+  def test_task_failure_output_lines_default
+    error = RuntimeError.new("Test error")
+    failure = Taski::TaskFailure.new(task_class: String, error: error)
+
+    assert_equal [], failure.output_lines
+  end
+
+  # Test that failed task captures output lines
+  def test_failed_task_captures_output_lines
+    # Skip if progress display is disabled (output capture requires it)
+    skip "Output capture requires progress display" unless Taski.progress_display
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        puts "Step 1: Starting"
+        puts "Step 2: Processing"
+        puts "Step 3: About to fail"
+        raise "Task failed after output"
+      end
+    end
+
+    error = assert_raises(Taski::AggregateError) do
+      task_class.value
+    end
+
+    # Verify output lines are captured
+    failure = error.errors.first
+    refute_empty failure.output_lines, "Failed task should have captured output lines"
+
+    # Check that at least some of our output was captured
+    all_output = failure.output_lines.join("\n")
+    assert_match(/Step/, all_output, "Output should contain our step messages")
+  end
 end

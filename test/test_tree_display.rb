@@ -777,13 +777,14 @@ class TestTaskOutputRouter < Minitest::Test
     assert_equal "actual content", @router.last_line_for(FixtureTaskA)
   end
 
-  def test_active_returns_true_when_pipes_open
+  def test_active_returns_true_when_capture_in_progress
     @router.start_capture(FixtureTaskA)
     @router.puts("test")
-    @router.stop_capture
-    # Read pipe should still be open until poll reads and EOF
+    # Pipe is active while capture is in progress
     assert @router.active?
-    @router.poll
+    @router.stop_capture
+    # After stop_capture drains and closes, pipe is no longer active
+    refute @router.active?
   end
 
   def test_close_all_cleans_up_resources

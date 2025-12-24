@@ -10,6 +10,17 @@ module Taski
     class TreeProgressDisplay
       SPINNER_FRAMES = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏].freeze
 
+      # Output display settings
+      OUTPUT_RESERVED_WIDTH = 30  # Characters reserved for tree structure
+      OUTPUT_MIN_LENGTH = 70      # Minimum visible output length
+      OUTPUT_SEPARATOR = " > "      # Separator before task output
+      GROUP_SEPARATOR = " | "       # Separator between group name and task name
+      TRUNCATION_ELLIPSIS = "..." # Ellipsis for truncated output
+
+      # Display settings
+      RENDER_INTERVAL = 0.1       # Seconds between display updates
+      DEFAULT_TERMINAL_WIDTH = 80 # Default terminal width when unknown
+
       # ANSI color codes (matching Task.tree)
       COLORS = {
         reset: "\e[0m",
@@ -409,7 +420,7 @@ module Taski
           loop do
             break unless @running
             render_live
-            sleep 0.1
+            sleep RENDER_INTERVAL
           end
         end
       end
@@ -769,22 +780,22 @@ module Taski
         group_prefix = ""
         if progress&.current_group_index
           current_group = progress.groups[progress.current_group_index]
-          group_prefix = "#{current_group.name}: " if current_group
+          group_prefix = "#{current_group.name}#{GROUP_SEPARATOR}" if current_group
         end
 
         # Truncate if too long (leave space for tree structure)
         terminal_cols = terminal_width
-        max_output_length = terminal_cols - 50
-        max_output_length = 20 if max_output_length < 20
+        max_output_length = terminal_cols - OUTPUT_RESERVED_WIDTH
+        max_output_length = OUTPUT_MIN_LENGTH if max_output_length < OUTPUT_MIN_LENGTH
 
         full_output = "#{group_prefix}#{last_line}"
         truncated = if full_output.length > max_output_length
-          full_output[0, max_output_length - 3] + "..."
+          full_output[0, max_output_length - TRUNCATION_ELLIPSIS.length] + TRUNCATION_ELLIPSIS
         else
           full_output
         end
 
-        " #{COLORS[:dim]}| #{truncated}#{COLORS[:reset]}"
+        "#{COLORS[:dim]}#{OUTPUT_SEPARATOR}#{truncated}#{COLORS[:reset]}"
       end
 
       ##
@@ -794,9 +805,9 @@ module Taski
       def terminal_width
         if @output.respond_to?(:winsize)
           _, cols = @output.winsize
-          cols || 80
+          cols || DEFAULT_TERMINAL_WIDTH
         else
-          80
+          DEFAULT_TERMINAL_WIDTH
         end
       end
 
