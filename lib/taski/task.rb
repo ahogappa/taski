@@ -83,11 +83,10 @@ module Taski
       # @return [Object] The result of task execution.
       def run(args: {}, workers: nil)
         validate_workers!(workers)
-        Taski.start_args(options: args.merge(_workers: workers), root_task: self)
-        validate_no_circular_dependencies!
-        fresh_wrapper.run
-      ensure
-        Taski.reset_args!
+        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
+          validate_no_circular_dependencies!
+          fresh_wrapper.run
+        end
       end
 
       ##
@@ -100,11 +99,10 @@ module Taski
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       def clean(args: {}, workers: nil)
         validate_workers!(workers)
-        Taski.start_args(options: args.merge(_workers: workers), root_task: self)
-        validate_no_circular_dependencies!
-        fresh_wrapper.clean
-      ensure
-        Taski.reset_args!
+        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
+          validate_no_circular_dependencies!
+          fresh_wrapper.clean
+        end
       end
 
       ##
@@ -119,11 +117,10 @@ module Taski
       # @return [Object] The result of task execution
       def run_and_clean(args: {}, workers: nil)
         validate_workers!(workers)
-        Taski.start_args(options: args.merge(_workers: workers), root_task: self)
-        validate_no_circular_dependencies!
-        fresh_wrapper.run_and_clean
-      ensure
-        Taski.reset_args!
+        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
+          validate_no_circular_dependencies!
+          fresh_wrapper.run_and_clean
+        end
       end
 
       ##
@@ -199,14 +196,9 @@ module Taski
             wrapper.get_exported_value(method)
           else
             # Outside execution - fresh execution (top-level call)
-            args_was_nil = Taski.args.nil?
-            begin
-              Taski.start_args(options: {}, root_task: self) if args_was_nil
+            Taski.with_args(options: {}, root_task: self) do
               validate_no_circular_dependencies!
               fresh_wrapper.get_exported_value(method)
-            ensure
-              # Only reset if we set args
-              Taski.reset_args! if args_was_nil
             end
           end
         end

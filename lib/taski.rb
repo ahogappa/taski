@@ -145,10 +145,12 @@ module Taski
 
   # Start new runtime arguments (internal use only)
   # @api private
+  # @return [Boolean] true if this call created the args, false if args already existed
   def self.start_args(options:, root_task:)
     @args_monitor.synchronize do
-      return if @args
+      return false if @args
       @args = Args.new(options: options, root_task: root_task)
+      true
     end
   end
 
@@ -156,6 +158,21 @@ module Taski
   # @api private
   def self.reset_args!
     @args_monitor.synchronize { @args = nil }
+  end
+
+  # Execute a block with args lifecycle management.
+  # Creates args if they don't exist, and resets them only if this call created them.
+  # This prevents race conditions in concurrent execution.
+  #
+  # @param options [Hash] User-defined options
+  # @param root_task [Class] The root task class
+  # @yield The block to execute with args available
+  # @return [Object] The result of the block
+  def self.with_args(options:, root_task:)
+    created_args = start_args(options: options, root_task: root_task)
+    yield
+  ensure
+    reset_args! if created_args
   end
 
   # Progress display is enabled by default (tree-style).
