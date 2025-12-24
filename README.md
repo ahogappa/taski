@@ -272,6 +272,23 @@ WebServer (Task)
 └── ◻ Server (Task)
 ```
 
+**Simple mode** provides a compact single-line display:
+
+```
+⠹ [3/5] DeployTask | Uploading files...
+✓ [5/5] All tasks completed (1234ms)
+```
+
+**Configuration:**
+
+```ruby
+# Via API
+Taski.progress_mode = :simple  # or :tree (default)
+
+# Via environment variable
+TASKI_PROGRESS_MODE=simple ruby your_script.rb
+```
+
 To disable: `TASKI_PROGRESS_DISABLE=1 ruby your_script.rb`
 
 ### Tree Visualization
