@@ -287,6 +287,59 @@ After completion:
   └── Server (Task) 70.2ms
 ```
 
+### Display Modes
+
+Taski supports two progress display modes:
+
+#### Tree Mode (Default)
+
+Full dependency tree visualization with status for each task:
+
+```
+WebServer (Task)
+├── ⠋ Config (Task) | Reading config.yml...
+│   ├── ✅ Database (Task) 45.2ms
+│   └── ⠙ Cache (Task) | Connecting...
+└── ◻ Server (Task)
+```
+
+#### Simple Mode
+
+Compact single-line display showing current progress:
+
+```
+⠹ [3/5] DeployTask | Uploading files...
+✓ [5/5] All tasks completed (1234ms)
+```
+
+Format: `[spinner] [completed/total] TaskName | last output...`
+
+When multiple tasks run in parallel:
+```
+⠹ [2/5] DownloadLayer1, DownloadLayer2 | Downloading...
+```
+
+On failure:
+```
+✗ [3/5] DeployTask failed: Connection refused
+```
+
+### Configuring Progress Mode
+
+**Via API:**
+
+```ruby
+Taski.progress_mode = :simple  # Use simple mode
+Taski.progress_mode = :tree    # Use tree mode (default)
+```
+
+**Via environment variable:**
+
+```bash
+TASKI_PROGRESS_MODE=simple ruby your_script.rb
+TASKI_PROGRESS_MODE=tree ruby your_script.rb
+```
+
 ### Disabling Progress Display
 
 ```bash
@@ -310,6 +363,7 @@ ruby build.rb > build.log 2>&1
 | Variable | Purpose |
 |----------|---------|
 | `TASKI_PROGRESS_DISABLE=1` | Disable progress display |
+| `TASKI_PROGRESS_MODE=simple\|tree` | Set progress display mode (default: tree) |
 | `TASKI_DEBUG=1` | Enable debug output |
 
 ### Dependency Tree Visualization
