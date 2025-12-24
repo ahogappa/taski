@@ -112,13 +112,15 @@ class TestWorkerCountConfiguration < Minitest::Test
   end
 
   def test_args_worker_count_returns_nil_when_not_set
-    Taski.start_args(options: {}, root_task: nil)
-    assert_nil Taski.args_worker_count
+    Taski.with_args(options: {}, root_task: nil) do
+      assert_nil Taski.args_worker_count
+    end
   end
 
   def test_args_worker_count_returns_value_when_set
-    Taski.start_args(options: {_workers: 4}, root_task: nil)
-    assert_equal 4, Taski.args_worker_count
+    Taski.with_args(options: {_workers: 4}, root_task: nil) do
+      assert_equal 4, Taski.args_worker_count
+    end
   end
 
   # ========================================
