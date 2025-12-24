@@ -74,7 +74,7 @@ module Taski
           store_output_lines(pipe.task_class, data)
         rescue IO::WaitReadable
           # Check if there's more data with a very short timeout
-          ready, _, _ = IO.select([pipe.read_io], nil, nil, 0.001)
+          ready, = IO.select([pipe.read_io], nil, nil, 0.001)
           break unless ready
         rescue EOFError
           # All data has been read
@@ -92,7 +92,7 @@ module Taski
         return if readable_pipes.empty?
 
         # Handle race condition: pipe may be closed between check and select
-        ready, _, _ = IO.select(readable_pipes, nil, nil, POLL_TIMEOUT)
+        ready, = IO.select(readable_pipes, nil, nil, POLL_TIMEOUT)
         return unless ready
 
         ready.each do |read_io|

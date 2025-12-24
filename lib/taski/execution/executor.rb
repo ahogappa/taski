@@ -107,16 +107,7 @@ module Taski
         # Build dependency graph from static analysis
         @scheduler.build_dependency_graph(root_task_class)
 
-        # Set up progress display with root task
-        setup_progress_display(root_task_class)
-
-        # Set up output capture (returns true if this executor set it up)
-        should_teardown_capture = setup_output_capture_if_needed
-
-        # Start progress display
-        start_progress_display
-
-        begin
+        with_display_lifecycle(root_task_class) do
           # Start worker threads
           @worker_pool.start
 
@@ -128,15 +119,6 @@ module Taski
 
           # Shutdown workers
           @worker_pool.shutdown
-        ensure
-          # Stop progress display (ensure cleanup even on interrupt)
-          stop_progress_display
-
-          # Save output capture reference before teardown (needed for error output)
-          @saved_output_capture = @execution_context.output_capture
-
-          # Restore original stdout (only if this executor set it up)
-          teardown_output_capture if should_teardown_capture
         end
 
         # Raise aggregated errors if any tasks failed
@@ -161,16 +143,7 @@ module Taski
         runtime_deps = @execution_context.runtime_dependencies
         @scheduler.merge_runtime_dependencies(runtime_deps)
 
-        # Set up progress display with root task (if not already set)
-        setup_progress_display(root_task_class)
-
-        # Set up output capture (returns true if this executor set it up)
-        should_teardown_capture = setup_output_capture_if_needed
-
-        # Start progress display
-        start_progress_display
-
-        begin
+        with_display_lifecycle(root_task_class) do
           # Create a new worker pool for clean operations
           # Uses the same worker count as the run phase
           @clean_worker_pool = WorkerPool.new(
@@ -189,15 +162,6 @@ module Taski
 
           # Shutdown workers
           @clean_worker_pool.shutdown
-        ensure
-          # Stop progress display (ensure cleanup even on interrupt)
-          stop_progress_display
-
-          # Save output capture reference before teardown (needed for error output)
-          @saved_output_capture = @execution_context.output_capture
-
-          # Restore original stdout (only if this executor set it up)
-          teardown_output_capture if should_teardown_capture
         end
 
         # Raise aggregated errors if any clean tasks failed
@@ -250,17 +214,7 @@ module Taski
       def execute_task(task_class, wrapper)
         return if @registry.abort_requested?
 
-        output_capture = @execution_context.output_capture
-
-        # Start capturing output for this task
-        output_capture&.start_capture(task_class)
-
-        # Set thread-local execution context for task access (e.g., Section)
-        ExecutionContext.current = @execution_context
-        # Set thread-local registry for dependency resolution
-        Taski.set_current_registry(@registry)
-
-        begin
+        with_task_context(task_class) do
           result = wrapper.task.run
           wrapper.mark_completed(result)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
@@ -271,13 +225,6 @@ module Taski
         rescue => e
           wrapper.mark_failed(e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e})
-        ensure
-          # Stop capturing output for this task
-          output_capture&.stop_capture
-          # Clear thread-local execution context
-          ExecutionContext.current = nil
-          # Clear thread-local registry
-          Taski.clear_current_registry
         end
       end
 
@@ -353,17 +300,7 @@ module Taski
       def execute_clean_task(task_class, wrapper)
         return if @registry.abort_requested?
 
-        output_capture = @execution_context.output_capture
-
-        # Start capturing output for this task
-        output_capture&.start_capture(task_class)
-
-        # Set thread-local execution context for task access
-        ExecutionContext.current = @execution_context
-        # Set thread-local registry for dependency resolution
-        Taski.set_current_registry(@registry)
-
-        begin
+        with_task_context(task_class) do
           result = wrapper.task.clean
           wrapper.mark_clean_completed(result)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
@@ -374,13 +311,6 @@ module Taski
         rescue => e
           wrapper.mark_clean_failed(e)
           @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
-        ensure
-          # Stop capturing output for this task
-          output_capture&.stop_capture
-          # Clear thread-local execution context
-          ExecutionContext.current = nil
-          # Clear thread-local registry
-          Taski.clear_current_registry
         end
       end
 
@@ -453,6 +383,44 @@ module Taski
         @execution_context.notify_stop
       end
 
+      # Execute a block with task-local context set up.
+      # Sets ExecutionContext.current, Taski.current_registry, and output capture.
+      # Cleans up all context in ensure block.
+      #
+      # @param task_class [Class] The task class being executed
+      # @yield The block to execute with context set up
+      def with_task_context(task_class)
+        output_capture = @execution_context.output_capture
+        output_capture&.start_capture(task_class)
+
+        ExecutionContext.current = @execution_context
+        Taski.set_current_registry(@registry)
+
+        yield
+      ensure
+        output_capture&.stop_capture
+        ExecutionContext.current = nil
+        Taski.clear_current_registry
+      end
+
+      # Execute a block with progress display and output capture lifecycle.
+      # Sets up progress display, output capture, starts display, then yields.
+      # Ensures proper cleanup even on interrupt.
+      #
+      # @param root_task_class [Class] The root task class
+      # @yield The block to execute
+      def with_display_lifecycle(root_task_class)
+        setup_progress_display(root_task_class)
+        should_teardown_capture = setup_output_capture_if_needed
+        start_progress_display
+
+        yield
+      ensure
+        stop_progress_display
+        @saved_output_capture = @execution_context.output_capture
+        teardown_output_capture if should_teardown_capture
+      end
+
       def create_default_execution_context
         context = ExecutionContext.new
         progress = Taski.progress_display
@@ -475,15 +443,34 @@ module Taski
       # TaskAbortException: raised directly (abort takes priority)
       # All other errors: raises AggregateError containing all failures
       def raise_if_any_failures
-        failed = @registry.failed_wrappers
-        return if failed.empty?
+        raise_if_any_failures_from(
+          @registry.failed_wrappers,
+          error_accessor: ->(w) { w.error }
+        )
+      end
+
+      # Raise error(s) if any tasks failed during clean execution
+      # TaskAbortException: raised directly (abort takes priority)
+      # All other errors: raises AggregateError containing all failures
+      def raise_if_any_clean_failures
+        raise_if_any_failures_from(
+          @registry.failed_clean_wrappers,
+          error_accessor: ->(w) { w.clean_error }
+        )
+      end
+
+      # Generic method to raise errors from failed wrappers
+      # @param failed_wrappers [Array<TaskWrapper>] Failed wrappers
+      # @param error_accessor [Proc] Lambda to extract error from wrapper
+      def raise_if_any_failures_from(failed_wrappers, error_accessor:)
+        return if failed_wrappers.empty?
 
         # TaskAbortException takes priority - raise the first one directly
-        abort_wrapper = failed.find { |w| w.error.is_a?(TaskAbortException) }
-        raise abort_wrapper.error if abort_wrapper
+        abort_wrapper = failed_wrappers.find { |w| error_accessor.call(w).is_a?(TaskAbortException) }
+        raise error_accessor.call(abort_wrapper) if abort_wrapper
 
         # Flatten nested AggregateErrors and deduplicate by original error object_id
-        failures = flatten_failures(failed)
+        failures = flatten_failures_from(failed_wrappers, error_accessor: error_accessor)
         unique_failures = failures.uniq { |f| error_identity(f.error) }
 
         raise AggregateError.new(unique_failures)
@@ -491,15 +478,18 @@ module Taski
 
       # Flatten AggregateErrors into individual TaskFailure objects
       # Wraps original errors with task-specific Error class for rescue matching
-      def flatten_failures(failed_wrappers)
+      # @param failed_wrappers [Array<TaskWrapper>] Failed wrappers
+      # @param error_accessor [Proc] Lambda to extract error from wrapper
+      def flatten_failures_from(failed_wrappers, error_accessor:)
         output_capture = @saved_output_capture
 
         failed_wrappers.flat_map do |wrapper|
-          case wrapper.error
+          error = error_accessor.call(wrapper)
+          case error
           when AggregateError
-            wrapper.error.errors
+            error.errors
           else
-            wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.error)
+            wrapped_error = wrap_with_task_error(wrapper.task.class, error)
             output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
             [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
           end
@@ -516,41 +506,6 @@ module Taski
 
         error_class = task_class.const_get(:Error)
         error_class.new(error, task_class: task_class)
-      end
-
-      # Raise error(s) if any tasks failed during clean execution
-      # TaskAbortException: raised directly (abort takes priority)
-      # All other errors: raises AggregateError containing all failures
-      def raise_if_any_clean_failures
-        failed = @registry.failed_clean_wrappers
-        return if failed.empty?
-
-        # TaskAbortException takes priority - raise the first one directly
-        abort_wrapper = failed.find { |w| w.clean_error.is_a?(TaskAbortException) }
-        raise abort_wrapper.clean_error if abort_wrapper
-
-        # Flatten nested AggregateErrors and deduplicate by original error object_id
-        failures = flatten_clean_failures(failed)
-        unique_failures = failures.uniq { |f| error_identity(f.error) }
-
-        raise AggregateError.new(unique_failures)
-      end
-
-      # Flatten AggregateErrors into individual TaskFailure objects for clean errors
-      # Wraps original errors with task-specific Error class for rescue matching
-      def flatten_clean_failures(failed_wrappers)
-        output_capture = @saved_output_capture
-
-        failed_wrappers.flat_map do |wrapper|
-          case wrapper.clean_error
-          when AggregateError
-            wrapper.clean_error.errors
-          else
-            wrapped_error = wrap_with_task_error(wrapper.task.class, wrapper.clean_error)
-            output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
-            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
-          end
-        end
       end
 
       # Returns a unique identifier for an error, used for deduplication

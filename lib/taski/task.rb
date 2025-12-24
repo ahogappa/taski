@@ -82,11 +82,7 @@ module Taski
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution.
       def run(args: {}, workers: nil)
-        validate_workers!(workers)
-        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
-          validate_no_circular_dependencies!
-          fresh_wrapper.run
-        end
+        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run }
       end
 
       ##
@@ -98,11 +94,7 @@ module Taski
       #   Must be a positive integer or nil.
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       def clean(args: {}, workers: nil)
-        validate_workers!(workers)
-        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
-          validate_no_circular_dependencies!
-          fresh_wrapper.clean
-        end
+        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.clean }
       end
 
       ##
@@ -116,11 +108,7 @@ module Taski
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution
       def run_and_clean(args: {}, workers: nil)
-        validate_workers!(workers)
-        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
-          validate_no_circular_dependencies!
-          fresh_wrapper.run_and_clean
-        end
+        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean }
       end
 
       ##
@@ -140,6 +128,21 @@ module Taski
       end
 
       private
+
+      ##
+      # Sets up execution environment and yields a fresh wrapper.
+      # Handles workers validation, args lifecycle, and dependency validation.
+      # @param args [Hash] User-defined arguments
+      # @param workers [Integer, nil] Number of worker threads
+      # @yield [wrapper] Block receiving the fresh wrapper to execute
+      # @return [Object] The result of the block
+      def with_execution_setup(args:, workers:)
+        validate_workers!(workers)
+        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
+          validate_no_circular_dependencies!
+          yield fresh_wrapper
+        end
+      end
 
       ##
       # Creates a fresh TaskWrapper with its own registry.

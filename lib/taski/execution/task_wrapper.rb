@@ -272,26 +272,11 @@ module Taski
       # If the task is pending, triggers execution (via the configured ExecutionContext when present, otherwise via Executor) outside the monitor; if the task is running, waits until it becomes completed; if already completed, returns immediately.
       # @raise [Taski::TaskAbortException] If the registry requested an abort before execution begins.
       def trigger_execution_and_wait
-        should_execute = false
-        @monitor.synchronize do
-          case @state
-          when STATE_PENDING
-            check_abort!
-            should_execute = true
-          when STATE_RUNNING
-            @condition.wait_until { @state == STATE_COMPLETED }
-          when STATE_COMPLETED
-            # Already done
-          end
-        end
-
-        if should_execute
-          # Execute outside the lock to avoid deadlock
-          # Use ensure_execution_context to create a shared context if not set
-          context = ensure_execution_context
-          context.trigger_execution(@task.class, registry: @registry)
-          # After execution returns, the task is completed
-        end
+        trigger_and_wait(
+          state_accessor: -> { @state },
+          condition: @condition,
+          trigger: ->(ctx) { ctx.trigger_execution(@task.class, registry: @registry) }
+        )
       end
 
       ##
@@ -300,14 +285,27 @@ module Taski
       # If an ExecutionContext is configured the cleanup is invoked through it; otherwise a fallback executor is used.
       # @raise [Taski::TaskAbortException] if the registry has requested an abort.
       def trigger_clean_and_wait
+        trigger_and_wait(
+          state_accessor: -> { @clean_state },
+          condition: @clean_condition,
+          trigger: ->(ctx) { ctx.trigger_clean(@task.class, registry: @registry) }
+        )
+      end
+
+      # Generic trigger-and-wait implementation for both run and clean phases.
+      # @param state_accessor [Proc] Lambda returning the current state
+      # @param condition [MonitorMixin::ConditionVariable] Condition to wait on
+      # @param trigger [Proc] Lambda receiving context to trigger execution
+      # @raise [Taski::TaskAbortException] If the registry requested an abort
+      def trigger_and_wait(state_accessor:, condition:, trigger:)
         should_execute = false
         @monitor.synchronize do
-          case @clean_state
+          case state_accessor.call
           when STATE_PENDING
             check_abort!
             should_execute = true
           when STATE_RUNNING
-            @clean_condition.wait_until { @clean_state == STATE_COMPLETED }
+            condition.wait_until { state_accessor.call == STATE_COMPLETED }
           when STATE_COMPLETED
             # Already done
           end
@@ -315,9 +313,8 @@ module Taski
 
         if should_execute
           # Execute outside the lock to avoid deadlock
-          # Use ensure_execution_context to reuse the context from run phase
           context = ensure_execution_context
-          context.trigger_clean(@task.class, registry: @registry)
+          trigger.call(context)
           # After execution returns, the task is completed
         end
       end
