@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require "monitor"
 require "stringio"
+require_relative "base_progress_display"
 
 module Taski
   module Execution
     # Tree-based progress display that shows task execution in a tree structure
     # similar to Task.tree, with real-time status updates and stdout capture.
-    class TreeProgressDisplay
+    class TreeProgressDisplay < BaseProgressDisplay
       SPINNER_FRAMES = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏].freeze
 
       # Output display settings
@@ -180,239 +180,36 @@ module Taski
         end
       end
 
-      # Tracks the progress of a group within a task
-      class GroupProgress
-        attr_accessor :name, :state, :start_time, :end_time, :duration, :error, :last_message
-
-        def initialize(name)
-          @name = name
-          @state = :pending
-          @start_time = nil
-          @end_time = nil
-          @duration = nil
-          @error = nil
-          @last_message = nil
-        end
-      end
-
-      class TaskProgress
-        # Run lifecycle tracking
-        attr_accessor :run_state, :run_start_time, :run_end_time, :run_error, :run_duration
-        # Clean lifecycle tracking
-        attr_accessor :clean_state, :clean_start_time, :clean_end_time, :clean_error, :clean_duration
-        # Display properties
-        attr_accessor :is_impl_candidate
-        # Group tracking
-        attr_accessor :groups, :current_group_index
-
-        def initialize
-          # Run lifecycle
-          @run_state = :pending
-          @run_start_time = nil
-          @run_end_time = nil
-          @run_error = nil
-          @run_duration = nil
-          # Clean lifecycle
-          @clean_state = nil  # nil means clean hasn't started
-          @clean_start_time = nil
-          @clean_end_time = nil
-          @clean_error = nil
-          @clean_duration = nil
-          # Display
-          @is_impl_candidate = false
-          # Groups
-          @groups = []
-          @current_group_index = nil
-        end
-
-        # For backward compatibility - returns the most relevant state for display
-        def state
-          @clean_state || @run_state
-        end
-
-        # Legacy accessors for backward compatibility
-        def start_time
-          @clean_start_time || @run_start_time
-        end
-
-        def end_time
-          @clean_end_time || @run_end_time
-        end
-
-        def error
-          @clean_error || @run_error
-        end
-
-        def duration
-          @clean_duration || @run_duration
-        end
-      end
-
       def initialize(output: $stdout)
-        @output = output
-        @tasks = {}
-        @monitor = Monitor.new
+        super
         @spinner_index = 0
         @renderer_thread = nil
         @running = false
-        @nest_level = 0 # Track nested executor calls
-        @root_task_class = nil
         @tree_structure = nil
         @section_impl_map = {}  # Section -> selected impl class
-        @output_capture = nil  # ThreadOutputCapture for getting task output
         @last_line_count = 0  # Track number of lines drawn for cursor movement
       end
 
-      # Set the output capture for getting task output
-      # @param capture [ThreadOutputCapture] The output capture instance
-      def set_output_capture(capture)
-        @monitor.synchronize do
-          @output_capture = capture
-        end
+      protected
+
+      # Template method: Called when root task is set
+      def on_root_task_set
+        build_tree_structure
       end
 
-      # Set the root task to build tree structure
-      # Only sets root task if not already set (prevents nested executor overwrite)
-      # @param root_task_class [Class] The root task class
-      def set_root_task(root_task_class)
-        @monitor.synchronize do
-          return if @root_task_class # Don't overwrite existing root task
-          @root_task_class = root_task_class
-          build_tree_structure
-        end
+      # Template method: Called when a section impl is registered
+      def on_section_impl_registered(section_class, impl_class)
+        @section_impl_map[section_class] = impl_class
       end
 
-      # Register which impl was selected for a section
-      # @param section_class [Class] The section class
-      # @param impl_class [Class] The selected implementation class
-      def register_section_impl(section_class, impl_class)
-        @monitor.synchronize do
-          @section_impl_map[section_class] = impl_class
-        end
+      # Template method: Determine if display should activate
+      def should_activate?
+        tty?
       end
 
-      # @param task_class [Class] The task class to register
-      def register_task(task_class)
-        @monitor.synchronize do
-          return if @tasks.key?(task_class)
-          @tasks[task_class] = TaskProgress.new
-        end
-      end
-
-      # @param task_class [Class] The task class to check
-      # @return [Boolean] true if the task is registered
-      def task_registered?(task_class)
-        @monitor.synchronize do
-          @tasks.key?(task_class)
-        end
-      end
-
-      # @param task_class [Class] The task class to update
-      # @param state [Symbol] The new state (:pending, :running, :completed, :failed, :cleaning, :clean_completed, :clean_failed)
-      # @param duration [Float] Duration in milliseconds (for completed tasks)
-      # @param error [Exception] Error object (for failed tasks)
-      def update_task(task_class, state:, duration: nil, error: nil)
-        @monitor.synchronize do
-          progress = @tasks[task_class]
-          return unless progress
-
-          case state
-          # Run lifecycle states
-          when :pending
-            progress.run_state = :pending
-          when :running
-            progress.run_state = :running
-            progress.run_start_time = Time.now
-          when :completed
-            progress.run_state = :completed
-            progress.run_end_time = Time.now
-            progress.run_duration = duration if duration
-          when :failed
-            progress.run_state = :failed
-            progress.run_end_time = Time.now
-            progress.run_error = error if error
-          # Clean lifecycle states
-          when :cleaning
-            progress.clean_state = :cleaning
-            progress.clean_start_time = Time.now
-          when :clean_completed
-            progress.clean_state = :clean_completed
-            progress.clean_end_time = Time.now
-            progress.clean_duration = duration if duration
-          when :clean_failed
-            progress.clean_state = :clean_failed
-            progress.clean_end_time = Time.now
-            progress.clean_error = error if error
-          end
-        end
-      end
-
-      # @param task_class [Class] The task class
-      # @return [Symbol] The task state
-      def task_state(task_class)
-        @monitor.synchronize do
-          @tasks[task_class]&.state
-        end
-      end
-
-      # Update group state for a task.
-      # Called by ExecutionContext when group lifecycle events occur.
-      #
-      # @param task_class [Class] The task class containing the group
-      # @param group_name [String] The name of the group
-      # @param state [Symbol] The new state (:running, :completed, :failed)
-      # @param duration [Float, nil] Duration in milliseconds (for completed groups)
-      # @param error [Exception, nil] Error object (for failed groups)
-      def update_group(task_class, group_name, state:, duration: nil, error: nil)
-        @monitor.synchronize do
-          progress = @tasks[task_class]
-          return unless progress
-
-          case state
-          when :running
-            # Create new group and set as current
-            group = GroupProgress.new(group_name)
-            group.state = :running
-            group.start_time = Time.now
-            progress.groups << group
-            progress.current_group_index = progress.groups.size - 1
-          when :completed
-            # Find the group by name and mark completed
-            group = progress.groups.find { |g| g.name == group_name && g.state == :running }
-            if group
-              group.state = :completed
-              group.end_time = Time.now
-              group.duration = duration
-            end
-            progress.current_group_index = nil
-          when :failed
-            # Find the group by name and mark failed
-            group = progress.groups.find { |g| g.name == group_name && g.state == :running }
-            if group
-              group.state = :failed
-              group.end_time = Time.now
-              group.duration = duration
-              group.error = error
-            end
-            progress.current_group_index = nil
-          end
-        end
-      end
-
-      def start
-        should_start = false
-        @monitor.synchronize do
-          @nest_level += 1
-          return if @nest_level > 1 # Already running from outer executor
-          return if @running
-          return unless @output.tty?
-
-          @running = true
-          should_start = true
-        end
-
-        return unless should_start
-
+      # Template method: Called when display starts
+      def on_start
+        @running = true
         @output.print "\e[?1049h" # Switch to alternate screen buffer
         @output.print "\e[H"      # Move cursor to home (top-left)
         @output.print "\e[?25l"   # Hide cursor
@@ -425,19 +222,9 @@ module Taski
         end
       end
 
-      def stop
-        should_stop = false
-        @monitor.synchronize do
-          @nest_level -= 1 if @nest_level > 0
-          return unless @nest_level == 0
-          return unless @running
-
-          @running = false
-          should_stop = true
-        end
-
-        return unless should_stop
-
+      # Template method: Called when display stops
+      def on_stop
+        @running = false
         @renderer_thread&.join
         @output.print "\e[?25h"   # Show cursor
         @output.print "\e[?1049l" # Switch back to main screen buffer
@@ -452,21 +239,6 @@ module Taski
 
         @tree_structure = self.class.build_tree_node(@root_task_class)
         register_tasks_from_tree(@tree_structure)
-      end
-
-      # Register all tasks from tree structure
-      def register_tasks_from_tree(node)
-        return unless node
-
-        task_class = node[:task_class]
-        register_task(task_class)
-
-        # Mark as impl candidate if applicable
-        if node[:is_impl_candidate]
-          @tasks[task_class].is_impl_candidate = true
-        end
-
-        node[:children].each { |child| register_tasks_from_tree(child) }
       end
 
       def render_live

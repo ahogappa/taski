@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "monitor"
+require_relative "base_progress_display"
 
 module Taski
   module Execution
@@ -11,7 +11,7 @@ module Taski
     #
     # This is an alternative to TreeProgressDisplay for users who prefer
     # less verbose output.
-    class SimpleProgressDisplay
+    class SimpleProgressDisplay < BaseProgressDisplay
       SPINNER_FRAMES = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏].freeze
       RENDER_INTERVAL = 0.1
 
@@ -29,139 +29,34 @@ module Taski
         reset: "\e[0m"
       }.freeze
 
-      # Simple task state tracker
-      TaskProgress = Struct.new(
-        :run_state, :run_start_time, :run_end_time, :run_error, :run_duration,
-        :clean_state, :clean_start_time, :clean_end_time, :clean_error, :clean_duration,
-        :is_impl_candidate,
-        keyword_init: true
-      ) do
-        def initialize(*)
-          super
-          self.run_state ||= :pending
-          self.clean_state ||= :pending
-          self.is_impl_candidate ||= false
-        end
-
-        def state
-          (clean_state != :pending) ? clean_state : run_state
-        end
-      end
-
       def initialize(output: $stdout)
-        @output = output
-        @tasks = {}
-        @monitor = Monitor.new
+        super
         @spinner_index = 0
         @renderer_thread = nil
         @running = false
-        @nest_level = 0
-        @root_task_class = nil
-        @output_capture = nil
-        @start_time = nil
       end
 
-      def set_output_capture(capture)
-        @monitor.synchronize do
-          @output_capture = capture
-        end
+      protected
+
+      # Template method: Called when root task is set
+      def on_root_task_set
+        build_tree_structure
       end
 
-      def set_root_task(root_task_class)
-        @monitor.synchronize do
-          return if @root_task_class # Don't overwrite existing root task
-          @root_task_class = root_task_class
-          build_tree_structure
-        end
+      # Template method: Called when a section impl is registered
+      def on_section_impl_registered(_section_class, impl_class)
+        @tasks[impl_class] ||= TaskProgress.new
+        @tasks[impl_class].is_impl_candidate = false
       end
 
-      def register_section_impl(section_class, impl_class)
-        @monitor.synchronize do
-          # Mark the impl task as selected
-          register_task(impl_class)
-          if @tasks[impl_class]
-            @tasks[impl_class].is_impl_candidate = false
-          end
-        end
+      # Template method: Determine if display should activate
+      def should_activate?
+        tty?
       end
 
-      def register_task(task_class)
-        @monitor.synchronize do
-          return if @tasks.key?(task_class)
-          @tasks[task_class] = TaskProgress.new
-        end
-      end
-
-      def task_registered?(task_class)
-        @monitor.synchronize do
-          @tasks.key?(task_class)
-        end
-      end
-
-      def update_task(task_class, state:, duration: nil, error: nil)
-        @monitor.synchronize do
-          progress = @tasks[task_class]
-          return unless progress
-
-          case state
-          # Run lifecycle states
-          when :pending
-            progress.run_state = :pending
-          when :running
-            progress.run_state = :running
-            progress.run_start_time = Time.now
-          when :completed
-            progress.run_state = :completed
-            progress.run_end_time = Time.now
-            progress.run_duration = duration if duration
-          when :failed
-            progress.run_state = :failed
-            progress.run_end_time = Time.now
-            progress.run_error = error if error
-          # Clean lifecycle states
-          when :cleaning
-            progress.clean_state = :cleaning
-            progress.clean_start_time = Time.now
-          when :clean_completed
-            progress.clean_state = :clean_completed
-            progress.clean_end_time = Time.now
-            progress.clean_duration = duration if duration
-          when :clean_failed
-            progress.clean_state = :clean_failed
-            progress.clean_end_time = Time.now
-            progress.clean_error = error if error
-          end
-        end
-      end
-
-      def task_state(task_class)
-        @monitor.synchronize do
-          progress = @tasks[task_class]
-          return nil unless progress
-          progress.state
-        end
-      end
-
-      def update_group(task_class, group_name, state:, duration: nil, error: nil)
-        # Simple display ignores group updates for now
-        # Could be extended to show group name in the output suffix
-      end
-
-      def start
-        should_start = false
-        @monitor.synchronize do
-          @nest_level += 1
-          return if @nest_level > 1 # Already running from outer executor
-          return if @running
-          return unless @output.tty?
-
-          @running = true
-          @start_time = Time.now
-          should_start = true
-        end
-
-        return unless should_start
-
+      # Template method: Called when display starts
+      def on_start
+        @running = true
         @output.print "\e[?25l" # Hide cursor
         @renderer_thread = Thread.new do
           loop do
@@ -172,19 +67,9 @@ module Taski
         end
       end
 
-      def stop
-        should_stop = false
-        @monitor.synchronize do
-          @nest_level -= 1 if @nest_level > 0
-          return unless @nest_level == 0
-          return unless @running
-
-          @running = false
-          should_stop = true
-        end
-
-        return unless should_stop
-
+      # Template method: Called when display stops
+      def on_stop
+        @running = false
         @renderer_thread&.join
         @output.print "\e[?25h" # Show cursor
         render_final
@@ -198,20 +83,6 @@ module Taski
         # Use TreeProgressDisplay's static method for tree building
         tree = TreeProgressDisplay.build_tree_node(@root_task_class)
         register_tasks_from_tree(tree)
-      end
-
-      def register_tasks_from_tree(node)
-        return unless node
-
-        task_class = node[:task_class]
-        register_task(task_class)
-
-        # Mark as impl candidate if applicable
-        if node[:is_impl_candidate]
-          @tasks[task_class].is_impl_candidate = true
-        end
-
-        node[:children].each { |child| register_tasks_from_tree(child) }
       end
 
       def render_live
@@ -296,11 +167,6 @@ module Taski
         else
           last_line
         end
-      end
-
-      def short_name(task_class)
-        # Remove module prefix for brevity
-        task_class.name.split("::").last
       end
     end
   end

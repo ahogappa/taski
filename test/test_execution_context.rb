@@ -47,13 +47,16 @@ class TestExecutionContext < Minitest::Test
   # Test observer notifications
   def test_notify_task_registered
     context = Taski::Execution::ExecutionContext.new
-    observer = Minitest::Mock.new
-    observer.expect :register_task, nil, [Class]
+    called_with = nil
+    observer = Object.new
+    observer.define_singleton_method(:register_task) do |task_class|
+      called_with = task_class
+    end
 
     context.add_observer(observer)
-    context.notify_task_registered(Class)
+    context.notify_task_registered(String)
 
-    observer.verify
+    assert_equal String, called_with
   end
 
   def test_notify_task_started
