@@ -17,24 +17,17 @@ module Taski
       def initialize(output: $stderr)
         super
         @output.sync = true if @output.respond_to?(:sync=)
-        # Plain mode is explicitly selected by user, always output regardless of TTY status
-        @enabled = true
       end
 
       protected
 
       # Template method: Called when a section impl is registered
-      def on_section_impl_registered(section_class, impl_class)
-        # Ensure impl is registered
-        unless @tasks.key?(impl_class)
-          @tasks[impl_class] = TaskProgress.new
-        end
+      def on_section_impl_registered(_section_class, impl_class)
+        @tasks[impl_class] ||= TaskProgress.new
       end
 
       # Template method: Called when a task state is updated
       def on_task_updated(task_class, state, duration, error)
-        return unless @enabled
-
         case state
         when :running
           @output.puts "[START] #{short_name(task_class)}"
@@ -56,15 +49,8 @@ module Taski
         @output.flush
       end
 
-      # Template method: Determine if display should activate
-      def should_activate?
-        @enabled
-      end
-
       # Template method: Called when display starts
       def on_start
-        return unless @enabled
-
         if @root_task_class
           @output.puts "[TASKI] Starting #{short_name(@root_task_class)}"
           @output.flush
@@ -73,8 +59,6 @@ module Taski
 
       # Template method: Called when display stops
       def on_stop
-        return unless @enabled
-
         total_duration = @start_time ? ((Time.now - @start_time) * 1000).to_i : 0
         completed = @tasks.values.count { |t| t.run_state == :completed }
         failed = @tasks.values.count { |t| t.run_state == :failed }

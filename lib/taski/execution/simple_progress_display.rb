@@ -44,11 +44,8 @@ module Taski
       end
 
       # Template method: Called when a section impl is registered
-      def on_section_impl_registered(section_class, impl_class)
-        # Mark the impl task as selected
-        unless @tasks.key?(impl_class)
-          @tasks[impl_class] = TaskProgress.new
-        end
+      def on_section_impl_registered(_section_class, impl_class)
+        @tasks[impl_class] ||= TaskProgress.new
         @tasks[impl_class].is_impl_candidate = false
       end
 
@@ -86,22 +83,6 @@ module Taski
         # Use TreeProgressDisplay's static method for tree building
         tree = TreeProgressDisplay.build_tree_node(@root_task_class)
         register_tasks_from_tree(tree)
-      end
-
-      def register_tasks_from_tree(node)
-        return unless node
-
-        task_class = node[:task_class]
-        unless @tasks.key?(task_class)
-          @tasks[task_class] = TaskProgress.new
-        end
-
-        # Mark as impl candidate if applicable
-        if node[:is_impl_candidate]
-          @tasks[task_class].is_impl_candidate = true
-        end
-
-        node[:children].each { |child| register_tasks_from_tree(child) }
       end
 
       def render_live

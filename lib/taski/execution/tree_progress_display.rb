@@ -202,11 +202,6 @@ module Taski
         @section_impl_map[section_class] = impl_class
       end
 
-      # Template method: Called when a task is registered
-      def on_task_registered(task_class)
-        # No additional action needed
-      end
-
       # Template method: Determine if display should activate
       def should_activate?
         tty?
@@ -244,24 +239,6 @@ module Taski
 
         @tree_structure = self.class.build_tree_node(@root_task_class)
         register_tasks_from_tree(@tree_structure)
-      end
-
-      # Register all tasks from tree structure
-      def register_tasks_from_tree(node)
-        return unless node
-
-        task_class = node[:task_class]
-        # Use base class register_task (but we're inside synchronize already)
-        unless @tasks.key?(task_class)
-          @tasks[task_class] = TaskProgress.new
-        end
-
-        # Mark as impl candidate if applicable
-        if node[:is_impl_candidate]
-          @tasks[task_class].is_impl_candidate = true
-        end
-
-        node[:children].each { |child| register_tasks_from_tree(child) }
       end
 
       def render_live

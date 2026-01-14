@@ -246,6 +246,19 @@ module Taski
         # Default: no-op
       end
 
+      # Shared tree traversal for subclasses
+
+      # Register all tasks from a tree structure recursively
+      def register_tasks_from_tree(node)
+        return unless node
+
+        task_class = node[:task_class]
+        @tasks[task_class] ||= TaskProgress.new
+        @tasks[task_class].is_impl_candidate = true if node[:is_impl_candidate]
+
+        node[:children].each { |child| register_tasks_from_tree(child) }
+      end
+
       # Utility methods for subclasses
 
       # Get short name of a task class
