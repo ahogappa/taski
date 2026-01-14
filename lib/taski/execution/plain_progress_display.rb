@@ -17,7 +17,8 @@ module Taski
       def initialize(output: $stderr)
         super
         @output.sync = true if @output.respond_to?(:sync=)
-        @enabled = @output.tty? || ENV["TASKI_FORCE_PROGRESS"] == "1"
+        # Plain mode is explicitly selected by user, always output regardless of TTY status
+        @enabled = true
       end
 
       protected
