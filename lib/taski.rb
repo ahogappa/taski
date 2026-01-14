@@ -11,6 +11,7 @@ require_relative "taski/execution/scheduler"
 require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
 require_relative "taski/execution/tree_progress_display"
+require_relative "taski/execution/simple_progress_display"
 require_relative "taski/args"
 
 module Taski
@@ -178,18 +179,55 @@ module Taski
   # Progress display is enabled by default (tree-style).
   # Environment variables:
   # - TASKI_PROGRESS_DISABLE=1: Disable progress display entirely
+  # - TASKI_PROGRESS_MODE=simple|tree: Set display mode (default: tree)
   def self.progress_display
     return nil if progress_disabled?
-    @progress_display ||= Execution::TreeProgressDisplay.new
+    @progress_display ||= create_progress_display
   end
 
   def self.progress_disabled?
     ENV["TASKI_PROGRESS_DISABLE"] == "1"
   end
 
+  # Get the current progress mode (:tree or :simple)
+  # @return [Symbol] The current progress mode
+  def self.progress_mode
+    @progress_mode || progress_mode_from_env
+  end
+
+  # Set the progress mode (:tree or :simple)
+  # @param mode [Symbol] The mode to use (:tree or :simple)
+  def self.progress_mode=(mode)
+    @progress_mode = mode.to_sym
+    # Reset display so it will be recreated with new mode
+    @progress_display&.stop
+    @progress_display = nil
+  end
+
   def self.reset_progress_display!
     @progress_display&.stop
     @progress_display = nil
+    @progress_mode = nil
+  end
+
+  # @api private
+  def self.create_progress_display
+    case progress_mode
+    when :simple
+      Execution::SimpleProgressDisplay.new
+    else
+      Execution::TreeProgressDisplay.new
+    end
+  end
+
+  # @api private
+  def self.progress_mode_from_env
+    case ENV["TASKI_PROGRESS_MODE"]
+    when "simple"
+      :simple
+    else
+      :tree
+    end
   end
 
   # Get the worker count from the current args (set via Task.run(workers: n))
