@@ -19,7 +19,8 @@ module Taski
 
       # Display settings
       RENDER_INTERVAL = 0.1       # Seconds between display updates
-      DEFAULT_TERMINAL_WIDTH = 80 # Default terminal width when unknown
+      DEFAULT_TERMINAL_WIDTH = 80   # Default terminal width when unknown
+      DEFAULT_TERMINAL_HEIGHT = 24  # Default terminal height when unknown
 
       # ANSI color codes (matching Task.tree)
       COLORS = {
@@ -254,19 +255,42 @@ module Taski
 
         return if lines.nil? || lines.empty?
 
-        # Move cursor up by the number of lines previously drawn
-        if @last_line_count > 0
-          @output.print "\e[#{@last_line_count}A"  # Move cursor up n lines
-        end
-        @output.print "\e[J"  # Clear from cursor to end of screen
+        # Build complete frame in buffer for single write (flicker-free)
+        buffer = build_frame_buffer(lines)
 
-        # Redraw all lines
-        lines.each do |line|
-          @output.print "#{line}\n"
-        end
+        # Write entire frame in single operation
+        @output.print buffer
+        @output.flush
 
         @last_line_count = lines.size
-        @output.flush
+      end
+
+      ##
+      # Builds a complete frame buffer for flicker-free rendering.
+      # Uses cursor home positioning and line-by-line overwrite instead of clear.
+      # @param lines [Array<String>] The lines to render.
+      # @return [String] The complete frame buffer ready for single write.
+      def build_frame_buffer(lines)
+        buffer = +""
+
+        # Move cursor to home position (top-left) for overwrite
+        buffer << "\e[H"
+
+        # Build each line with clear-to-end-of-line for clean overwrite
+        lines.each do |line|
+          buffer << line
+          buffer << "\e[K" # Clear from cursor to end of line (removes old content)
+          buffer << "\n"
+        end
+
+        # Clear any extra lines from previous render if current has fewer lines
+        if @last_line_count > lines.size
+          (@last_line_count - lines.size).times do
+            buffer << "\e[K\n" # Clear line and move to next
+          end
+        end
+
+        buffer
       end
 
       def render_final
@@ -580,6 +604,19 @@ module Taski
           cols || DEFAULT_TERMINAL_WIDTH
         else
           DEFAULT_TERMINAL_WIDTH
+        end
+      end
+
+      ##
+      # Returns the terminal height in rows.
+      # Defaults to 24 if the output IO doesn't support winsize.
+      # @return [Integer] The terminal height in rows.
+      def terminal_height
+        if @output.respond_to?(:winsize)
+          rows, _ = @output.winsize
+          rows || DEFAULT_TERMINAL_HEIGHT
+        else
+          DEFAULT_TERMINAL_HEIGHT
         end
       end
 
