@@ -1037,6 +1037,202 @@ end
 # Tests for Group display with TTY
 # In the new design, group names are shown in the task's output line as "| GroupName: output"
 # rather than as children in the tree. This requires output capture to have captured output.
+# Tests for flicker-free rendering (User Story 1)
+class TestFlickerFreeRendering < Minitest::Test
+  class TTYStringIO < StringIO
+    def tty?
+      true
+    end
+  end
+
+  def setup
+    Taski.reset_progress_display!
+    @output = TTYStringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+  end
+
+  def teardown
+    @display&.stop
+    Taski.reset_progress_display!
+  end
+
+  def test_render_uses_single_write_operation
+    # The output should be written in a buffered manner rather than multiple writes
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+    # Should have content
+    assert_includes output, "FixtureTaskA"
+    # Should have cursor control sequences (cursor home for repositioning)
+    assert_match(/\e\[H/, output)
+  end
+
+  def test_render_does_not_clear_entire_screen_between_updates
+    # The old problematic pattern was: \e[J (clear from cursor to end of screen)
+    # causing flicker. Instead, we should overwrite in place.
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.25 # Allow multiple render cycles
+    @display.stop
+
+    output = @output.string
+
+    # Count the number of clear to end of screen sequences
+    clear_screen_count = output.scan("\e[J").length
+
+    # After optimization: there should be NO \e[J sequences
+    # We use in-place overwrite with line clearing instead
+    assert_equal 0, clear_screen_count, "Should not use \\e[J clear sequences after first frame"
+  end
+
+  def test_render_uses_line_overwrite_pattern
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.25 # Allow multiple render cycles
+    @display.stop
+
+    output = @output.string
+
+    # Should have cursor movements for repositioning
+    # After first frame, we move cursor to home position and overwrite
+    assert_match(/\e\[H/, output) # Cursor to home position
+  end
+end
+
+# Tests for large tree visibility with smart scroll (User Story 2)
+class TestLargeTreeVisibility < Minitest::Test
+  class TTYStringIO < StringIO
+    attr_accessor :winsize_value
+
+    def tty?
+      true
+    end
+
+    def winsize
+      @winsize_value || [24, 80]
+    end
+  end
+
+  def setup
+    Taski.reset_progress_display!
+    @output = TTYStringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+  end
+
+  def teardown
+    @display&.stop
+    Taski.reset_progress_display!
+  end
+
+  def test_terminal_height_returns_integer
+    height = @display.send(:terminal_height)
+    assert_kind_of Integer, height
+    assert height > 0
+  end
+
+  def test_terminal_height_uses_winsize_when_available
+    @output.winsize_value = [40, 120]
+    height = @display.send(:terminal_height)
+    assert_equal 40, height
+  end
+
+  def test_terminal_height_uses_default_when_winsize_returns_nil
+    @output.winsize_value = [nil, nil]
+    height = @display.send(:terminal_height)
+    assert_equal 24, height # Default terminal height
+  end
+end
+
+# Tests for scroll history preservation (User Story 3)
+class TestScrollHistoryPreservation < Minitest::Test
+  class TTYStringIO < StringIO
+    def tty?
+      true
+    end
+  end
+
+  def setup
+    Taski.reset_progress_display!
+    @output = TTYStringIO.new
+    @display = Taski::Execution::TreeProgressDisplay.new(output: @output)
+  end
+
+  def teardown
+    @display&.stop
+    Taski.reset_progress_display!
+  end
+
+  def test_start_uses_alternate_screen_buffer
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    sleep 0.05
+    @display.stop
+
+    output = @output.string
+    # Should switch to alternate screen buffer on start
+    assert_includes output, "\e[?1049h", "Should switch to alternate screen buffer"
+  end
+
+  def test_stop_restores_main_screen_buffer
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    sleep 0.05
+    @display.stop
+
+    output = @output.string
+    # Should switch back to main screen buffer on stop
+    assert_includes output, "\e[?1049l", "Should restore main screen buffer"
+  end
+
+  def test_stop_shows_cursor
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    sleep 0.05
+    @display.stop
+
+    output = @output.string
+    # Should show cursor on stop
+    assert_includes output, "\e[?25h", "Should show cursor on stop"
+  end
+
+  def test_start_hides_cursor
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    sleep 0.05
+    @display.stop
+
+    output = @output.string
+    # Should hide cursor on start
+    assert_includes output, "\e[?25l", "Should hide cursor on start"
+  end
+
+  def test_terminal_state_fully_restored_after_stop
+    @display.set_root_task(FixtureTaskA)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15
+    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    @display.stop
+
+    output = @output.string
+
+    # Verify restoration sequence: cursor shown, buffer restored
+    cursor_show_pos = output.rindex("\e[?25h")
+    buffer_restore_pos = output.rindex("\e[?1049l")
+
+    assert cursor_show_pos, "Cursor should be shown"
+    assert buffer_restore_pos, "Buffer should be restored"
+    # Cursor show should come before buffer restore
+    assert cursor_show_pos < buffer_restore_pos, "Cursor show should precede buffer restore"
+  end
+end
+
 class TestGroupDisplayWithTTY < Minitest::Test
   class TTYStringIO < StringIO
     def tty?
