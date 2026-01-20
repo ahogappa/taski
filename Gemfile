@@ -13,7 +13,7 @@ gem "tsort"
 group :development, :test do
   gem "debug"
   gem "minitest", "~> 6.0"
-  gem "standard", "~> 1.39"
+  gem "standard", "~> 1.53"
   gem "simplecov", "~> 0.22"
   gem "simplecov-lcov", "~> 0.8"
   gem "steep", "~> 1.10"
