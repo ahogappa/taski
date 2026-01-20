@@ -12,6 +12,7 @@ require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
 require_relative "taski/execution/tree_progress_display"
 require_relative "taski/execution/simple_progress_display"
+require_relative "taski/execution/plain_progress_display"
 require_relative "taski/args"
 
 module Taski
@@ -215,6 +216,8 @@ module Taski
     case progress_mode
     when :simple
       Execution::SimpleProgressDisplay.new
+    when :plain
+      Execution::PlainProgressDisplay.new
     else
       Execution::TreeProgressDisplay.new
     end
@@ -225,6 +228,8 @@ module Taski
     case ENV["TASKI_PROGRESS_MODE"]
     when "simple"
       :simple
+    when "plain"
+      :plain
     else
       :tree
     end
