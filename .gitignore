@@ -36,8 +36,13 @@ Thumbs.db
 # Development notes (create as needed)
 CLAUDE.md
 .serena
+.specify
+specs
 
 private_docs
 
 # RBS
 .gem_rbs_collection/
+
+*.html
+*.mermaid

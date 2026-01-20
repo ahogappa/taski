@@ -356,4 +356,91 @@ class TestAggregateError < Minitest::Test
     all_output = failure.output_lines.join("\n")
     assert_match(/Step/, all_output, "Output should contain our step messages")
   end
+
+  # Test that execution terminates when dependency fails (deadlock detection)
+  # Previously this would hang indefinitely because the root task could never complete
+  def test_dependency_failure_terminates_execution
+    # Task A fails
+    dep_task = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        raise "Dependency task failed"
+      end
+    end
+
+    # Root task depends on A
+    root_task = Class.new(Taski::Task) do
+      exports :result
+
+      define_method(:run) do
+        @result = dep_task.value
+      end
+    end
+
+    # Should raise AggregateError, not hang forever
+    error = assert_raises(Taski::AggregateError) do
+      Timeout.timeout(5) do
+        root_task.result
+      end
+    end
+
+    # Verify the error is from the dependency task
+    assert_equal 1, error.errors.size
+    assert_equal "Dependency task failed", error.errors.first.error.message
+  end
+
+  # Test parallel task failure where one fails and prevents others from completing
+  def test_parallel_dependency_failure_terminates
+    # Both A and B are independent tasks
+    task_a = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        sleep 0.1
+        raise "Task A failed"
+      end
+    end
+
+    task_b = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        # B depends on the result from a third task that depends on A
+        sleep 0.2
+        "B completed"
+      end
+    end
+
+    # Task C depends on A
+    task_c = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        task_a.value
+      end
+    end
+
+    # Root depends on B and C
+    root_task = Class.new(Taski::Task) do
+      exports :result
+
+      define_method(:run) do
+        @result = [task_b.value, task_c.value]
+      end
+    end
+
+    # Should raise AggregateError, not hang
+    error = assert_raises(Taski::AggregateError) do
+      Timeout.timeout(10) do
+        root_task.result
+      end
+    end
+
+    # At least one error should be present
+    refute_empty error.errors
+    # The error should be from task A (the one that actually failed)
+    error_messages = error.errors.map { |e| e.error.message }
+    assert error_messages.any? { |m| m.include?("Task A failed") }
+  end
 end
