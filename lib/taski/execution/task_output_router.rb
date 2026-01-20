@@ -18,6 +18,7 @@ module Taski
       include MonitorMixin
 
       POLL_TIMEOUT = 0.05 # 50ms timeout for IO.select
+      POLL_INTERVAL = 0.1 # 100ms between polls (matches TreeProgressDisplay)
       READ_BUFFER_SIZE = 4096
       MAX_RECENT_LINES = 30 # Maximum number of recent lines to keep per task
 
@@ -27,6 +28,32 @@ module Taski
         @pipes = {}         # task_class => TaskOutputPipe
         @thread_map = {}    # Thread => task_class
         @recent_lines = {}  # task_class => Array<String>
+        @poll_thread = nil
+        @polling = false
+      end
+
+      # Start the background polling thread
+      # This ensures pipes are drained even when display doesn't poll
+      def start_polling
+        synchronize do
+          return if @polling
+          @polling = true
+        end
+
+        @poll_thread = Thread.new do
+          loop do
+            break unless @polling
+            poll
+            sleep POLL_INTERVAL
+          end
+        end
+      end
+
+      # Stop the background polling thread
+      def stop_polling
+        synchronize { @polling = false }
+        @poll_thread&.join(0.5)
+        @poll_thread = nil
       end
 
       # Start capturing output for the current thread
@@ -76,8 +103,8 @@ module Taski
           # Check if there's more data with a very short timeout
           ready, = IO.select([pipe.read_io], nil, nil, 0.001)
           break unless ready
-        rescue EOFError
-          # All data has been read
+        rescue IOError
+          # All data has been read (EOFError) or pipe was closed by another thread
           synchronize { pipe.close_read }
           break
         end
@@ -141,7 +168,12 @@ module Taski
       def write(str)
         pipe = current_thread_pipe
         if pipe && !pipe.write_closed?
-          pipe.write_io.write(str)
+          begin
+            pipe.write_io.write(str)
+          rescue IOError
+            # Pipe was closed by another thread (e.g., stop_capture), fall back to original
+            @original.write(str)
+          end
         else
           @original.write(str)
         end
@@ -223,8 +255,8 @@ module Taski
         store_output_lines(pipe.task_class, data)
       rescue IO::WaitReadable
         # No data available yet
-      rescue EOFError
-        # Pipe closed by writer, close read end
+      rescue IOError
+        # Pipe closed by writer (EOFError) or by another thread, close read end
         synchronize { pipe.close_read }
       end
 

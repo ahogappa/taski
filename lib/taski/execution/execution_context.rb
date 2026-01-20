@@ -98,6 +98,7 @@ module Taski
         @monitor.synchronize do
           @original_stdout = output_io
           @output_capture = TaskOutputRouter.new(@original_stdout)
+          @output_capture.start_polling
           $stdout = @output_capture
         end
 
@@ -106,13 +107,16 @@ module Taski
 
       # Tear down output capture and restore original $stdout.
       def teardown_output_capture
+        capture = nil
         @monitor.synchronize do
           return unless @original_stdout
 
+          capture = @output_capture
           $stdout = @original_stdout
           @output_capture = nil
           @original_stdout = nil
         end
+        capture&.stop_polling
       end
 
       # Get the current output capture instance.
