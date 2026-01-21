@@ -129,7 +129,7 @@ class EnrichWithActivities < Taski::Task
 
     activities_by_user = activities.group_by { |a| a[:user_id] }
       .transform_values do |records|
-      records.to_h { |r| [r[:action], r[:count]] }
+        records.to_h { |r| [r[:action], r[:count]] }
     end
 
     @users_with_activities = users.map do |user|
