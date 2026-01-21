@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-01-22
+
+### Added
+- `Taski::TestHelper` module for mocking task dependencies in unit tests ([#123](https://github.com/ahogappa/taski/pull/123))
+  - `mock_task(TaskClass, key: value)` to mock exported values without running tasks
+  - `assert_task_accessed` / `refute_task_accessed` for verifying dependency access
+  - Support for both Minitest and RSpec test frameworks
+- Simple one-line progress display mode (`Taski.progress_mode = :simple`) as an alternative to tree display ([#112](https://github.com/ahogappa/taski/pull/112))
+  - Configure via `TASKI_PROGRESS_MODE` environment variable or `Taski.progress_mode` API
+- Display captured task output (up to 30 lines) in AggregateError messages for better debugging ([#109](https://github.com/ahogappa/taski/pull/109))
+- Background polling thread in TaskOutputRouter to ensure pipes are drained reliably ([#122](https://github.com/ahogappa/taski/pull/122))
+- `Taski.with_args` helper method for safe argument lifecycle management ([#110](https://github.com/ahogappa/taski/pull/110))
+
+### Changed
+- Progress display now uses alternate screen buffer and shows summary line after completion ([#107](https://github.com/ahogappa/taski/pull/107))
+- Eliminate screen flickering in tree progress display with in-place overwrite rendering ([#121](https://github.com/ahogappa/taski/pull/121))
+- Extract `BaseProgressDisplay` class for shared progress display functionality ([#117](https://github.com/ahogappa/taski/pull/117))
+
+### Fixed
+- Wait for running dependencies in nested executor to prevent deadlock ([#106](https://github.com/ahogappa/taski/pull/106))
+- Preserve namespace path when following method calls in static analysis ([#108](https://github.com/ahogappa/taski/pull/108))
+- Prevent race condition in `Taski.args` lifecycle during concurrent execution ([#110](https://github.com/ahogappa/taski/pull/110))
+- Ensure progress display cleanup on interrupt (Ctrl+C) ([#107](https://github.com/ahogappa/taski/pull/107))
+- Always enable output in PlainProgressDisplay ([#117](https://github.com/ahogappa/taski/pull/117))
+
 ## [0.7.0] - 2025-12-23
 
 ### Added
