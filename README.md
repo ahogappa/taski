@@ -301,6 +301,36 @@ puts WebServer.tree
 #     └── Cache (Task)
 ```
 
+## Testing
+
+### Test Helper for Mocking Dependencies
+
+Taski provides a test helper to mock task dependencies in your unit tests:
+
+```ruby
+require 'taski/test_helper/minitest'
+
+class BuildReportTest < Minitest::Test
+  include Taski::TestHelper::Minitest
+
+  def test_builds_report
+    # Mock direct dependencies - their run methods won't execute
+    mock_task(FetchData, users: [1, 2, 3])
+
+    # Task under test uses mocked values
+    assert_equal 3, BuildReport.user_count
+  end
+end
+```
+
+**Key features:**
+- Mock only direct dependencies; indirect dependencies are automatically isolated
+- Verify which dependencies were accessed with `assert_task_accessed` / `refute_task_accessed`
+- Automatic cleanup after each test
+- Supports both Minitest and RSpec
+
+For RSpec, use `include Taski::TestHelper::RSpec` instead.
+
 ## Development
 
 ```bash
