@@ -50,11 +50,24 @@ module Taski
       end
 
       ##
-      # Creates a fresh TaskWrapper instance for re-execution support.
-      # Use class methods (e.g., MyTask.result) for cached single execution.
+      # Creates a task instance for manual execution control.
+      # Use class methods (e.g., MyTask.run) for simple execution.
+      # @param args [Hash] User-defined arguments accessible via Taski.args.
+      # @param workers [Integer, nil] Number of worker threads for parallel execution.
       # @return [Execution::TaskWrapper] A new wrapper for this task.
-      def new
-        fresh_wrapper
+      def new(args: {}, workers: nil)
+        validate_workers!(workers)
+        fresh_registry = Execution::Registry.new
+        task_instance = allocate
+        task_instance.__send__(:initialize)
+        wrapper = Execution::TaskWrapper.new(
+          task_instance,
+          registry: fresh_registry,
+          execution_context: Execution::ExecutionContext.current,
+          args: args.merge(_workers: workers)
+        )
+        fresh_registry.register(self, wrapper)
+        wrapper
       end
 
       ##
@@ -138,7 +151,7 @@ module Taski
       # @return [Object] The result of the block
       def with_execution_setup(args:, workers:)
         validate_workers!(workers)
-        Taski.with_args(options: args.merge(_workers: workers), root_task: self) do
+        Taski.send(:with_args, options: args.merge(_workers: workers), root_task: self) do
           validate_no_circular_dependencies!
           yield fresh_wrapper
         end
@@ -199,7 +212,7 @@ module Taski
             wrapper.get_exported_value(method)
           else
             # Outside execution - fresh execution (top-level call)
-            Taski.with_args(options: {}, root_task: self) do
+            Taski.send(:with_args, options: {}, root_task: self) do
               validate_no_circular_dependencies!
               fresh_wrapper.get_exported_value(method)
             end
