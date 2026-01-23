@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-23
+
+### Added
+- `Taski::Env` class for system-managed execution environment information ([#125](https://github.com/ahogappa/taski/pull/125))
+  - Access via `Taski.env.working_directory`, `Taski.env.started_at`, `Taski.env.root_task`
+- `args` and `workers` parameters to `Task.new` for direct task instantiation ([#125](https://github.com/ahogappa/taski/pull/125))
+- `mock_env` helper in `TestHelper` for mocking environment in tests ([#125](https://github.com/ahogappa/taski/pull/125))
+
+### Changed
+- Separate system attributes from `Taski.args` to `Taski.env` ([#125](https://github.com/ahogappa/taski/pull/125))
+  - `Taski.args` now holds only user-defined options passed via `run(args: {...})`
+  - `Taski.env` holds system-managed execution environment (`root_task`, `started_at`, `working_directory`)
+
 ## [0.7.1] - 2026-01-22
 
 ### Added
