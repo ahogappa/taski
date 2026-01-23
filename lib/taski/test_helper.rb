@@ -43,9 +43,11 @@ module Taski
             end
             wrapper.get_exported_value(method)
           else
-            Taski.with_args(options: {}, root_task: self) do
-              validate_no_circular_dependencies!
-              fresh_wrapper.get_exported_value(method)
+            Taski.send(:with_env, root_task: self) do
+              Taski.send(:with_args, options: {}) do
+                validate_no_circular_dependencies!
+                fresh_wrapper.get_exported_value(method)
+              end
             end
           end
         end
@@ -108,6 +110,36 @@ module Taski
       def reset_mocks!
         MockRegistry.reset!
       end
+    end
+
+    # Sets mock args for the duration of the test.
+    # This allows testing code that depends on Taski.args without running full task execution.
+    # Args are automatically cleared when MockRegistry.reset! is called (in test teardown).
+    # @param options [Hash] User-defined options to include in args
+    # @return [Taski::Args] The created args instance
+    #
+    # @example
+    #   mock_args(env: "test", debug: true)
+    #   assert_equal "test", Taski.args[:env]
+    def mock_args(**options)
+      Taski.reset_args!
+      Taski.send(:start_args, options: options)
+      Taski.args
+    end
+
+    # Sets mock env for the duration of the test.
+    # This allows testing code that depends on Taski.env without running full task execution.
+    # Env is automatically cleared when MockRegistry.reset! is called (in test teardown).
+    # @param root_task [Class] The root task class (defaults to nil for testing)
+    # @return [Taski::Env] The created env instance
+    #
+    # @example
+    #   mock_env(root_task: MyTask)
+    #   assert_equal MyTask, Taski.env.root_task
+    def mock_env(root_task: nil)
+      Taski.reset_env!
+      Taski.send(:start_env, root_task: root_task)
+      Taski.env
     end
 
     # Registers a mock for a task class with specified return values.

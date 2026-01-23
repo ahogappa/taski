@@ -4,18 +4,12 @@ require "monitor"
 
 module Taski
   # Runtime arguments accessible from any task.
-  # Holds user-defined options and execution metadata.
+  # Holds user-defined options passed by the user at execution time.
   # Args is immutable after creation - options cannot be modified during task execution.
   class Args
-    attr_reader :started_at, :working_directory, :root_task
-
     # @param options [Hash] User-defined options (immutable after creation)
-    # @param root_task [Class] The root task class that initiated execution
-    def initialize(options:, root_task:)
+    def initialize(options:)
       @options = options.dup.freeze
-      @root_task = root_task
-      @started_at = Time.now
-      @working_directory = Dir.pwd
     end
 
     # Get a user-defined option value

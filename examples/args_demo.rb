@@ -1,35 +1,36 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Taski Args API Example
+# Taski Args & Env API Example
 #
-# This example demonstrates the Args API for accessing runtime information:
-# - working_directory: Where execution started
-# - started_at: When execution began
-# - root_task: The first task class that was called
-# - User-defined options: Custom values passed via run(args: {...})
+# This example demonstrates the Args and Env APIs:
+# - Taski.env: Execution environment information
+#   - working_directory: Where execution started
+#   - started_at: When execution began
+#   - root_task: The first task class that was called
+# - Taski.args: User-defined options passed via run(args: {...})
 #
 # Run: ruby examples/args_demo.rb
 
 require_relative "../lib/taski"
 
-puts "Taski Args API Example"
+puts "Taski Args & Env API Example"
 puts "=" * 40
 
-# Task that uses args information for logging
+# Task that uses env information for logging
 class SetupTask < Taski::Task
   exports :setup_info
 
   def run
     puts "Setup running..."
-    puts "  Working directory: #{Taski.args.working_directory}"
-    puts "  Started at: #{Taski.args.started_at}"
-    puts "  Root task: #{Taski.args.root_task}"
+    puts "  Working directory: #{Taski.env.working_directory}"
+    puts "  Started at: #{Taski.env.started_at}"
+    puts "  Root task: #{Taski.env.root_task}"
     puts "  Environment: #{Taski.args[:env]}"
 
     @setup_info = {
-      directory: Taski.args.working_directory,
-      timestamp: Taski.args.started_at,
+      directory: Taski.env.working_directory,
+      timestamp: Taski.env.started_at,
       env: Taski.args[:env]
     }
   end
@@ -40,8 +41,8 @@ class FileProcessor < Taski::Task
   exports :output_path
 
   def run
-    # Use args to determine output location
-    base_dir = Taski.args.working_directory
+    # Use env to determine output location
+    base_dir = Taski.env.working_directory
     env = Taski.args.fetch(:env, "development")
     @output_path = File.join(base_dir, "tmp", env, "output.txt")
 
@@ -55,7 +56,7 @@ class TimingTask < Taski::Task
   exports :duration_info
 
   def run
-    start_time = Taski.args.started_at
+    start_time = Taski.env.started_at
     current_time = Time.now
     elapsed = current_time - start_time
 
@@ -76,7 +77,7 @@ class MainTask < Taski::Task
 
   def run
     puts "\nMainTask executing..."
-    puts "  Root task is: #{Taski.args.root_task}"
+    puts "  Root task is: #{Taski.env.root_task}"
     puts "  Environment: #{Taski.args[:env]}"
 
     # Access dependencies
@@ -88,7 +89,7 @@ class MainTask < Taski::Task
       setup: setup,
       output_path: output,
       timing: timing,
-      root_task: Taski.args.root_task.to_s
+      root_task: Taski.env.root_task.to_s
     }
 
     puts "\nExecution Summary:"
@@ -114,5 +115,5 @@ puts "-" * 40
 puts MainTask.tree
 
 puts "\n" + "=" * 40
-puts "Args API demonstration complete!"
-puts "Note: Args provides runtime information and user options without affecting dependency analysis."
+puts "Args & Env API demonstration complete!"
+puts "Note: Args provides user options, Env provides execution environment info."

@@ -38,10 +38,12 @@ module Taski
       # @param [Object] task - The task instance being wrapped.
       # @param [Object] registry - The registry used to query abort status and coordinate execution.
       # @param [Object, nil] execution_context - Optional execution context used to trigger and report execution and cleanup.
-      def initialize(task, registry:, execution_context: nil)
+      # @param [Hash, nil] args - User-defined arguments for Task.new usage.
+      def initialize(task, registry:, execution_context: nil, args: nil)
         @task = task
         @registry = registry
         @execution_context = execution_context
+        @args = args
         @result = nil
         @clean_result = nil
         @error = nil
@@ -261,10 +263,18 @@ module Taski
       ##
       # Ensures args are set during block execution, then resets if they weren't set before.
       # This allows Task.new.run usage without requiring explicit args setup.
+      # If args are already set (e.g., from Task.run class method), just yields the block.
+      # Uses stored @args if set (from Task.new), otherwise uses empty hash.
       # @yield The block to execute with args lifecycle management
       # @return [Object] The result of the block
       def with_args_lifecycle(&block)
-        Taski.with_args(options: {}, root_task: @task.class, &block)
+        # If args are already set, just execute the block
+        return yield if Taski.args
+
+        options = @args || {}
+        Taski.send(:with_env, root_task: @task.class) do
+          Taski.send(:with_args, options: options, &block)
+        end
       end
 
       ##

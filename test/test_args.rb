@@ -15,7 +15,7 @@ class TestArgs < Minitest::Test
       exports :captured_dir
 
       def run
-        @captured_dir = Taski.args.working_directory
+        @captured_dir = Taski.env.working_directory
       end
     end
 
@@ -30,7 +30,7 @@ class TestArgs < Minitest::Test
       exports :captured_time
 
       def run
-        @captured_time = Taski.args.started_at
+        @captured_time = Taski.env.started_at
       end
     end
 
@@ -52,14 +52,14 @@ class TestArgs < Minitest::Test
       exports :value
 
       define_method(:run) do
-        captured_root = Taski.args.root_task
+        captured_root = Taski.env.root_task
         @value = "test"
       end
     end
 
     task_class.run
 
-    # root_task is captured during execution (before reset_args!)
+    # root_task is captured during execution (before reset_env!)
     assert_equal task_class, captured_root
   end
 
@@ -70,7 +70,7 @@ class TestArgs < Minitest::Test
       exports :value
 
       define_method(:run) do
-        captured_roots << Taski.args.root_task
+        captured_roots << Taski.env.root_task
         @value = "dep"
       end
     end
@@ -82,9 +82,9 @@ class TestArgs < Minitest::Test
       exports :value
 
       define_method(:run) do
-        captured_roots << Taski.args.root_task
+        captured_roots << Taski.env.root_task
         TempDepTask.value
-        captured_roots << Taski.args.root_task
+        captured_roots << Taski.env.root_task
         @value = "root"
       end
     end
@@ -98,28 +98,32 @@ class TestArgs < Minitest::Test
     Object.send(:remove_const, :TempDepTask) if Object.const_defined?(:TempDepTask)
   end
 
-  def test_args_cleared_after_execution
+  def test_args_and_env_cleared_after_execution
     captured_args = nil
+    captured_env = nil
 
     task_class = Class.new(Taski::Task) do
       exports :value
 
       define_method(:run) do
         captured_args = Taski.args
+        captured_env = Taski.env
         @value = "test"
       end
     end
 
     task_class.run
 
-    # Args should be set during execution
+    # Args and env should be set during execution
     refute_nil captured_args
-    assert_equal task_class, captured_args.root_task
-    refute_nil captured_args.working_directory
-    refute_nil captured_args.started_at
+    refute_nil captured_env
+    assert_equal task_class, captured_env.root_task
+    refute_nil captured_env.working_directory
+    refute_nil captured_env.started_at
 
-    # Args should be cleared after execution
+    # Args and env should be cleared after execution
     assert_nil Taski.args
+    assert_nil Taski.env
   end
 
   def test_args_is_not_dependency
@@ -168,8 +172,8 @@ class TestArgs < Minitest::Test
     end
   end
 
-  def test_args_values_are_consistent_during_execution
-    # Test that args values are consistent within a single execution
+  def test_env_values_are_consistent_during_execution
+    # Test that env values are consistent within a single execution
     captured_values = []
 
     dep_task = Class.new(Taski::Task) do
@@ -177,9 +181,9 @@ class TestArgs < Minitest::Test
 
       define_method(:run) do
         captured_values << {
-          root: Taski.args.root_task,
-          dir: Taski.args.working_directory,
-          time: Taski.args.started_at
+          root: Taski.env.root_task,
+          dir: Taski.env.working_directory,
+          time: Taski.env.started_at
         }
         @value = "dep"
       end
@@ -192,9 +196,9 @@ class TestArgs < Minitest::Test
 
       define_method(:run) do
         captured_values << {
-          root: Taski.args.root_task,
-          dir: Taski.args.working_directory,
-          time: Taski.args.started_at
+          root: Taski.env.root_task,
+          dir: Taski.env.working_directory,
+          time: Taski.env.started_at
         }
         TempConsistencyDepTask.value
         @value = "root"
@@ -203,7 +207,7 @@ class TestArgs < Minitest::Test
 
     root_task.run
 
-    # Both tasks should see consistent args values within the same execution
+    # Both tasks should see consistent env values within the same execution
     assert_equal 2, captured_values.size
     assert_equal captured_values[0][:dir], captured_values[1][:dir]
     assert_equal captured_values[0][:time], captured_values[1][:time]
@@ -357,5 +361,123 @@ class TestArgs < Minitest::Test
 
     main_task_class.run(args: {env: "staging"})
     assert_equal "staging", dependency_env
+  end
+
+  # Tests for Task.new(args:) pattern
+
+  def test_task_new_accepts_args_parameter
+    captured_env = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :env_value
+
+      define_method(:run) do
+        captured_env = Taski.args[:env]
+        @env_value = captured_env
+      end
+    end
+
+    task = task_class.new(args: {env: "test"})
+    task.run
+    assert_equal "test", captured_env
+    assert_equal "test", task.env_value
+  end
+
+  def test_task_new_accepts_workers_parameter
+    captured_workers = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :workers_value
+
+      define_method(:run) do
+        captured_workers = Taski.args_worker_count
+        @workers_value = captured_workers
+      end
+    end
+
+    task = task_class.new(workers: 4)
+    task.run
+    assert_equal 4, captured_workers
+    assert_equal 4, task.workers_value
+  end
+
+  def test_task_new_accepts_args_and_workers_together
+    captured_env = nil
+    captured_workers = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :env_value, :workers_value
+
+      define_method(:run) do
+        captured_env = Taski.args[:env]
+        captured_workers = Taski.args_worker_count
+        @env_value = captured_env
+        @workers_value = captured_workers
+      end
+    end
+
+    task = task_class.new(args: {env: "production"}, workers: 8)
+    task.run
+    assert_equal "production", captured_env
+    assert_equal 8, captured_workers
+  end
+
+  def test_task_new_validates_workers_parameter
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "done"
+      end
+    end
+
+    # Zero workers should raise
+    error = assert_raises(ArgumentError) { task_class.new(workers: 0) }
+    assert_match(/workers must be a positive integer/, error.message)
+
+    # Negative workers should raise
+    error = assert_raises(ArgumentError) { task_class.new(workers: -1) }
+    assert_match(/workers must be a positive integer/, error.message)
+
+    # Non-integer should raise
+    error = assert_raises(ArgumentError) { task_class.new(workers: "2") }
+    assert_match(/workers must be a positive integer/, error.message)
+  end
+
+  def test_task_new_run_then_clean_with_instance_variables
+    cleanup_called = false
+    created_file = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :file_path
+
+      define_method(:run) do
+        @file_path = "/tmp/test_file_#{object_id}"
+        created_file = @file_path
+      end
+
+      define_method(:clean) do
+        cleanup_called = true
+        # In real usage, would delete the file using @file_path
+      end
+    end
+
+    task = task_class.new
+    task.run
+    assert_equal created_file, task.file_path
+
+    task.clean
+    assert cleanup_called
+  end
+
+  def test_task_new_returns_task_wrapper
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "done"
+      end
+    end
+
+    task = task_class.new
+    assert_instance_of Taski::Execution::TaskWrapper, task
   end
 end

@@ -203,14 +203,14 @@ Pass custom options and access execution context from any task:
 ```ruby
 class DeployTask < Taski::Task
   def run
-    # User-defined options
+    # User-defined options (Taski.args)
     env = Taski.args[:env]
     debug = Taski.args.fetch(:debug, false)
 
-    # Runtime information
-    puts "Working directory: #{Taski.args.working_directory}"
-    puts "Started at: #{Taski.args.started_at}"
-    puts "Root task: #{Taski.args.root_task}"
+    # Runtime environment information (Taski.env)
+    puts "Working directory: #{Taski.env.working_directory}"
+    puts "Started at: #{Taski.env.started_at}"
+    puts "Root task: #{Taski.env.root_task}"
     puts "Deploying to: #{env}"
   end
 end
@@ -219,13 +219,15 @@ end
 DeployTask.run(args: { env: "production", debug: true })
 ```
 
-Args API:
+Args API (user-defined options):
 - `Taski.args[:key]` - Get option value (nil if not set)
 - `Taski.args.fetch(:key, default)` - Get with default value
 - `Taski.args.key?(:key)` - Check if option exists
-- `Taski.args.working_directory` - Execution directory
-- `Taski.args.started_at` - Execution start time
-- `Taski.args.root_task` - First task class called
+
+Env API (execution environment):
+- `Taski.env.working_directory` - Execution directory
+- `Taski.env.started_at` - Execution start time
+- `Taski.env.root_task` - First task class called
 
 ### Execution Model
 
