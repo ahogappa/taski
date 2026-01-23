@@ -151,9 +151,11 @@ module Taski
       # @return [Object] The result of the block
       def with_execution_setup(args:, workers:)
         validate_workers!(workers)
-        Taski.send(:with_args, options: args.merge(_workers: workers), root_task: self) do
-          validate_no_circular_dependencies!
-          yield fresh_wrapper
+        Taski.send(:with_env, root_task: self) do
+          Taski.send(:with_args, options: args.merge(_workers: workers)) do
+            validate_no_circular_dependencies!
+            yield fresh_wrapper
+          end
         end
       end
 
@@ -212,9 +214,11 @@ module Taski
             wrapper.get_exported_value(method)
           else
             # Outside execution - fresh execution (top-level call)
-            Taski.send(:with_args, options: {}, root_task: self) do
-              validate_no_circular_dependencies!
-              fresh_wrapper.get_exported_value(method)
+            Taski.send(:with_env, root_task: self) do
+              Taski.send(:with_args, options: {}) do
+                validate_no_circular_dependencies!
+                fresh_wrapper.get_exported_value(method)
+              end
             end
           end
         end

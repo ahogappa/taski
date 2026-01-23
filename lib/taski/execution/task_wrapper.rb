@@ -272,7 +272,9 @@ module Taski
         return yield if Taski.args
 
         options = @args || {}
-        Taski.send(:with_args, options: options, root_task: @task.class, &block)
+        Taski.send(:with_env, root_task: @task.class) do
+          Taski.send(:with_args, options: options, &block)
+        end
       end
 
       ##

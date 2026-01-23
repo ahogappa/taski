@@ -14,6 +14,7 @@ require_relative "taski/execution/tree_progress_display"
 require_relative "taski/execution/simple_progress_display"
 require_relative "taski/execution/plain_progress_display"
 require_relative "taski/args"
+require_relative "taski/env"
 
 module Taski
   class TaskAbortException < StandardError
@@ -138,6 +139,7 @@ module Taski
   end
 
   @args_monitor = Monitor.new
+  @env_monitor = Monitor.new
 
   # Get the current runtime arguments
   # @return [Args, nil] The current args or nil if no task is running
@@ -145,13 +147,50 @@ module Taski
     @args_monitor.synchronize { @args }
   end
 
+  # Get the current execution environment
+  # @return [Env, nil] The current env or nil if no task is running
+  def self.env
+    @env_monitor.synchronize { @env }
+  end
+
+  # Start new execution environment (internal use only)
+  # @api private
+  # @return [Boolean] true if this call created the env, false if env already existed
+  def self.start_env(root_task:)
+    @env_monitor.synchronize do
+      return false if @env
+      @env = Env.new(root_task: root_task)
+      true
+    end
+  end
+
+  # Reset the execution environment (internal use only)
+  # @api private
+  def self.reset_env!
+    @env_monitor.synchronize { @env = nil }
+  end
+
+  # Execute a block with env lifecycle management.
+  # Creates env if it doesn't exist, and resets it only if this call created it.
+  # This prevents race conditions in concurrent execution.
+  #
+  # @param root_task [Class] The root task class
+  # @yield The block to execute with env available
+  # @return [Object] The result of the block
+  def self.with_env(root_task:)
+    created_env = start_env(root_task: root_task)
+    yield
+  ensure
+    reset_env! if created_env
+  end
+
   # Start new runtime arguments (internal use only)
   # @api private
   # @return [Boolean] true if this call created the args, false if args already existed
-  def self.start_args(options:, root_task:)
+  def self.start_args(options:)
     @args_monitor.synchronize do
       return false if @args
-      @args = Args.new(options: options, root_task: root_task)
+      @args = Args.new(options: options)
       true
     end
   end
@@ -167,11 +206,10 @@ module Taski
   # This prevents race conditions in concurrent execution.
   #
   # @param options [Hash] User-defined options
-  # @param root_task [Class] The root task class
   # @yield The block to execute with args available
   # @return [Object] The result of the block
-  def self.with_args(options:, root_task:)
-    created_args = start_args(options: options, root_task: root_task)
+  def self.with_args(options:)
+    created_args = start_args(options: options)
     yield
   ensure
     reset_args! if created_args

@@ -38,13 +38,14 @@ module Taski
           end
         end
 
-        # Clears all registered mocks and resets args.
+        # Clears all registered mocks and resets args/env.
         # Should be called in test setup/teardown.
         def reset!
           @mutex.synchronize do
             @mocks = {}
           end
           Taski.reset_args!
+          Taski.reset_env!
         end
       end
     end
