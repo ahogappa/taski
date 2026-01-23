@@ -46,9 +46,9 @@ ruby examples/args_demo.rb
 - User-defined options via `run(args: {...})`
 - `Taski.args[:key]` for option access
 - `Taski.args.fetch(:key, default)` for defaults
-- `Taski.args.working_directory`
-- `Taski.args.started_at`
-- `Taski.args.root_task`
+- `Taski.env.working_directory`
+- `Taski.env.started_at`
+- `Taski.env.root_task`
 
 ---
 
