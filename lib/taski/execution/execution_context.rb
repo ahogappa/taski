@@ -81,12 +81,38 @@ module Taski
         @output_capture = nil
         @original_stdout = nil
         @runtime_dependencies = {}
+        @message_queue = []
       end
 
       # Check if output capture is already active.
       # @return [Boolean] true if capture is active
       def output_capture_active?
         @monitor.synchronize { !@output_capture.nil? }
+      end
+
+      # Queue a message to be displayed after execution completes.
+      # Thread-safe for access from worker threads.
+      #
+      # @param text [String] The message text to queue
+      def queue_message(text)
+        @monitor.synchronize { @message_queue << text }
+      end
+
+      # Flush all queued messages to the given output.
+      # Clears the queue after flushing.
+      #
+      # @param output [IO] The output stream to write messages to
+      def flush_messages(output)
+        messages = @monitor.synchronize { @message_queue.dup.tap { @message_queue.clear } }
+        messages.each { |msg| output.puts(msg) }
+      end
+
+      # Get the original stdout before output capture was set up.
+      # Thread-safe accessor.
+      #
+      # @return [IO, nil] The original stdout or nil if not captured
+      def original_stdout
+        @monitor.synchronize { @original_stdout }
       end
 
       # Set up output capture for inline progress display.
