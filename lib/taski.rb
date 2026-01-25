@@ -140,6 +140,7 @@ module Taski
 
   @args_monitor = Monitor.new
   @env_monitor = Monitor.new
+  @message_monitor = Monitor.new
 
   # Get the current runtime arguments
   # @return [Args, nil] The current args or nil if no task is running
@@ -151,6 +152,23 @@ module Taski
   # @return [Env, nil] The current env or nil if no task is running
   def self.env
     @env_monitor.synchronize { @env }
+  end
+
+  # Output a message to the user without being captured by TaskOutputRouter.
+  # During task execution with progress display, messages are queued and
+  # displayed after execution completes. Without progress display or outside
+  # task execution, messages are output immediately.
+  #
+  # @param text [String] The message text to display
+  def self.message(text)
+    @message_monitor.synchronize do
+      context = Execution::ExecutionContext.current
+      if context&.output_capture_active?
+        context.queue_message(text)
+      else
+        $stdout.puts(text)
+      end
+    end
   end
 
   # Start new execution environment (internal use only)
