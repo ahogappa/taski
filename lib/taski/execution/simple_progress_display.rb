@@ -34,6 +34,7 @@ module Taski
         @spinner_index = 0
         @renderer_thread = nil
         @running = false
+        @section_candidates = {} # section_class => [candidate_classes]
       end
 
       protected
@@ -44,9 +45,18 @@ module Taski
       end
 
       # Template method: Called when a section impl is registered
-      def on_section_impl_registered(_section_class, impl_class)
+      def on_section_impl_registered(section_class, impl_class)
         @tasks[impl_class] ||= TaskProgress.new
         @tasks[impl_class].is_impl_candidate = false
+
+        # Mark unselected candidates as completed (skipped)
+        candidates = @section_candidates[section_class] || []
+        candidates.each do |candidate|
+          next if candidate == impl_class
+          progress = @tasks[candidate]
+          next unless progress
+          progress.run_state = :completed
+        end
       end
 
       # Template method: Determine if display should activate
@@ -83,6 +93,23 @@ module Taski
         # Use TreeProgressDisplay's static method for tree building
         tree = TreeProgressDisplay.build_tree_node(@root_task_class)
         register_tasks_from_tree(tree)
+        collect_section_candidates(tree)
+      end
+
+      def collect_section_candidates(node)
+        return unless node
+
+        task_class = node[:task_class]
+
+        # If this is a section, collect its implementation candidates
+        if node[:is_section]
+          candidates = node[:children]
+            .select { |c| c[:is_impl_candidate] }
+            .map { |c| c[:task_class] }
+          @section_candidates[task_class] = candidates unless candidates.empty?
+        end
+
+        node[:children].each { |child| collect_section_candidates(child) }
       end
 
       def render_live
