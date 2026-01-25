@@ -418,15 +418,7 @@ module Taski
       ensure
         stop_progress_display
         @saved_output_capture = @execution_context.output_capture
-        flush_queued_messages if should_teardown_capture
         teardown_output_capture if should_teardown_capture
-      end
-
-      # Flush queued messages from ExecutionContext to original stdout.
-      # Called after progress display stops to show user messages.
-      def flush_queued_messages
-        output = @execution_context.original_stdout || $stdout
-        @execution_context.flush_messages(output)
       end
 
       def create_default_execution_context

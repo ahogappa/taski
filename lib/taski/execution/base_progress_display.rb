@@ -85,6 +85,7 @@ module Taski
         @root_task_class = nil
         @output_capture = nil
         @start_time = nil
+        @message_queue = []
       end
 
       # Set the output capture for getting task output
@@ -199,6 +200,14 @@ module Taski
         return unless should_stop
 
         on_stop
+        flush_queued_messages
+      end
+
+      # Queue a message to be displayed after progress display stops.
+      # Thread-safe for concurrent task execution.
+      # @param text [String] The message text to queue
+      def queue_message(text)
+        @monitor.synchronize { @message_queue << text }
       end
 
       protected
@@ -282,6 +291,13 @@ module Taski
       end
 
       private
+
+      # Flush all queued messages to output.
+      # Called when progress display stops.
+      def flush_queued_messages
+        messages = @monitor.synchronize { @message_queue.dup.tap { @message_queue.clear } }
+        messages.each { |msg| @output.puts(msg) }
+      end
 
       # Apply state transition to TaskProgress
       def apply_state_transition(progress, state, duration, error)
