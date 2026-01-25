@@ -98,6 +98,21 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert_equal :pending, @display.task_state(LazyDependencyTest::MySection::OptionB)
   end
 
+  def test_register_section_impl_marks_unselected_candidate_descendants_as_completed
+    # Use LazyDependencyTest::MySection which has:
+    # - OptionA (depends on ExpensiveTask)
+    # - OptionB (depends on CheapTask)
+    @display.set_root_task(LazyDependencyTest::MySection)
+    @display.register_section_impl(
+      LazyDependencyTest::MySection,
+      LazyDependencyTest::MySection::OptionB
+    )
+    # OptionA's dependency (ExpensiveTask) should also be marked as completed (skipped)
+    assert_equal :completed, @display.task_state(LazyDependencyTest::ExpensiveTask)
+    # OptionB's dependency (CheapTask) should remain pending (will be executed)
+    assert_equal :pending, @display.task_state(LazyDependencyTest::CheapTask)
+  end
+
   def test_start_and_stop_without_tty
     # When output is not a TTY, start should do nothing
     @display.start

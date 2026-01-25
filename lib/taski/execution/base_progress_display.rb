@@ -290,7 +290,29 @@ module Taski
         @output.tty?
       end
 
+      # Collect all dependencies of a task class recursively
+      # Useful for determining which tasks are needed by a selected implementation
+      # @param task_class [Class] The task class to collect dependencies for
+      # @return [Set<Class>] Set of all dependency task classes (including the task itself)
+      def collect_all_dependencies(task_class)
+        deps = Set.new
+        collect_dependencies_recursive(task_class, deps)
+        deps
+      end
+
       private
+
+      # Recursively collect dependencies into the given set
+      # @param task_class [Class] The task class
+      # @param collected [Set<Class>] Accumulated dependencies
+      def collect_dependencies_recursive(task_class, collected)
+        return if collected.include?(task_class)
+        collected.add(task_class)
+
+        task_class.cached_dependencies.each do |dep|
+          collect_dependencies_recursive(dep, collected)
+        end
+      end
 
       # Flush all queued messages to output.
       # Called when progress display stops.
@@ -300,12 +322,16 @@ module Taski
       end
 
       # Apply state transition to TaskProgress
+      # Note: Once a task reaches :completed or :failed, it cannot go back to :running.
+      # This prevents progress count from decreasing when nested executors re-execute tasks.
       def apply_state_transition(progress, state, duration, error)
         case state
         # Run lifecycle states
         when :pending
           progress.run_state = :pending
         when :running
+          # Don't transition back to running if already completed or failed
+          return if progress.run_state == :completed || progress.run_state == :failed
           progress.run_state = :running
           progress.run_start_time = Time.now
         when :completed
