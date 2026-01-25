@@ -162,9 +162,9 @@ module Taski
   # @param text [String] The message text to display
   def self.message(text)
     @message_monitor.synchronize do
-      context = Execution::ExecutionContext.current
-      if context&.output_capture_active?
-        context.queue_message(text)
+      progress = progress_display
+      if progress&.respond_to?(:queue_message)
+        progress.queue_message(text)
       else
         $stdout.puts(text)
       end
