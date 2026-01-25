@@ -67,37 +67,7 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
 
 ---
 
-### 5. data_pipeline_demo.rb - Real-World Pipeline
-
-A realistic ETL pipeline with parallel data fetching.
-
-```bash
-ruby examples/data_pipeline_demo.rb
-```
-
-**Covers:**
-- Multiple data sources in parallel
-- Data transformation stages
-- Aggregation and reporting
-
----
-
-### 6. parallel_progress_demo.rb - Progress Display
-
-Real-time progress visualization during parallel execution.
-
-```bash
-ruby examples/parallel_progress_demo.rb
-```
-
-**Covers:**
-- Parallel task execution
-- Progress display with spinners
-- Execution timing
-
----
-
-### 7. clean_demo.rb - Lifecycle Management
+### 5. clean_demo.rb - Lifecycle Management
 
 Demonstrates resource cleanup with clean methods.
 
@@ -112,33 +82,52 @@ ruby examples/clean_demo.rb
 
 ---
 
-### 8. system_call_demo.rb - Subprocess Output
+### 6. group_demo.rb - Task Output Grouping
 
-Capture subprocess output in progress display.
+Organize task output into logical phases with groups.
 
 ```bash
-ruby examples/system_call_demo.rb
+ruby examples/group_demo.rb
 ```
 
 **Covers:**
-- `system()` output capture
-- Streaming output display
-- Parallel subprocess execution
+- `group("label") { ... }` for organizing output
+- Groups displayed as children in progress tree
+- Multiple groups within a single task
 
 ---
 
-### 9. nested_section_demo.rb - Nested Sections
+### 7. message_demo.rb - User-Facing Messages
 
-Sections that depend on other tasks for implementation selection.
+Output messages that bypass the progress display capture.
 
 ```bash
-TASKI_PROGRESS_DISABLE=1 ruby examples/nested_section_demo.rb
+ruby examples/message_demo.rb
 ```
 
 **Covers:**
-- Section inside Section
-- Dynamic implementation selection
-- Complex dependency hierarchies
+- `Taski.message(text)` for user-facing output
+- Messages queued during progress and shown after completion
+- Difference between `puts` (captured) and `Taski.message` (bypassed)
+
+---
+
+### 8. progress_demo.rb - Progress Display Modes
+
+Real-time progress visualization during parallel execution.
+
+```bash
+ruby examples/progress_demo.rb                              # Tree mode
+TASKI_PROGRESS_MODE=simple ruby examples/progress_demo.rb   # Simple mode
+TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb     # Disabled
+```
+
+**Covers:**
+- Tree progress display (default)
+- Simple one-line progress display
+- Parallel task execution
+- Task output capture and streaming
+- system() output integration
 
 ---
 
@@ -148,13 +137,12 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/nested_section_demo.rb
 |---------|---------|------------|
 | quick_start | Exports API | Basic |
 | section_demo | Section API | Intermediate |
-| args_demo | Args API | Intermediate |
+| args_demo | Args/Env API | Intermediate |
 | reexecution_demo | Scope-Based Execution | Intermediate |
-| data_pipeline_demo | ETL Pipeline | Advanced |
-| parallel_progress_demo | Progress Display | Advanced |
 | clean_demo | Lifecycle Management | Intermediate |
-| system_call_demo | Subprocess Output | Advanced |
-| nested_section_demo | Nested Sections | Advanced |
+| group_demo | Output Grouping | Intermediate |
+| message_demo | User Messages | Basic |
+| progress_demo | Progress Display | Advanced |
 
 ## Running All Examples
 
@@ -163,7 +151,7 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/nested_section_demo.rb
 for f in examples/*.rb; do echo "=== $f ===" && ruby "$f" && echo; done
 
 # Disable progress display if needed
-TASKI_PROGRESS_DISABLE=1 ruby examples/parallel_progress_demo.rb
+TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb
 ```
 
 ## Next Steps

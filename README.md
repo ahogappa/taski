@@ -262,6 +262,34 @@ end
 
 When `TaskAbortException` is raised, no new tasks will start. Already running tasks will complete, then execution stops.
 
+### Lifecycle Management
+
+Define `clean` methods for resource cleanup. Clean runs in reverse dependency order:
+
+```ruby
+class DatabaseSetup < Taski::Task
+  exports :connection
+
+  def run
+    @connection = connect_to_database
+  end
+
+  def clean
+    @connection&.close
+  end
+end
+
+# Run then clean in one call
+DatabaseSetup.run_and_clean
+
+# Or separately
+DatabaseSetup.run
+# ... do work ...
+DatabaseSetup.clean
+```
+
+See [docs/guide.md](docs/guide.md#lifecycle-management) for details.
+
 ### Progress Display
 
 Tree-based progress visualization is enabled by default:
@@ -281,14 +309,27 @@ WebServer (Task)
 ✓ [5/5] All tasks completed (1234ms)
 ```
 
+**Plain mode** provides text output without escape codes (for CI/logs):
+
+```
+[START] DatabaseSetup
+[DONE] DatabaseSetup (45.2ms)
+[START] WebServer
+[DONE] WebServer (120.5ms)
+[TASKI] Completed: 2/2 tasks (165ms)
+```
+
 **Configuration:**
 
 ```ruby
 # Via API
-Taski.progress_mode = :simple  # or :tree (default)
+Taski.progress_mode = :tree    # Tree display (default)
+Taski.progress_mode = :simple  # Single-line display
+Taski.progress_mode = :plain   # Plain text (CI/logs)
 
 # Via environment variable
 TASKI_PROGRESS_MODE=simple ruby your_script.rb
+TASKI_PROGRESS_MODE=plain ruby your_script.rb
 ```
 
 To disable: `TASKI_PROGRESS_DISABLE=1 ruby your_script.rb`

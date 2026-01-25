@@ -324,20 +324,34 @@ On failure:
 ✗ [3/5] DeployTask failed: Connection refused
 ```
 
+#### Plain Mode
+
+Plain text output without escape codes, designed for CI/logs:
+
+```
+[START] DatabaseSetup
+[DONE] DatabaseSetup (45.2ms)
+[START] WebServer
+[DONE] WebServer (120.5ms)
+[TASKI] Completed: 2/2 tasks (165ms)
+```
+
 ### Configuring Progress Mode
 
 **Via API:**
 
 ```ruby
-Taski.progress_mode = :simple  # Use simple mode
-Taski.progress_mode = :tree    # Use tree mode (default)
+Taski.progress_mode = :tree    # Tree display (default)
+Taski.progress_mode = :simple  # Single-line display
+Taski.progress_mode = :plain   # Plain text (CI/logs)
 ```
 
 **Via environment variable:**
 
 ```bash
-TASKI_PROGRESS_MODE=simple ruby your_script.rb
 TASKI_PROGRESS_MODE=tree ruby your_script.rb
+TASKI_PROGRESS_MODE=simple ruby your_script.rb
+TASKI_PROGRESS_MODE=plain ruby your_script.rb
 ```
 
 ### Disabling Progress Display
@@ -363,7 +377,7 @@ ruby build.rb > build.log 2>&1
 | Variable | Purpose |
 |----------|---------|
 | `TASKI_PROGRESS_DISABLE=1` | Disable progress display |
-| `TASKI_PROGRESS_MODE=simple\|tree` | Set progress display mode (default: tree) |
+| `TASKI_PROGRESS_MODE=tree\|simple\|plain` | Set progress display mode (default: tree) |
 | `TASKI_DEBUG=1` | Enable debug output |
 
 ### Dependency Tree Visualization
