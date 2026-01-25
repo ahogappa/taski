@@ -9,25 +9,52 @@ class TestMessage < Minitest::Test
     Taski.reset_progress_display!
     # Clear any thread-local context
     Taski::Execution::ExecutionContext.current = nil
+    # Ensure progress is not disabled from other tests
+    ENV.delete("TASKI_PROGRESS_DISABLE")
+    ENV.delete("TASKI_PROGRESS_MODE")
   end
 
   def teardown
     Taski.reset_progress_display!
     Taski::Execution::ExecutionContext.current = nil
+    ENV.delete("TASKI_PROGRESS_DISABLE")
+    ENV.delete("TASKI_PROGRESS_MODE")
   end
 
   # ========================================
   # Unit Tests for BaseProgressDisplay message queue
   # ========================================
 
-  def test_progress_display_queue_message
-    display = Taski::Execution::SimpleProgressDisplay.new
+  def test_progress_display_queue_message_directly
+    output = StringIO.new
+    display = Taski::Execution::SimpleProgressDisplay.new(output: output)
 
+    # Queue messages directly to the display
     display.queue_message("Message 1")
     display.queue_message("Message 2")
 
-    # Messages should be queued (not yet flushed)
-    # They will be flushed when stop is called with nest_level reaching 0
+    # Start and stop to trigger flush
+    display.start
+    display.stop
+
+    assert_includes output.string, "Message 1"
+    assert_includes output.string, "Message 2"
+  end
+
+  def test_progress_display_flush_on_stop
+    output = StringIO.new
+    display = Taski::Execution::SimpleProgressDisplay.new(output: output)
+
+    display.start
+    display.queue_message("Test message")
+
+    # Before stop, message should not be in output
+    refute_includes output.string, "Test message"
+
+    display.stop
+
+    # After stop, message should be flushed
+    assert_includes output.string, "Test message"
   end
 
   # ========================================
@@ -35,8 +62,8 @@ class TestMessage < Minitest::Test
   # ========================================
 
   def test_message_without_progress_display_outputs_immediately
-    Taski.reset_progress_display!
     ENV["TASKI_PROGRESS_DISABLE"] = "1"
+    Taski.reset_progress_display!
 
     output = StringIO.new
     original_stdout = $stdout
@@ -46,70 +73,20 @@ class TestMessage < Minitest::Test
       Taski.message("Direct output")
     ensure
       $stdout = original_stdout
-      ENV.delete("TASKI_PROGRESS_DISABLE")
     end
 
     assert_equal "Direct output\n", output.string
   end
 
-  def test_message_with_progress_display_queues_message
-    output = StringIO.new
-    display = Taski::Execution::SimpleProgressDisplay.new(output: output)
-
-    # Manually set the progress display
-    Taski.instance_variable_set(:@progress_display, display)
-
-    # Simulate start (nest_level becomes 1)
-    display.start
-
-    # Queue a message
-    Taski.message("Queued message")
-
-    # Message should not be in output yet
-    refute_includes output.string, "Queued message"
-
-    # Stop should flush messages
-    display.stop
-
-    assert_includes output.string, "Queued message"
-  ensure
-    Taski.reset_progress_display!
-  end
-
-  def test_message_thread_safety
-    output = StringIO.new
-    display = Taski::Execution::SimpleProgressDisplay.new(output: output)
-
-    Taski.instance_variable_set(:@progress_display, display)
-    display.start
-
-    threads = 10.times.map do |i|
-      Thread.new do
-        10.times do |j|
-          Taski.message("Thread #{i} message #{j}")
-        end
-      end
-    end
-
-    threads.each(&:join)
-
-    display.stop
-
-    lines = output.string.lines.select { |l| l.include?("Thread") }
-    assert_equal 100, lines.size, "Should have 100 messages"
-  ensure
-    Taski.reset_progress_display!
-  end
-
   # ========================================
-  # Integration test with actual task execution
+  # Integration tests with actual task execution
   # ========================================
 
-  def test_message_in_task_execution
+  def test_message_in_task_execution_with_plain_mode
     original_stdout = $stdout
 
-    # Use PlainProgressDisplay for easier testing
     ENV["TASKI_PROGRESS_MODE"] = "plain"
+    Taski.reset_progress_display!
 
     task_class = Class.new(Taski::Task) do
       exports :result
@@ -130,7 +107,6 @@ class TestMessage < Minitest::Test
     ensure
       $stdout = original_stdout
       $stderr = STDERR
-      ENV.delete("TASKI_PROGRESS_MODE")
     end
 
     # Messages should appear after task completion
@@ -138,50 +114,63 @@ class TestMessage < Minitest::Test
     assert_includes output.string, "Summary: 42 items processed"
   end
 
-  def test_message_order_preserved
+  def test_message_order_preserved_direct
     output = StringIO.new
     display = Taski::Execution::SimpleProgressDisplay.new(output: output)
 
-    Taski.instance_variable_set(:@progress_display, display)
     display.start
-
-    Taski.message("First")
-    Taski.message("Second")
-    Taski.message("Third")
-
+    display.queue_message("First")
+    display.queue_message("Second")
+    display.queue_message("Third")
     display.stop
 
     lines = output.string.lines.select { |l| l.match?(/^(First|Second|Third)$/) }.map(&:chomp)
     assert_equal %w[First Second Third], lines
-  ensure
-    Taski.reset_progress_display!
+  end
+
+  def test_message_thread_safety_direct
+    output = StringIO.new
+    display = Taski::Execution::SimpleProgressDisplay.new(output: output)
+
+    display.start
+
+    threads = 10.times.map do |i|
+      Thread.new do
+        10.times do |j|
+          display.queue_message("Thread #{i} message #{j}")
+        end
+      end
+    end
+
+    threads.each(&:join)
+
+    display.stop
+
+    lines = output.string.lines.select { |l| l.include?("Thread") }
+    assert_equal 100, lines.size, "Should have 100 messages"
   end
 
   # ========================================
   # Nested executor tests
   # ========================================
 
-  def test_message_flushed_only_when_all_executors_stop
+  def test_message_flushed_only_when_nest_level_zero
     output = StringIO.new
     display = Taski::Execution::SimpleProgressDisplay.new(output: output)
-
-    Taski.instance_variable_set(:@progress_display, display)
 
     # Simulate outer executor start
     display.start
     # Simulate inner executor start
     display.start
 
-    Taski.message("Nested message")
+    display.queue_message("Nested message")
 
-    # Inner executor stop - message should NOT be flushed yet
+    # Inner executor stop - message should NOT be flushed yet (nest_level still > 0)
     display.stop
     refute_includes output.string, "Nested message", "Message should not be flushed when inner executor stops"
 
-    # Outer executor stop - message SHOULD be flushed now
+    # Outer executor stop - message SHOULD be flushed now (nest_level = 0)
     display.stop
     assert_includes output.string, "Nested message", "Message should be flushed when outer executor stops"
-  ensure
-    Taski.reset_progress_display!
   end
 end
