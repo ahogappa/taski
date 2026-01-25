@@ -229,9 +229,14 @@ module Taski
   end
 
   # Get the current progress mode (:tree or :simple)
+  # Environment variable TASKI_PROGRESS_MODE takes precedence over code settings.
   # @return [Symbol] The current progress mode
   def self.progress_mode
-    @progress_mode || progress_mode_from_env
+    if ENV["TASKI_PROGRESS_MODE"]
+      progress_mode_from_env
+    else
+      @progress_mode || :tree
+    end
   end
 
   # Set the progress mode (:tree or :simple)
