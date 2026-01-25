@@ -330,8 +330,7 @@ module Taski
         when :pending
           progress.run_state = :pending
         when :running
-          # Don't transition back to running if already completed or failed
-          return if progress.run_state == :completed || progress.run_state == :failed
+          return if run_state_finalized?(progress)
           progress.run_state = :running
           progress.run_start_time = Time.now
         when :completed
@@ -355,6 +354,10 @@ module Taski
           progress.clean_end_time = Time.now
           progress.clean_error = error if error
         end
+      end
+
+      def run_state_finalized?(progress)
+        progress.run_state == :completed || progress.run_state == :failed
       end
 
       # Apply state transition to GroupProgress

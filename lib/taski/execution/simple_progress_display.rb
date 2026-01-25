@@ -51,21 +51,9 @@ module Taski
         @tasks[impl_class].is_impl_candidate = false
 
         # Mark the section itself as completed (it's represented by its impl)
-        if @tasks[section_class]
-          @tasks[section_class].run_state = :completed
-        end
+        @tasks[section_class]&.run_state = :completed
 
-        # Collect all dependencies of the selected impl to avoid marking them as skipped
-        selected_deps = collect_all_dependencies(impl_class)
-
-        # Mark unselected candidates and their exclusive subtrees as completed (skipped)
-        candidates = @section_candidates[section_class] || []
-        subtrees = @section_candidate_subtrees[section_class] || {}
-        candidates.each do |candidate|
-          next if candidate == impl_class
-          subtree = subtrees[candidate]
-          mark_subtree_completed(subtree, exclude: selected_deps) if subtree
-        end
+        mark_unselected_candidates_completed(section_class, impl_class)
       end
 
       # Template method: Determine if display should activate
@@ -125,22 +113,33 @@ module Taski
         node[:children].each { |child| collect_section_candidates(child) }
       end
 
+      # Mark unselected candidates and their exclusive subtrees as completed (skipped)
+      def mark_unselected_candidates_completed(section_class, impl_class)
+        selected_deps = collect_all_dependencies(impl_class)
+        candidates = @section_candidates[section_class] || []
+        subtrees = @section_candidate_subtrees[section_class] || {}
+
+        candidates.each do |candidate|
+          next if candidate == impl_class
+          mark_subtree_completed(subtrees[candidate], exclude: selected_deps)
+        end
+      end
+
       # Recursively mark all pending tasks in a subtree as completed (skipped)
       # Only marks :pending tasks to avoid overwriting :running or :completed states
-      # Excludes tasks that are dependencies of the selected impl
       # @param node [Hash] The subtree node
-      # @param exclude [Set<Class>] Set of task classes to exclude from marking
+      # @param exclude [Set<Class>] Set of task classes to exclude (dependencies of selected impl)
       def mark_subtree_completed(node, exclude: Set.new)
         return unless node
 
         task_class = node[:task_class]
-        # Don't mark if this task is needed by the selected impl
-        unless exclude.include?(task_class)
-          progress = @tasks[task_class]
-          progress.run_state = :completed if progress && progress.run_state == :pending
-        end
-
+        mark_task_as_skipped(task_class) unless exclude.include?(task_class)
         node[:children].each { |child| mark_subtree_completed(child, exclude: exclude) }
+      end
+
+      def mark_task_as_skipped(task_class)
+        progress = @tasks[task_class]
+        progress.run_state = :completed if progress&.run_state == :pending
       end
 
       def render_live
@@ -179,46 +178,53 @@ module Taski
       def build_status_line
         running_tasks = @tasks.select { |_, p| p.run_state == :running }
         cleaning_tasks = @tasks.select { |_, p| p.clean_state == :cleaning }
-        # Count both completed and failed tasks as "done"
-        done = @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
-        failed = @tasks.values.count { |p| p.run_state == :failed }
-        total = @tasks.size
-
-        spinner = SPINNER_FRAMES[@spinner_index]
         pending_tasks = @tasks.select { |_, p| p.run_state == :pending }
+        failed_count = @tasks.values.count { |p| p.run_state == :failed }
+        done_count = @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
+
+        status_icon = determine_status_icon(failed_count, running_tasks, cleaning_tasks, pending_tasks)
+        task_names = format_current_task_names(cleaning_tasks, running_tasks, pending_tasks)
+
+        primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
+        output_suffix = build_output_suffix(primary_task)
+
+        build_status_parts(status_icon, done_count, @tasks.size, task_names, output_suffix)
+      end
+
+      def determine_status_icon(failed_count, running_tasks, cleaning_tasks, pending_tasks)
         # Show success only when no failed, running, cleaning, or pending tasks
-        # This prevents showing ✓ briefly when mark_subtree_completed marks tasks
-        status_icon = if failed > 0
+        # This prevents showing checkmark briefly when mark_subtree_completed marks tasks
+        if failed_count > 0
           "#{COLORS[:red]}#{ICONS[:failure]}#{COLORS[:reset]}"
         elsif running_tasks.any? || cleaning_tasks.any? || pending_tasks.any?
+          spinner = SPINNER_FRAMES[@spinner_index]
           "#{COLORS[:yellow]}#{spinner}#{COLORS[:reset]}"
         else
           "#{COLORS[:green]}#{ICONS[:success]}#{COLORS[:reset]}"
         end
+      end
 
-        # Get current task names - prioritize cleaning > running > pending
+      def format_current_task_names(cleaning_tasks, running_tasks, pending_tasks)
+        # Prioritize: cleaning > running > pending
         current_tasks = if cleaning_tasks.any?
-          cleaning_tasks.keys.map { |t| short_name(t) }
+          cleaning_tasks.keys
         elsif running_tasks.any?
-          running_tasks.keys.map { |t| short_name(t) }
+          running_tasks.keys
         elsif pending_tasks.any?
-          # Show pending tasks when nothing is running (waiting for dependencies)
-          pending_tasks.keys.first(3).map { |t| short_name(t) }
+          pending_tasks.keys.first(3)
         else
           []
         end
 
-        task_names = current_tasks.first(3).join(", ")
-        task_names += "..." if current_tasks.size > 3
+        names = current_tasks.first(3).map { |t| short_name(t) }.join(", ")
+        names += "..." if current_tasks.size > 3
+        names
+      end
 
-        # Get last output message if available
-        primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
-        output_suffix = build_output_suffix(primary_task)
-
-        parts = ["#{status_icon} [#{done}/#{total}]"]
-        parts << task_names if task_names && !task_names.empty?
+      def build_status_parts(status_icon, done_count, total, task_names, output_suffix)
+        parts = ["#{status_icon} [#{done_count}/#{total}]"]
+        parts << task_names unless task_names.empty?
         parts << "|" << output_suffix if output_suffix
-
         parts.join(" ")
       end
 
