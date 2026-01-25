@@ -279,11 +279,12 @@ class TestProgressModeConfiguration < Minitest::Test
     assert_equal :tree, Taski.progress_mode
   end
 
-  def test_api_setting_overrides_environment
+  def test_environment_overrides_api_setting
     ENV["TASKI_PROGRESS_MODE"] = "simple"
     Taski.reset_progress_display!
     Taski.progress_mode = :tree
-    assert_equal :tree, Taski.progress_mode
+    # Environment variable takes precedence over code settings
+    assert_equal :simple, Taski.progress_mode
   end
 
   def test_progress_display_returns_tree_display_by_default
