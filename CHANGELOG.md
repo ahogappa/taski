@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-01-26
+
+### Fixed
+- Queue `Taski.message` output until progress display stops to prevent interleaved output ([#133](https://github.com/ahogappa/taski/pull/133))
+- Correct task count display in SimpleProgressDisplay ([#132](https://github.com/ahogappa/taski/pull/132))
+
+### Changed
+- Consolidate examples from 15 to 8 files for better maintainability ([#131](https://github.com/ahogappa/taski/pull/131))
+
 ## [0.8.1] - 2026-01-26
 
 ### Added
