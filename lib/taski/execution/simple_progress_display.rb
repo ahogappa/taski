@@ -49,6 +49,11 @@ module Taski
         @tasks[impl_class] ||= TaskProgress.new
         @tasks[impl_class].is_impl_candidate = false
 
+        # Mark the section itself as completed (it's represented by its impl)
+        if @tasks[section_class]
+          @tasks[section_class].run_state = :completed
+        end
+
         # Mark unselected candidates as completed (skipped)
         candidates = @section_candidates[section_class] || []
         candidates.each do |candidate|
@@ -148,7 +153,8 @@ module Taski
       def build_status_line
         running_tasks = @tasks.select { |_, p| p.run_state == :running }
         cleaning_tasks = @tasks.select { |_, p| p.clean_state == :cleaning }
-        completed = @tasks.values.count { |p| p.run_state == :completed }
+        # Count both completed and failed tasks as "done"
+        done = @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
         failed = @tasks.values.count { |p| p.run_state == :failed }
         total = @tasks.size
 
@@ -174,7 +180,7 @@ module Taski
         # Get last output message if available
         output_suffix = build_output_suffix(running_tasks.keys.first || cleaning_tasks.keys.first)
 
-        parts = ["#{status_icon} [#{completed}/#{total}]"]
+        parts = ["#{status_icon} [#{done}/#{total}]"]
         parts << task_names if task_names && !task_names.empty?
         parts << "|" << output_suffix if output_suffix
 

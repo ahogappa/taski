@@ -75,6 +75,29 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert @display.task_registered?(NestedSection)
   end
 
+  def test_register_section_impl_marks_section_as_completed
+    @display.set_root_task(NestedSection)
+    # Before registration, section should be pending
+    assert_equal :pending, @display.task_state(NestedSection)
+    @display.register_section_impl(NestedSection, NestedSection::LocalDB)
+    # After registration, section itself should be marked as completed
+    # (because it's represented by its selected impl)
+    assert_equal :completed, @display.task_state(NestedSection)
+  end
+
+  def test_register_section_impl_marks_unselected_candidates_as_completed
+    # Use LazyDependencyTest::MySection which references both OptionA and OptionB in impl
+    @display.set_root_task(LazyDependencyTest::MySection)
+    @display.register_section_impl(
+      LazyDependencyTest::MySection,
+      LazyDependencyTest::MySection::OptionB
+    )
+    # Unselected candidate (OptionA) should be marked as completed (skipped)
+    assert_equal :completed, @display.task_state(LazyDependencyTest::MySection::OptionA)
+    # Selected impl should remain in its current state (pending until actually run)
+    assert_equal :pending, @display.task_state(LazyDependencyTest::MySection::OptionB)
+  end
+
   def test_start_and_stop_without_tty
     # When output is not a TTY, start should do nothing
     @display.start
