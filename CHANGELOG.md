@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-01-26
+
+### Added
+- `Taski.message` API for user-facing output during task execution ([#129](https://github.com/ahogappa/taski/pull/129))
+
+### Fixed
+- Count unselected section candidates as completed in SimpleProgressDisplay ([#128](https://github.com/ahogappa/taski/pull/128))
+- Prioritize environment variable over code settings for progress_mode ([#127](https://github.com/ahogappa/taski/pull/127))
+
 ## [0.8.0] - 2026-01-23
 
 ### Added
