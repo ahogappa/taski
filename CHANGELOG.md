@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-01-26
+
+### Fixed
+- Improve progress display accuracy for section candidates ([#136](https://github.com/ahogappa/taski/pull/136))
+
+### Changed
+- Extract helper methods for improved readability ([#136](https://github.com/ahogappa/taski/pull/136))
+
 ## [0.8.2] - 2026-01-26
 
 ### Fixed
