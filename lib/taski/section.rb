@@ -20,7 +20,11 @@ module Taski
 
     def run
       implementation_class = impl
-      return unless implementation_class
+      unless implementation_class
+        # Clear exported values to prevent stale data from leaking
+        self.class.exported_methods.each { |method| instance_variable_set("@#{method}", nil) }
+        return
+      end
 
       # Register runtime dependency for clean phase (before register_impl_selection)
       register_runtime_dependency(implementation_class)
