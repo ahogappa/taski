@@ -20,9 +20,7 @@ module Taski
 
     def run
       implementation_class = impl
-      unless implementation_class
-        raise "Section #{self.class} does not have an implementation. Override 'impl' method."
-      end
+      return unless implementation_class
 
       # Register runtime dependency for clean phase (before register_impl_selection)
       register_runtime_dependency(implementation_class)

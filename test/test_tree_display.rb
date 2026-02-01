@@ -373,6 +373,23 @@ class TestTreeProgressDisplayWithTTY < Minitest::Test
     assert_includes output, "⊘"
   end
 
+  def test_render_shows_all_candidates_as_not_selected_when_no_impl_registered
+    # Set up Section but DO NOT call register_section_impl
+    @display.set_root_task(LazyDependencyTest::MySection)
+    @display.start
+    sleep 0.15
+    @display.stop
+
+    output = @output.string
+
+    # Both OptionA and OptionB should be shown as "not selected"
+    # They should be dimmed (not highlighted)
+    assert_includes output, "OptionA"
+    assert_includes output, "OptionB"
+    # Should have the skipped icon for all unselected impls
+    assert_includes output, "⊘"
+  end
+
   def test_render_final_clears_and_reprints
     @display.set_root_task(FixtureTaskA)
     @display.start
