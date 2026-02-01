@@ -150,6 +150,18 @@ class TestSimpleProgressDisplay < Minitest::Test
     # Should not raise error
     assert true
   end
+
+  def test_section_completed_without_impl_registration
+    @display.set_root_task(NestedSection)
+    # Start section without registering impl
+    @display.update_task(NestedSection, state: :running)
+    @display.update_task(NestedSection, state: :completed)
+
+    # Section should be completed
+    assert_equal :completed, @display.task_state(NestedSection)
+    # Impl candidates should still be pending (never executed)
+    assert_equal :pending, @display.task_state(NestedSection::LocalDB)
+  end
 end
 
 class TestSimpleProgressDisplayWithTTY < Minitest::Test

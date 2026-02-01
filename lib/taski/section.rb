@@ -21,7 +21,9 @@ module Taski
     def run
       implementation_class = impl
       unless implementation_class
-        raise "Section #{self.class} does not have an implementation. Override 'impl' method."
+        # Clear exported values to prevent stale data from leaking
+        self.class.exported_methods.each { |method| instance_variable_set("@#{method}", nil) }
+        return
       end
 
       # Register runtime dependency for clean phase (before register_impl_selection)

@@ -55,8 +55,8 @@ class TestSection < Minitest::Test
     assert_match(/Subclasses must implement the impl method/, error.message)
   end
 
-  # Test Section with nil impl raises error in run
-  def test_section_run_with_nil_impl_raises_error
+  # Test Section with nil impl does nothing
+  def test_section_run_with_nil_impl_does_nothing
     section_class = Class.new(Taski::Section) do
       interfaces :value
 
@@ -65,14 +65,11 @@ class TestSection < Minitest::Test
       end
     end
 
-    # Directly instantiate and call run to test the error
-    section_instance = section_class.allocate
-    section_instance.send(:initialize)
+    # Should not raise an error
+    section_class.run
 
-    error = assert_raises(RuntimeError) do
-      section_instance.run
-    end
-    assert_match(/does not have an implementation/, error.message)
+    # Exported values should be nil
+    assert_nil section_class.value
   end
 
   # Test nested Section (Section inside Section)
@@ -248,6 +245,28 @@ class TestSection < Minitest::Test
 
     # Verify the Section exported value is accessible
     assert_equal "localhost:5432", SectionCleanFixtures::DatabaseSection.connection_string
+  end
+
+  # Test that Section's clean is called even when impl returns nil
+  def test_section_nil_impl_with_run_and_clean
+    clean_called = false
+
+    section_class = Class.new(Taski::Section) do
+      interfaces :value
+
+      def impl
+        nil
+      end
+
+      define_method(:clean) do
+        clean_called = true
+      end
+    end
+
+    section_class.run_and_clean
+
+    assert_nil section_class.value
+    assert clean_called, "Section's clean should be called even when impl is nil"
   end
 
   # ========================================
