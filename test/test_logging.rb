@@ -207,7 +207,7 @@ class TestLogging < Minitest::Test
       end
     end
 
-    threads.each(&:join)
+    threads.each(&:value)
   end
 
   private
@@ -224,5 +224,4 @@ class TestLogging < Minitest::Test
     match = line.match(/\{.*\}/)
     match&.[](0)
   end
-
 end
