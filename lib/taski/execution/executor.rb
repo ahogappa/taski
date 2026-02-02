@@ -104,6 +104,10 @@ module Taski
       # this executor configured it.
       # @param root_task_class [Class] The root task class to execute.
       def execute(root_task_class)
+        start_time = Time.now
+
+        log_execution_started(root_task_class)
+
         # Build dependency graph from static analysis
         @scheduler.build_dependency_graph(root_task_class)
 
@@ -120,6 +124,8 @@ module Taski
           # Shutdown workers
           @worker_pool.shutdown
         end
+
+        log_execution_completed(root_task_class, start_time)
 
         # Raise aggregated errors if any tasks failed
         raise_if_any_failures
@@ -426,6 +432,11 @@ module Taski
         progress = Taski.progress_display
         context.add_observer(progress) if progress
 
+        # Add logger observer if logging is enabled
+        if Taski.logger
+          context.add_observer(Taski::Logging::LoggerObserver.new)
+        end
+
         # Set execution trigger to break circular dependency with TaskWrapper
         context.execution_trigger = ->(task_class, registry) do
           Executor.execute(task_class, registry: registry, execution_context: context)
@@ -437,6 +448,25 @@ module Taski
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
         puts "[Executor] #{message}"
+      end
+
+      def log_execution_started(root_task_class)
+        Taski::Logging.info(
+          Taski::Logging::Events::EXECUTION_STARTED,
+          task: root_task_class.name,
+          worker_count: @worker_pool.worker_count
+        )
+      end
+
+      def log_execution_completed(root_task_class, start_time)
+        duration_ms = ((Time.now - start_time) * 1000).round(1)
+
+        Taski::Logging.info(
+          Taski::Logging::Events::EXECUTION_COMPLETED,
+          task: root_task_class.name,
+          duration_ms: duration_ms,
+          task_count: @scheduler.task_count
+        )
       end
 
       # Raise error(s) if any tasks failed during execution

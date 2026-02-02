@@ -26,7 +26,7 @@ module Taski
     # The Queue handles synchronization between the main thread
     # (which enqueues tasks) and worker threads (which pop tasks).
     class WorkerPool
-      attr_reader :execution_queue
+      attr_reader :execution_queue, :worker_count
 
       # @param registry [Registry] The task registry for thread tracking
       # @param worker_count [Integer, nil] Number of worker threads (defaults to CPU count)

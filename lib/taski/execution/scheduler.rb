@@ -87,7 +87,10 @@ module Taski
           @dependencies[task_class] = deps.dup
           @task_states[task_class] = STATE_PENDING
 
-          deps.each { |dep| queue << dep }
+          deps.each do |dep|
+            log_dependency_resolved(task_class, dep)
+            queue << dep
+          end
         end
       end
 
@@ -137,6 +140,13 @@ module Taski
         @task_states.values.any? { |state| state == STATE_ENQUEUED }
       end
 
+      # Get the total number of tasks in the dependency graph.
+      #
+      # @return [Integer] The number of tasks
+      def task_count
+        @task_states.size
+      end
+
       # ========================================
       # Runtime Dependency Merging
       # ========================================
@@ -158,6 +168,7 @@ module Taski
           to_classes.each do |to_class|
             # Add the dependency relationship
             @dependencies[from_class].add(to_class)
+            log_dependency_resolved(from_class, to_class)
 
             # Add the to_class to the graph if not present
             unless @dependencies.key?(to_class)
@@ -302,6 +313,14 @@ module Taski
       def ready_to_clean?(task_class)
         reverse_deps = @reverse_dependencies[task_class] || Set.new
         reverse_deps.subset?(@clean_completed_tasks)
+      end
+
+      def log_dependency_resolved(from_task, to_task)
+        Taski::Logging.debug(
+          Taski::Logging::Events::DEPENDENCY_RESOLVED,
+          from_task: from_task.name,
+          to_task: to_task.name
+        )
       end
     end
   end

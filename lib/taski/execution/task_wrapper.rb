@@ -356,6 +356,11 @@ module Taski
         progress = Taski.progress_display
         context.add_observer(progress) if progress
 
+        # Add logger observer if logging is enabled
+        if Taski.logger
+          context.add_observer(Taski::Logging::LoggerObserver.new)
+        end
+
         # Set triggers to reuse this context for nested executions
         context.execution_trigger = ->(task_class, registry) do
           Executor.execute(task_class, registry: registry, execution_context: context)

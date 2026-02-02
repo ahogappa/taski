@@ -15,6 +15,7 @@ require_relative "taski/execution/simple_progress_display"
 require_relative "taski/execution/plain_progress_display"
 require_relative "taski/args"
 require_relative "taski/env"
+require_relative "taski/logging"
 
 module Taski
   class TaskAbortException < StandardError
@@ -141,6 +142,19 @@ module Taski
   @args_monitor = Monitor.new
   @env_monitor = Monitor.new
   @message_monitor = Monitor.new
+  @logger_monitor = Monitor.new
+
+  # Get the current logger for structured logging
+  # @return [Logger, nil] The configured logger or nil (disabled by default)
+  def self.logger
+    @logger_monitor.synchronize { @logger }
+  end
+
+  # Set the logger for structured logging
+  # @param logger [Logger, nil] A Ruby Logger instance or nil to disable logging
+  def self.logger=(logger)
+    @logger_monitor.synchronize { @logger = logger }
+  end
 
   # Get the current runtime arguments
   # @return [Args, nil] The current args or nil if no task is running
