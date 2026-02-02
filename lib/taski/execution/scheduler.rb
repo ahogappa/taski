@@ -75,6 +75,14 @@ module Taski
       # Build dependency graph by traversing from root task.
       # Populates internal state with all tasks and their dependencies.
       #
+      # NOTE: This uses cached_dependencies which is overridden by Section to return
+      # an empty set. This is intentional because Scheduler tracks only tasks that
+      # will actually execute, not all possible dependencies.
+      #
+      # For static analysis of ALL possible dependencies (including Section impl
+      # candidates), see StaticAnalysis::DependencyGraph which uses Analyzer.analyze()
+      # directly.
+      #
       # @param root_task_class [Class] The root task class to start from
       def build_dependency_graph(root_task_class)
         # @type var queue: Array[singleton(Taski::Task)]
@@ -144,6 +152,11 @@ module Taski
       # Merge runtime dependencies into the dependency graph.
       # Used to incorporate dynamically selected dependencies (e.g., Section implementations)
       # that were determined during the run phase.
+      #
+      # Section.impl is resolved at runtime, so its implementation task (and
+      # transitive dependencies) must be added dynamically via this method.
+      # This is the key difference from StaticAnalysis::DependencyGraph which
+      # includes all impl candidates statically.
       #
       # This method recursively processes transitive dependencies using BFS,
       # similar to build_dependency_graph. This ensures that all dependencies
