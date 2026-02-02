@@ -243,4 +243,80 @@ class TestScheduler < Minitest::Test
     ready = scheduler.next_ready_clean_tasks
     assert_equal [], ready
   end
+
+  # ========================================
+  # Runtime Dependency Merging Tests
+  # ========================================
+
+  def test_merge_runtime_dependencies_recursively_adds_transitive_deps
+    # Create task classes with explicit cached_dependencies
+    # GrandchildTask - no dependencies
+    grandchild_task = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "grandchild"
+      end
+    end
+    grandchild_task.define_singleton_method(:cached_dependencies) { Set.new }
+
+    # ChildTask depends on GrandchildTask
+    child_task = Class.new(Taski::Task) do
+      exports :result
+      def run
+        @result = "child"
+      end
+    end
+    # ChildTask depends on GrandchildTask (explicit)
+    child_task.define_singleton_method(:cached_dependencies) { Set[grandchild_task] }
+
+    # RuntimeSection - Section always returns empty cached_dependencies
+    runtime_section = Class.new(Taski::Section) do
+      interfaces :result
+    end
+
+    # RootTask depends on RuntimeSection (explicit)
+    root_task = Class.new(Taski::Task) do
+      exports :output
+      def run
+        @output = "root"
+      end
+    end
+    root_task.define_singleton_method(:cached_dependencies) { Set[runtime_section] }
+
+    scheduler = Taski::Execution::Scheduler.new
+    scheduler.build_dependency_graph(root_task)
+    scheduler.build_reverse_dependency_graph(root_task)
+
+    # At this point: RootTask and RuntimeSection are in graph
+    # ChildTask and GrandchildTask are NOT (Section has no static deps)
+    task_states = scheduler.instance_variable_get(:@task_states)
+    assert task_states.key?(root_task), "RootTask should be in task_states"
+    assert task_states.key?(runtime_section), "RuntimeSection should be in task_states"
+    refute task_states.key?(child_task), "ChildTask should NOT be in task_states before merge"
+    refute task_states.key?(grandchild_task), "GrandchildTask should NOT be in task_states before merge"
+
+    # Simulate runtime dependency: RuntimeSection → ChildTask
+    runtime_deps = {runtime_section => Set[child_task]}
+    scheduler.merge_runtime_dependencies(runtime_deps)
+
+    # Re-fetch task_states after merge
+    task_states = scheduler.instance_variable_get(:@task_states)
+
+    # Verify ChildTask is in the graph
+    assert task_states.key?(child_task), "ChildTask should be in task_states after merge"
+
+    # Verify GrandchildTask (transitive dependency) is also in the graph
+    assert task_states.key?(grandchild_task),
+      "GrandchildTask (transitive dep) should be in task_states after merge"
+
+    # Verify reverse dependencies for clean
+    reverse_deps = scheduler.instance_variable_get(:@reverse_dependencies)
+    assert reverse_deps.key?(grandchild_task),
+      "GrandchildTask should have reverse_dependencies entry for clean"
+
+    # Verify clean states
+    clean_states = scheduler.instance_variable_get(:@clean_task_states)
+    assert clean_states.key?(grandchild_task),
+      "GrandchildTask should have clean_task_state for clean"
+  end
 end
