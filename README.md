@@ -334,6 +334,21 @@ TASKI_PROGRESS_MODE=plain ruby your_script.rb
 
 To disable: `TASKI_PROGRESS_DISABLE=1 ruby your_script.rb`
 
+### Custom Progress Display
+
+Build custom progress displays using `ProgressEventSubscriber` for simple callbacks or `ProgressFeatures` modules for full control:
+
+```ruby
+# Simple callback-based logging
+logger = Taski::Execution::ProgressEventSubscriber.new do |events|
+  events.on_task_start { |task, _| puts "[START] #{task.name}" }
+  events.on_task_complete { |task, info| puts "[DONE] #{task.name} (#{info[:duration]}ms)" }
+  events.on_task_fail { |task, info| puts "[FAIL] #{task.name}: #{info[:error]}" }
+end
+```
+
+See [docs/guide.md](docs/guide.md#custom-progress-display) and `examples/custom_progress_demo.rb` for details.
+
 ### Tree Visualization
 
 ```ruby

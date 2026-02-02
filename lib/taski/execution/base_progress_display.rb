@@ -1,13 +1,20 @@
 # frozen_string_literal: true
 
 require "monitor"
+require_relative "progress_features"
 
 module Taski
   module Execution
     # Base class for progress display implementations.
     # Provides common task tracking and lifecycle management.
     # Subclasses override template methods for custom rendering.
+    #
+    # Includes ProgressFeatures modules for common functionality that can also
+    # be used by custom progress displays.
     class BaseProgressDisplay
+      include ProgressFeatures::Formatting
+      include ProgressFeatures::TerminalControl
+
       # Shared task progress tracking
       class TaskProgress
         # Run lifecycle tracking
@@ -269,26 +276,8 @@ module Taski
       end
 
       # Utility methods for subclasses
-
-      # Get short name of a task class
-      def short_name(task_class)
-        return "Unknown" unless task_class
-        task_class.name&.split("::")&.last || task_class.to_s
-      end
-
-      # Format duration for display
-      def format_duration(ms)
-        if ms >= 1000
-          "#{(ms / 1000.0).round(1)}s"
-        else
-          "#{ms.round(1)}ms"
-        end
-      end
-
-      # Check if output is a TTY
-      def tty?
-        @output.tty?
-      end
+      # Note: short_name and format_duration are provided by ProgressFeatures::Formatting
+      # Note: tty? is provided by ProgressFeatures::TerminalControl
 
       # Collect all dependencies of a task class recursively
       # Useful for determining which tasks are needed by a selected implementation

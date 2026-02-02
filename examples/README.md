@@ -131,6 +131,22 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb     # Disabled
 
 ---
 
+### 9. custom_progress_demo.rb - Custom Progress Display
+
+Build custom progress displays using callbacks or full modules.
+
+```bash
+TASKI_PROGRESS_DISABLE=1 ruby examples/custom_progress_demo.rb
+```
+
+**Covers:**
+- `ProgressEventSubscriber` for callback-based logging
+- `ProgressFeatures` modules for custom displays
+- Integrating with ExecutionContext as observer
+- `SpinnerAnimation`, `TerminalControl`, `Formatting`, `ProgressTracking` modules
+
+---
+
 ## Quick Reference
 
 | Example | Feature | Complexity |
@@ -143,6 +159,7 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb     # Disabled
 | group_demo | Output Grouping | Intermediate |
 | message_demo | User Messages | Basic |
 | progress_demo | Progress Display | Advanced |
+| custom_progress_demo | Custom Progress Display | Advanced |
 
 ## Running All Examples
 

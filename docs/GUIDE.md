@@ -368,6 +368,126 @@ When output is redirected, interactive spinners are automatically disabled:
 ruby build.rb > build.log 2>&1
 ```
 
+### Custom Progress Display
+
+Taski provides two layers of customization for progress displays:
+
+1. **ProgressEventSubscriber** - Simple callback-based API for lightweight use cases
+2. **ProgressFeatures modules** - Reusable components for building full custom displays
+
+#### Layer 1: ProgressEventSubscriber
+
+Perfect for logging, notifications, or webhooks. Just register callbacks for the events you care about:
+
+```ruby
+logger = Taski::Execution::ProgressEventSubscriber.new do |events|
+  events.on_execution_start { puts "Execution started" }
+  events.on_execution_stop { puts "Execution completed" }
+
+  events.on_task_start { |task, _| puts "[START] #{task.name}" }
+  events.on_task_complete { |task, info| puts "[DONE] #{task.name} (#{info[:duration]}ms)" }
+  events.on_task_fail { |task, info| puts "[FAIL] #{task.name}: #{info[:error]}" }
+
+  events.on_progress do |summary|
+    percent = (summary[:completed].to_f / summary[:total] * 100).round(0)
+    puts "Progress: #{percent}%"
+  end
+end
+
+# Add as observer to ExecutionContext
+context = Taski::Execution::ExecutionContext.new
+context.add_observer(logger)
+
+old_context = Taski::Execution::ExecutionContext.current
+begin
+  Taski::Execution::ExecutionContext.current = context
+  MyTask.run
+ensure
+  Taski::Execution::ExecutionContext.current = old_context
+end
+```
+
+**Available callbacks:**
+
+| Callback | Arguments | When called |
+|----------|-----------|-------------|
+| `on_execution_start` | none | Execution begins |
+| `on_execution_stop` | none | Execution ends |
+| `on_task_start` | `task_class, info` | Task starts running |
+| `on_task_complete` | `task_class, info` | Task completes successfully |
+| `on_task_fail` | `task_class, info` | Task fails with error |
+| `on_task_skip` | `task_class, info` | Task is skipped |
+| `on_task_cleaning` | `task_class, info` | Task cleanup starts |
+| `on_task_clean_complete` | `task_class, info` | Task cleanup completes |
+| `on_task_clean_fail` | `task_class, info` | Task cleanup fails |
+| `on_group_start` | `task_class, group_name` | Group block starts |
+| `on_group_complete` | `task_class, group_name, info` | Group block ends |
+| `on_progress` | `summary` | Task state changes |
+
+The `info` hash contains `:duration` (milliseconds) and `:error` (Exception) when applicable.
+The `summary` hash contains `:completed`, `:total`, `:running` (array), and `:failed` (array).
+
+#### Layer 2: ProgressFeatures Modules
+
+For full custom displays, mix in these reusable modules:
+
+```ruby
+class MyProgressDisplay
+  include Taski::Execution::ProgressFeatures::SpinnerAnimation
+  include Taski::Execution::ProgressFeatures::TerminalControl
+  include Taski::Execution::ProgressFeatures::Formatting
+  include Taski::Execution::ProgressFeatures::ProgressTracking
+
+  def initialize(output: $stdout)
+    @output = output
+    init_progress_tracking
+  end
+
+  def start
+    hide_cursor
+    start_spinner(frames: %w[- \\ | /], interval: 0.1) { render }
+  end
+
+  def stop
+    stop_spinner
+    show_cursor
+    render_final
+  end
+
+  def update_task(task_class, state:, duration: nil, error: nil)
+    register_task(task_class)
+    update_task_state(task_class, state, duration, error)
+  end
+
+  private
+
+  def render
+    summary = progress_summary
+    line = "#{current_frame} [#{summary[:completed]}/#{summary[:total]}]"
+    clear_line
+    @output.print line
+  end
+
+  def render_final
+    summary = progress_summary
+    @output.puts "\nCompleted: #{summary[:completed]}/#{summary[:total]} tasks"
+  end
+end
+```
+
+**Available modules:**
+
+| Module | Purpose |
+|--------|---------|
+| `SpinnerAnimation` | `start_spinner`, `stop_spinner`, `current_frame` |
+| `TerminalControl` | `hide_cursor`, `show_cursor`, `clear_line`, `tty?`, `terminal_width` |
+| `AnsiColors` | `colorize(text, :red, :bold)`, `status_color(:completed)` |
+| `Formatting` | `short_name(task_class)`, `format_duration(ms)`, `truncate(text, len)` |
+| `TreeRendering` | `each_tree_node(tree)`, `tree_prefix(depth, is_last)` |
+| `ProgressTracking` | `register_task`, `update_task_state`, `progress_summary` |
+
+See `examples/custom_progress_demo.rb` for complete working examples.
+
 ---
 
 ## Debugging

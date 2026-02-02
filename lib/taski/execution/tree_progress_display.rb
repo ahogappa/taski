@@ -211,9 +211,9 @@ module Taski
       # Template method: Called when display starts
       def on_start
         @running = true
-        @output.print "\e[?1049h" # Switch to alternate screen buffer
-        @output.print "\e[H"      # Move cursor to home (top-left)
-        @output.print "\e[?25l"   # Hide cursor
+        use_alternate_buffer
+        move_cursor_home
+        hide_cursor
         @renderer_thread = Thread.new do
           loop do
             break unless @running
@@ -227,8 +227,8 @@ module Taski
       def on_stop
         @running = false
         @renderer_thread&.join
-        @output.print "\e[?25h"   # Show cursor
-        @output.print "\e[?1049l" # Switch back to main screen buffer
+        show_cursor
+        restore_buffer
         render_final
       end
 
@@ -594,31 +594,8 @@ module Taski
         "#{COLORS[:dim]}#{OUTPUT_SEPARATOR}#{truncated}#{COLORS[:reset]}"
       end
 
-      ##
-      # Returns the terminal width in columns.
-      # Defaults to 80 if the output IO doesn't support winsize.
-      # @return [Integer] The terminal width in columns.
-      def terminal_width
-        if @output.respond_to?(:winsize)
-          _, cols = @output.winsize
-          cols || DEFAULT_TERMINAL_WIDTH
-        else
-          DEFAULT_TERMINAL_WIDTH
-        end
-      end
-
-      ##
-      # Returns the terminal height in rows.
-      # Defaults to 24 if the output IO doesn't support winsize.
-      # @return [Integer] The terminal height in rows.
-      def terminal_height
-        if @output.respond_to?(:winsize)
-          rows, _ = @output.winsize
-          rows || DEFAULT_TERMINAL_HEIGHT
-        else
-          DEFAULT_TERMINAL_HEIGHT
-        end
-      end
+      # Note: terminal_width and terminal_height are provided by
+      # ProgressFeatures::TerminalControl (via BaseProgressDisplay)
 
       ##
       # Checks if a class is a Taski::Section subclass.

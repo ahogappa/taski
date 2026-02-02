@@ -64,7 +64,7 @@ module Taski
       # Template method: Called when display starts
       def on_start
         @running = true
-        @output.print "\e[?25l" # Hide cursor
+        hide_cursor
         @renderer_thread = Thread.new do
           loop do
             break unless @running
@@ -78,7 +78,7 @@ module Taski
       def on_stop
         @running = false
         @renderer_thread&.join
-        @output.print "\e[?25h" # Show cursor
+        show_cursor
         render_final
       end
 
