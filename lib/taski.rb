@@ -11,8 +11,8 @@ require_relative "taski/execution/scheduler"
 require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
 require_relative "taski/execution/tree_progress_display"
-require_relative "taski/execution/simple_progress_display"
-require_relative "taski/execution/plain_progress_display"
+require_relative "taski/progress/layout/plain"
+require_relative "taski/progress/layout/simple"
 require_relative "taski/args"
 require_relative "taski/env"
 require_relative "taski/logging"
@@ -290,9 +290,9 @@ module Taski
   def self.create_progress_display
     case progress_mode
     when :simple
-      Execution::SimpleProgressDisplay.new
+      Progress::Layout::Simple.new
     when :plain
-      Execution::PlainProgressDisplay.new
+      Progress::Layout::Plain.new
     else
       Execution::TreeProgressDisplay.new
     end

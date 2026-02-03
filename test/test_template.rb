@@ -1,0 +1,329 @@
+# frozen_string_literal: true
+
+require "test_helper"
+require "liquid"
+require "taski/progress/template/base"
+require "taski/progress/template/default"
+require "taski/progress/layout/filters"
+require "taski/progress/layout/tags"
+require "taski/progress/layout/template_drop"
+
+class TestTemplate < Minitest::Test
+  def setup
+    @template = Taski::Progress::Template::Default.new
+    @template_drop = Taski::Progress::Layout::TemplateDrop.new(@template)
+    @environment = Liquid::Environment.build do |env|
+      env.register_filter(Taski::Progress::Layout::ColorFilter)
+      env.register_tag("spinner", Taski::Progress::Layout::SpinnerTag)
+      env.register_tag("icon", Taski::Progress::Layout::IconTag)
+    end
+  end
+
+  # === Task lifecycle templates ===
+
+  def test_task_start_returns_liquid_template_string
+    result = @template.task_start
+    assert_includes result, "{{ task_name }}"
+  end
+
+  def test_task_start_renders_with_task_name
+    template_string = @template.task_start
+    rendered = render_template(template_string, "task_name" => "MyTask")
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "[START]"
+  end
+
+  def test_task_success_returns_liquid_template_string
+    result = @template.task_success
+    assert_includes result, "{{ task_name }}"
+  end
+
+  def test_task_success_renders_without_duration
+    template_string = @template.task_success
+    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => nil)
+    assert_includes rendered, "[DONE] MyTask"
+    refute_includes rendered, "()"
+  end
+
+  def test_task_success_renders_with_duration
+    template_string = @template.task_success
+    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => 123)
+    assert_includes rendered, "[DONE] MyTask (123ms)"
+  end
+
+  def test_task_fail_returns_liquid_template_string
+    result = @template.task_fail
+    assert_includes result, "{{ task_name }}"
+  end
+
+  def test_task_fail_renders_without_error
+    template_string = @template.task_fail
+    rendered = render_template(template_string, "task_name" => "MyTask", "error_message" => nil)
+    assert_includes rendered, "[FAIL] MyTask"
+    refute_includes rendered, ":"
+  end
+
+  def test_task_fail_renders_with_error
+    template_string = @template.task_fail
+    rendered = render_template(template_string, "task_name" => "MyTask", "error_message" => "Something went wrong")
+    assert_includes rendered, "[FAIL] MyTask: Something went wrong"
+  end
+
+  # === Clean lifecycle templates ===
+
+  def test_clean_start_returns_liquid_template_string
+    result = @template.clean_start
+    assert_includes result, "{{ task_name }}"
+    assert_includes result, "[CLEAN]"
+  end
+
+  def test_clean_success_renders_with_duration
+    template_string = @template.clean_success
+    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => 50)
+    assert_includes rendered, "[CLEAN DONE] MyTask (50ms)"
+  end
+
+  def test_clean_fail_renders_with_error
+    template_string = @template.clean_fail
+    rendered = render_template(template_string, "task_name" => "MyTask", "error_message" => "Cleanup failed")
+    assert_includes rendered, "[CLEAN FAIL] MyTask: Cleanup failed"
+  end
+
+  # === Group lifecycle templates ===
+
+  def test_group_start_returns_liquid_template_string
+    result = @template.group_start
+    assert_includes result, "{{ task_name }}"
+    assert_includes result, "{{ group_name }}"
+  end
+
+  def test_group_start_renders_correctly
+    template_string = @template.group_start
+    rendered = render_template(template_string, "task_name" => "MyTask", "group_name" => "build")
+    assert_includes rendered, "[GROUP] MyTask#build"
+  end
+
+  def test_group_success_renders_with_duration
+    template_string = @template.group_success
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "group_name" => "build",
+      "duration" => 200)
+    assert_includes rendered, "[GROUP DONE] MyTask#build (200ms)"
+  end
+
+  def test_group_fail_renders_with_error
+    template_string = @template.group_fail
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "group_name" => "build",
+      "error_message" => "Build failed")
+    assert_includes rendered, "[GROUP FAIL] MyTask#build: Build failed"
+  end
+
+  # === Execution lifecycle templates ===
+
+  def test_execution_start_returns_liquid_template_string
+    result = @template.execution_start
+    assert_includes result, "{{ root_task_name }}"
+    assert_includes result, "[TASKI]"
+  end
+
+  def test_execution_start_renders_correctly
+    template_string = @template.execution_start
+    rendered = render_template(template_string, "root_task_name" => "BuildTask")
+    assert_includes rendered, "[TASKI] Starting BuildTask"
+  end
+
+  def test_execution_complete_renders_with_stats
+    template_string = @template.execution_complete
+    rendered = render_template(template_string,
+      "completed" => 5,
+      "total" => 5,
+      "duration" => 1234)
+    assert_includes rendered, "[TASKI] Completed: 5/5 tasks (1.2s)"
+  end
+
+  def test_execution_fail_renders_with_stats
+    template_string = @template.execution_fail
+    rendered = render_template(template_string,
+      "failed" => 2,
+      "total" => 5,
+      "duration" => 1234)
+    assert_includes rendered, "[TASKI] Failed: 2/5 tasks (1.2s)"
+  end
+
+  # === Template::Base as abstract base class ===
+
+  def test_base_provides_default_implementations
+    base = Taski::Progress::Template::Base.new
+    assert_kind_of String, base.task_start
+    assert_kind_of String, base.task_success
+    assert_kind_of String, base.task_fail
+  end
+
+  # === Spinner configuration ===
+
+  def test_spinner_frames_returns_array
+    result = @template.spinner_frames
+    assert_kind_of Array, result
+  end
+
+  def test_spinner_frames_returns_non_empty_array
+    result = @template.spinner_frames
+    refute_empty result
+  end
+
+  def test_spinner_frames_contains_braille_characters
+    result = @template.spinner_frames
+    assert_equal %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏], result
+  end
+
+  def test_render_interval_returns_numeric
+    result = @template.render_interval
+    assert_kind_of Numeric, result
+  end
+
+  def test_render_interval_default_is_0_1
+    result = @template.render_interval
+    assert_in_delta 0.1, result, 0.001
+  end
+
+  # === Icon configuration ===
+
+  def test_icon_success_returns_string
+    result = @template.icon_success
+    assert_kind_of String, result
+  end
+
+  def test_icon_success_default_is_checkmark
+    result = @template.icon_success
+    assert_equal "✓", result
+  end
+
+  def test_icon_failure_returns_string
+    result = @template.icon_failure
+    assert_kind_of String, result
+  end
+
+  def test_icon_failure_default_is_x
+    result = @template.icon_failure
+    assert_equal "✗", result
+  end
+
+  def test_icon_pending_returns_string
+    result = @template.icon_pending
+    assert_kind_of String, result
+  end
+
+  def test_icon_pending_default_is_circle
+    result = @template.icon_pending
+    assert_equal "○", result
+  end
+
+  # === Color configuration (ANSI codes) ===
+
+  def test_color_green_returns_ansi_code
+    result = @template.color_green
+    assert_equal "\e[32m", result
+  end
+
+  def test_color_red_returns_ansi_code
+    result = @template.color_red
+    assert_equal "\e[31m", result
+  end
+
+  def test_color_yellow_returns_ansi_code
+    result = @template.color_yellow
+    assert_equal "\e[33m", result
+  end
+
+  def test_color_reset_returns_ansi_code
+    result = @template.color_reset
+    assert_equal "\e[0m", result
+  end
+
+  # === Status line templates (Base/Default - plain without spinner/icon) ===
+
+  def test_status_running_returns_liquid_template_string
+    result = @template.status_running
+    assert_kind_of String, result
+    assert_includes result, "done_count"
+    assert_includes result, "total"
+  end
+
+  def test_status_running_renders_correctly
+    template_string = @template.status_running
+    rendered = render_template(template_string,
+      "done_count" => 3,
+      "total" => 5,
+      "task_names" => "DeployTask",
+      "output_suffix" => "Uploading files...")
+    assert_includes rendered, "[3/5]"
+    assert_includes rendered, "DeployTask"
+    assert_includes rendered, "Uploading files..."
+  end
+
+  def test_status_running_renders_without_optional_variables
+    template_string = @template.status_running
+    rendered = render_template(template_string,
+      "done_count" => 0,
+      "total" => 5,
+      "task_names" => nil,
+      "output_suffix" => nil)
+    assert_includes rendered, "[0/5]"
+    refute_includes rendered, "|"
+  end
+
+  def test_status_complete_returns_liquid_template_string
+    result = @template.status_complete
+    assert_kind_of String, result
+    assert_includes result, "duration"
+  end
+
+  def test_status_complete_renders_correctly
+    template_string = @template.status_complete
+    rendered = render_template(template_string,
+      "done_count" => 5,
+      "total" => 5,
+      "duration" => 1234)
+    assert_includes rendered, "[5/5]"
+    assert_includes rendered, "1.2s"
+  end
+
+  def test_status_failed_returns_liquid_template_string
+    result = @template.status_failed
+    assert_kind_of String, result
+    assert_includes result, "{{ failed_task_name }}"
+  end
+
+  def test_status_failed_renders_correctly
+    template_string = @template.status_failed
+    rendered = render_template(template_string,
+      "done_count" => 3,
+      "total" => 5,
+      "failed_task_name" => "DeployTask",
+      "error_message" => "Connection refused")
+    assert_includes rendered, "[3/5]"
+    assert_includes rendered, "DeployTask failed"
+    assert_includes rendered, "Connection refused"
+  end
+
+  def test_status_failed_renders_without_error_message
+    template_string = @template.status_failed
+    rendered = render_template(template_string,
+      "done_count" => 3,
+      "total" => 5,
+      "failed_task_name" => "DeployTask",
+      "error_message" => nil)
+    assert_includes rendered, "DeployTask failed"
+    refute_includes rendered, ":"
+  end
+
+  private
+
+  def render_template(template_string, variables)
+    context_vars = variables.merge("template" => @template_drop)
+    Liquid::Template.parse(template_string, environment: @environment).render(context_vars)
+  end
+end

@@ -7,7 +7,7 @@ class TestSimpleProgressDisplay < Minitest::Test
   def setup
     Taski.reset_progress_display!
     @output = StringIO.new
-    @display = Taski::Execution::SimpleProgressDisplay.new(output: @output)
+    @display = Taski::Progress::Layout::Simple.new(output: @output)
   end
 
   def teardown
@@ -183,7 +183,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def setup
     Taski.reset_progress_display!
     @output = TTYStringIO.new
-    @display = Taski::Execution::SimpleProgressDisplay.new(output: @output)
+    @display = Taski::Progress::Layout::Simple.new(output: @output)
   end
 
   def teardown
@@ -239,10 +239,10 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
     @display.set_root_task(FixtureTaskB)
     @display.start
     @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
-    sleep 0.05
+    @display.stop
 
     output = @output.string
-    # Should show x mark or failure indication
+    # X mark should appear in final render after stop
     assert_match(/[✗✕×]/, output)
   end
 
@@ -349,7 +349,7 @@ class TestProgressModeConfiguration < Minitest::Test
     ENV.delete("TASKI_PROGRESS_DISABLE")
     Taski.progress_mode = :simple
     display = Taski.progress_display
-    assert_instance_of Taski::Execution::SimpleProgressDisplay, display
+    assert_instance_of Taski::Progress::Layout::Simple, display
   end
 
   def test_progress_display_returns_nil_when_disabled

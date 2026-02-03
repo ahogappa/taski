@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     taski (0.8.3)
+      liquid (~> 5.0)
       prism (~> 1.4)
       tsort
 
@@ -48,6 +49,9 @@ GEM
     json (2.18.0)
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
+    liquid (5.11.0)
+      bigdecimal
+      strscan (>= 3.1.1)
     listen (3.9.0)
       rb-fsevent (~> 0.10, >= 0.10.3)
       rb-inotify (~> 0.9, >= 0.9.10)
