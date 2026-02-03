@@ -39,12 +39,10 @@ module Taski
           attr_accessor :run_state, :clean_state
           attr_accessor :run_duration, :run_error
           attr_accessor :clean_duration, :clean_error
-          attr_accessor :is_impl_candidate
 
           def initialize
             @run_state = :pending
             @clean_state = nil
-            @is_impl_candidate = false
           end
 
           # Returns the most relevant state for display

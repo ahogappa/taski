@@ -50,7 +50,6 @@ module Taski
 
         def on_section_impl_registered(section_class, impl_class)
           @tasks[impl_class] ||= TaskState.new
-          @tasks[impl_class].is_impl_candidate = false
 
           # Mark the section itself as completed (represented by its impl)
           @tasks[section_class]&.run_state = :completed
@@ -114,7 +113,6 @@ module Taski
 
           task_class = node[:task_class]
           @tasks[task_class] ||= TaskState.new
-          @tasks[task_class].is_impl_candidate = true if node[:is_impl_candidate]
 
           node[:children].each { |child| register_tasks_from_tree(child) }
         end
