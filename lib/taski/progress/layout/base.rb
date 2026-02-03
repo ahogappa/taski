@@ -612,6 +612,8 @@ module Taski
         end
 
         # === Tree building helpers ===
+        # TODO: Move to ExecutionContext (see #149)
+        # These methods are here temporarily. Layout should not analyze task dependencies.
 
         # Build a tree structure from a root task class.
         # @param task_class [Class] The root task class

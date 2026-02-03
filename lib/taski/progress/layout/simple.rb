@@ -84,6 +84,10 @@ module Taski
 
         private
 
+        # TODO: Move tree building logic to ExecutionContext (see #149)
+        # Layout should not be responsible for analyzing task dependencies.
+        # ExecutionContext should pre-register all tasks before execution.
+
         def build_tree_structure
           return unless @root_task_class
 
@@ -92,7 +96,6 @@ module Taski
           collect_section_candidates(tree)
         end
 
-        # Register all tasks from a tree structure recursively
         def register_tasks_from_tree(node)
           return unless node
 
@@ -107,13 +110,11 @@ module Taski
 
           task_class = node[:task_class]
 
-          # If this is a section, collect its implementation candidates and their subtrees
           if node[:is_section]
             candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
             candidates = candidate_nodes.map { |c| c[:task_class] }
             @section_candidates[task_class] = candidates unless candidates.empty?
 
-            # Store subtrees for each candidate
             subtrees = {}
             candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
             @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
