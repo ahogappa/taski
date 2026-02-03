@@ -48,15 +48,6 @@ module Taski
           build_tree_structure
         end
 
-        def on_section_impl_registered(section_class, impl_class)
-          @tasks[impl_class] ||= TaskState.new
-
-          # Mark the section itself as completed (represented by its impl)
-          @tasks[section_class]&.run_state = :completed
-
-          mark_unselected_candidates_completed(section_class, impl_class)
-        end
-
         # Simple layout uses periodic status line updates instead of per-event output
         def on_task_updated(_task_class, _state, _duration, _error)
           # No per-event output; status line is updated by render_live
