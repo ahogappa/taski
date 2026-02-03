@@ -643,7 +643,7 @@ module Taski
           return node if is_circular
 
           new_ancestors = ancestors + [task_class]
-          dependencies = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
+          dependencies = get_task_dependencies(task_class)
           is_section = section_class?(task_class)
 
           dependencies.each do |dep|
@@ -653,6 +653,22 @@ module Taski
           end
 
           node
+        end
+
+        # Get dependencies for a task class.
+        # Tries static analysis first, falls back to cached_dependencies.
+        # @param task_class [Class] The task class
+        # @return [Array<Class>] Array of dependency classes
+        def get_task_dependencies(task_class)
+          deps = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
+          return deps unless deps.empty?
+
+          # Fallback to cached_dependencies for test stubs
+          if task_class.respond_to?(:cached_dependencies)
+            task_class.cached_dependencies
+          else
+            []
+          end
         end
 
         # Check if a class is a Taski::Section subclass.
