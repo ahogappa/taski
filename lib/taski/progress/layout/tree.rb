@@ -9,20 +9,25 @@ module Taski
       # Tree layout for hierarchical task display.
       # Renders tasks in a tree structure with visual connectors (├──, └──, │).
       #
-      # Output format:
-      #   ├── [START] DatabaseSection
-      #   │   ├── [START] CreateTable
-      #   │   ├── [DONE] CreateTable (45ms)
-      #   │   └── [START] MigrateData
-      #   └── [START] ApiSection
-      #       ├── [DONE] SetupRoutes (12ms)
-      #       └── [FAIL] AuthHandler: Connection refused
+      # Operates in two modes:
+      # - TTY mode: Periodic full-tree refresh with spinner animation
+      # - Non-TTY mode: Incremental output with tree prefixes (for logs/tests)
+      #
+      # Output format (live updating):
+      #   BuildApplication
+      #   ├── ⠹ DatabaseSection
+      #   │   ├── ✓ ProductionDB (50ms)
+      #   │   └── ⠹ DevelopmentDB
+      #   ├── ○ ExtractLayers
+      #   │   ├── ✓ DownloadLayer1 (100ms)
+      #   │   └── ○ DownloadLayer2
+      #   └── ✓ RunSystemCommand (200ms)
       #
       # The tree structure (prefixes) is added by this Layout.
-      # The task content ([START], [DONE], [FAIL], etc.) comes from the Template.
+      # The task content (icons, names, duration) comes from the Template.
       #
       # This demonstrates the Template/Layout separation:
-      # - Template defines "what one line looks like" (task_start, task_success, etc.)
+      # - Template defines "what one line looks like" (icons, colors, formatting)
       # - Layout defines "how lines are arranged" (tree structure, prefixes)
       #
       # @example Using with Template::Default
@@ -40,6 +45,53 @@ module Taski
           @tree_nodes = {}
           @node_depths = {}
           @node_is_last = {}
+          @renderer_thread = nil
+          @running = false
+          @running_mutex = Mutex.new
+          @last_line_count = 0
+          @non_tty_started = false
+        end
+
+        # Override start to handle non-TTY mode
+        def start
+          @monitor.synchronize do
+            @nest_level += 1
+            return if @nest_level > 1
+
+            @start_time = Time.now
+
+            if should_activate?
+              @active = true
+            else
+              # Non-TTY mode: output execution start message
+              @non_tty_started = true
+              output_line(render_execution_started(@root_task_class)) if @root_task_class
+            end
+          end
+
+          on_start if @active
+        end
+
+        # Override stop to handle non-TTY mode
+        def stop
+          was_active = false
+          non_tty_was_started = false
+          @monitor.synchronize do
+            @nest_level -= 1 if @nest_level > 0
+            return unless @nest_level == 0
+            was_active = @active
+            non_tty_was_started = @non_tty_started
+            @active = false
+            @non_tty_started = false
+          end
+
+          if was_active
+            on_stop
+          elsif non_tty_was_started
+            # Non-TTY mode: output execution summary
+            output_execution_summary
+          end
+          flush_queued_messages
         end
 
         protected
@@ -48,28 +100,68 @@ module Taski
           build_tree_structure
         end
 
+        # In TTY mode, tree is updated by render_live periodically.
+        # In non-TTY mode, output lines immediately with tree prefix.
         def on_task_updated(task_class, state, duration, error)
-          text = render_for_task_event(task_class, state, duration, error)
-          return unless text
+          return if @active  # TTY mode: skip per-event output
 
-          prefix = build_tree_prefix(task_class)
-          output_line("#{prefix}#{text}")
+          # Non-TTY mode: output with tree prefix
+          text = render_for_task_event(task_class, state, duration, error)
+          output_with_prefix(task_class, text) if text
         end
 
         def on_group_updated(task_class, group_name, state, duration, error)
-          text = render_for_group_event(task_class, group_name, state, duration, error)
-          return unless text
+          return if @active  # TTY mode: skip per-event output
 
+          # Non-TTY mode: output with tree prefix
+          text = render_for_group_event(task_class, group_name, state, duration, error)
+          output_with_prefix(task_class, text) if text
+        end
+
+        def should_activate?
+          force_progress? || tty?
+        end
+
+        def on_start
+          @running_mutex.synchronize { @running = true }
+          start_spinner_timer
+          @output.print "\e[?25l" # Hide cursor
+          @renderer_thread = Thread.new do
+            loop do
+              break unless @running_mutex.synchronize { @running }
+              render_live
+              sleep @template.render_interval
+            end
+          end
+        end
+
+        def on_stop
+          @running_mutex.synchronize { @running = false }
+          @renderer_thread&.join
+          stop_spinner_timer
+          @output.print "\e[?25h" # Show cursor
+          render_final
+        end
+
+        private
+
+        # Output text with tree prefix for the given task
+        def output_with_prefix(task_class, text)
           prefix = build_tree_prefix(task_class)
           output_line("#{prefix}#{text}")
         end
 
-        def on_start
-          return unless @root_task_class
-          output_line(render_execution_started(@root_task_class))
-        end
+        # Output execution summary for non-TTY mode
+        def output_execution_summary
+          duration = total_duration
 
-        private
+          text = if failed_count > 0
+            render_execution_failed(failed: failed_count, total: total_count, duration: duration)
+          else
+            render_execution_completed(completed: completed_count, total: total_count, duration: duration)
+          end
+          output_line(text)
+        end
 
         def build_tree_structure
           return unless @root_task_class
@@ -96,22 +188,81 @@ module Taski
           end
         end
 
-        def collect_section_candidates(node)
+        def render_live
+          @monitor.synchronize do
+            lines = build_tree_lines
+            clear_previous_output
+            lines.each { |line| @output.puts line }
+            @output.flush
+            @last_line_count = lines.size
+          end
+        end
+
+        def render_final
+          @monitor.synchronize do
+            lines = build_tree_lines
+            clear_previous_output
+
+            lines.each { |line| @output.puts line }
+
+            # Add summary line
+            summary = if failed_count > 0
+              render_execution_failed(failed: failed_count, total: total_count, duration: total_duration)
+            else
+              render_execution_completed(completed: completed_count, total: total_count, duration: total_duration)
+            end
+            @output.puts summary
+            @output.flush
+          end
+        end
+
+        def clear_previous_output
+          return if @last_line_count == 0
+          # Move cursor up and clear lines
+          @output.print "\e[#{@last_line_count}A\e[J"
+        end
+
+        def build_tree_lines
+          return [] unless @root_task_class
+
+          lines = []
+          root_node = @tree_nodes[@root_task_class]
+          build_node_lines(root_node, lines)
+          lines
+        end
+
+        def build_node_lines(node, lines)
           return unless node
 
           task_class = node[:task_class]
+          prefix = build_tree_prefix(task_class)
+          content = build_task_content(task_class)
+          lines << "#{prefix}#{content}"
 
-          if node[:is_section]
-            candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
-            candidates = candidate_nodes.map { |c| c[:task_class] }
-            @section_candidates[task_class] = candidates unless candidates.empty?
-
-            subtrees = {}
-            candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
-            @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
+          node[:children].each do |child|
+            build_node_lines(child, lines)
           end
+        end
 
-          node[:children].each { |child| collect_section_candidates(child) }
+        def build_task_content(task_class)
+          state = @tasks[task_class]
+          name = short_name(task_class)
+
+          case state&.run_state
+          when :running
+            spinner = @template.spinner_frames[@spinner_index]
+            "#{spinner} #{name}"
+          when :completed
+            duration = state.run_duration
+            duration_str = duration ? " (#{format_duration(duration)})" : ""
+            "#{@template.color_green}#{@template.icon_success}#{@template.color_reset} #{name}#{duration_str}"
+          when :failed
+            error_msg = state.run_error&.message
+            error_str = error_msg ? ": #{error_msg}" : ""
+            "#{@template.color_red}#{@template.icon_failure}#{@template.color_reset} #{name}#{error_str}"
+          else
+            "#{@template.icon_pending} #{name}"
+          end
         end
 
         def build_tree_prefix(task_class)
@@ -126,7 +277,6 @@ module Taski
 
           prefix = ""
           # Skip the first ancestor (root) since root has no visual prefix
-          # ancestors_last[0] is root's is_last, which we don't display
           ancestors_last[1..].each do |ancestor_is_last|
             prefix += ancestor_is_last ? SPACE : VERTICAL
           end

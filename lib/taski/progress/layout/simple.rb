@@ -59,7 +59,7 @@ module Taski
         end
 
         def should_activate?
-          tty?
+          force_progress? || tty?
         end
 
         def on_start
@@ -104,24 +104,6 @@ module Taski
           @tasks[task_class] ||= TaskState.new
 
           node[:children].each { |child| register_tasks_from_tree(child) }
-        end
-
-        def collect_section_candidates(node)
-          return unless node
-
-          task_class = node[:task_class]
-
-          if node[:is_section]
-            candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
-            candidates = candidate_nodes.map { |c| c[:task_class] }
-            @section_candidates[task_class] = candidates unless candidates.empty?
-
-            subtrees = {}
-            candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
-            @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
-          end
-
-          node[:children].each { |child| collect_section_candidates(child) }
         end
 
         def render_live

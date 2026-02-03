@@ -509,6 +509,11 @@ module Taski
           @output.tty?
         end
 
+        # Check if progress display should be forced regardless of TTY
+        def force_progress?
+          ENV["TASKI_FORCE_PROGRESS"] == "1"
+        end
+
         # Collect all dependencies of a task class recursively
         # @param task_class [Class] The task class
         # @return [Set<Class>] Set of all dependency task classes
@@ -624,6 +629,27 @@ module Taski
         # === Tree building helpers ===
         # TODO: Move to ExecutionContext (see #149)
         # These methods are here temporarily. Layout should not analyze task dependencies.
+
+        # Collect section candidates from a tree structure.
+        # Populates @section_candidates and @section_candidate_subtrees.
+        # @param node [Hash] Tree node
+        def collect_section_candidates(node)
+          return unless node
+
+          task_class = node[:task_class]
+
+          if node[:is_section]
+            candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
+            candidates = candidate_nodes.map { |c| c[:task_class] }
+            @section_candidates[task_class] = candidates unless candidates.empty?
+
+            subtrees = {}
+            candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
+            @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
+          end
+
+          node[:children].each { |child| collect_section_candidates(child) }
+        end
 
         # Build a tree structure from a root task class.
         # @param task_class [Class] The root task class
