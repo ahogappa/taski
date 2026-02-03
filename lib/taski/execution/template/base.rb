@@ -106,6 +106,89 @@ module Taski
         def execution_fail
           "[TASKI] Failed: {{ failed }}/{{ total }} tasks ({{ duration }}ms)"
         end
+
+        # === Configuration data for Simple layout ===
+
+        # Spinner animation frames
+        # @return [Array<String>] Array of spinner frame characters
+        def spinner_frames
+          %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]
+        end
+
+        # Spinner update interval in seconds
+        # @return [Float] Interval between spinner frame updates
+        def render_interval
+          0.1
+        end
+
+        # === Icon configuration ===
+
+        # Icon for successful completion
+        # @return [String] Success icon
+        def icon_success
+          "✓"
+        end
+
+        # Icon for failure
+        # @return [String] Failure icon
+        def icon_failure
+          "✗"
+        end
+
+        # Icon for pending state
+        # @return [String] Pending icon
+        def icon_pending
+          "○"
+        end
+
+        # === Color configuration (ANSI codes) ===
+
+        # Green color ANSI escape code
+        # @return [String] ANSI code for green
+        def color_green
+          "\e[32m"
+        end
+
+        # Red color ANSI escape code
+        # @return [String] ANSI code for red
+        def color_red
+          "\e[31m"
+        end
+
+        # Yellow color ANSI escape code
+        # @return [String] ANSI code for yellow
+        def color_yellow
+          "\e[33m"
+        end
+
+        # Reset color ANSI escape code
+        # @return [String] ANSI code to reset color
+        def color_reset
+          "\e[0m"
+        end
+
+        # === Simple layout status line templates ===
+
+        # Template for running status line
+        # Available variables: spinner, done_count, total, task_names (optional), output_suffix (optional)
+        # @return [String] Liquid template string
+        def simple_status_running
+          "{{ spinner }} [{{ done_count }}/{{ total }}]{% if task_names %} {{ task_names }}{% endif %}{% if output_suffix %} | {{ output_suffix }}{% endif %}"
+        end
+
+        # Template for completed status line
+        # Available variables: icon, done_count, total, duration
+        # @return [String] Liquid template string
+        def simple_status_complete
+          "{{ icon }} [{{ done_count }}/{{ total }}] All tasks completed ({{ duration }}ms)"
+        end
+
+        # Template for failed status line
+        # Available variables: icon, done_count, total, failed_task_name, error_message (optional)
+        # @return [String] Liquid template string
+        def simple_status_failed
+          "{{ icon }} [{{ done_count }}/{{ total }}] {{ failed_task_name }} failed{% if error_message %}: {{ error_message }}{% endif %}"
+        end
       end
     end
   end

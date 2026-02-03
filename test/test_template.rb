@@ -153,6 +153,176 @@ class TestTemplate < Minitest::Test
     assert_kind_of String, base.task_fail
   end
 
+  # === Spinner configuration ===
+
+  def test_spinner_frames_returns_array
+    result = @template.spinner_frames
+    assert_kind_of Array, result
+  end
+
+  def test_spinner_frames_returns_non_empty_array
+    result = @template.spinner_frames
+    refute_empty result
+  end
+
+  def test_spinner_frames_contains_braille_characters
+    result = @template.spinner_frames
+    assert_equal %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏], result
+  end
+
+  def test_render_interval_returns_numeric
+    result = @template.render_interval
+    assert_kind_of Numeric, result
+  end
+
+  def test_render_interval_default_is_0_1
+    result = @template.render_interval
+    assert_in_delta 0.1, result, 0.001
+  end
+
+  # === Icon configuration ===
+
+  def test_icon_success_returns_string
+    result = @template.icon_success
+    assert_kind_of String, result
+  end
+
+  def test_icon_success_default_is_checkmark
+    result = @template.icon_success
+    assert_equal "✓", result
+  end
+
+  def test_icon_failure_returns_string
+    result = @template.icon_failure
+    assert_kind_of String, result
+  end
+
+  def test_icon_failure_default_is_x
+    result = @template.icon_failure
+    assert_equal "✗", result
+  end
+
+  def test_icon_pending_returns_string
+    result = @template.icon_pending
+    assert_kind_of String, result
+  end
+
+  def test_icon_pending_default_is_circle
+    result = @template.icon_pending
+    assert_equal "○", result
+  end
+
+  # === Color configuration (ANSI codes) ===
+
+  def test_color_green_returns_ansi_code
+    result = @template.color_green
+    assert_equal "\e[32m", result
+  end
+
+  def test_color_red_returns_ansi_code
+    result = @template.color_red
+    assert_equal "\e[31m", result
+  end
+
+  def test_color_yellow_returns_ansi_code
+    result = @template.color_yellow
+    assert_equal "\e[33m", result
+  end
+
+  def test_color_reset_returns_ansi_code
+    result = @template.color_reset
+    assert_equal "\e[0m", result
+  end
+
+  # === Simple status line templates ===
+
+  def test_simple_status_running_returns_liquid_template_string
+    result = @template.simple_status_running
+    assert_kind_of String, result
+    assert_includes result, "{{ spinner }}"
+    assert_includes result, "{{ done_count }}"
+    assert_includes result, "{{ total }}"
+  end
+
+  def test_simple_status_running_renders_correctly
+    template_string = @template.simple_status_running
+    rendered = render_template(template_string,
+      "spinner" => "⠹",
+      "done_count" => 3,
+      "total" => 5,
+      "task_names" => "DeployTask",
+      "output_suffix" => "Uploading files...")
+    assert_includes rendered, "⠹"
+    assert_includes rendered, "[3/5]"
+    assert_includes rendered, "DeployTask"
+    assert_includes rendered, "Uploading files..."
+  end
+
+  def test_simple_status_running_renders_without_optional_variables
+    template_string = @template.simple_status_running
+    rendered = render_template(template_string,
+      "spinner" => "⠹",
+      "done_count" => 0,
+      "total" => 5,
+      "task_names" => nil,
+      "output_suffix" => nil)
+    assert_includes rendered, "⠹"
+    assert_includes rendered, "[0/5]"
+    refute_includes rendered, "|"
+  end
+
+  def test_simple_status_complete_returns_liquid_template_string
+    result = @template.simple_status_complete
+    assert_kind_of String, result
+    assert_includes result, "{{ icon }}"
+    assert_includes result, "{{ duration }}"
+  end
+
+  def test_simple_status_complete_renders_correctly
+    template_string = @template.simple_status_complete
+    rendered = render_template(template_string,
+      "icon" => "✓",
+      "done_count" => 5,
+      "total" => 5,
+      "duration" => 1234)
+    assert_includes rendered, "✓"
+    assert_includes rendered, "[5/5]"
+    assert_includes rendered, "1234ms"
+  end
+
+  def test_simple_status_failed_returns_liquid_template_string
+    result = @template.simple_status_failed
+    assert_kind_of String, result
+    assert_includes result, "{{ icon }}"
+    assert_includes result, "{{ failed_task_name }}"
+  end
+
+  def test_simple_status_failed_renders_correctly
+    template_string = @template.simple_status_failed
+    rendered = render_template(template_string,
+      "icon" => "✗",
+      "done_count" => 3,
+      "total" => 5,
+      "failed_task_name" => "DeployTask",
+      "error_message" => "Connection refused")
+    assert_includes rendered, "✗"
+    assert_includes rendered, "[3/5]"
+    assert_includes rendered, "DeployTask failed"
+    assert_includes rendered, "Connection refused"
+  end
+
+  def test_simple_status_failed_renders_without_error_message
+    template_string = @template.simple_status_failed
+    rendered = render_template(template_string,
+      "icon" => "✗",
+      "done_count" => 3,
+      "total" => 5,
+      "failed_task_name" => "DeployTask",
+      "error_message" => nil)
+    assert_includes rendered, "DeployTask failed"
+    refute_includes rendered, ":"
+  end
+
   private
 
   def render_template(template_string, variables)

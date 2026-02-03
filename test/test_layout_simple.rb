@@ -84,8 +84,9 @@ class TestLayoutSimple < Minitest::Test
 
   # === Spinner animation ===
 
-  def test_spinner_frames_defined
-    assert_equal 10, Taski::Execution::Layout::Simple::SPINNER_FRAMES.size
+  def test_spinner_frames_loaded_from_template
+    # Spinner frames are now loaded from template
+    assert_equal 10, @layout.instance_variable_get(:@spinner_frames).size
   end
 
   # === Section impl handling ===
@@ -120,21 +121,183 @@ class TestLayoutSimple < Minitest::Test
     assert @layout.task_registered?(root_task)
   end
 
-  # === Icon and color constants ===
+  # === Icon and color configuration from Template ===
 
-  def test_icons_defined
-    icons = Taski::Execution::Layout::Simple::ICONS
-    assert_equal "✓", icons[:success]
-    assert_equal "✗", icons[:failure]
-    assert_equal "○", icons[:pending]
+  def test_icons_available_via_template
+    template = @layout.instance_variable_get(:@template)
+    assert_equal "✓", template.icon_success
+    assert_equal "✗", template.icon_failure
+    assert_equal "○", template.icon_pending
   end
 
-  def test_colors_defined
-    colors = Taski::Execution::Layout::Simple::COLORS
-    assert_equal "\e[32m", colors[:green]
-    assert_equal "\e[31m", colors[:red]
-    assert_equal "\e[33m", colors[:yellow]
-    assert_equal "\e[0m", colors[:reset]
+  def test_colors_available_via_template
+    template = @layout.instance_variable_get(:@template)
+    assert_equal "\e[32m", template.color_green
+    assert_equal "\e[31m", template.color_red
+    assert_equal "\e[33m", template.color_yellow
+    assert_equal "\e[0m", template.color_reset
+  end
+
+  private
+
+  def stub_task_class(name)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass.define_singleton_method(:cached_dependencies) { [] }
+    klass.define_singleton_method(:section?) { false }
+    klass
+  end
+end
+
+class TestLayoutSimpleWithCustomTemplate < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @output.define_singleton_method(:tty?) { true }
+  end
+
+  # === Custom spinner frames ===
+
+  def test_uses_custom_spinner_frames_from_template
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def spinner_frames
+        %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+
+    # Verify the layout uses the custom spinner frames
+    assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], layout.instance_variable_get(:@spinner_frames)
+  end
+
+  # === Custom render interval ===
+
+  def test_uses_custom_render_interval_from_template
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def render_interval
+        0.2
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+
+    assert_in_delta 0.2, layout.instance_variable_get(:@render_interval), 0.001
+  end
+
+  # === Custom icons ===
+
+  def test_uses_custom_icons_in_final_output
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def icon_success
+        "🎉"
+      end
+
+      def simple_status_complete
+        "{{ icon }} Done!"
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    task_class = stub_task_class("MyTask")
+    layout.register_task(task_class)
+    layout.start
+    layout.update_task(task_class, state: :running)
+    layout.update_task(task_class, state: :completed, duration: 100)
+    layout.stop
+
+    assert_includes @output.string, "🎉"
+    assert_includes @output.string, "Done!"
+  end
+
+  def test_uses_custom_failure_icon_in_final_output
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def icon_failure
+        "💥"
+      end
+
+      def simple_status_failed
+        "{{ icon }} Boom! {{ failed_task_name }}"
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    task_class = stub_task_class("FailedTask")
+    layout.register_task(task_class)
+    layout.start
+    layout.update_task(task_class, state: :running)
+    layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
+    layout.stop
+
+    assert_includes @output.string, "💥"
+    assert_includes @output.string, "Boom!"
+    assert_includes @output.string, "FailedTask"
+  end
+
+  # === Custom status templates ===
+
+  def test_uses_custom_status_complete_template
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def simple_status_complete
+        "{{ icon }} Finished {{ done_count }} tasks in {{ duration }}ms"
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    task_class = stub_task_class("MyTask")
+    layout.register_task(task_class)
+    layout.start
+    layout.update_task(task_class, state: :completed, duration: 100)
+    layout.stop
+
+    assert_includes @output.string, "Finished 1 tasks"
+  end
+
+  # === No constants needed with template ===
+
+  def test_layout_does_not_require_constants_when_using_template
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def spinner_frames
+        %w[A B C]
+      end
+
+      def render_interval
+        0.5
+      end
+
+      def icon_success
+        "OK"
+      end
+
+      def icon_failure
+        "NG"
+      end
+
+      def color_green
+        ""
+      end
+
+      def color_red
+        ""
+      end
+
+      def color_yellow
+        ""
+      end
+
+      def color_reset
+        ""
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    task_class = stub_task_class("TestTask")
+    layout.register_task(task_class)
+    layout.start
+    layout.update_task(task_class, state: :completed, duration: 50)
+    layout.stop
+
+    # Should complete without errors and use custom values
+    assert_includes @output.string, "OK"
   end
 
   private

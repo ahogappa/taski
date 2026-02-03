@@ -10,31 +10,32 @@ module Taski
       #
       #   ⠹ [3/5] DeployTask | Uploading files...
       #
-      # This replaces the old SimpleProgressDisplay class and is ideal for users
-      # who prefer less verbose output than TreeProgressDisplay.
+      # Customization is done through Template classes:
+      #
+      #   class MyTemplate < Taski::Execution::Template::Base
+      #     def spinner_frames
+      #       %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
+      #     end
+      #
+      #     def icon_success
+      #       "🎉"
+      #     end
+      #
+      #     def simple_status_complete
+      #       '{{ icon }} Done! {{ done_count }} tasks in {{ duration }}ms'
+      #     end
+      #   end
+      #
+      #   layout = Taski::Execution::Layout::Simple.new(template: MyTemplate.new)
       class Simple < Base
-        SPINNER_FRAMES = %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏].freeze
-        RENDER_INTERVAL = 0.1
-
-        ICONS = {
-          success: "✓",
-          failure: "✗",
-          pending: "○"
-        }.freeze
-
-        COLORS = {
-          green: "\e[32m",
-          red: "\e[31m",
-          yellow: "\e[33m",
-          dim: "\e[2m",
-          reset: "\e[0m"
-        }.freeze
-
         def initialize(output: $stdout, template: nil)
           super
           @spinner_index = 0
           @renderer_thread = nil
           @running = false
+          # Cache configuration from template for performance
+          @spinner_frames = @template.spinner_frames
+          @render_interval = @template.render_interval
         end
 
         protected
@@ -66,7 +67,7 @@ module Taski
             loop do
               break unless @running
               render_live
-              sleep RENDER_INTERVAL
+              sleep @render_interval
             end
           end
         end
@@ -127,7 +128,7 @@ module Taski
 
         def render_live
           @monitor.synchronize do
-            @spinner_index = (@spinner_index + 1) % SPINNER_FRAMES.size
+            @spinner_index = (@spinner_index + 1) % @spinner_frames.size
             line = build_status_line
             # Clear line and write new content
             @output.print "\r\e[K#{line}"
@@ -145,12 +146,22 @@ module Taski
             line = if failed > 0
               failed_tasks = @tasks.select { |_, p| p.run_state == :failed }
               first_error = failed_tasks.values.first&.run_error
-              error_msg = first_error ? ": #{first_error.message}" : ""
-              "#{COLORS[:red]}#{ICONS[:failure]}#{COLORS[:reset]} [#{completed}/#{total}] " \
-                "#{short_name(failed_tasks.keys.first)} failed#{error_msg}"
+              icon = colorize(@template.icon_failure, :red)
+
+              render_template(:simple_status_failed,
+                icon: icon,
+                done_count: completed,
+                total: total,
+                failed_task_name: short_name(failed_tasks.keys.first),
+                error_message: first_error&.message)
             else
-              "#{COLORS[:green]}#{ICONS[:success]}#{COLORS[:reset]} [#{completed}/#{total}] " \
-                "All tasks completed (#{total_duration}ms)"
+              icon = colorize(@template.icon_success, :green)
+
+              render_template(:simple_status_complete,
+                icon: icon,
+                done_count: completed,
+                total: total,
+                duration: total_duration)
             end
 
             @output.print "\r\e[K#{line}\n"
@@ -171,18 +182,36 @@ module Taski
           primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
           output_suffix = build_output_suffix(primary_task)
 
-          build_status_parts(status_icon, done_count, @tasks.size, task_names, output_suffix)
+          render_template(:simple_status_running,
+            spinner: status_icon,
+            done_count: done_count,
+            total: @tasks.size,
+            task_names: task_names.empty? ? nil : task_names,
+            output_suffix: output_suffix)
         end
 
         def determine_status_icon(failed_count, running_tasks, cleaning_tasks, pending_tasks)
           if failed_count > 0
-            "#{COLORS[:red]}#{ICONS[:failure]}#{COLORS[:reset]}"
+            colorize(@template.icon_failure, :red)
           elsif running_tasks.any? || cleaning_tasks.any? || pending_tasks.any?
-            spinner = SPINNER_FRAMES[@spinner_index]
-            "#{COLORS[:yellow]}#{spinner}#{COLORS[:reset]}"
+            spinner = @spinner_frames[@spinner_index]
+            colorize(spinner, :yellow)
           else
-            "#{COLORS[:green]}#{ICONS[:success]}#{COLORS[:reset]}"
+            colorize(@template.icon_success, :green)
           end
+        end
+
+        # Colorize text using Template's color configuration
+        # @param text [String] The text to colorize
+        # @param color_name [Symbol] The color name (:green, :red, :yellow)
+        # @return [String] Colorized text
+        def colorize(text, color_name)
+          color = case color_name
+          when :green then @template.color_green
+          when :red then @template.color_red
+          when :yellow then @template.color_yellow
+          end
+          "#{color}#{text}#{@template.color_reset}"
         end
 
         def format_current_task_names(cleaning_tasks, running_tasks, pending_tasks)
@@ -200,13 +229,6 @@ module Taski
           names = current_tasks.first(3).map { |t| short_name(t) }.join(", ")
           names += "..." if current_tasks.size > 3
           names
-        end
-
-        def build_status_parts(status_icon, done_count, total, task_names, output_suffix)
-          parts = ["#{status_icon} [#{done_count}/#{total}]"]
-          parts << task_names unless task_names.empty?
-          parts << "|" << output_suffix if output_suffix
-          parts.join(" ")
         end
 
         def build_output_suffix(task_class)
