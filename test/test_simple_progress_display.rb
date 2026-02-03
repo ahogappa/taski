@@ -342,7 +342,7 @@ class TestProgressModeConfiguration < Minitest::Test
     ENV.delete("TASKI_PROGRESS_DISABLE")
     Taski.reset_progress_display!
     display = Taski.progress_display
-    assert_instance_of Taski::Execution::TreeProgressDisplay, display
+    assert_instance_of Taski::Progress::Layout::Tree, display
   end
 
   def test_progress_display_returns_simple_display_when_mode_is_simple

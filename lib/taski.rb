@@ -10,9 +10,9 @@ require_relative "taski/execution/task_wrapper"
 require_relative "taski/execution/scheduler"
 require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
-require_relative "taski/execution/tree_progress_display"
 require_relative "taski/progress/layout/plain"
 require_relative "taski/progress/layout/simple"
+require_relative "taski/progress/layout/tree"
 require_relative "taski/args"
 require_relative "taski/env"
 require_relative "taski/logging"
@@ -294,7 +294,7 @@ module Taski
     when :plain
       Progress::Layout::Plain.new
     else
-      Execution::TreeProgressDisplay.new
+      Progress::Layout::Tree.new
     end
   end
 
