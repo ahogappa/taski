@@ -4,7 +4,7 @@ require_relative "base"
 require_relative "../template/simple"
 
 module Taski
-  module Execution
+  module Progress
     module Layout
       # Simple layout providing a minimalist single-line progress display.
       # Shows task execution status in a compact format with spinner animation:
@@ -13,7 +13,7 @@ module Taski
       #
       # Customization is done through Template classes:
       #
-      #   class MyTemplate < Taski::Execution::Template::Base
+      #   class MyTemplate < Taski::Progress::Template::Base
       #     def spinner_frames
       #       %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
       #     end
@@ -31,7 +31,7 @@ module Taski
       #     end
       #   end
       #
-      #   layout = Taski::Execution::Layout::Simple.new(template: MyTemplate.new)
+      #   layout = Taski::Progress::Layout::Simple.new(template: MyTemplate.new)
       class Simple < Base
         def initialize(output: $stdout, template: nil)
           template ||= Template::Simple.new
@@ -89,7 +89,7 @@ module Taski
 
           # Use TreeProgressDisplay's static method for tree building if available
           if defined?(Taski::Execution::TreeProgressDisplay)
-            tree = TreeProgressDisplay.build_tree_node(@root_task_class)
+            tree = Taski::Execution::TreeProgressDisplay.build_tree_node(@root_task_class)
             register_tasks_from_tree(tree)
             collect_section_candidates(tree)
           else

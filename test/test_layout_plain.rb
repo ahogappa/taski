@@ -2,12 +2,12 @@
 
 require "test_helper"
 require "stringio"
-require "taski/execution/layout/plain"
+require "taski/progress/layout/plain"
 
 class TestLayoutPlain < Minitest::Test
   def setup
     @output = StringIO.new
-    @layout = Taski::Execution::Layout::Plain.new(output: @output)
+    @layout = Taski::Progress::Layout::Plain.new(output: @output)
   end
 
   # === Task lifecycle output ===
@@ -183,7 +183,7 @@ class TestLayoutPlain < Minitest::Test
 
   def test_uses_custom_template
     custom_template = CustomTestTemplate.new
-    layout = Taski::Execution::Layout::Plain.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Plain.new(output: @output, template: custom_template)
 
     task_class = stub_task_class("MyTask")
     layout.start
@@ -201,7 +201,7 @@ class TestLayoutPlain < Minitest::Test
     klass
   end
 
-  class CustomTestTemplate < Taski::Execution::Template::Base
+  class CustomTestTemplate < Taski::Progress::Template::Base
     def task_start
       "CUSTOM START {{ task_name }}"
     end

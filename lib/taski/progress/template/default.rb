@@ -3,7 +3,7 @@
 require_relative "base"
 
 module Taski
-  module Execution
+  module Progress
     module Template
       # Default template with minimal styling.
       # Outputs plain text without terminal escape codes or colors.

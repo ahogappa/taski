@@ -2,17 +2,17 @@
 
 require "minitest/autorun"
 require "liquid"
-require_relative "../lib/taski/execution/layout/template_drop"
-require_relative "../lib/taski/execution/template/base"
+require_relative "../lib/taski/progress/layout/template_drop"
+require_relative "../lib/taski/progress/template/base"
 
 class TestTemplateDrop < Minitest::Test
   def setup
-    @template = Taski::Execution::Template::Base.new
-    @drop = Taski::Execution::Layout::TemplateDrop.new(@template)
+    @template = Taski::Progress::Template::Base.new
+    @drop = Taski::Progress::Layout::TemplateDrop.new(@template)
   end
 
   def test_template_drop_inherits_from_liquid_drop
-    assert Taski::Execution::Layout::TemplateDrop < Liquid::Drop
+    assert Taski::Progress::Layout::TemplateDrop < Liquid::Drop
   end
 
   def test_color_red_delegation
@@ -66,7 +66,7 @@ class TestTemplateDrop < Minitest::Test
   end
 
   def test_drop_works_with_custom_template
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def color_red
         "\e[91m"  # bright red
       end
@@ -80,7 +80,7 @@ class TestTemplateDrop < Minitest::Test
       end
     end.new
 
-    custom_drop = Taski::Execution::Layout::TemplateDrop.new(custom_template)
+    custom_drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
 
     assert_equal "\e[91m", custom_drop.color_red
     assert_equal %w[| / - \\], custom_drop.spinner_frames
@@ -124,7 +124,7 @@ class TestTemplateDrop < Minitest::Test
   end
 
   def test_format_methods_with_custom_template
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def format_count(count)
         "#{count}件"
       end
@@ -134,7 +134,7 @@ class TestTemplateDrop < Minitest::Test
       end
     end.new
 
-    custom_drop = Taski::Execution::Layout::TemplateDrop.new(custom_template)
+    custom_drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
 
     assert_equal "3件", custom_drop.format_count(3)
     assert_equal "100ミリ秒", custom_drop.format_duration(100)

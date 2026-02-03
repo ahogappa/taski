@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Taski
-  module Execution
+  module Progress
     module Template
       # Base class for template definitions.
       # Template classes are thin layers that only return Liquid template strings.
@@ -9,13 +9,13 @@ module Taski
       #
       # Users can subclass this to create custom templates:
       #
-      #   class MyTemplate < Taski::Execution::Template::Base
+      #   class MyTemplate < Taski::Progress::Template::Base
       #     def task_start
       #       "Starting {{ task_name }}..."
       #     end
       #   end
       #
-      #   layout = Taski::Execution::Layout::Plain.new(template: MyTemplate.new)
+      #   layout = Taski::Progress::Layout::Plain.new(template: MyTemplate.new)
       class Base
         # === Task lifecycle templates ===
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Taski
-  module Execution
+  module Progress
     module Layout
       # Liquid filter module for colorizing text output.
       # Uses TemplateDrop from context to get color codes, falls back to defaults.

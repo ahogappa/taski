@@ -7,7 +7,7 @@ class TestSimpleProgressDisplay < Minitest::Test
   def setup
     Taski.reset_progress_display!
     @output = StringIO.new
-    @display = Taski::Execution::Layout::Simple.new(output: @output)
+    @display = Taski::Progress::Layout::Simple.new(output: @output)
   end
 
   def teardown
@@ -183,7 +183,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def setup
     Taski.reset_progress_display!
     @output = TTYStringIO.new
-    @display = Taski::Execution::Layout::Simple.new(output: @output)
+    @display = Taski::Progress::Layout::Simple.new(output: @output)
   end
 
   def teardown
@@ -349,7 +349,7 @@ class TestProgressModeConfiguration < Minitest::Test
     ENV.delete("TASKI_PROGRESS_DISABLE")
     Taski.progress_mode = :simple
     display = Taski.progress_display
-    assert_instance_of Taski::Execution::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple, display
   end
 
   def test_progress_display_returns_nil_when_disabled

@@ -3,7 +3,7 @@
 require "liquid"
 
 module Taski
-  module Execution
+  module Progress
     module Layout
       # Liquid Drop for Template to enable method access from filters/tags.
       # Wraps a Template instance and delegates color/icon/spinner methods.

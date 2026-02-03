@@ -8,7 +8,7 @@ require_relative "tags"
 require_relative "template_drop"
 
 module Taski
-  module Execution
+  module Progress
     module Layout
       # Base class for layout implementations.
       # Layouts are responsible for:

@@ -3,7 +3,7 @@
 require_relative "base"
 
 module Taski
-  module Execution
+  module Progress
     module Layout
       # Plain layout for non-TTY environments (CI, log files, piped output).
       # Outputs plain text without terminal escape codes.

@@ -3,7 +3,7 @@
 require "liquid"
 
 module Taski
-  module Execution
+  module Progress
     module Layout
       # Liquid tag for rendering animated spinner characters.
       # Uses TemplateDrop from context to get spinner frames, falls back to defaults.

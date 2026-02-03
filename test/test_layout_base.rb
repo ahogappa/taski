@@ -2,16 +2,16 @@
 
 require "test_helper"
 require "stringio"
-require "taski/execution/template/base"
-require "taski/execution/template/default"
-require "taski/execution/template/simple"
-require "taski/execution/layout/base"
-require "taski/execution/layout/template_drop"
+require "taski/progress/template/base"
+require "taski/progress/template/default"
+require "taski/progress/template/simple"
+require "taski/progress/layout/base"
+require "taski/progress/layout/template_drop"
 
 class TestLayoutBase < Minitest::Test
   def setup
     @output = StringIO.new
-    @layout = Taski::Execution::Layout::Base.new(output: @output)
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
   end
 
   # === Observer interface tests ===
@@ -154,9 +154,9 @@ class TestLayoutBase < Minitest::Test
   # === Custom template ===
 
   def test_accepts_custom_template
-    custom_template = Taski::Execution::Template::Base.new
-    layout = Taski::Execution::Layout::Base.new(output: @output, template: custom_template)
-    assert_kind_of Taski::Execution::Layout::Base, layout
+    custom_template = Taski::Progress::Template::Base.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    assert_kind_of Taski::Progress::Layout::Base, layout
   end
 
   # === Thread safety ===
@@ -188,7 +188,7 @@ end
 class TestLayoutBaseLiquidRendering < Minitest::Test
   def setup
     @output = StringIO.new
-    @layout = Taski::Execution::Layout::Base.new(output: @output)
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
   end
 
   def teardown
@@ -201,7 +201,7 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
 
   def test_initialize_creates_template_drop
     drop = @layout.instance_variable_get(:@template_drop)
-    assert_instance_of Taski::Execution::Layout::TemplateDrop, drop
+    assert_instance_of Taski::Progress::Layout::TemplateDrop, drop
   end
 
   def test_render_template_string_with_color_filter
@@ -243,13 +243,13 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
   end
 
   def test_render_template_string_uses_custom_template_colors
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def color_red
         "\e[91m"  # bright red
       end
     end.new
 
-    layout = Taski::Execution::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
     result = layout.render_template_string("{{ text | red }}", text: "error")
 
     assert_equal "\e[91merror\e[0m", result
@@ -289,7 +289,7 @@ end
 class TestLayoutBaseTaskStateTransitions < Minitest::Test
   def setup
     @output = StringIO.new
-    @layout = Taski::Execution::Layout::Base.new(output: @output)
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
     @task_class = Class.new
     @layout.register_task(@task_class)
   end

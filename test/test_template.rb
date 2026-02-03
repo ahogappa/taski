@@ -2,20 +2,20 @@
 
 require "test_helper"
 require "liquid"
-require "taski/execution/template/base"
-require "taski/execution/template/default"
-require "taski/execution/layout/filters"
-require "taski/execution/layout/tags"
-require "taski/execution/layout/template_drop"
+require "taski/progress/template/base"
+require "taski/progress/template/default"
+require "taski/progress/layout/filters"
+require "taski/progress/layout/tags"
+require "taski/progress/layout/template_drop"
 
 class TestTemplate < Minitest::Test
   def setup
-    @template = Taski::Execution::Template::Default.new
-    @template_drop = Taski::Execution::Layout::TemplateDrop.new(@template)
+    @template = Taski::Progress::Template::Default.new
+    @template_drop = Taski::Progress::Layout::TemplateDrop.new(@template)
     @environment = Liquid::Environment.build do |env|
-      env.register_filter(Taski::Execution::Layout::ColorFilter)
-      env.register_tag("spinner", Taski::Execution::Layout::SpinnerTag)
-      env.register_tag("icon", Taski::Execution::Layout::IconTag)
+      env.register_filter(Taski::Progress::Layout::ColorFilter)
+      env.register_tag("spinner", Taski::Progress::Layout::SpinnerTag)
+      env.register_tag("icon", Taski::Progress::Layout::IconTag)
     end
   end
 
@@ -156,7 +156,7 @@ class TestTemplate < Minitest::Test
   # === Template::Base as abstract base class ===
 
   def test_base_provides_default_implementations
-    base = Taski::Execution::Template::Base.new
+    base = Taski::Progress::Template::Base.new
     assert_kind_of String, base.task_start
     assert_kind_of String, base.task_success
     assert_kind_of String, base.task_fail

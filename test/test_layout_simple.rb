@@ -2,22 +2,22 @@
 
 require "test_helper"
 require "stringio"
-require "taski/execution/layout/simple"
-require "taski/execution/template/simple"
+require "taski/progress/layout/simple"
+require "taski/progress/template/simple"
 
 class TestLayoutSimple < Minitest::Test
   def setup
     @output = StringIO.new
     # Stub tty? to return true for testing
     @output.define_singleton_method(:tty?) { true }
-    @layout = Taski::Execution::Layout::Simple.new(output: @output)
+    @layout = Taski::Progress::Layout::Simple.new(output: @output)
   end
 
   # === TTY detection ===
 
   def test_does_not_activate_for_non_tty
     non_tty_output = StringIO.new
-    layout = Taski::Execution::Layout::Simple.new(output: non_tty_output)
+    layout = Taski::Progress::Layout::Simple.new(output: non_tty_output)
     layout.start
     layout.stop
 
@@ -160,13 +160,13 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === Custom spinner frames ===
 
   def test_uses_custom_spinner_frames_from_template
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def spinner_frames
         %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
       end
     end.new
 
-    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
 
     # Verify the layout accesses the custom spinner frames via template
     template = layout.instance_variable_get(:@template)
@@ -176,13 +176,13 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === Custom render interval ===
 
   def test_uses_custom_render_interval_from_template
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def render_interval
         0.2
       end
     end.new
 
-    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
 
     # Verify the layout accesses render interval via template
     template = layout.instance_variable_get(:@template)
@@ -192,7 +192,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === Custom icons ===
 
   def test_uses_custom_icons_in_final_output
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def icon_success
         "🎉"
       end
@@ -202,7 +202,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
     task_class = stub_task_class("MyTask")
     layout.register_task(task_class)
     layout.start
@@ -215,7 +215,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   end
 
   def test_uses_custom_failure_icon_in_final_output
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def icon_failure
         "💥"
       end
@@ -225,7 +225,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
     task_class = stub_task_class("FailedTask")
     layout.register_task(task_class)
     layout.start
@@ -241,13 +241,13 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === Custom status templates ===
 
   def test_uses_custom_status_complete_template
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def status_complete
         "{% icon %} Finished {{ done_count }} tasks in {{ duration | format_duration }}"
       end
     end.new
 
-    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
     task_class = stub_task_class("MyTask")
     layout.register_task(task_class)
     layout.start
@@ -260,7 +260,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === No constants needed with template ===
 
   def test_layout_does_not_require_constants_when_using_template
-    custom_template = Class.new(Taski::Execution::Template::Base) do
+    custom_template = Class.new(Taski::Progress::Template::Base) do
       def spinner_frames
         %w[A B C]
       end
@@ -299,7 +299,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
     task_class = stub_task_class("TestTask")
     layout.register_task(task_class)
     layout.start
@@ -328,7 +328,7 @@ class TestLayoutSimpleWithTreeProgressDisplay < Minitest::Test
   def setup
     @output = StringIO.new
     @output.define_singleton_method(:tty?) { true }
-    @layout = Taski::Execution::Layout::Simple.new(output: @output)
+    @layout = Taski::Progress::Layout::Simple.new(output: @output)
   end
 
   def test_tree_building_uses_tree_progress_display_method

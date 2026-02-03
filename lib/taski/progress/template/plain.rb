@@ -3,14 +3,14 @@
 require_relative "default"
 
 module Taski
-  module Execution
+  module Progress
     module Template
       # Plain template for non-TTY environments (CI, log files, piped output).
       # Outputs plain text without terminal escape codes or colors.
       #
       # @example Usage
-      #   layout = Taski::Execution::Layout::Plain.new(
-      #     template: Taski::Execution::Template::Plain.new
+      #   layout = Taski::Progress::Layout::Plain.new(
+      #     template: Taski::Progress::Template::Plain.new
       #   )
       class Plain < Default
         # === Color configuration (disabled for plain output) ===
