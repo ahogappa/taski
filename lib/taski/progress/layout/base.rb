@@ -71,6 +71,7 @@ module Taski
           @spinner_index = 0
           @spinner_timer = nil
           @spinner_running = false
+          @active = false
         end
 
         # === Observer interface (called by ExecutionContext) ===
@@ -95,6 +96,7 @@ module Taski
             return if @nest_level > 1
             return unless should_activate?
             @start_time = Time.now
+            @active = true
             should_start = true
           end
 
@@ -102,17 +104,20 @@ module Taski
         end
 
         # Stop progress display
-        # Only finalizes when nest level reaches 0
+        # Only finalizes when nest level reaches 0 and layout was actually activated
         def stop
           should_stop = false
+          was_active = false
           @monitor.synchronize do
             @nest_level -= 1 if @nest_level > 0
             return unless @nest_level == 0
+            was_active = @active
+            @active = false
             should_stop = true
           end
 
           return unless should_stop
-          on_stop
+          on_stop if was_active
           flush_queued_messages
         end
 
