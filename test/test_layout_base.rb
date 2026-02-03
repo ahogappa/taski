@@ -258,11 +258,19 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
   def test_spinner_index_increments
     @layout.start_spinner_timer
     initial_index = @layout.spinner_index
-    sleep 0.15  # Wait for at least one interval
-    new_index = @layout.spinner_index
+
+    # Poll for spinner index change with timeout (more robust than fixed sleep)
+    timeout = 1.0  # 1 second timeout
+    start_time = Time.now
+    new_index = initial_index
+    while new_index == initial_index && (Time.now - start_time) < timeout
+      sleep 0.02
+      new_index = @layout.spinner_index
+    end
+
     @layout.stop_spinner_timer
 
-    assert new_index > initial_index || new_index == 0  # May wrap around
+    assert new_index != initial_index, "Spinner index should have changed within timeout"
   end
 
   def test_stop_spinner_timer_stops_incrementing

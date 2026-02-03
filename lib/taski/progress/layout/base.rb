@@ -3,6 +3,7 @@
 require "monitor"
 require "liquid"
 require_relative "../template/default"
+require_relative "../../static_analysis/analyzer"
 require_relative "filters"
 require_relative "tags"
 require_relative "template_drop"
@@ -210,11 +211,15 @@ module Taski
         # Start the spinner animation timer.
         # Increments spinner_index at the template's spinner_interval.
         def start_spinner_timer
-          return if @spinner_running
+          @monitor.synchronize do
+            return if @spinner_running
+            @spinner_running = true
+          end
 
-          @spinner_running = true
           @spinner_timer = Thread.new do
-            while @spinner_running
+            loop do
+              running = @monitor.synchronize { @spinner_running }
+              break unless running
               sleep @template.spinner_interval
               @monitor.synchronize do
                 @spinner_index = (@spinner_index + 1) % @template.spinner_frames.size
@@ -225,7 +230,7 @@ module Taski
 
         # Stop the spinner animation timer.
         def stop_spinner_timer
-          @spinner_running = false
+          @monitor.synchronize { @spinner_running = false }
           @spinner_timer&.join
           @spinner_timer = nil
         end
@@ -651,9 +656,13 @@ module Taski
         end
 
         # Check if a class is nested within another class by name prefix.
+        # Returns false for anonymous classes (nil or empty names).
         def nested_class?(child_class, parent_class)
-          child_name = child_class.name.to_s
-          parent_name = parent_class.name.to_s
+          parent_name = parent_class.name
+          child_name = child_class.name
+          return false if parent_name.nil? || parent_name.empty?
+          return false if child_name.nil? || child_name.empty?
+
           child_name.start_with?("#{parent_name}::")
         end
       end

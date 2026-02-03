@@ -98,6 +98,7 @@ module Taski
         #   # => "Uploading files to server..."
         def truncate_text(input, max_length = 40)
           return "" if input.nil?
+          return "" if max_length <= 0
 
           text = input.to_s
           return text if text.length <= max_length
@@ -105,8 +106,12 @@ module Taski
           template = @context["template"]
           suffix = template&.truncate_text_suffix || "..."
 
-          truncated_length = max_length - suffix.length
-          text[0, truncated_length] + suffix
+          truncated_length = [max_length - suffix.length, 0].max
+          if truncated_length == 0
+            suffix[0, max_length]
+          else
+            text[0, truncated_length] + suffix
+          end
         end
 
         private

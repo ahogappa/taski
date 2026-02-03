@@ -38,6 +38,7 @@ module Taski
           super
           @renderer_thread = nil
           @running = false
+          @running_mutex = Mutex.new
         end
 
         protected
@@ -62,12 +63,12 @@ module Taski
         end
 
         def on_start
-          @running = true
+          @running_mutex.synchronize { @running = true }
           start_spinner_timer
           @output.print "\e[?25l"  # Hide cursor
           @renderer_thread = Thread.new do
             loop do
-              break unless @running
+              break unless @running_mutex.synchronize { @running }
               render_live
               sleep @template.render_interval
             end
@@ -75,7 +76,7 @@ module Taski
         end
 
         def on_stop
-          @running = false
+          @running_mutex.synchronize { @running = false }
           @renderer_thread&.join
           stop_spinner_timer
           @output.print "\e[?25h"  # Show cursor
