@@ -7,7 +7,7 @@ gemspec
 
 gem "rake", "~> 13.3"
 
-gem "prism", "~> 1.8"
+gem "prism", "~> 1.9"
 gem "tsort"
 
 group :development, :test do
