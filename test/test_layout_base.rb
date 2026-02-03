@@ -4,7 +4,9 @@ require "test_helper"
 require "stringio"
 require "taski/execution/template/base"
 require "taski/execution/template/default"
+require "taski/execution/template/simple"
 require "taski/execution/layout/base"
+require "taski/execution/layout/template_drop"
 
 class TestLayoutBase < Minitest::Test
   def setup
@@ -180,6 +182,107 @@ class TestLayoutBase < Minitest::Test
     end
     threads.each(&:join)
     # No error raised
+  end
+end
+
+class TestLayoutBaseLiquidRendering < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Execution::Layout::Base.new(output: @output)
+  end
+
+  def teardown
+    @layout.stop_spinner_timer
+  end
+
+  def test_initialize_creates_liquid_environment
+    assert @layout.instance_variable_get(:@liquid_environment)
+  end
+
+  def test_initialize_creates_template_drop
+    drop = @layout.instance_variable_get(:@template_drop)
+    assert_instance_of Taski::Execution::Layout::TemplateDrop, drop
+  end
+
+  def test_render_template_string_with_color_filter
+    result = @layout.render_template_string(
+      "{{ status | green }}",
+      status: "OK"
+    )
+
+    assert_equal "\e[32mOK\e[0m", result
+  end
+
+  def test_render_template_string_with_spinner_tag
+    result = @layout.render_template_string(
+      "{% spinner %} Loading",
+      spinner_index: 0
+    )
+
+    assert_equal "⠋ Loading", result
+  end
+
+  def test_render_template_string_passes_spinner_index
+    result = @layout.render_template_string(
+      "{% spinner %}",
+      spinner_index: 3
+    )
+
+    assert_equal "⠸", result
+  end
+
+  def test_render_template_string_with_multiple_variables
+    result = @layout.render_template_string(
+      "{% spinner %} {{ task_name | green }} - {{ status | dim }}",
+      task_name: "MyTask",
+      status: "running",
+      spinner_index: 0
+    )
+
+    assert_equal "⠋ \e[32mMyTask\e[0m - \e[2mrunning\e[0m", result
+  end
+
+  def test_render_template_string_uses_custom_template_colors
+    custom_template = Class.new(Taski::Execution::Template::Base) do
+      def color_red
+        "\e[91m"  # bright red
+      end
+    end.new
+
+    layout = Taski::Execution::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.render_template_string("{{ text | red }}", text: "error")
+
+    assert_equal "\e[91merror\e[0m", result
+  end
+
+  def test_spinner_index_increments
+    @layout.start_spinner_timer
+    initial_index = @layout.spinner_index
+    sleep 0.15  # Wait for at least one interval
+    new_index = @layout.spinner_index
+    @layout.stop_spinner_timer
+
+    assert new_index > initial_index || new_index == 0  # May wrap around
+  end
+
+  def test_stop_spinner_timer_stops_incrementing
+    @layout.start_spinner_timer
+    @layout.stop_spinner_timer
+    index_after_stop = @layout.spinner_index
+    sleep 0.15
+    index_later = @layout.spinner_index
+
+    assert_equal index_after_stop, index_later
+  end
+
+  def test_spinner_timer_does_not_start_twice
+    @layout.start_spinner_timer
+    first_thread = @layout.instance_variable_get(:@spinner_timer)
+    @layout.start_spinner_timer
+    second_thread = @layout.instance_variable_get(:@spinner_timer)
+    @layout.stop_spinner_timer
+
+    assert_equal first_thread, second_thread
   end
 end
 

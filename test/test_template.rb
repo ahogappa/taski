@@ -4,10 +4,19 @@ require "test_helper"
 require "liquid"
 require "taski/execution/template/base"
 require "taski/execution/template/default"
+require "taski/execution/layout/filters"
+require "taski/execution/layout/tags"
+require "taski/execution/layout/template_drop"
 
 class TestTemplate < Minitest::Test
   def setup
     @template = Taski::Execution::Template::Default.new
+    @template_drop = Taski::Execution::Layout::TemplateDrop.new(@template)
+    @environment = Liquid::Environment.build do |env|
+      env.register_filter(Taski::Execution::Layout::ColorFilter)
+      env.register_tag("spinner", Taski::Execution::Layout::SpinnerTag)
+      env.register_tag("icon", Taski::Execution::Layout::IconTag)
+    end
   end
 
   # === Task lifecycle templates ===
@@ -38,8 +47,8 @@ class TestTemplate < Minitest::Test
 
   def test_task_success_renders_with_duration
     template_string = @template.task_success
-    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => "123.4ms")
-    assert_includes rendered, "[DONE] MyTask (123.4ms)"
+    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => 123)
+    assert_includes rendered, "[DONE] MyTask (123ms)"
   end
 
   def test_task_fail_returns_liquid_template_string
@@ -70,8 +79,8 @@ class TestTemplate < Minitest::Test
 
   def test_clean_success_renders_with_duration
     template_string = @template.clean_success
-    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => "50.0ms")
-    assert_includes rendered, "[CLEAN DONE] MyTask (50.0ms)"
+    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => 50)
+    assert_includes rendered, "[CLEAN DONE] MyTask (50ms)"
   end
 
   def test_clean_fail_renders_with_error
@@ -99,8 +108,8 @@ class TestTemplate < Minitest::Test
     rendered = render_template(template_string,
       "task_name" => "MyTask",
       "group_name" => "build",
-      "duration" => "200.0ms")
-    assert_includes rendered, "[GROUP DONE] MyTask#build (200.0ms)"
+      "duration" => 200)
+    assert_includes rendered, "[GROUP DONE] MyTask#build (200ms)"
   end
 
   def test_group_fail_renders_with_error
@@ -132,7 +141,7 @@ class TestTemplate < Minitest::Test
       "completed" => 5,
       "total" => 5,
       "duration" => 1234)
-    assert_includes rendered, "[TASKI] Completed: 5/5 tasks (1234ms)"
+    assert_includes rendered, "[TASKI] Completed: 5/5 tasks (1.2s)"
   end
 
   def test_execution_fail_renders_with_stats
@@ -141,7 +150,7 @@ class TestTemplate < Minitest::Test
       "failed" => 2,
       "total" => 5,
       "duration" => 1234)
-    assert_includes rendered, "[TASKI] Failed: 2/5 tasks (1234ms)"
+    assert_includes rendered, "[TASKI] Failed: 2/5 tasks (1.2s)"
   end
 
   # === Template::Base as abstract base class ===
@@ -234,87 +243,75 @@ class TestTemplate < Minitest::Test
     assert_equal "\e[0m", result
   end
 
-  # === Simple status line templates ===
+  # === Status line templates (Base/Default - plain without spinner/icon) ===
 
-  def test_simple_status_running_returns_liquid_template_string
-    result = @template.simple_status_running
+  def test_status_running_returns_liquid_template_string
+    result = @template.status_running
     assert_kind_of String, result
-    assert_includes result, "{{ spinner }}"
-    assert_includes result, "{{ done_count }}"
-    assert_includes result, "{{ total }}"
+    assert_includes result, "done_count"
+    assert_includes result, "total"
   end
 
-  def test_simple_status_running_renders_correctly
-    template_string = @template.simple_status_running
+  def test_status_running_renders_correctly
+    template_string = @template.status_running
     rendered = render_template(template_string,
-      "spinner" => "⠹",
       "done_count" => 3,
       "total" => 5,
       "task_names" => "DeployTask",
       "output_suffix" => "Uploading files...")
-    assert_includes rendered, "⠹"
     assert_includes rendered, "[3/5]"
     assert_includes rendered, "DeployTask"
     assert_includes rendered, "Uploading files..."
   end
 
-  def test_simple_status_running_renders_without_optional_variables
-    template_string = @template.simple_status_running
+  def test_status_running_renders_without_optional_variables
+    template_string = @template.status_running
     rendered = render_template(template_string,
-      "spinner" => "⠹",
       "done_count" => 0,
       "total" => 5,
       "task_names" => nil,
       "output_suffix" => nil)
-    assert_includes rendered, "⠹"
     assert_includes rendered, "[0/5]"
     refute_includes rendered, "|"
   end
 
-  def test_simple_status_complete_returns_liquid_template_string
-    result = @template.simple_status_complete
+  def test_status_complete_returns_liquid_template_string
+    result = @template.status_complete
     assert_kind_of String, result
-    assert_includes result, "{{ icon }}"
-    assert_includes result, "{{ duration }}"
+    assert_includes result, "duration"
   end
 
-  def test_simple_status_complete_renders_correctly
-    template_string = @template.simple_status_complete
+  def test_status_complete_renders_correctly
+    template_string = @template.status_complete
     rendered = render_template(template_string,
-      "icon" => "✓",
       "done_count" => 5,
       "total" => 5,
       "duration" => 1234)
-    assert_includes rendered, "✓"
     assert_includes rendered, "[5/5]"
-    assert_includes rendered, "1234ms"
+    assert_includes rendered, "1.2s"
   end
 
-  def test_simple_status_failed_returns_liquid_template_string
-    result = @template.simple_status_failed
+  def test_status_failed_returns_liquid_template_string
+    result = @template.status_failed
     assert_kind_of String, result
-    assert_includes result, "{{ icon }}"
     assert_includes result, "{{ failed_task_name }}"
   end
 
-  def test_simple_status_failed_renders_correctly
-    template_string = @template.simple_status_failed
+  def test_status_failed_renders_correctly
+    template_string = @template.status_failed
     rendered = render_template(template_string,
-      "icon" => "✗",
       "done_count" => 3,
       "total" => 5,
       "failed_task_name" => "DeployTask",
       "error_message" => "Connection refused")
-    assert_includes rendered, "✗"
     assert_includes rendered, "[3/5]"
     assert_includes rendered, "DeployTask failed"
     assert_includes rendered, "Connection refused"
   end
 
-  def test_simple_status_failed_renders_without_error_message
-    template_string = @template.simple_status_failed
+  def test_status_failed_renders_without_error_message
+    template_string = @template.status_failed
     rendered = render_template(template_string,
-      "icon" => "✗",
       "done_count" => 3,
       "total" => 5,
       "failed_task_name" => "DeployTask",
@@ -326,6 +323,7 @@ class TestTemplate < Minitest::Test
   private
 
   def render_template(template_string, variables)
-    Liquid::Template.parse(template_string).render(variables)
+    context_vars = variables.merge("template" => @template_drop)
+    Liquid::Template.parse(template_string, environment: @environment).render(context_vars)
   end
 end

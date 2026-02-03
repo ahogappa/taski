@@ -3,6 +3,9 @@
 require "monitor"
 require "liquid"
 require_relative "../template/default"
+require_relative "filters"
+require_relative "tags"
+require_relative "template_drop"
 
 module Taski
   module Execution
@@ -50,9 +53,13 @@ module Taski
           end
         end
 
+        attr_reader :spinner_index
+
         def initialize(output: $stderr, template: nil)
           @output = output
           @template = template || Template::Default.new
+          @template_drop = TemplateDrop.new(@template)
+          @liquid_environment = build_liquid_environment
           @monitor = Monitor.new
           @tasks = {}
           @nest_level = 0
@@ -62,6 +69,9 @@ module Taski
           @message_queue = []
           @section_candidates = {}
           @section_candidate_subtrees = {}
+          @spinner_index = 0
+          @spinner_timer = nil
+          @spinner_running = false
         end
 
         # === Observer interface (called by ExecutionContext) ===
@@ -187,6 +197,41 @@ module Taski
           @monitor.synchronize { @message_queue << text }
         end
 
+        # Render a Liquid template string with the given variables.
+        # Uses scoped Liquid environment with ColorFilter and SpinnerTag.
+        #
+        # @param template_string [String] Liquid template string
+        # @param variables [Hash] Variables to pass to the template
+        # @return [String] Rendered output
+        def render_template_string(template_string, **variables)
+          context_vars = build_context_vars(variables)
+          Liquid::Template.parse(template_string, environment: @liquid_environment)
+            .render(context_vars)
+        end
+
+        # Start the spinner animation timer.
+        # Increments spinner_index at the template's spinner_interval.
+        def start_spinner_timer
+          return if @spinner_running
+
+          @spinner_running = true
+          @spinner_timer = Thread.new do
+            while @spinner_running
+              sleep @template.spinner_interval
+              @monitor.synchronize do
+                @spinner_index = (@spinner_index + 1) % @template.spinner_frames.size
+              end
+            end
+          end
+        end
+
+        # Stop the spinner animation timer.
+        def stop_spinner_timer
+          @spinner_running = false
+          @spinner_timer&.join
+          @spinner_timer = nil
+        end
+
         protected
 
         # === Template methods - Override in subclasses ===
@@ -202,8 +247,10 @@ module Taski
         end
 
         # Called when a task state is updated.
+        # Default: render and output the event.
         def on_task_updated(task_class, state, duration, error)
-          # Default: no-op
+          text = render_for_task_event(task_class, state, duration, error)
+          output_line(text) if text
         end
 
         # Called when a section impl is registered.
@@ -212,8 +259,10 @@ module Taski
         end
 
         # Called when a group state is updated.
+        # Default: render and output the event.
         def on_group_updated(task_class, group_name, state, duration, error)
-          # Default: no-op
+          text = render_for_group_event(task_class, group_name, state, duration, error)
+          output_line(text) if text
         end
 
         # Determine if display should activate.
@@ -223,13 +272,23 @@ module Taski
         end
 
         # Called when display starts.
+        # Default: output execution start message.
         def on_start
-          # Default: no-op
+          return unless @root_task_class
+          output_line(render_execution_started(@root_task_class))
         end
 
         # Called when display stops.
+        # Default: output execution complete or fail message.
         def on_stop
-          # Default: no-op
+          duration = total_duration
+
+          text = if failed_count > 0
+            render_execution_failed(failed: failed_count, total: total_count, duration: duration)
+          else
+            render_execution_completed(completed: completed_count, total: total_count, duration: duration)
+          end
+          output_line(text)
         end
 
         # === Template rendering helpers ===
@@ -240,7 +299,134 @@ module Taski
         # @return [String] The rendered template
         def render_template(method_name, **variables)
           template_string = @template.public_send(method_name)
-          Liquid::Template.parse(template_string).render(stringify_keys(variables))
+          render_template_string(template_string, **variables)
+        end
+
+        # === Event-to-template rendering methods ===
+        # These methods define which template is used for each event.
+        # Subclasses call these instead of render_template directly.
+
+        # Render task start event
+        def render_task_started(task_class)
+          render_template(:task_start, task_name: short_name(task_class))
+        end
+
+        # Render task success event
+        def render_task_succeeded(task_class, duration:)
+          render_template(:task_success, task_name: short_name(task_class), duration: duration)
+        end
+
+        # Render task failure event
+        def render_task_failed(task_class, error:)
+          render_template(:task_fail, task_name: short_name(task_class), error_message: error&.message)
+        end
+
+        # Render clean start event
+        def render_clean_started(task_class)
+          render_template(:clean_start, task_name: short_name(task_class))
+        end
+
+        # Render clean success event
+        def render_clean_succeeded(task_class, duration:)
+          render_template(:clean_success, task_name: short_name(task_class), duration: duration)
+        end
+
+        # Render clean failure event
+        def render_clean_failed(task_class, error:)
+          render_template(:clean_fail, task_name: short_name(task_class), error_message: error&.message)
+        end
+
+        # Render group start event
+        def render_group_started(task_class, group_name:)
+          render_template(:group_start, task_name: short_name(task_class), group_name: group_name)
+        end
+
+        # Render group success event
+        def render_group_succeeded(task_class, group_name:, duration:)
+          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, duration: duration)
+        end
+
+        # Render group failure event
+        def render_group_failed(task_class, group_name:, error:)
+          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, error_message: error&.message)
+        end
+
+        # Render execution start event
+        def render_execution_started(root_task_class)
+          render_template(:execution_start, root_task_name: short_name(root_task_class))
+        end
+
+        # Render execution complete event
+        def render_execution_completed(completed:, total:, duration:)
+          render_template(:execution_complete, completed: completed, total: total, duration: duration)
+        end
+
+        # Render execution failure event
+        def render_execution_failed(failed:, total:, duration:)
+          render_template(:execution_fail, failed: failed, total: total, duration: duration)
+        end
+
+        # Render running status line
+        def render_status_running(done_count:, total:, task_names:, output_suffix:)
+          render_template(:status_running,
+            done_count: done_count,
+            total: total,
+            task_names: task_names,
+            output_suffix: output_suffix)
+        end
+
+        # Render completed status line
+        def render_status_completed(done_count:, total:, duration:)
+          render_template(:status_complete,
+            state: :completed,
+            done_count: done_count,
+            total: total,
+            duration: duration)
+        end
+
+        # Render failed status line
+        def render_status_failed(done_count:, total:, failed_task_name:, error_message:)
+          render_template(:status_failed,
+            state: :failed,
+            done_count: done_count,
+            total: total,
+            failed_task_name: failed_task_name,
+            error_message: error_message)
+        end
+
+        # === State-to-render dispatchers ===
+        # These methods map state values to the appropriate render method.
+
+        # Dispatch task event to appropriate render method
+        # @return [String, nil] Rendered output or nil if state not handled
+        def render_for_task_event(task_class, state, duration, error)
+          case state
+          when :running
+            render_task_started(task_class)
+          when :completed
+            render_task_succeeded(task_class, duration: duration)
+          when :failed
+            render_task_failed(task_class, error: error)
+          when :cleaning
+            render_clean_started(task_class)
+          when :clean_completed
+            render_clean_succeeded(task_class, duration: duration)
+          when :clean_failed
+            render_clean_failed(task_class, error: error)
+          end
+        end
+
+        # Dispatch group event to appropriate render method
+        # @return [String, nil] Rendered output or nil if state not handled
+        def render_for_group_event(task_class, group_name, state, duration, error)
+          case state
+          when :running
+            render_group_started(task_class, group_name: group_name)
+          when :completed
+            render_group_succeeded(task_class, group_name: group_name, duration: duration)
+          when :failed
+            render_group_failed(task_class, group_name: group_name, error: error)
+          end
         end
 
         # Output a line to the output stream
@@ -248,6 +434,48 @@ module Taski
         def output_line(text)
           @output.puts(text)
           @output.flush
+        end
+
+        # === Task state query helpers ===
+
+        def running_tasks
+          @tasks.select { |_, p| p.run_state == :running }
+        end
+
+        def cleaning_tasks
+          @tasks.select { |_, p| p.clean_state == :cleaning }
+        end
+
+        def pending_tasks
+          @tasks.select { |_, p| p.run_state == :pending }
+        end
+
+        def completed_tasks
+          @tasks.select { |_, p| p.run_state == :completed }
+        end
+
+        def failed_tasks
+          @tasks.select { |_, p| p.run_state == :failed }
+        end
+
+        def done_count
+          @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
+        end
+
+        def completed_count
+          @tasks.values.count { |p| p.run_state == :completed }
+        end
+
+        def failed_count
+          @tasks.values.count { |p| p.run_state == :failed }
+        end
+
+        def total_count
+          @tasks.size
+        end
+
+        def total_duration
+          @start_time ? ((Time.now - @start_time) * 1000).to_i : 0
         end
 
         # === Utility methods ===
@@ -283,6 +511,31 @@ module Taski
         end
 
         private
+
+        # Build the Liquid environment with filters and tags registered.
+        # Uses scoped registration (not global) per Liquid 5.x recommendations.
+        #
+        # @return [Liquid::Environment] Configured Liquid environment
+        def build_liquid_environment
+          Liquid::Environment.build do |env|
+            env.register_filter(ColorFilter)
+            env.register_tag("spinner", SpinnerTag)
+            env.register_tag("icon", IconTag)
+          end
+        end
+
+        # Build context variables hash for Liquid rendering.
+        #
+        # @param variables [Hash] User-provided variables
+        # @return [Hash] Context variables with template drop and spinner index
+        def build_context_vars(variables)
+          spinner_idx = @monitor.synchronize { @spinner_index }
+          base_vars = {
+            "template" => @template_drop,
+            "spinner_index" => variables[:spinner_index] || spinner_idx
+          }
+          stringify_keys(variables).merge(base_vars)
+        end
 
         def stringify_keys(hash)
           hash.transform_keys(&:to_s)

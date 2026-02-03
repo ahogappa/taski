@@ -239,10 +239,10 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
     @display.set_root_task(FixtureTaskB)
     @display.start
     @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
-    sleep 0.05
+    @display.stop
 
     output = @output.string
-    # Should show x mark or failure indication
+    # X mark should appear in final render after stop
     assert_match(/[✗✕×]/, output)
   end
 

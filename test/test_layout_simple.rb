@@ -3,6 +3,7 @@
 require "test_helper"
 require "stringio"
 require "taski/execution/layout/simple"
+require "taski/execution/template/simple"
 
 class TestLayoutSimple < Minitest::Test
   def setup
@@ -85,8 +86,9 @@ class TestLayoutSimple < Minitest::Test
   # === Spinner animation ===
 
   def test_spinner_frames_loaded_from_template
-    # Spinner frames are now loaded from template
-    assert_equal 10, @layout.instance_variable_get(:@spinner_frames).size
+    # Spinner frames are accessed via template
+    template = @layout.instance_variable_get(:@template)
+    assert_equal 10, template.spinner_frames.size
   end
 
   # === Section impl handling ===
@@ -166,8 +168,9 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
 
-    # Verify the layout uses the custom spinner frames
-    assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], layout.instance_variable_get(:@spinner_frames)
+    # Verify the layout accesses the custom spinner frames via template
+    template = layout.instance_variable_get(:@template)
+    assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], template.spinner_frames
   end
 
   # === Custom render interval ===
@@ -181,7 +184,9 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Execution::Layout::Simple.new(output: @output, template: custom_template)
 
-    assert_in_delta 0.2, layout.instance_variable_get(:@render_interval), 0.001
+    # Verify the layout accesses render interval via template
+    template = layout.instance_variable_get(:@template)
+    assert_in_delta 0.2, template.render_interval, 0.001
   end
 
   # === Custom icons ===
@@ -192,8 +197,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         "🎉"
       end
 
-      def simple_status_complete
-        "{{ icon }} Done!"
+      def status_complete
+        "{% icon %} Done!"
       end
     end.new
 
@@ -215,8 +220,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         "💥"
       end
 
-      def simple_status_failed
-        "{{ icon }} Boom! {{ failed_task_name }}"
+      def status_failed
+        "{% icon %} Boom! {{ failed_task_name }}"
       end
     end.new
 
@@ -237,8 +242,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
   def test_uses_custom_status_complete_template
     custom_template = Class.new(Taski::Execution::Template::Base) do
-      def simple_status_complete
-        "{{ icon }} Finished {{ done_count }} tasks in {{ duration }}ms"
+      def status_complete
+        "{% icon %} Finished {{ done_count }} tasks in {{ duration | format_duration }}"
       end
     end.new
 
@@ -286,6 +291,11 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
       def color_reset
         ""
+      end
+
+      # Override to use icon tag
+      def status_complete
+        "{% icon %} Done!"
       end
     end.new
 
