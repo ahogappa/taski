@@ -87,15 +87,9 @@ module Taski
         def build_tree_structure
           return unless @root_task_class
 
-          # Use TreeProgressDisplay's static method for tree building if available
-          if defined?(Taski::Execution::TreeProgressDisplay)
-            tree = Taski::Execution::TreeProgressDisplay.build_tree_node(@root_task_class)
-            register_tasks_from_tree(tree)
-            collect_section_candidates(tree)
-          else
-            # Fallback: just register the root task
-            @tasks[@root_task_class] ||= TaskState.new
-          end
+          tree = build_tree_node(@root_task_class)
+          register_tasks_from_tree(tree)
+          collect_section_candidates(tree)
         end
 
         # Register all tasks from a tree structure recursively

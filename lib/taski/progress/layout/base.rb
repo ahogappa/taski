@@ -610,6 +610,50 @@ module Taski
           progress = @tasks[task_class]
           progress.run_state = :completed if progress&.run_state == :pending
         end
+
+        # === Tree building helpers ===
+
+        # Build a tree structure from a root task class.
+        # @param task_class [Class] The root task class
+        # @param ancestors [Set] Set of ancestor classes (for circular detection)
+        # @return [Hash] Tree node hash
+        def build_tree_node(task_class, ancestors = Set.new)
+          is_circular = ancestors.include?(task_class)
+
+          node = {
+            task_class: task_class,
+            is_section: section_class?(task_class),
+            is_circular: is_circular,
+            is_impl_candidate: false,
+            children: []
+          }
+
+          return node if is_circular
+
+          new_ancestors = ancestors + [task_class]
+          dependencies = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
+          is_section = section_class?(task_class)
+
+          dependencies.each do |dep|
+            child_node = build_tree_node(dep, new_ancestors)
+            child_node[:is_impl_candidate] = is_section && nested_class?(dep, task_class)
+            node[:children] << child_node
+          end
+
+          node
+        end
+
+        # Check if a class is a Taski::Section subclass.
+        def section_class?(klass)
+          defined?(Taski::Section) && klass < Taski::Section
+        end
+
+        # Check if a class is nested within another class by name prefix.
+        def nested_class?(child_class, parent_class)
+          child_name = child_class.name.to_s
+          parent_name = parent_class.name.to_s
+          child_name.start_with?("#{parent_name}::")
+        end
       end
     end
   end
