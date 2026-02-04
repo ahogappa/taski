@@ -283,6 +283,37 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
     # Should NOT use alternate screen buffer
     refute_includes output, "\e[?1049h"
   end
+
+  def test_render_live_overwrites_same_line
+    @display.set_root_task(FixtureTaskB)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15  # Wait for at least one render cycle
+
+    output = @output.string
+    # Count occurrences of \r\e[K - should have multiple (from render cycles)
+    carriage_returns = output.scan("\r\e[K").count
+
+    @display.stop
+
+    final_output = @output.string
+    # Live rendering should not add newlines
+    # Only the final render should have a newline
+    assert carriage_returns > 0, "Should have carriage return sequences during live rendering"
+    assert_equal 1, final_output.count("\n"), "Should only have one newline (from final render)"
+  end
+
+  def test_render_live_respects_terminal_width
+    @display.set_root_task(FixtureTaskB)
+    @display.start
+    @display.update_task(FixtureTaskA, state: :running)
+    sleep 0.15 # Wait for at least one render cycle
+    @display.stop
+
+    # Extract live render lines and verify none exceed terminal width (80)
+    live_lines = @output.string.scan(/\r\e\[K([^\r\n]*)/).flatten
+    assert(live_lines.all? { |line| line.length < 80 }, "Lines should not exceed terminal width")
+  end
 end
 
 class TestProgressModeConfiguration < Minitest::Test
