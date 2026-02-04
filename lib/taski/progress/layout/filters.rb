@@ -91,6 +91,17 @@ module Taski
           result
         end
 
+        # Extract short name from a fully qualified class name.
+        # Returns the last component after "::".
+        #
+        # @example
+        #   {{ task.name | short_name }}
+        #   # "MyModule::MyTask" => "MyTask"
+        def short_name(input)
+          return "" if input.nil?
+          input.to_s.split("::").last || input.to_s
+        end
+
         # Truncate text to a maximum length, adding suffix if truncated.
         # Uses Template's truncate_text_suffix if available.
         #

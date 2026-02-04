@@ -26,53 +26,53 @@ module Taski
         # === Task lifecycle templates ===
 
         def task_pending
-          "[PENDING] {{ task.name }}"
+          "[PENDING] {{ task.name | short_name }}"
         end
 
         def task_start
-          "[START] {{ task.name }}"
+          "[START] {{ task.name | short_name }}"
         end
 
         def task_success
-          "[DONE] {{ task.name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
+          "[DONE] {{ task.name | short_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
         def task_fail
-          "[FAIL] {{ task.name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
+          "[FAIL] {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
         # === Clean lifecycle templates ===
 
         def clean_start
-          "[CLEAN] {{ task.name }}"
+          "[CLEAN] {{ task.name | short_name }}"
         end
 
         def clean_success
-          "[CLEAN DONE] {{ task.name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
+          "[CLEAN DONE] {{ task.name | short_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
         def clean_fail
-          "[CLEAN FAIL] {{ task.name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
+          "[CLEAN FAIL] {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
         # === Group lifecycle templates ===
 
         def group_start
-          '[GROUP] {{ task.name }}#{{ task.group_name }}'
+          '[GROUP] {{ task.name | short_name }}#{{ task.group_name }}'
         end
 
         def group_success
-          '[GROUP DONE] {{ task.name }}#{{ task.group_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}'
+          '[GROUP DONE] {{ task.name | short_name }}#{{ task.group_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}'
         end
 
         def group_fail
-          '[GROUP FAIL] {{ task.name }}#{{ task.group_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}'
+          '[GROUP FAIL] {{ task.name | short_name }}#{{ task.group_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}'
         end
 
         # === Execution lifecycle templates ===
 
         def execution_start
-          "[TASKI] Starting {{ execution.root_task_name }}"
+          "[TASKI] Starting {{ execution.root_task_name | short_name }}"
         end
 
         def execution_running

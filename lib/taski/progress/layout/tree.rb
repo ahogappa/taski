@@ -253,7 +253,7 @@ module Taski
           when :failed
             render_task_failed(task_class, error: task_state.run_error)
           else
-            task = TaskDrop.new(name: short_name(task_class), state: :pending)
+            task = TaskDrop.new(name: task_class_name(task_class), state: :pending)
             render_template(:task_pending, task:, execution: execution_drop)
           end
         end

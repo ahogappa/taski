@@ -327,61 +327,61 @@ module Taski
 
         # Render task start event
         def render_task_started(task_class)
-          task = TaskDrop.new(name: short_name(task_class), state: :running)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :running)
           render_template(:task_start, task:, execution: execution_drop)
         end
 
         # Render task success event
         def render_task_succeeded(task_class, task_duration:)
-          task = TaskDrop.new(name: short_name(task_class), state: :completed, duration: task_duration)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
           render_template(:task_success, task:, execution: execution_drop)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          task = TaskDrop.new(name: short_name(task_class), state: :failed, error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
           render_template(:task_fail, task:, execution: execution_drop)
         end
 
         # Render clean start event
         def render_clean_started(task_class)
-          task = TaskDrop.new(name: short_name(task_class), state: :cleaning)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :cleaning)
           render_template(:clean_start, task:, execution: execution_drop)
         end
 
         # Render clean success event
         def render_clean_succeeded(task_class, task_duration:)
-          task = TaskDrop.new(name: short_name(task_class), state: :clean_completed, duration: task_duration)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :clean_completed, duration: task_duration)
           render_template(:clean_success, task:, execution: execution_drop)
         end
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
-          task = TaskDrop.new(name: short_name(task_class), state: :clean_failed, error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :clean_failed, error_message: error&.message)
           render_template(:clean_fail, task:, execution: execution_drop)
         end
 
         # Render group start event
         def render_group_started(task_class, group_name:)
-          task = TaskDrop.new(name: short_name(task_class), state: :running, group_name:)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :running, group_name:)
           render_template(:group_start, task:, execution: execution_drop)
         end
 
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
-          task = TaskDrop.new(name: short_name(task_class), state: :completed, group_name:, duration: task_duration)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:, duration: task_duration)
           render_template(:group_success, task:, execution: execution_drop)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          task = TaskDrop.new(name: short_name(task_class), state: :failed, group_name:, error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:, error_message: error&.message)
           render_template(:group_fail, task:, execution: execution_drop)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
-          execution = ExecutionDrop.new(state: :running, root_task_name: short_name(root_task_class), **execution_context)
+          execution = ExecutionDrop.new(state: :running, root_task_name: task_class_name(root_task_class), **execution_context)
           render_template(:execution_start, execution:)
         end
 
@@ -414,7 +414,7 @@ module Taski
             failed_count: failed_count,
             total_count: total_count,
             total_duration: total_duration,
-            root_task_name: @root_task_class ? short_name(@root_task_class) : nil
+            root_task_name: task_class_name(@root_task_class)
           }
         end
 
@@ -524,7 +524,13 @@ module Taski
 
         # === Utility methods ===
 
-        # Get short name of a task class
+        # Get full name of a task class (for use with short_name filter in templates)
+        def task_class_name(task_class)
+          return nil unless task_class
+          task_class.name || task_class.to_s
+        end
+
+        # Get short name of a task class (last component after "::")
         def short_name(task_class)
           return "Unknown" unless task_class
           task_class.name&.split("::")&.last || task_class.to_s

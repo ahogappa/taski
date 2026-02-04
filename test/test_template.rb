@@ -24,7 +24,7 @@ class TestTemplate < Minitest::Test
 
   def test_task_start_returns_liquid_template_string
     result = @template.task_start
-    assert_includes result, "{{ task.name }}"
+    assert_includes result, "{{ task.name | short_name }}"
   end
 
   def test_task_start_renders_with_task_name
@@ -36,7 +36,7 @@ class TestTemplate < Minitest::Test
 
   def test_task_success_returns_liquid_template_string
     result = @template.task_success
-    assert_includes result, "{{ task.name }}"
+    assert_includes result, "{{ task.name | short_name }}"
   end
 
   def test_task_success_renders_without_duration
@@ -54,7 +54,7 @@ class TestTemplate < Minitest::Test
 
   def test_task_fail_returns_liquid_template_string
     result = @template.task_fail
-    assert_includes result, "{{ task.name }}"
+    assert_includes result, "{{ task.name | short_name }}"
   end
 
   def test_task_fail_renders_without_error
@@ -74,7 +74,7 @@ class TestTemplate < Minitest::Test
 
   def test_clean_start_returns_liquid_template_string
     result = @template.clean_start
-    assert_includes result, "{{ task.name }}"
+    assert_includes result, "{{ task.name | short_name }}"
     assert_includes result, "[CLEAN]"
   end
 
@@ -94,7 +94,7 @@ class TestTemplate < Minitest::Test
 
   def test_group_start_returns_liquid_template_string
     result = @template.group_start
-    assert_includes result, "{{ task.name }}"
+    assert_includes result, "{{ task.name | short_name }}"
     assert_includes result, "{{ task.group_name }}"
   end
 
@@ -126,7 +126,7 @@ class TestTemplate < Minitest::Test
 
   def test_execution_start_returns_liquid_template_string
     result = @template.execution_start
-    assert_includes result, "{{ execution.root_task_name }}"
+    assert_includes result, "{{ execution.root_task_name | short_name }}"
     assert_includes result, "[TASKI]"
   end
 
@@ -248,7 +248,7 @@ class TestTemplate < Minitest::Test
 
   def test_task_pending_returns_liquid_template_string
     result = @template.task_pending
-    assert_includes result, "{{ task.name }}"
+    assert_includes result, "{{ task.name | short_name }}"
   end
 
   def test_task_pending_renders_correctly
