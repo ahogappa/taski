@@ -109,10 +109,19 @@ module Taski
         def render_live
           @monitor.synchronize do
             line = build_status_line
+            # Truncate line to terminal width to prevent line wrap
+            max_width = terminal_width - 1  # Leave space for cursor
+            line = line[0, max_width] if line.length > max_width
             # Clear line and write new content
             @output.print "\r\e[K#{line}"
             @output.flush
           end
+        end
+
+        def terminal_width
+          @output.winsize[1]
+        rescue
+          80 # Default fallback
         end
 
         def render_final
