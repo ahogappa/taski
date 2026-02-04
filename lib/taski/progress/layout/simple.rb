@@ -154,7 +154,7 @@ module Taski
             []
           end
 
-          current_tasks.map { |t| short_name(t) }
+          current_tasks.map { |t| task_class_name(t) }
         end
 
         def build_task_stdout(task_class)

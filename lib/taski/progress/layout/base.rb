@@ -530,22 +530,6 @@ module Taski
           task_class.name || task_class.to_s
         end
 
-        # Get short name of a task class (last component after "::")
-        def short_name(task_class)
-          return "Unknown" unless task_class
-          task_class.name&.split("::")&.last || task_class.to_s
-        end
-
-        # Format duration for display
-        def format_duration(ms)
-          return nil unless ms
-          if ms >= 1000
-            "#{(ms / 1000.0).round(1)}s"
-          else
-            "#{ms.round(1)}ms"
-          end
-        end
-
         # Check if output is a TTY
         def tty?
           @output.tty?
