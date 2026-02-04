@@ -320,6 +320,94 @@ class TestTemplate < Minitest::Test
     refute_includes rendered, ":"
   end
 
+  # === Task line template (for tree layout live rendering) ===
+
+  def test_task_line_returns_liquid_template_string
+    result = @template.task_line
+    assert_kind_of String, result
+    assert_includes result, "{{ task_name }}"
+  end
+
+  def test_task_line_renders_pending_state
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "pending",
+      "spinner_index" => 0)
+    assert_includes rendered, "○"
+    assert_includes rendered, "MyTask"
+  end
+
+  def test_task_line_renders_running_state_with_spinner
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "running",
+      "spinner_index" => 0)
+    assert_includes rendered, "⠋"
+    assert_includes rendered, "MyTask"
+  end
+
+  def test_task_line_renders_running_state_with_output_suffix
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "running",
+      "spinner_index" => 0,
+      "output_suffix" => "Processing...")
+    assert_includes rendered, "⠋"
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "Processing..."
+  end
+
+  def test_task_line_renders_completed_state
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "completed",
+      "duration" => 123,
+      "spinner_index" => 0)
+    assert_includes rendered, "✓"
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "(123ms)"
+  end
+
+  def test_task_line_renders_completed_state_without_duration
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "completed",
+      "duration" => nil,
+      "spinner_index" => 0)
+    assert_includes rendered, "✓"
+    assert_includes rendered, "MyTask"
+    refute_includes rendered, "()"
+  end
+
+  def test_task_line_renders_failed_state
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "failed",
+      "error_message" => "Connection refused",
+      "spinner_index" => 0)
+    assert_includes rendered, "✗"
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "Connection refused"
+  end
+
+  def test_task_line_renders_failed_state_without_error
+    template_string = @template.task_line
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "failed",
+      "error_message" => nil,
+      "spinner_index" => 0)
+    assert_includes rendered, "✗"
+    assert_includes rendered, "MyTask"
+    refute_includes rendered, ":"
+  end
+
   private
 
   def render_template(template_string, variables)

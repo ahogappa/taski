@@ -229,6 +229,18 @@ module Taski
           "..."
         end
 
+        # === Task line template (for tree layout live rendering) ===
+
+        # Template for a single task line with state-dependent display
+        # Available variables: task_name, state, duration (optional), error_message (optional), output_suffix (optional)
+        # State values: "pending", "running", "completed", "failed"
+        # @return [String] Liquid template string
+        def task_line
+          <<~LIQUID.chomp
+            {% if state == "pending" %}{% icon pending %}{% elsif state == "running" %}{% spinner %}{% elsif state == "completed" %}{{ template.color_green }}{% icon success %}{{ template.color_reset }}{% elsif state == "failed" %}{{ template.color_red }}{% icon failure %}{{ template.color_reset }}{% endif %} {{ task_name }}{% if state == "completed" and duration %} ({{ duration | format_duration }}){% endif %}{% if state == "failed" and error_message %}: {{ error_message }}{% endif %}{% if state == "running" and output_suffix %} | {{ output_suffix }}{% endif %}
+          LIQUID
+        end
+
         # === Status line templates (plain defaults) ===
 
         # Template for running status line

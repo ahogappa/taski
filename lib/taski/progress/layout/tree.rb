@@ -245,26 +245,15 @@ module Taski
         end
 
         def build_task_content(task_class)
-          state = @tasks[task_class]
-          name = short_name(task_class)
+          task_state = @tasks[task_class]
+          state_name = task_state&.run_state&.to_s || "pending"
 
-          case state&.run_state
-          when :running
-            spinner = @template.spinner_frames[@spinner_index]
-            output_suffix = build_output_suffix(task_class)
-            suffix_str = output_suffix ? " | #{output_suffix}" : ""
-            "#{spinner} #{name}#{suffix_str}"
-          when :completed
-            duration = state.run_duration
-            duration_str = duration ? " (#{format_duration(duration)})" : ""
-            "#{@template.color_green}#{@template.icon_success}#{@template.color_reset} #{name}#{duration_str}"
-          when :failed
-            error_msg = state.run_error&.message
-            error_str = error_msg ? ": #{error_msg}" : ""
-            "#{@template.color_red}#{@template.icon_failure}#{@template.color_reset} #{name}#{error_str}"
-          else
-            "#{@template.icon_pending} #{name}"
-          end
+          render_template(:task_line,
+            task_name: short_name(task_class),
+            state: state_name,
+            duration: task_state&.run_duration,
+            error_message: task_state&.run_error&.message,
+            output_suffix: build_output_suffix(task_class))
         end
 
         MAX_OUTPUT_SUFFIX_LENGTH = 50
