@@ -302,12 +302,32 @@ module Taski
         # === Template rendering helpers ===
 
         # Render a template method with the given variables
+        # Common variables available in all templates.
+        # Values default to nil if not provided.
+        COMMON_TEMPLATE_VARIABLES = %i[
+          task_name
+          state
+          duration
+          error_message
+          done_count
+          completed
+          failed
+          total
+          root_task_name
+          group_name
+          task_names
+          output_suffix
+        ].freeze
+
         # @param method_name [Symbol] The template method to call
         # @param variables [Hash] Variables to pass to the template
         # @return [String] The rendered template
         def render_template(method_name, **variables)
+          # Merge with common variables (nil defaults)
+          common_vars = COMMON_TEMPLATE_VARIABLES.to_h { |k| [k, nil] }
+          merged_vars = common_vars.merge(variables)
           template_string = @template.public_send(method_name)
-          render_template_string(template_string, **variables)
+          render_template_string(template_string, **merged_vars)
         end
 
         # === Event-to-template rendering methods ===

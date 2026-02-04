@@ -7,8 +7,14 @@ module Taski
       # Template classes are thin layers that only return Liquid template strings.
       # Rendering (Liquid parsing) is handled by Layout classes.
       #
-      # Users can subclass this to create custom templates:
+      # All templates have access to the same common variables:
+      #   task_name, state, duration, error_message,
+      #   done_count, completed, failed, total,
+      #   root_task_name, group_name, task_names, output_suffix
       #
+      # Use {% if variable %} to conditionally render when a value is present.
+      #
+      # @example Custom template
       #   class MyTemplate < Taski::Progress::Template::Base
       #     def task_start
       #       "Starting {{ task_name }}..."
@@ -19,103 +25,64 @@ module Taski
       class Base
         # === Task lifecycle templates ===
 
-        # Template shown when a task is pending (not yet started)
-        # @return [String] Liquid template string
         def task_pending
           "[PENDING] {{ task_name }}"
         end
 
-        # Template shown when a task starts running
-        # @return [String] Liquid template string
         def task_start
           "[START] {{ task_name }}"
         end
 
-        # Template shown when a task completes successfully
-        # Available variables: task_name, duration (optional, in milliseconds)
-        # @return [String] Liquid template string
         def task_success
           "[DONE] {{ task_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}"
         end
 
-        # Template shown when a task fails
-        # Available variables: task_name, error_message (optional)
-        # @return [String] Liquid template string
         def task_fail
           "[FAIL] {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
         end
 
         # === Clean lifecycle templates ===
 
-        # Template shown when a task's clean phase starts
-        # @return [String] Liquid template string
         def clean_start
           "[CLEAN] {{ task_name }}"
         end
 
-        # Template shown when a task's clean phase completes
-        # Available variables: task_name, duration (optional, in milliseconds)
-        # @return [String] Liquid template string
         def clean_success
           "[CLEAN DONE] {{ task_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}"
         end
 
-        # Template shown when a task's clean phase fails
-        # Available variables: task_name, error_message (optional)
-        # @return [String] Liquid template string
         def clean_fail
           "[CLEAN FAIL] {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
         end
 
         # === Group lifecycle templates ===
 
-        # Template shown when a group starts
-        # Available variables: task_name, group_name
-        # @return [String] Liquid template string
         def group_start
           '[GROUP] {{ task_name }}#{{ group_name }}'
         end
 
-        # Template shown when a group completes successfully
-        # Available variables: task_name, group_name, duration (optional, in milliseconds)
-        # @return [String] Liquid template string
         def group_success
           '[GROUP DONE] {{ task_name }}#{{ group_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}'
         end
 
-        # Template shown when a group fails
-        # Available variables: task_name, group_name, error_message (optional)
-        # @return [String] Liquid template string
         def group_fail
           '[GROUP FAIL] {{ task_name }}#{{ group_name }}{% if error_message %}: {{ error_message }}{% endif %}'
         end
 
         # === Execution lifecycle templates ===
 
-        # Template shown when execution begins
-        # Available variables: root_task_name
-        # @return [String] Liquid template string
         def execution_start
           "[TASKI] Starting {{ root_task_name }}"
         end
 
-        # Template shown during execution (running state)
-        # Available variables: done_count, total
-        # @return [String] Liquid template string
         def execution_running
           "[TASKI] Running: {{ done_count }}/{{ total }} tasks"
         end
 
-        # Template shown when all tasks complete successfully
-        # Available variables: completed, total, duration (in milliseconds)
-        # @return [String] Liquid template string
         def execution_complete
           "[TASKI] Completed: {{ completed }}/{{ total }} tasks ({{ duration | format_duration }})"
         end
 
-        # Template shown when execution ends with failures
-        # Available variables: failed, total, duration (in milliseconds)
-        # @return [String] Liquid template string
         def execution_fail
           "[TASKI] Failed: {{ failed }}/{{ total }} tasks ({{ duration | format_duration }})"
         end

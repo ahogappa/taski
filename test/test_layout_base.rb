@@ -329,3 +329,97 @@ class TestLayoutBaseTaskStateTransitions < Minitest::Test
     assert_equal :failed, @layout.task_state(@task_class)
   end
 end
+
+class TestLayoutBaseCommonVariables < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
+  end
+
+  # All templates should have access to the same common variables
+  # even if the value is nil when not applicable
+
+  def test_task_start_can_use_duration_variable
+    # Create a custom template that uses duration in task_start
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_start
+        "{{ task_name }}{% if duration %} took {{ duration }}ms{% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
+
+    # duration is nil for task_start, so the if block should not render
+    assert_equal "MyTask", result
+  end
+
+  def test_task_success_can_use_error_message_variable
+    # Create a custom template that checks for error_message in task_success
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_success
+        "{{ task_name }} done{% if error_message %} (had error){% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_succeeded, stub_task_class("MyTask"), duration: 100)
+
+    # error_message is nil for success, so the if block should not render
+    assert_equal "MyTask done", result
+  end
+
+  def test_execution_complete_can_use_task_name_variable
+    # Create a custom template that uses task_name in execution_complete
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def execution_complete
+        "Done: {{ completed }}/{{ total }}{% if task_name %} ({{ task_name }}){% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_execution_completed, completed: 5, total: 5, duration: 1000)
+
+    # task_name is nil for execution_complete, so the if block should not render
+    assert_equal "Done: 5/5", result
+  end
+
+  def test_all_common_variables_are_available_in_any_template
+    # Create a template that uses all common variables
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_start
+        [
+          "task_name:{{ task_name }}",
+          "state:{{ state }}",
+          "duration:{{ duration }}",
+          "error_message:{{ error_message }}",
+          "done_count:{{ done_count }}",
+          "completed:{{ completed }}",
+          "failed:{{ failed }}",
+          "total:{{ total }}",
+          "root_task_name:{{ root_task_name }}",
+          "group_name:{{ group_name }}"
+        ].join("|")
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
+
+    # All variables should be present (even if empty/nil)
+    # task_name and state should have values, others should be empty
+    assert_includes result, "task_name:MyTask"
+    assert_includes result, "state:running"
+    # Others should be empty but the variable names should still render (not cause errors)
+    assert_includes result, "duration:"
+    assert_includes result, "error_message:"
+  end
+
+  private
+
+  def stub_task_class(name)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass
+  end
+end
