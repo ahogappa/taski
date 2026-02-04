@@ -308,7 +308,7 @@ module Taski
           task_name
           state
           duration
-          error_message
+          task_error_message
           pending_count
           done_count
           completed_count
@@ -317,7 +317,7 @@ module Taski
           root_task_name
           group_name
           task_names
-          task_output
+          task_stdout
         ].freeze
 
         # @param method_name [Symbol] The template method to call
@@ -347,7 +347,7 @@ module Taski
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          render_template(:task_fail, task_name: short_name(task_class), error_message: error&.message, state: :failed)
+          render_template(:task_fail, task_name: short_name(task_class), task_error_message: error&.message, state: :failed)
         end
 
         # Render clean start event
@@ -362,7 +362,7 @@ module Taski
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
-          render_template(:clean_fail, task_name: short_name(task_class), error_message: error&.message)
+          render_template(:clean_fail, task_name: short_name(task_class), task_error_message: error&.message)
         end
 
         # Render group start event
@@ -377,7 +377,7 @@ module Taski
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, error_message: error&.message)
+          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, task_error_message: error&.message)
         end
 
         # Render execution start event
@@ -396,12 +396,12 @@ module Taski
         end
 
         # Render execution running state
-        def render_execution_running(done_count:, total_count:, task_names:, task_output:)
+        def render_execution_running(done_count:, total_count:, task_names:, task_stdout:)
           render_template(:execution_running,
             done_count: done_count,
             total_count: total_count,
             task_names: task_names,
-            task_output: task_output,
+            task_stdout: task_stdout,
             state: :running)
         end
 

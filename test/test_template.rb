@@ -59,14 +59,14 @@ class TestTemplate < Minitest::Test
 
   def test_task_fail_renders_without_error
     template_string = @template.task_fail
-    rendered = render_template(template_string, "task_name" => "MyTask", "error_message" => nil)
+    rendered = render_template(template_string, "task_name" => "MyTask", "task_error_message" => nil)
     assert_includes rendered, "[FAIL] MyTask"
     refute_includes rendered, ":"
   end
 
   def test_task_fail_renders_with_error
     template_string = @template.task_fail
-    rendered = render_template(template_string, "task_name" => "MyTask", "error_message" => "Something went wrong")
+    rendered = render_template(template_string, "task_name" => "MyTask", "task_error_message" => "Something went wrong")
     assert_includes rendered, "[FAIL] MyTask: Something went wrong"
   end
 
@@ -86,7 +86,7 @@ class TestTemplate < Minitest::Test
 
   def test_clean_fail_renders_with_error
     template_string = @template.clean_fail
-    rendered = render_template(template_string, "task_name" => "MyTask", "error_message" => "Cleanup failed")
+    rendered = render_template(template_string, "task_name" => "MyTask", "task_error_message" => "Cleanup failed")
     assert_includes rendered, "[CLEAN FAIL] MyTask: Cleanup failed"
   end
 
@@ -118,7 +118,7 @@ class TestTemplate < Minitest::Test
     rendered = render_template(template_string,
       "task_name" => "MyTask",
       "group_name" => "build",
-      "error_message" => "Build failed")
+      "task_error_message" => "Build failed")
     assert_includes rendered, "[GROUP FAIL] MyTask#build: Build failed"
   end
 
@@ -342,7 +342,7 @@ class TestTemplateTree < Minitest::Test
     rendered = render_template(template_string,
       "task_name" => "MyTask",
       "state" => "failed",
-      "error_message" => "Something went wrong")
+      "task_error_message" => "Something went wrong")
     assert_includes rendered, "✗"
     assert_includes rendered, "MyTask"
     assert_includes rendered, "Something went wrong"
@@ -353,7 +353,7 @@ class TestTemplateTree < Minitest::Test
     rendered = render_template(template_string,
       "task_name" => "MyTask",
       "state" => "failed",
-      "error_message" => nil)
+      "task_error_message" => nil)
     assert_includes rendered, "✗"
     assert_includes rendered, "MyTask"
     refute_includes rendered, ":"

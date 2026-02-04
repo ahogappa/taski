@@ -35,7 +35,7 @@ module Taski
 
         # Task fail with colored icon
         def task_fail
-          "{% icon %} {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
+          "{% icon %} {{ task_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}"
         end
       end
     end

@@ -8,9 +8,9 @@ module Taski
       # Rendering (Liquid parsing) is handled by Layout classes.
       #
       # All templates have access to the same common variables:
-      #   task_name, state, duration, error_message,
+      #   task_name, state, duration, task_error_message,
       #   pending_count, done_count, completed_count, failed_count, total_count,
-      #   root_task_name, group_name, task_names, task_output
+      #   root_task_name, group_name, task_names, task_stdout
       #
       # Use {% if variable %} to conditionally render when a value is present.
       #
@@ -38,7 +38,7 @@ module Taski
         end
 
         def task_fail
-          "[FAIL] {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
+          "[FAIL] {{ task_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}"
         end
 
         # === Clean lifecycle templates ===
@@ -52,7 +52,7 @@ module Taski
         end
 
         def clean_fail
-          "[CLEAN FAIL] {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
+          "[CLEAN FAIL] {{ task_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}"
         end
 
         # === Group lifecycle templates ===
@@ -66,7 +66,7 @@ module Taski
         end
 
         def group_fail
-          '[GROUP FAIL] {{ task_name }}#{{ group_name }}{% if error_message %}: {{ error_message }}{% endif %}'
+          '[GROUP FAIL] {{ task_name }}#{{ group_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}'
         end
 
         # === Execution lifecycle templates ===

@@ -354,18 +354,18 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     assert_equal "MyTask", result
   end
 
-  def test_task_success_can_use_error_message_variable
-    # Create a custom template that checks for error_message in task_success
+  def test_task_success_can_use_task_error_message_variable
+    # Create a custom template that checks for task_error_message in task_success
     custom_template = Class.new(Taski::Progress::Template::Base) do
       def task_success
-        "{{ task_name }} done{% if error_message %} (had error){% endif %}"
+        "{{ task_name }} done{% if task_error_message %} (had error){% endif %}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
     result = layout.send(:render_task_succeeded, stub_task_class("MyTask"), duration: 100)
 
-    # error_message is nil for success, so the if block should not render
+    # task_error_message is nil for success, so the if block should not render
     assert_equal "MyTask done", result
   end
 
@@ -392,7 +392,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
           "task_name:{{ task_name }}",
           "state:{{ state }}",
           "duration:{{ duration }}",
-          "error_message:{{ error_message }}",
+          "task_error_message:{{ task_error_message }}",
           "pending_count:{{ pending_count }}",
           "done_count:{{ done_count }}",
           "completed_count:{{ completed_count }}",
@@ -413,7 +413,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     assert_includes result, "state:running"
     # Others should be empty but the variable names should still render (not cause errors)
     assert_includes result, "duration:"
-    assert_includes result, "error_message:"
+    assert_includes result, "task_error_message:"
   end
 
   private

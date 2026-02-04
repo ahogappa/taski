@@ -132,13 +132,13 @@ module Taski
           task_names = collect_current_task_names
 
           primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
-          task_output = build_task_output(primary_task)
+          task_stdout = build_task_stdout(primary_task)
 
           render_execution_running(
             done_count: done_count,
             total_count: total_count,
             task_names: task_names.empty? ? nil : task_names,
-            task_output: task_output
+            task_stdout: task_stdout
           )
         end
 
@@ -157,7 +157,7 @@ module Taski
           current_tasks.map { |t| short_name(t) }
         end
 
-        def build_task_output(task_class)
+        def build_task_stdout(task_class)
           return nil unless @output_capture && task_class
 
           last_line = @output_capture.last_line_for(task_class)

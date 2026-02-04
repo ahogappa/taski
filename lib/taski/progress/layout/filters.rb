@@ -8,7 +8,7 @@ module Taski
       #
       # @example Usage in Liquid template
       #   {{ task_name | green }}
-      #   {{ error_message | red }}
+      #   {{ task_error_message | red }}
       #   {{ status | dim }}
       module ColorFilter
         # Default ANSI color codes (used when no template is provided)
@@ -94,7 +94,7 @@ module Taski
         # Uses Template's truncate_text_suffix if available.
         #
         # @example
-        #   {{ task_output | truncate_text: 40 }}
+        #   {{ task_stdout | truncate_text: 40 }}
         #   # => "Uploading files to server..."
         def truncate_text(input, max_length = 40)
           return "" if input.nil?
