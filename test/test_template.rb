@@ -270,23 +270,8 @@ class TestTemplate < Minitest::Test
     template_string = @template.execution_running
     rendered = render_template(template_string,
       "done_count" => 3,
-      "total" => 5,
-      "task_names" => "TaskA, TaskB",
-      "output_suffix" => "Processing...")
-    assert_includes rendered, "[3/5]"
-    assert_includes rendered, "TaskA, TaskB"
-    assert_includes rendered, "Processing..."
-  end
-
-  def test_execution_running_renders_without_optional_variables
-    template_string = @template.execution_running
-    rendered = render_template(template_string,
-      "done_count" => 0,
-      "total" => 5,
-      "task_names" => nil,
-      "output_suffix" => nil)
-    assert_includes rendered, "[0/5]"
-    refute_includes rendered, "|"
+      "total" => 5)
+    assert_includes rendered, "[TASKI] Running: 3/5 tasks"
   end
 
   private

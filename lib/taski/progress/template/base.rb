@@ -100,10 +100,10 @@ module Taski
         end
 
         # Template shown during execution (running state)
-        # Available variables: done_count, total, task_names (optional, array), output_suffix (optional)
+        # Available variables: done_count, total
         # @return [String] Liquid template string
         def execution_running
-          "[{{ done_count }}/{{ total }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
+          "[TASKI] Running: {{ done_count }}/{{ total }} tasks"
         end
 
         # Template shown when all tasks complete successfully
