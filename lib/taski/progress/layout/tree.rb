@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../template/tree"
+require_relative "../theme/detail"
 
 module Taski
   module Progress
@@ -24,14 +24,14 @@ module Taski
       #   └── ✓ RunSystemCommand (200ms)
       #
       # The tree structure (prefixes) is added by this Layout.
-      # The task content (icons, names, duration) comes from the Template.
+      # The task content (icons, names, duration) comes from the Theme.
       #
-      # This demonstrates the Template/Layout separation:
-      # - Template defines "what one line looks like" (icons, colors, formatting)
+      # This demonstrates the Theme/Layout separation:
+      # - Theme defines "what one line looks like" (icons, colors, formatting)
       # - Layout defines "how lines are arranged" (tree structure, prefixes)
       #
-      # @example Using with Template::Default
-      #   layout = Taski::Progress::Layout::Tree.new(template: Taski::Progress::Template::Default.new)
+      # @example Using with Theme::Default
+      #   layout = Taski::Progress::Layout::Tree.new(theme: Taski::Progress::Theme::Default.new)
       class Tree < Base
         # Tree connector characters
         BRANCH = "├── "
@@ -39,8 +39,8 @@ module Taski
         VERTICAL = "│   "
         SPACE = "    "
 
-        def initialize(output: $stderr, template: nil)
-          template ||= Template::Tree.new
+        def initialize(output: $stderr, theme: nil)
+          theme ||= Theme::Detail.new
           super
           @tree_nodes = {}
           @node_depths = {}
@@ -130,7 +130,7 @@ module Taski
             loop do
               break unless @running_mutex.synchronize { @running }
               render_live
-              sleep @template.render_interval
+              sleep @theme.render_interval
             end
           end
         end

@@ -2,26 +2,26 @@
 
 module Taski
   module Progress
-    module Template
-      # Base class for template definitions.
-      # Template classes are thin layers that only return Liquid template strings.
+    module Theme
+      # Base class for theme definitions.
+      # Theme classes are thin layers that only return Liquid template strings.
       # Rendering (Liquid parsing) is handled by Layout classes.
       #
-      # Templates have access to two Drop objects:
+      # Themes have access to two Drop objects:
       #   task: Task-specific info (name, state, duration, error_message, group_name, stdout)
       #   execution: Execution-level info (state, pending_count, done_count, completed_count,
       #              failed_count, total_count, total_duration, root_task_name, task_names)
       #
       # Use {% if variable %} to conditionally render when a value is present.
       #
-      # @example Custom template
-      #   class MyTemplate < Taski::Progress::Template::Base
+      # @example Custom theme
+      #   class MyTheme < Taski::Progress::Theme::Base
       #     def task_start
       #       "Starting {{ task.name }}..."
       #     end
       #   end
       #
-      #   layout = Taski::Progress::Layout::Plain.new(template: MyTemplate.new)
+      #   layout = Taski::Progress::Layout::Log.new(theme: MyTheme.new)
       class Base
         # === Task lifecycle templates ===
 

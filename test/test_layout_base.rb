@@ -2,11 +2,11 @@
 
 require "test_helper"
 require "stringio"
-require "taski/progress/template/base"
-require "taski/progress/template/default"
-require "taski/progress/template/simple"
+require "taski/progress/theme/base"
+require "taski/progress/theme/default"
+require "taski/progress/theme/compact"
 require "taski/progress/layout/base"
-require "taski/progress/layout/template_drop"
+require "taski/progress/layout/theme_drop"
 
 class TestLayoutBase < Minitest::Test
   def setup
@@ -153,9 +153,9 @@ class TestLayoutBase < Minitest::Test
 
   # === Custom template ===
 
-  def test_accepts_custom_template
-    custom_template = Taski::Progress::Template::Base.new
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+  def test_accepts_custom_theme
+    custom_theme = Taski::Progress::Theme::Base.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     assert_kind_of Taski::Progress::Layout::Base, layout
   end
 
@@ -199,9 +199,9 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
     assert @layout.instance_variable_get(:@liquid_environment)
   end
 
-  def test_initialize_creates_template_drop
-    drop = @layout.instance_variable_get(:@template_drop)
-    assert_instance_of Taski::Progress::Layout::TemplateDrop, drop
+  def test_initialize_creates_theme_drop
+    drop = @layout.instance_variable_get(:@theme_drop)
+    assert_instance_of Taski::Progress::Layout::ThemeDrop, drop
   end
 
   def test_render_template_string_with_color_filter
@@ -242,14 +242,14 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
     assert_equal "⠋ \e[32mMyTask\e[0m - \e[2mrunning\e[0m", result
   end
 
-  def test_render_template_string_uses_custom_template_colors
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+  def test_render_template_string_uses_custom_theme_colors
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def color_red
         "\e[91m"  # bright red
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.render_template_string("{{ text | red }}", text: "error")
 
     assert_equal "\e[91merror\e[0m", result
@@ -341,13 +341,13 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_task_start_can_use_duration_variable
     # Create a custom template that uses duration in task_start
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_start
         "{{ task.name }}{% if task.duration %} took {{ task.duration }}ms{% endif %}"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
     # duration is nil for task_start, so the if block should not render
@@ -356,13 +356,13 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_task_success_can_use_task_error_message_variable
     # Create a custom template that checks for task.error_message in task_success
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_success
         "{{ task.name }} done{% if task.error_message %} (had error){% endif %}"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_succeeded, stub_task_class("MyTask"), task_duration: 100)
 
     # error_message is nil for success, so the if block should not render
@@ -371,13 +371,13 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_execution_complete_can_use_task_name_variable
     # Create a custom template that uses task.name in execution_complete
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
         "Done: {{ execution.completed_count }}/{{ execution.total_count }}{% if task.name %} ({{ task.name }}){% endif %}"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_execution_completed, completed_count: 5, total_count: 5, total_duration: 1000)
 
     # task.name is nil for execution_complete, so the if block should not render
@@ -386,7 +386,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_task_and_execution_drops_available_in_any_template
     # Create a template that uses task and execution drops
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_start
         [
           "task.name:{{ task.name }}",
@@ -404,7 +404,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
     # Task drop should have name and state
@@ -418,13 +418,13 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_task_drop_is_available_in_template
     # Create a template that uses task drop
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_start
         "{{ task.name }} ({{ task.state }})"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
     assert_equal "MyTask (running)", result
@@ -432,39 +432,39 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_execution_drop_is_available_in_template
     # Create a template that uses execution drop
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
         "[{{ execution.completed_count }}/{{ execution.total_count }}] ({{ execution.total_duration }}ms)"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_execution_completed, completed_count: 5, total_count: 10, total_duration: 1500)
 
     assert_equal "[5/10] (1500ms)", result
   end
 
   def test_task_drop_has_all_task_specific_fields
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_fail
         "{{ task.name }}|{{ task.state }}|{{ task.error_message }}"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_failed, stub_task_class("FailTask"), error: StandardError.new("oops"))
 
     assert_equal "FailTask|failed|oops", result
   end
 
   def test_execution_drop_has_all_execution_fields
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_fail
         "{{ execution.failed_count }}/{{ execution.total_count }} failed ({{ execution.state }})"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_execution_failed, failed_count: 2, total_count: 5, total_duration: 1000)
 
     assert_equal "2/5 failed (failed)", result
@@ -472,13 +472,13 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_task_template_can_access_execution_context
     # Task-level templates should also have access to execution context
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_fail
         "[{{ execution.done_count }}/{{ execution.total_count }}] {{ task.name }}: {{ task.error_message }}"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
 
     # Register some tasks to have counts
     task1 = stub_task_class("Task1")

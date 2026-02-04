@@ -3,8 +3,8 @@
 require "minitest/autorun"
 require "liquid"
 require_relative "../lib/taski/progress/layout/tags"
-require_relative "../lib/taski/progress/layout/template_drop"
-require_relative "../lib/taski/progress/template/base"
+require_relative "../lib/taski/progress/layout/theme_drop"
+require_relative "../lib/taski/progress/theme/base"
 
 class TestLiquidTags < Minitest::Test
   def setup
@@ -19,8 +19,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_spinner_tag_renders_first_frame_by_default
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
     result = liquid_template.render("template" => drop)
@@ -30,8 +30,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_spinner_tag_uses_spinner_index_from_context
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
     result = liquid_template.render("template" => drop, "spinner_index" => 3)
@@ -42,8 +42,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_spinner_tag_wraps_around_when_index_exceeds_frames
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
     result = liquid_template.render("template" => drop, "spinner_index" => 10)
@@ -53,13 +53,13 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_spinner_tag_uses_custom_frames_from_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def spinner_frames
         %w[| / - \\]
       end
     end.new
 
-    drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
+    drop = Taski::Progress::Layout::ThemeDrop.new(custom_theme)
 
     liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
 
@@ -72,7 +72,7 @@ class TestLiquidTags < Minitest::Test
     assert_equal "-", result2
   end
 
-  def test_spinner_tag_without_template_drop_uses_default
+  def test_spinner_tag_without_theme_drop_uses_default
     liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
     result = liquid_template.render({})
 
@@ -81,8 +81,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_spinner_tag_can_be_combined_with_text
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse(
       "{% spinner %} Loading {{ task_name }}...",
@@ -104,8 +104,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_icon_tag_renders_success_icon_for_completed_state
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
     result = liquid_template.render("template" => drop, "state" => "completed")
@@ -114,8 +114,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_icon_tag_renders_failure_icon_for_failed_state
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
     result = liquid_template.render("template" => drop, "state" => "failed")
@@ -124,8 +124,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_icon_tag_renders_pending_icon_for_running_state
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
     result = liquid_template.render("template" => drop, "state" => "running")
@@ -134,8 +134,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_icon_tag_renders_pending_icon_for_pending_state
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
     result = liquid_template.render("template" => drop, "state" => "pending")
@@ -144,8 +144,8 @@ class TestLiquidTags < Minitest::Test
   end
 
   def test_icon_tag_without_state_renders_pending
-    template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
     result = liquid_template.render("template" => drop)
@@ -153,8 +153,8 @@ class TestLiquidTags < Minitest::Test
     assert_equal "○", result
   end
 
-  def test_icon_tag_uses_custom_template_icons
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+  def test_icon_tag_uses_custom_theme_icons
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def icon_success
         "🎉"
       end
@@ -164,7 +164,7 @@ class TestLiquidTags < Minitest::Test
       end
     end.new
 
-    drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
+    drop = Taski::Progress::Layout::ThemeDrop.new(custom_theme)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
     result = liquid_template.render("template" => drop, "state" => "completed")
