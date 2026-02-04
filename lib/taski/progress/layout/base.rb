@@ -346,55 +346,58 @@ module Taski
         # === Event-to-template rendering methods ===
         # These methods define which template is used for each event.
         # Subclasses call these instead of render_template directly.
+        #
+        # All render methods include execution context (counts, duration) so templates
+        # can display progress like "[3/5] TaskName" even in task-level templates.
 
         # Render task start event
         def render_task_started(task_class)
-          render_template(:task_start, task_name: short_name(task_class), task_state: :running)
+          render_template(:task_start, task_name: short_name(task_class), task_state: :running, **execution_context)
         end
 
         # Render task success event
         def render_task_succeeded(task_class, task_duration:)
-          render_template(:task_success, task_name: short_name(task_class), task_duration: task_duration, task_state: :completed)
+          render_template(:task_success, task_name: short_name(task_class), task_duration: task_duration, task_state: :completed, **execution_context)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          render_template(:task_fail, task_name: short_name(task_class), task_error_message: error&.message, task_state: :failed)
+          render_template(:task_fail, task_name: short_name(task_class), task_error_message: error&.message, task_state: :failed, **execution_context)
         end
 
         # Render clean start event
         def render_clean_started(task_class)
-          render_template(:clean_start, task_name: short_name(task_class))
+          render_template(:clean_start, task_name: short_name(task_class), **execution_context)
         end
 
         # Render clean success event
         def render_clean_succeeded(task_class, task_duration:)
-          render_template(:clean_success, task_name: short_name(task_class), task_duration: task_duration)
+          render_template(:clean_success, task_name: short_name(task_class), task_duration: task_duration, **execution_context)
         end
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
-          render_template(:clean_fail, task_name: short_name(task_class), task_error_message: error&.message)
+          render_template(:clean_fail, task_name: short_name(task_class), task_error_message: error&.message, **execution_context)
         end
 
         # Render group start event
         def render_group_started(task_class, group_name:)
-          render_template(:group_start, task_name: short_name(task_class), group_name: group_name)
+          render_template(:group_start, task_name: short_name(task_class), group_name: group_name, **execution_context)
         end
 
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
-          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, task_duration: task_duration)
+          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, task_duration: task_duration, **execution_context)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, task_error_message: error&.message)
+          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, task_error_message: error&.message, **execution_context)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
-          render_template(:execution_start, root_task_name: short_name(root_task_class))
+          render_template(:execution_start, root_task_name: short_name(root_task_class), **execution_context)
         end
 
         # Render execution complete event
@@ -415,6 +418,19 @@ module Taski
             task_names: task_names,
             task_stdout: task_stdout,
             execution_state: :running)
+        end
+
+        # Returns current execution context for use in task-level templates
+        def execution_context
+          {
+            pending_count: pending_count,
+            done_count: done_count,
+            completed_count: completed_count,
+            failed_count: failed_count,
+            total_count: total_count,
+            total_duration: total_duration,
+            root_task_name: @root_task_class ? short_name(@root_task_class) : nil
+          }
         end
 
         # === State-to-render dispatchers ===

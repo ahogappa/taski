@@ -470,6 +470,32 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     assert_equal "2/5 failed (failed)", result
   end
 
+  def test_task_template_can_access_execution_context
+    # Task-level templates should also have access to execution context
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_fail
+        "[{{ execution.done_count }}/{{ execution.total_count }}] {{ task.name }}: {{ task.error_message }}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+
+    # Register some tasks to have counts
+    task1 = stub_task_class("Task1")
+    task2 = stub_task_class("Task2")
+    task3 = stub_task_class("FailedTask")
+    layout.register_task(task1)
+    layout.register_task(task2)
+    layout.register_task(task3)
+    layout.update_task(task1, state: :completed, duration: 100)
+    layout.update_task(task2, state: :completed, duration: 100)
+
+    result = layout.send(:render_task_failed, task3, error: StandardError.new("connection refused"))
+
+    # done_count = 2 (completed tasks), total_count = 3 (registered tasks)
+    assert_equal "[2/3] FailedTask: connection refused", result
+  end
+
   private
 
   def stub_task_class(name)

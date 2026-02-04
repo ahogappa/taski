@@ -48,53 +48,40 @@ module Taski
 
       # Liquid Drop for task-specific variables.
       # Provides access to individual task information in templates.
+      # Uses liquid_method_missing for dynamic property access.
+      #
+      # Available properties: name, state, duration, error_message, group_name, stdout
       #
       # @example Using in Liquid template
       #   {{ task.name }} ({{ task.state }})
       #   {{ task.duration | format_duration }}
       class TaskDrop < Liquid::Drop
-        attr_reader :name, :state, :duration, :error_message, :group_name, :stdout
+        def initialize(**data)
+          @data = data
+        end
 
-        def initialize(name: nil, state: nil, duration: nil, error_message: nil, group_name: nil, stdout: nil)
-          @name = name
-          @state = state
-          @duration = duration
-          @error_message = error_message
-          @group_name = group_name
-          @stdout = stdout
+        def liquid_method_missing(method)
+          @data[method.to_sym]
         end
       end
 
       # Liquid Drop for execution-level variables.
       # Provides access to overall execution state in templates.
+      # Uses liquid_method_missing for dynamic property access.
+      #
+      # Available properties: state, pending_count, done_count, completed_count,
+      #   failed_count, total_count, total_duration, root_task_name, task_names
       #
       # @example Using in Liquid template
       #   [{{ execution.completed_count }}/{{ execution.total_count }}]
       #   {{ execution.total_duration | format_duration }}
       class ExecutionDrop < Liquid::Drop
-        attr_reader :state, :pending_count, :done_count, :completed_count,
-          :failed_count, :total_count, :total_duration, :root_task_name, :task_names
+        def initialize(**data)
+          @data = data
+        end
 
-        def initialize(
-          state: nil,
-          pending_count: nil,
-          done_count: nil,
-          completed_count: nil,
-          failed_count: nil,
-          total_count: nil,
-          total_duration: nil,
-          root_task_name: nil,
-          task_names: nil
-        )
-          @state = state
-          @pending_count = pending_count
-          @done_count = done_count
-          @completed_count = completed_count
-          @failed_count = failed_count
-          @total_count = total_count
-          @total_duration = total_duration
-          @root_task_name = root_task_name
-          @task_names = task_names
+        def liquid_method_missing(method)
+          @data[method.to_sym]
         end
       end
     end
