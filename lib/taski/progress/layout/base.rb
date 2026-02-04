@@ -289,46 +289,58 @@ module Taski
         # Called when display stops.
         # Default: output execution complete or fail message.
         def on_stop
-          duration = total_duration
-
           text = if failed_count > 0
-            render_execution_failed(failed_count: failed_count, total_count: total_count, duration: duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
           else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, duration: duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
           end
           output_line(text)
         end
 
         # === Template rendering helpers ===
 
-        # Render a template method with the given variables
-        # Common variables available in all templates.
-        # Values default to nil if not provided.
-        COMMON_TEMPLATE_VARIABLES = %i[
-          task_name
-          state
-          duration
-          task_error_message
-          pending_count
-          done_count
-          completed_count
-          failed_count
-          total_count
-          root_task_name
-          group_name
-          task_names
-          task_stdout
-        ].freeze
-
+        # Render a template method with the given variables.
+        # Templates access variables through two Drop objects:
+        #   - task: Task-specific info (name, state, duration, error_message, group_name, stdout)
+        #   - execution: Execution-level info (state, counts, duration, root_task_name, task_names)
+        #
+        # State variables:
+        # - task_state: State of a single task (pending, running, completed, failed, cleaning, clean_completed, clean_failed)
+        # - execution_state: State of the overall execution (running, completed, failed)
+        #
         # @param method_name [Symbol] The template method to call
         # @param variables [Hash] Variables to pass to the template
         # @return [String] The rendered template
         def render_template(method_name, **variables)
-          # Merge with common variables (nil defaults)
-          common_vars = COMMON_TEMPLATE_VARIABLES.to_h { |k| [k, nil] }
-          merged_vars = common_vars.merge(variables)
+          # Convert task_state or execution_state to state for icon tag compatibility
+          state = variables.delete(:task_state) || variables.delete(:execution_state)
+
+          # Build task and execution drops for structured access
+          template_vars = {
+            state: state,
+            task: TaskDrop.new(
+              name: variables[:task_name],
+              state: state,
+              duration: variables[:task_duration],
+              error_message: variables[:task_error_message],
+              group_name: variables[:group_name],
+              stdout: variables[:task_stdout]
+            ),
+            execution: ExecutionDrop.new(
+              state: state,
+              pending_count: variables[:pending_count],
+              done_count: variables[:done_count],
+              completed_count: variables[:completed_count],
+              failed_count: variables[:failed_count],
+              total_count: variables[:total_count],
+              total_duration: variables[:total_duration],
+              root_task_name: variables[:root_task_name],
+              task_names: variables[:task_names]
+            )
+          }
+
           template_string = @template.public_send(method_name)
-          render_template_string(template_string, **merged_vars)
+          render_template_string(template_string, **template_vars)
         end
 
         # === Event-to-template rendering methods ===
@@ -337,17 +349,17 @@ module Taski
 
         # Render task start event
         def render_task_started(task_class)
-          render_template(:task_start, task_name: short_name(task_class), state: :running)
+          render_template(:task_start, task_name: short_name(task_class), task_state: :running)
         end
 
         # Render task success event
-        def render_task_succeeded(task_class, duration:)
-          render_template(:task_success, task_name: short_name(task_class), duration: duration, state: :completed)
+        def render_task_succeeded(task_class, task_duration:)
+          render_template(:task_success, task_name: short_name(task_class), task_duration: task_duration, task_state: :completed)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          render_template(:task_fail, task_name: short_name(task_class), task_error_message: error&.message, state: :failed)
+          render_template(:task_fail, task_name: short_name(task_class), task_error_message: error&.message, task_state: :failed)
         end
 
         # Render clean start event
@@ -356,8 +368,8 @@ module Taski
         end
 
         # Render clean success event
-        def render_clean_succeeded(task_class, duration:)
-          render_template(:clean_success, task_name: short_name(task_class), duration: duration)
+        def render_clean_succeeded(task_class, task_duration:)
+          render_template(:clean_success, task_name: short_name(task_class), task_duration: task_duration)
         end
 
         # Render clean failure event
@@ -371,8 +383,8 @@ module Taski
         end
 
         # Render group success event
-        def render_group_succeeded(task_class, group_name:, duration:)
-          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, duration: duration)
+        def render_group_succeeded(task_class, group_name:, task_duration:)
+          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, task_duration: task_duration)
         end
 
         # Render group failure event
@@ -386,13 +398,13 @@ module Taski
         end
 
         # Render execution complete event
-        def render_execution_completed(completed_count:, total_count:, duration:)
-          render_template(:execution_complete, completed_count: completed_count, total_count: total_count, duration: duration, state: :completed)
+        def render_execution_completed(completed_count:, total_count:, total_duration:)
+          render_template(:execution_complete, completed_count: completed_count, total_count: total_count, total_duration: total_duration, execution_state: :completed)
         end
 
         # Render execution failure event
-        def render_execution_failed(failed_count:, total_count:, duration:)
-          render_template(:execution_fail, failed_count: failed_count, total_count: total_count, duration: duration, state: :failed)
+        def render_execution_failed(failed_count:, total_count:, total_duration:)
+          render_template(:execution_fail, failed_count: failed_count, total_count: total_count, total_duration: total_duration, execution_state: :failed)
         end
 
         # Render execution running state
@@ -402,7 +414,7 @@ module Taski
             total_count: total_count,
             task_names: task_names,
             task_stdout: task_stdout,
-            state: :running)
+            execution_state: :running)
         end
 
         # === State-to-render dispatchers ===
@@ -410,18 +422,18 @@ module Taski
 
         # Dispatch task event to appropriate render method
         # @return [String, nil] Rendered output or nil if state not handled
-        def render_for_task_event(task_class, state, duration, error)
+        def render_for_task_event(task_class, state, task_duration, error)
           case state
           when :running
             render_task_started(task_class)
           when :completed
-            render_task_succeeded(task_class, duration: duration)
+            render_task_succeeded(task_class, task_duration: task_duration)
           when :failed
             render_task_failed(task_class, error: error)
           when :cleaning
             render_clean_started(task_class)
           when :clean_completed
-            render_clean_succeeded(task_class, duration: duration)
+            render_clean_succeeded(task_class, task_duration: task_duration)
           when :clean_failed
             render_clean_failed(task_class, error: error)
           end
@@ -429,12 +441,12 @@ module Taski
 
         # Dispatch group event to appropriate render method
         # @return [String, nil] Rendered output or nil if state not handled
-        def render_for_group_event(task_class, group_name, state, duration, error)
+        def render_for_group_event(task_class, group_name, state, task_duration, error)
           case state
           when :running
             render_group_started(task_class, group_name: group_name)
           when :completed
-            render_group_succeeded(task_class, group_name: group_name, duration: duration)
+            render_group_succeeded(task_class, group_name: group_name, task_duration: task_duration)
           when :failed
             render_group_failed(task_class, group_name: group_name, error: error)
           end

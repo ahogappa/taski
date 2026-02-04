@@ -31,7 +31,7 @@ module Taski
       #     end
       #
       #     def status_complete
-      #       '{% icon %} {{ done_count | format_count }}完了 ({{ duration | format_duration }})'
+      #       '{% icon %} {{ execution.done_count | format_count }}完了 ({{ execution.total_duration | format_duration }})'
       #     end
       #   end
       class Simple < Default
@@ -40,17 +40,17 @@ module Taski
 
         # Execution running with spinner
         def execution_running
-          "{% spinner %} [{{ done_count }}/{{ total_count }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if task_stdout %} | {{ task_stdout | truncate_text: 40 }}{% endif %}"
+          "{% spinner %} [{{ execution.done_count }}/{{ execution.total_count }}]{% if execution.task_names %} {{ execution.task_names | truncate_list: 3 }}{% endif %}{% if task.stdout %} | {{ task.stdout | truncate_text: 40 }}{% endif %}"
         end
 
         # Execution complete with icon
         def execution_complete
-          "{% icon %} [TASKI] Completed: {{ completed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
+          "{% icon %} [TASKI] Completed: {{ execution.completed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
         # Execution fail with icon
         def execution_fail
-          "{% icon %} [TASKI] Failed: {{ failed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
+          "{% icon %} [TASKI] Failed: {{ execution.failed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
       end
     end

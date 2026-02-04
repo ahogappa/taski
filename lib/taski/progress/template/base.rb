@@ -7,17 +7,17 @@ module Taski
       # Template classes are thin layers that only return Liquid template strings.
       # Rendering (Liquid parsing) is handled by Layout classes.
       #
-      # All templates have access to the same common variables:
-      #   task_name, state, duration, task_error_message,
-      #   pending_count, done_count, completed_count, failed_count, total_count,
-      #   root_task_name, group_name, task_names, task_stdout
+      # Templates have access to two Drop objects:
+      #   task: Task-specific info (name, state, duration, error_message, group_name, stdout)
+      #   execution: Execution-level info (state, pending_count, done_count, completed_count,
+      #              failed_count, total_count, total_duration, root_task_name, task_names)
       #
       # Use {% if variable %} to conditionally render when a value is present.
       #
       # @example Custom template
       #   class MyTemplate < Taski::Progress::Template::Base
       #     def task_start
-      #       "Starting {{ task_name }}..."
+      #       "Starting {{ task.name }}..."
       #     end
       #   end
       #
@@ -26,65 +26,65 @@ module Taski
         # === Task lifecycle templates ===
 
         def task_pending
-          "[PENDING] {{ task_name }}"
+          "[PENDING] {{ task.name }}"
         end
 
         def task_start
-          "[START] {{ task_name }}"
+          "[START] {{ task.name }}"
         end
 
         def task_success
-          "[DONE] {{ task_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}"
+          "[DONE] {{ task.name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
         def task_fail
-          "[FAIL] {{ task_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}"
+          "[FAIL] {{ task.name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
         # === Clean lifecycle templates ===
 
         def clean_start
-          "[CLEAN] {{ task_name }}"
+          "[CLEAN] {{ task.name }}"
         end
 
         def clean_success
-          "[CLEAN DONE] {{ task_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}"
+          "[CLEAN DONE] {{ task.name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
         def clean_fail
-          "[CLEAN FAIL] {{ task_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}"
+          "[CLEAN FAIL] {{ task.name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
         # === Group lifecycle templates ===
 
         def group_start
-          '[GROUP] {{ task_name }}#{{ group_name }}'
+          '[GROUP] {{ task.name }}#{{ task.group_name }}'
         end
 
         def group_success
-          '[GROUP DONE] {{ task_name }}#{{ group_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}'
+          '[GROUP DONE] {{ task.name }}#{{ task.group_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}'
         end
 
         def group_fail
-          '[GROUP FAIL] {{ task_name }}#{{ group_name }}{% if task_error_message %}: {{ task_error_message }}{% endif %}'
+          '[GROUP FAIL] {{ task.name }}#{{ task.group_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}'
         end
 
         # === Execution lifecycle templates ===
 
         def execution_start
-          "[TASKI] Starting {{ root_task_name }}"
+          "[TASKI] Starting {{ execution.root_task_name }}"
         end
 
         def execution_running
-          "[TASKI] Running: {{ done_count }}/{{ total_count }} tasks"
+          "[TASKI] Running: {{ execution.done_count }}/{{ execution.total_count }} tasks"
         end
 
         def execution_complete
-          "[TASKI] Completed: {{ completed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
+          "[TASKI] Completed: {{ execution.completed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
         def execution_fail
-          "[TASKI] Failed: {{ failed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
+          "[TASKI] Failed: {{ execution.failed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
         # === Spinner configuration ===

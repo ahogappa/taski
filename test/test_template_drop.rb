@@ -140,3 +140,135 @@ class TestTemplateDrop < Minitest::Test
     assert_equal "100ミリ秒", custom_drop.format_duration(100)
   end
 end
+
+# TaskDrop: Drop for task-specific variables
+class TestTaskDrop < Minitest::Test
+  def test_task_drop_inherits_from_liquid_drop
+    assert Taski::Progress::Layout::TaskDrop < Liquid::Drop
+  end
+
+  def test_exposes_task_name
+    drop = Taski::Progress::Layout::TaskDrop.new(name: "MyTask")
+    assert_equal "MyTask", drop.name
+  end
+
+  def test_exposes_state
+    drop = Taski::Progress::Layout::TaskDrop.new(state: :running)
+    assert_equal :running, drop.state
+  end
+
+  def test_exposes_duration
+    drop = Taski::Progress::Layout::TaskDrop.new(duration: 123)
+    assert_equal 123, drop.duration
+  end
+
+  def test_exposes_error_message
+    drop = Taski::Progress::Layout::TaskDrop.new(error_message: "Something failed")
+    assert_equal "Something failed", drop.error_message
+  end
+
+  def test_exposes_group_name
+    drop = Taski::Progress::Layout::TaskDrop.new(group_name: "build")
+    assert_equal "build", drop.group_name
+  end
+
+  def test_exposes_stdout
+    drop = Taski::Progress::Layout::TaskDrop.new(stdout: "output text")
+    assert_equal "output text", drop.stdout
+  end
+
+  def test_nil_values_for_unset_attributes
+    drop = Taski::Progress::Layout::TaskDrop.new
+    assert_nil drop.name
+    assert_nil drop.state
+    assert_nil drop.duration
+    assert_nil drop.error_message
+    assert_nil drop.group_name
+    assert_nil drop.stdout
+  end
+
+  def test_can_be_used_in_liquid_template
+    drop = Taski::Progress::Layout::TaskDrop.new(name: "BuildTask", state: :completed, duration: 500)
+    liquid_template = Liquid::Template.parse("{{ task.name }} ({{ task.state }})")
+    result = liquid_template.render("task" => drop)
+
+    assert_equal "BuildTask (completed)", result
+  end
+end
+
+# ExecutionDrop: Drop for execution-level variables
+class TestExecutionDrop < Minitest::Test
+  def test_execution_drop_inherits_from_liquid_drop
+    assert Taski::Progress::Layout::ExecutionDrop < Liquid::Drop
+  end
+
+  def test_exposes_state
+    drop = Taski::Progress::Layout::ExecutionDrop.new(state: :completed)
+    assert_equal :completed, drop.state
+  end
+
+  def test_exposes_pending_count
+    drop = Taski::Progress::Layout::ExecutionDrop.new(pending_count: 3)
+    assert_equal 3, drop.pending_count
+  end
+
+  def test_exposes_done_count
+    drop = Taski::Progress::Layout::ExecutionDrop.new(done_count: 5)
+    assert_equal 5, drop.done_count
+  end
+
+  def test_exposes_completed_count
+    drop = Taski::Progress::Layout::ExecutionDrop.new(completed_count: 4)
+    assert_equal 4, drop.completed_count
+  end
+
+  def test_exposes_failed_count
+    drop = Taski::Progress::Layout::ExecutionDrop.new(failed_count: 1)
+    assert_equal 1, drop.failed_count
+  end
+
+  def test_exposes_total_count
+    drop = Taski::Progress::Layout::ExecutionDrop.new(total_count: 10)
+    assert_equal 10, drop.total_count
+  end
+
+  def test_exposes_total_duration
+    drop = Taski::Progress::Layout::ExecutionDrop.new(total_duration: 1500)
+    assert_equal 1500, drop.total_duration
+  end
+
+  def test_exposes_root_task_name
+    drop = Taski::Progress::Layout::ExecutionDrop.new(root_task_name: "MainTask")
+    assert_equal "MainTask", drop.root_task_name
+  end
+
+  def test_exposes_task_names
+    drop = Taski::Progress::Layout::ExecutionDrop.new(task_names: ["TaskA", "TaskB"])
+    assert_equal ["TaskA", "TaskB"], drop.task_names
+  end
+
+  def test_nil_values_for_unset_attributes
+    drop = Taski::Progress::Layout::ExecutionDrop.new
+    assert_nil drop.state
+    assert_nil drop.pending_count
+    assert_nil drop.done_count
+    assert_nil drop.completed_count
+    assert_nil drop.failed_count
+    assert_nil drop.total_count
+    assert_nil drop.total_duration
+    assert_nil drop.root_task_name
+    assert_nil drop.task_names
+  end
+
+  def test_can_be_used_in_liquid_template
+    drop = Taski::Progress::Layout::ExecutionDrop.new(
+      completed_count: 5,
+      total_count: 10,
+      total_duration: 2000
+    )
+    liquid_template = Liquid::Template.parse("[{{ execution.completed_count }}/{{ execution.total_count }}]")
+    result = liquid_template.render("execution" => drop)
+
+    assert_equal "[5/10]", result
+  end
+end

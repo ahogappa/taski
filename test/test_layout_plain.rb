@@ -203,7 +203,7 @@ class TestLayoutPlain < Minitest::Test
 
   class CustomTestTemplate < Taski::Progress::Template::Base
     def task_start
-      "CUSTOM START {{ task_name }}"
+      "CUSTOM START {{ task.name }}"
     end
   end
 end

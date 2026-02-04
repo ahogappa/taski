@@ -153,12 +153,10 @@ module Taski
 
         # Output execution summary for non-TTY mode
         def output_execution_summary
-          duration = total_duration
-
           text = if failed_count > 0
-            render_execution_failed(failed_count: failed_count, total_count: total_count, duration: duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
           else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, duration: duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
           end
           output_line(text)
         end
@@ -207,9 +205,9 @@ module Taski
 
             # Add summary line
             summary = if failed_count > 0
-              render_execution_failed(failed_count: failed_count, total_count: total_count, duration: total_duration)
+              render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
             else
-              render_execution_completed(completed_count: completed_count, total_count: total_count, duration: total_duration)
+              render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
             end
             @output.puts summary
             @output.flush
@@ -252,7 +250,7 @@ module Taski
           when :running
             render_task_started(task_class)
           when :completed
-            render_task_succeeded(task_class, duration: task_state.run_duration)
+            render_task_succeeded(task_class, task_duration: task_state.run_duration)
           when :failed
             render_task_failed(task_class, error: task_state.run_error)
           else

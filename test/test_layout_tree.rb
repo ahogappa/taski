@@ -335,7 +335,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
   def test_uses_custom_template_task_start
     custom_template = Class.new(Taski::Progress::Template::Base) do
       def task_start
-        "[BEGIN] {{ task_name }}"
+        "[BEGIN] {{ task.name }}"
       end
     end.new
 
@@ -352,7 +352,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
   def test_uses_custom_template_task_success
     custom_template = Class.new(Taski::Progress::Template::Base) do
       def task_success
-        "[OK] {{ task_name }}"
+        "[OK] {{ task.name }}"
       end
     end.new
 
@@ -369,7 +369,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
   def test_tree_prefix_with_custom_template
     custom_template = Class.new(Taski::Progress::Template::Base) do
       def task_start
-        "=> {{ task_name }}"
+        "=> {{ task.name }}"
       end
     end.new
 

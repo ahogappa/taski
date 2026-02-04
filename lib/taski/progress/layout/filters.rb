@@ -7,9 +7,9 @@ module Taski
       # Uses TemplateDrop from context to get color codes, falls back to defaults.
       #
       # @example Usage in Liquid template
-      #   {{ task_name | green }}
-      #   {{ task_error_message | red }}
-      #   {{ status | dim }}
+      #   {{ task.name | green }}
+      #   {{ task.error_message | red }}
+      #   {{ task.state | dim }}
       module ColorFilter
         # Default ANSI color codes (used when no template is provided)
         DEFAULT_RED = "\e[31m"
@@ -50,7 +50,7 @@ module Taski
         # Falls back to to_s if no template is provided.
         #
         # @example
-        #   {{ done_count | format_count }}
+        #   {{ execution.done_count | format_count }}
         def format_count(input)
           template = @context["template"]
           template&.format_count(input) || input.to_s
@@ -60,7 +60,8 @@ module Taski
         # Falls back to default formatting if no template is provided.
         #
         # @example
-        #   {{ duration | format_duration }}
+        #   {{ task.duration | format_duration }}
+        #   {{ execution.total_duration | format_duration }}
         def format_duration(input)
           return "" if input.nil?
 
@@ -72,7 +73,7 @@ module Taski
         # Uses Template's truncate_list_separator and truncate_list_suffix if available.
         #
         # @example
-        #   {{ task_names | truncate_list: 3 }}
+        #   {{ execution.task_names | truncate_list: 3 }}
         #   # => "TaskA, TaskB, TaskC..."
         def truncate_list(input, limit = 3)
           return "" if input.nil?
@@ -94,7 +95,7 @@ module Taski
         # Uses Template's truncate_text_suffix if available.
         #
         # @example
-        #   {{ task_stdout | truncate_text: 40 }}
+        #   {{ task.stdout | truncate_text: 40 }}
         #   # => "Uploading files to server..."
         def truncate_text(input, max_length = 40)
           return "" if input.nil?
