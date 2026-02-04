@@ -259,112 +259,51 @@ class TestLayoutTreePrefix < Minitest::Test
   end
 end
 
-class TestLayoutTreeOutputCapture < Minitest::Test
+class TestLayoutTreeTaskContent < Minitest::Test
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
   end
 
-  # Test build_output_suffix method directly (used in TTY mode live rendering)
-
-  def test_build_output_suffix_returns_last_line
-    mock_capture = Object.new
+  def test_build_task_content_uses_task_pending_for_pending_state
     task_class = stub_task_class("MyTask")
+    @layout.register_task(task_class)
 
-    mock_capture.define_singleton_method(:last_line_for) do |tc|
-      (tc == task_class) ? "Processing data..." : nil
-    end
-
-    @layout.set_output_capture(mock_capture)
-
-    suffix = @layout.send(:build_output_suffix, task_class)
-    assert_equal "Processing data...", suffix
+    content = @layout.send(:build_task_content, task_class)
+    assert_includes content, "[PENDING]"
+    assert_includes content, "MyTask"
   end
 
-  def test_build_output_suffix_returns_nil_without_capture
+  def test_build_task_content_uses_task_start_for_running_state
     task_class = stub_task_class("MyTask")
-
-    suffix = @layout.send(:build_output_suffix, task_class)
-    assert_nil suffix
-  end
-
-  def test_build_output_suffix_returns_nil_for_empty_line
-    mock_capture = Object.new
-    task_class = stub_task_class("MyTask")
-
-    mock_capture.define_singleton_method(:last_line_for) do |tc|
-      (tc == task_class) ? "   " : nil
-    end
-
-    @layout.set_output_capture(mock_capture)
-
-    suffix = @layout.send(:build_output_suffix, task_class)
-    assert_nil suffix
-  end
-
-  def test_build_output_suffix_returns_full_output
-    mock_capture = Object.new
-    task_class = stub_task_class("MyTask")
-
-    long_output = "A" * 100
-    mock_capture.define_singleton_method(:last_line_for) do |tc|
-      (tc == task_class) ? long_output : nil
-    end
-
-    @layout.set_output_capture(mock_capture)
-
-    # build_output_suffix no longer truncates; truncation is done by template's truncate_text filter
-    suffix = @layout.send(:build_output_suffix, task_class)
-    assert_equal long_output, suffix
-  end
-
-  def test_build_output_suffix_strips_whitespace
-    mock_capture = Object.new
-    task_class = stub_task_class("MyTask")
-
-    mock_capture.define_singleton_method(:last_line_for) do |tc|
-      (tc == task_class) ? "  output with spaces  \n" : nil
-    end
-
-    @layout.set_output_capture(mock_capture)
-
-    suffix = @layout.send(:build_output_suffix, task_class)
-    assert_equal "output with spaces", suffix
-  end
-
-  def test_build_task_content_includes_output_suffix_for_running
-    mock_capture = Object.new
-    task_class = stub_task_class("MyTask")
-
-    mock_capture.define_singleton_method(:last_line_for) do |tc|
-      (tc == task_class) ? "Processing..." : nil
-    end
-
-    @layout.set_output_capture(mock_capture)
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :running)
 
     content = @layout.send(:build_task_content, task_class)
+    assert_includes content, "[START]"
     assert_includes content, "MyTask"
-    assert_includes content, "| Processing..."
   end
 
-  def test_build_task_content_excludes_output_suffix_for_completed
-    mock_capture = Object.new
+  def test_build_task_content_uses_task_success_for_completed_state
     task_class = stub_task_class("MyTask")
-
-    mock_capture.define_singleton_method(:last_line_for) do |tc|
-      (tc == task_class) ? "Final output" : nil
-    end
-
-    @layout.set_output_capture(mock_capture)
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :completed, duration: 100)
 
     content = @layout.send(:build_task_content, task_class)
+    assert_includes content, "[DONE]"
     assert_includes content, "MyTask"
-    refute_includes content, "Final output"
-    refute_includes content, "|"
+    assert_includes content, "(100ms)"
+  end
+
+  def test_build_task_content_uses_task_fail_for_failed_state
+    task_class = stub_task_class("MyTask")
+    @layout.register_task(task_class)
+    @layout.update_task(task_class, state: :failed, error: StandardError.new("Something went wrong"))
+
+    content = @layout.send(:build_task_content, task_class)
+    assert_includes content, "[FAIL]"
+    assert_includes content, "MyTask"
+    assert_includes content, "Something went wrong"
   end
 
   private

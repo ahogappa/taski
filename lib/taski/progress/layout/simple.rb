@@ -118,20 +118,9 @@ module Taski
         def render_final
           @monitor.synchronize do
             line = if failed_count > 0
-              first_error = failed_tasks.values.first&.run_error
-
-              render_status_failed(
-                done_count: completed_count,
-                total: total_count,
-                failed_task_name: short_name(failed_tasks.keys.first),
-                error_message: first_error&.message
-              )
+              render_execution_failed(failed: failed_count, total: total_count, duration: total_duration)
             else
-              render_status_completed(
-                done_count: completed_count,
-                total: total_count,
-                duration: total_duration
-              )
+              render_execution_completed(completed: completed_count, total: total_count, duration: total_duration)
             end
 
             @output.print "\r\e[K#{line}\n"
@@ -145,7 +134,7 @@ module Taski
           primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
           output_suffix = build_output_suffix(primary_task)
 
-          render_status_running(
+          render_execution_running(
             done_count: done_count,
             total: total_count,
             task_names: task_names.empty? ? nil : task_names,

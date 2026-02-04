@@ -36,25 +36,21 @@ module Taski
       #   end
       class Simple < Default
         # Inherits ANSI colors from Base via Default.
+        # Adds spinner and icons for TTY environments.
 
-        # === Status line templates with spinner/icon ===
-
-        # Template for running status line (with spinner)
-        # @return [String] Liquid template string
-        def status_running
-          "{% spinner %} [{{ done_count | format_count }}/{{ total | format_count }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
+        # Execution running with spinner
+        def execution_running
+          "{% spinner %} [{{ done_count }}/{{ total }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
         end
 
-        # Template for completed status line (with icon)
-        # @return [String] Liquid template string
-        def status_complete
-          "{% icon %} [{{ done_count | format_count }}/{{ total | format_count }}] All tasks completed ({{ duration | format_duration }})"
+        # Execution complete with icon
+        def execution_complete
+          "{% icon %} [TASKI] Completed: {{ completed }}/{{ total }} tasks ({{ duration | format_duration }})"
         end
 
-        # Template for failed status line (with icon)
-        # @return [String] Liquid template string
-        def status_failed
-          "{% icon %} [{{ done_count | format_count }}/{{ total | format_count }}] {{ failed_task_name }} failed{% if error_message %}: {{ error_message }}{% endif %}"
+        # Execution fail with icon
+        def execution_fail
+          "{% icon %} [TASKI] Failed: {{ failed }}/{{ total }} tasks ({{ duration | format_duration }})"
         end
       end
     end

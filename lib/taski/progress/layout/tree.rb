@@ -246,23 +246,18 @@ module Taski
 
         def build_task_content(task_class)
           task_state = @tasks[task_class]
-          state_name = task_state&.run_state&.to_s || "pending"
+          name = short_name(task_class)
 
-          render_template(:task_line,
-            task_name: short_name(task_class),
-            state: state_name,
-            duration: task_state&.run_duration,
-            error_message: task_state&.run_error&.message,
-            output_suffix: build_output_suffix(task_class))
-        end
-
-        def build_output_suffix(task_class)
-          return nil unless @output_capture
-
-          last_line = @output_capture.last_line_for(task_class)
-          return nil unless last_line && !last_line.strip.empty?
-
-          last_line.strip
+          case task_state&.run_state
+          when :running
+            render_task_started(task_class)
+          when :completed
+            render_task_succeeded(task_class, duration: task_state.run_duration)
+          when :failed
+            render_task_failed(task_class, error: task_state.run_error)
+          else
+            render_template(:task_pending, task_name: name)
+          end
         end
 
         def build_tree_prefix(task_class)

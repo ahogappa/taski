@@ -19,6 +19,12 @@ module Taski
       class Base
         # === Task lifecycle templates ===
 
+        # Template shown when a task is pending (not yet started)
+        # @return [String] Liquid template string
+        def task_pending
+          "[PENDING] {{ task_name }}"
+        end
+
         # Template shown when a task starts running
         # @return [String] Liquid template string
         def task_start
@@ -91,6 +97,13 @@ module Taski
         # @return [String] Liquid template string
         def execution_start
           "[TASKI] Starting {{ root_task_name }}"
+        end
+
+        # Template shown during execution (running state)
+        # Available variables: done_count, total, task_names (optional, array), output_suffix (optional)
+        # @return [String] Liquid template string
+        def execution_running
+          "[{{ done_count }}/{{ total }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
         end
 
         # Template shown when all tasks complete successfully
@@ -227,44 +240,6 @@ module Taski
         # @return [String] Suffix to append when text is truncated
         def truncate_text_suffix
           "..."
-        end
-
-        # === Task line template (for tree layout live rendering) ===
-
-        # Template for a single task line with state-dependent display
-        # Available variables: task_name, state, duration (optional), error_message (optional), output_suffix (optional)
-        # State values: "pending", "running", "completed", "failed"
-        # @return [String] Liquid template string
-        def task_line
-          <<~LIQUID.chomp
-            {% if state == "pending" %}{% icon pending %}{% elsif state == "running" %}{% spinner %}{% elsif state == "completed" %}{{ template.color_green }}{% icon success %}{{ template.color_reset }}{% elsif state == "failed" %}{{ template.color_red }}{% icon failure %}{{ template.color_reset }}{% endif %} {{ task_name }}{% if state == "completed" and duration %} ({{ duration | format_duration }}){% endif %}{% if state == "failed" and error_message %}: {{ error_message }}{% endif %}{% if state == "running" and output_suffix %} | {{ output_suffix | truncate_text: 50 }}{% endif %}
-          LIQUID
-        end
-
-        # === Status line templates (plain defaults) ===
-
-        # Template for running status line
-        # Available variables: done_count, total, task_names (optional, array), output_suffix (optional)
-        # Available tags: {% spinner %}
-        # @return [String] Liquid template string
-        def status_running
-          "[{{ done_count | format_count }}/{{ total | format_count }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
-        end
-
-        # Template for completed status line
-        # Available variables: done_count, total, duration, state
-        # Available tags: {% icon %}
-        # @return [String] Liquid template string
-        def status_complete
-          "[{{ done_count | format_count }}/{{ total | format_count }}] All tasks completed ({{ duration | format_duration }})"
-        end
-
-        # Template for failed status line
-        # Available variables: done_count, total, failed_task_name, error_message (optional), state
-        # Available tags: {% icon %}
-        # @return [String] Liquid template string
-        def status_failed
-          "[{{ done_count | format_count }}/{{ total | format_count }}] {{ failed_task_name }} failed{% if error_message %}: {{ error_message }}{% endif %}"
         end
       end
     end

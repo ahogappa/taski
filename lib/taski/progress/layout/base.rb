@@ -366,40 +366,22 @@ module Taski
 
         # Render execution complete event
         def render_execution_completed(completed:, total:, duration:)
-          render_template(:execution_complete, completed: completed, total: total, duration: duration)
+          render_template(:execution_complete, completed: completed, total: total, duration: duration, state: :completed)
         end
 
         # Render execution failure event
         def render_execution_failed(failed:, total:, duration:)
-          render_template(:execution_fail, failed: failed, total: total, duration: duration)
+          render_template(:execution_fail, failed: failed, total: total, duration: duration, state: :failed)
         end
 
-        # Render running status line
-        def render_status_running(done_count:, total:, task_names:, output_suffix:)
-          render_template(:status_running,
+        # Render execution running state
+        def render_execution_running(done_count:, total:, task_names:, output_suffix:)
+          render_template(:execution_running,
             done_count: done_count,
             total: total,
             task_names: task_names,
-            output_suffix: output_suffix)
-        end
-
-        # Render completed status line
-        def render_status_completed(done_count:, total:, duration:)
-          render_template(:status_complete,
-            state: :completed,
-            done_count: done_count,
-            total: total,
-            duration: duration)
-        end
-
-        # Render failed status line
-        def render_status_failed(done_count:, total:, failed_task_name:, error_message:)
-          render_template(:status_failed,
-            state: :failed,
-            done_count: done_count,
-            total: total,
-            failed_task_name: failed_task_name,
-            error_message: error_message)
+            output_suffix: output_suffix,
+            state: :running)
         end
 
         # === State-to-render dispatchers ===

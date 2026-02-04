@@ -243,29 +243,42 @@ class TestTemplate < Minitest::Test
     assert_equal "\e[0m", result
   end
 
-  # === Status line templates (Base/Default - plain without spinner/icon) ===
+  # === Task pending template ===
 
-  def test_status_running_returns_liquid_template_string
-    result = @template.status_running
-    assert_kind_of String, result
+  def test_task_pending_returns_liquid_template_string
+    result = @template.task_pending
+    assert_includes result, "{{ task_name }}"
+  end
+
+  def test_task_pending_renders_correctly
+    template_string = @template.task_pending
+    rendered = render_template(template_string, "task_name" => "MyTask")
+    assert_includes rendered, "[PENDING]"
+    assert_includes rendered, "MyTask"
+  end
+
+  # === Execution running template ===
+
+  def test_execution_running_returns_liquid_template_string
+    result = @template.execution_running
     assert_includes result, "done_count"
     assert_includes result, "total"
   end
 
-  def test_status_running_renders_correctly
-    template_string = @template.status_running
+  def test_execution_running_renders_correctly
+    template_string = @template.execution_running
     rendered = render_template(template_string,
       "done_count" => 3,
       "total" => 5,
-      "task_names" => "DeployTask",
-      "output_suffix" => "Uploading files...")
+      "task_names" => "TaskA, TaskB",
+      "output_suffix" => "Processing...")
     assert_includes rendered, "[3/5]"
-    assert_includes rendered, "DeployTask"
-    assert_includes rendered, "Uploading files..."
+    assert_includes rendered, "TaskA, TaskB"
+    assert_includes rendered, "Processing..."
   end
 
-  def test_status_running_renders_without_optional_variables
-    template_string = @template.status_running
+  def test_execution_running_renders_without_optional_variables
+    template_string = @template.execution_running
     rendered = render_template(template_string,
       "done_count" => 0,
       "total" => 5,
@@ -273,139 +286,6 @@ class TestTemplate < Minitest::Test
       "output_suffix" => nil)
     assert_includes rendered, "[0/5]"
     refute_includes rendered, "|"
-  end
-
-  def test_status_complete_returns_liquid_template_string
-    result = @template.status_complete
-    assert_kind_of String, result
-    assert_includes result, "duration"
-  end
-
-  def test_status_complete_renders_correctly
-    template_string = @template.status_complete
-    rendered = render_template(template_string,
-      "done_count" => 5,
-      "total" => 5,
-      "duration" => 1234)
-    assert_includes rendered, "[5/5]"
-    assert_includes rendered, "1.2s"
-  end
-
-  def test_status_failed_returns_liquid_template_string
-    result = @template.status_failed
-    assert_kind_of String, result
-    assert_includes result, "{{ failed_task_name }}"
-  end
-
-  def test_status_failed_renders_correctly
-    template_string = @template.status_failed
-    rendered = render_template(template_string,
-      "done_count" => 3,
-      "total" => 5,
-      "failed_task_name" => "DeployTask",
-      "error_message" => "Connection refused")
-    assert_includes rendered, "[3/5]"
-    assert_includes rendered, "DeployTask failed"
-    assert_includes rendered, "Connection refused"
-  end
-
-  def test_status_failed_renders_without_error_message
-    template_string = @template.status_failed
-    rendered = render_template(template_string,
-      "done_count" => 3,
-      "total" => 5,
-      "failed_task_name" => "DeployTask",
-      "error_message" => nil)
-    assert_includes rendered, "DeployTask failed"
-    refute_includes rendered, ":"
-  end
-
-  # === Task line template (for tree layout live rendering) ===
-
-  def test_task_line_returns_liquid_template_string
-    result = @template.task_line
-    assert_kind_of String, result
-    assert_includes result, "{{ task_name }}"
-  end
-
-  def test_task_line_renders_pending_state
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "pending",
-      "spinner_index" => 0)
-    assert_includes rendered, "○"
-    assert_includes rendered, "MyTask"
-  end
-
-  def test_task_line_renders_running_state_with_spinner
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "running",
-      "spinner_index" => 0)
-    assert_includes rendered, "⠋"
-    assert_includes rendered, "MyTask"
-  end
-
-  def test_task_line_renders_running_state_with_output_suffix
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "running",
-      "spinner_index" => 0,
-      "output_suffix" => "Processing...")
-    assert_includes rendered, "⠋"
-    assert_includes rendered, "MyTask"
-    assert_includes rendered, "Processing..."
-  end
-
-  def test_task_line_renders_completed_state
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "completed",
-      "duration" => 123,
-      "spinner_index" => 0)
-    assert_includes rendered, "✓"
-    assert_includes rendered, "MyTask"
-    assert_includes rendered, "(123ms)"
-  end
-
-  def test_task_line_renders_completed_state_without_duration
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "completed",
-      "duration" => nil,
-      "spinner_index" => 0)
-    assert_includes rendered, "✓"
-    assert_includes rendered, "MyTask"
-    refute_includes rendered, "()"
-  end
-
-  def test_task_line_renders_failed_state
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "failed",
-      "error_message" => "Connection refused",
-      "spinner_index" => 0)
-    assert_includes rendered, "✗"
-    assert_includes rendered, "MyTask"
-    assert_includes rendered, "Connection refused"
-  end
-
-  def test_task_line_renders_failed_state_without_error
-    template_string = @template.task_line
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "failed",
-      "error_message" => nil,
-      "spinner_index" => 0)
-    assert_includes rendered, "✗"
-    assert_includes rendered, "MyTask"
-    refute_includes rendered, ":"
   end
 
   private

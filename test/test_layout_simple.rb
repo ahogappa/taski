@@ -65,8 +65,8 @@ class TestLayoutSimple < Minitest::Test
 
     # Should include success icon and task count
     assert_includes @output.string, "✓"
-    assert_includes @output.string, "[1/1]"
-    assert_includes @output.string, "All tasks completed"
+    assert_includes @output.string, "1/1"
+    assert_includes @output.string, "Completed"
   end
 
   def test_outputs_failure_summary_when_task_fails
@@ -77,10 +77,10 @@ class TestLayoutSimple < Minitest::Test
     @layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
     @layout.stop
 
-    # Should include failure icon and error info
+    # Should include failure icon and task count
     assert_includes @output.string, "✗"
-    assert_includes @output.string, "FailedTask"
-    assert_includes @output.string, "failed"
+    assert_includes @output.string, "1/1"
+    assert_includes @output.string, "Failed"
   end
 
   # === Spinner animation ===
@@ -197,7 +197,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         "🎉"
       end
 
-      def status_complete
+      def execution_complete
         "{% icon %} Done!"
       end
     end.new
@@ -220,8 +220,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         "💥"
       end
 
-      def status_failed
-        "{% icon %} Boom! {{ failed_task_name }}"
+      def execution_fail
+        "{% icon %} Boom! {{ failed }}/{{ total }}"
       end
     end.new
 
@@ -235,15 +235,15 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     assert_includes @output.string, "💥"
     assert_includes @output.string, "Boom!"
-    assert_includes @output.string, "FailedTask"
+    assert_includes @output.string, "1/1"
   end
 
-  # === Custom status templates ===
+  # === Custom execution templates ===
 
-  def test_uses_custom_status_complete_template
+  def test_uses_custom_execution_complete_template
     custom_template = Class.new(Taski::Progress::Template::Base) do
-      def status_complete
-        "{% icon %} Finished {{ done_count }} tasks in {{ duration | format_duration }}"
+      def execution_complete
+        "{% icon %} Finished {{ completed }} tasks in {{ duration | format_duration }}"
       end
     end.new
 
@@ -294,7 +294,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
 
       # Override to use icon tag
-      def status_complete
+      def execution_complete
         "{% icon %} Done!"
       end
     end.new
