@@ -209,8 +209,9 @@ module Taski
         # @return [String] Rendered output
         def render_template_string(template_string, **variables)
           context_vars = build_context_vars(variables)
-          Liquid::Template.parse(template_string, environment: @liquid_environment)
-            .render(context_vars)
+          template = Liquid::Template.parse(template_string, environment: @liquid_environment)
+          template.assigns["state"] = variables[:task]&.invoke_drop("state") || variables[:execution]&.invoke_drop("state")
+          template.render(context_vars)
         end
 
         # Start the spinner animation timer.
