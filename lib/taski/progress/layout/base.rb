@@ -299,46 +299,20 @@ module Taski
 
         # === Template rendering helpers ===
 
-        # Render a template method with the given variables.
-        # Templates access variables through two Drop objects:
-        #   - task: Task-specific info (name, state, duration, error_message, group_name, stdout)
-        #   - execution: Execution-level info (state, counts, duration, root_task_name, task_names)
-        #
-        # State variables:
-        # - task_state: State of a single task (pending, running, completed, failed, cleaning, clean_completed, clean_failed)
-        # - execution_state: State of the overall execution (running, completed, failed)
+        # Render a template method with Drop objects.
+        # Templates access variables through:
+        #   - task: TaskDrop for task-specific info (name, state, duration, error_message, group_name, stdout)
+        #   - execution: ExecutionDrop for execution-level info (state, counts, duration, root_task_name, task_names)
         #
         # @param method_name [Symbol] The template method to call
-        # @param variables [Hash] Variables to pass to the template
+        # @param task [TaskDrop, nil] Task-level drop (for task templates)
+        # @param execution [ExecutionDrop, nil] Execution-level drop
         # @return [String] The rendered template
-        def render_template(method_name, **variables)
-          # Convert task_state or execution_state to state for icon tag compatibility
-          state = variables.delete(:task_state) || variables.delete(:execution_state)
+        def render_template(method_name, task: nil, execution: nil)
+          # State for icon tag: prefer task state, fall back to execution state
+          state = task&.invoke_drop("state") || execution&.invoke_drop("state")
 
-          # Build task and execution drops for structured access
-          template_vars = {
-            state: state,
-            task: TaskDrop.new(
-              name: variables[:task_name],
-              state: state,
-              duration: variables[:task_duration],
-              error_message: variables[:task_error_message],
-              group_name: variables[:group_name],
-              stdout: variables[:task_stdout]
-            ),
-            execution: ExecutionDrop.new(
-              state: state,
-              pending_count: variables[:pending_count],
-              done_count: variables[:done_count],
-              completed_count: variables[:completed_count],
-              failed_count: variables[:failed_count],
-              total_count: variables[:total_count],
-              total_duration: variables[:total_duration],
-              root_task_name: variables[:root_task_name],
-              task_names: variables[:task_names]
-            )
-          }
-
+          template_vars = {state:, task:, execution:}
           template_string = @template.public_send(method_name)
           render_template_string(template_string, **template_vars)
         end
@@ -347,82 +321,93 @@ module Taski
         # These methods define which template is used for each event.
         # Subclasses call these instead of render_template directly.
         #
-        # All render methods include execution context (counts, duration) so templates
-        # can display progress like "[3/5] TaskName" even in task-level templates.
+        # Task-level methods pass both TaskDrop and ExecutionDrop so templates
+        # can display progress like "[3/5] TaskName".
+        # Execution-level methods pass only ExecutionDrop.
 
         # Render task start event
         def render_task_started(task_class)
-          render_template(:task_start, task_name: short_name(task_class), task_state: :running, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :running)
+          render_template(:task_start, task:, execution: execution_drop)
         end
 
         # Render task success event
         def render_task_succeeded(task_class, task_duration:)
-          render_template(:task_success, task_name: short_name(task_class), task_duration: task_duration, task_state: :completed, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :completed, duration: task_duration)
+          render_template(:task_success, task:, execution: execution_drop)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          render_template(:task_fail, task_name: short_name(task_class), task_error_message: error&.message, task_state: :failed, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :failed, error_message: error&.message)
+          render_template(:task_fail, task:, execution: execution_drop)
         end
 
         # Render clean start event
         def render_clean_started(task_class)
-          render_template(:clean_start, task_name: short_name(task_class), **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :cleaning)
+          render_template(:clean_start, task:, execution: execution_drop)
         end
 
         # Render clean success event
         def render_clean_succeeded(task_class, task_duration:)
-          render_template(:clean_success, task_name: short_name(task_class), task_duration: task_duration, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :clean_completed, duration: task_duration)
+          render_template(:clean_success, task:, execution: execution_drop)
         end
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
-          render_template(:clean_fail, task_name: short_name(task_class), task_error_message: error&.message, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :clean_failed, error_message: error&.message)
+          render_template(:clean_fail, task:, execution: execution_drop)
         end
 
         # Render group start event
         def render_group_started(task_class, group_name:)
-          render_template(:group_start, task_name: short_name(task_class), group_name: group_name, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :running, group_name:)
+          render_template(:group_start, task:, execution: execution_drop)
         end
 
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
-          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, task_duration: task_duration, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :completed, group_name:, duration: task_duration)
+          render_template(:group_success, task:, execution: execution_drop)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, task_error_message: error&.message, **execution_context)
+          task = TaskDrop.new(name: short_name(task_class), state: :failed, group_name:, error_message: error&.message)
+          render_template(:group_fail, task:, execution: execution_drop)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
-          render_template(:execution_start, root_task_name: short_name(root_task_class), **execution_context)
+          execution = ExecutionDrop.new(state: :running, root_task_name: short_name(root_task_class), **execution_context)
+          render_template(:execution_start, execution:)
         end
 
         # Render execution complete event
         def render_execution_completed(completed_count:, total_count:, total_duration:)
-          render_template(:execution_complete, completed_count: completed_count, total_count: total_count, total_duration: total_duration, execution_state: :completed)
+          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:)
+          render_template(:execution_complete, execution:)
         end
 
         # Render execution failure event
         def render_execution_failed(failed_count:, total_count:, total_duration:)
-          render_template(:execution_fail, failed_count: failed_count, total_count: total_count, total_duration: total_duration, execution_state: :failed)
+          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:)
+          render_template(:execution_fail, execution:)
         end
 
         # Render execution running state
         def render_execution_running(done_count:, total_count:, task_names:, task_stdout:)
-          render_template(:execution_running,
-            done_count: done_count,
-            total_count: total_count,
-            task_names: task_names,
-            task_stdout: task_stdout,
-            execution_state: :running)
+          task = TaskDrop.new(stdout: task_stdout)
+          execution = ExecutionDrop.new(state: :running, done_count:, total_count:, task_names:)
+          render_template(:execution_running, task:, execution:)
         end
 
-        # Returns current execution context for use in task-level templates
+        # Returns current execution context as a hash
         def execution_context
           {
+            state: execution_state,
             pending_count: pending_count,
             done_count: done_count,
             completed_count: completed_count,
@@ -431,6 +416,22 @@ module Taski
             total_duration: total_duration,
             root_task_name: @root_task_class ? short_name(@root_task_class) : nil
           }
+        end
+
+        # Returns current execution state
+        def execution_state
+          if failed_count > 0
+            :failed
+          elsif done_count == total_count && total_count > 0
+            :completed
+          else
+            :running
+          end
+        end
+
+        # Returns current execution context as an ExecutionDrop
+        def execution_drop
+          ExecutionDrop.new(**execution_context)
         end
 
         # === State-to-render dispatchers ===
