@@ -259,6 +259,125 @@ class TestLayoutTreePrefix < Minitest::Test
   end
 end
 
+class TestLayoutTreeOutputCapture < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Progress::Layout::Tree.new(output: @output)
+  end
+
+  # Test build_output_suffix method directly (used in TTY mode live rendering)
+
+  def test_build_output_suffix_returns_last_line
+    mock_capture = Object.new
+    task_class = stub_task_class("MyTask")
+
+    mock_capture.define_singleton_method(:last_line_for) do |tc|
+      (tc == task_class) ? "Processing data..." : nil
+    end
+
+    @layout.set_output_capture(mock_capture)
+
+    suffix = @layout.send(:build_output_suffix, task_class)
+    assert_equal "Processing data...", suffix
+  end
+
+  def test_build_output_suffix_returns_nil_without_capture
+    task_class = stub_task_class("MyTask")
+
+    suffix = @layout.send(:build_output_suffix, task_class)
+    assert_nil suffix
+  end
+
+  def test_build_output_suffix_returns_nil_for_empty_line
+    mock_capture = Object.new
+    task_class = stub_task_class("MyTask")
+
+    mock_capture.define_singleton_method(:last_line_for) do |tc|
+      (tc == task_class) ? "   " : nil
+    end
+
+    @layout.set_output_capture(mock_capture)
+
+    suffix = @layout.send(:build_output_suffix, task_class)
+    assert_nil suffix
+  end
+
+  def test_build_output_suffix_truncates_long_output
+    mock_capture = Object.new
+    task_class = stub_task_class("MyTask")
+
+    long_output = "A" * 100
+    mock_capture.define_singleton_method(:last_line_for) do |tc|
+      (tc == task_class) ? long_output : nil
+    end
+
+    @layout.set_output_capture(mock_capture)
+
+    suffix = @layout.send(:build_output_suffix, task_class)
+    assert_equal "#{"A" * 47}...", suffix
+    assert_equal 50, suffix.length
+  end
+
+  def test_build_output_suffix_strips_whitespace
+    mock_capture = Object.new
+    task_class = stub_task_class("MyTask")
+
+    mock_capture.define_singleton_method(:last_line_for) do |tc|
+      (tc == task_class) ? "  output with spaces  \n" : nil
+    end
+
+    @layout.set_output_capture(mock_capture)
+
+    suffix = @layout.send(:build_output_suffix, task_class)
+    assert_equal "output with spaces", suffix
+  end
+
+  def test_build_task_content_includes_output_suffix_for_running
+    mock_capture = Object.new
+    task_class = stub_task_class("MyTask")
+
+    mock_capture.define_singleton_method(:last_line_for) do |tc|
+      (tc == task_class) ? "Processing..." : nil
+    end
+
+    @layout.set_output_capture(mock_capture)
+    @layout.register_task(task_class)
+    @layout.update_task(task_class, state: :running)
+
+    content = @layout.send(:build_task_content, task_class)
+    assert_includes content, "MyTask"
+    assert_includes content, "| Processing..."
+  end
+
+  def test_build_task_content_excludes_output_suffix_for_completed
+    mock_capture = Object.new
+    task_class = stub_task_class("MyTask")
+
+    mock_capture.define_singleton_method(:last_line_for) do |tc|
+      (tc == task_class) ? "Final output" : nil
+    end
+
+    @layout.set_output_capture(mock_capture)
+    @layout.register_task(task_class)
+    @layout.update_task(task_class, state: :completed, duration: 100)
+
+    content = @layout.send(:build_task_content, task_class)
+    assert_includes content, "MyTask"
+    refute_includes content, "Final output"
+    refute_includes content, "|"
+  end
+
+  private
+
+  def stub_task_class(name)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass.define_singleton_method(:cached_dependencies) { [] }
+    klass.define_singleton_method(:section?) { false }
+    klass
+  end
+end
+
 class TestLayoutTreeWithCustomTemplate < Minitest::Test
   def setup
     @output = StringIO.new

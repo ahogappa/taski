@@ -251,7 +251,9 @@ module Taski
           case state&.run_state
           when :running
             spinner = @template.spinner_frames[@spinner_index]
-            "#{spinner} #{name}"
+            output_suffix = build_output_suffix(task_class)
+            suffix_str = output_suffix ? " | #{output_suffix}" : ""
+            "#{spinner} #{name}#{suffix_str}"
           when :completed
             duration = state.run_duration
             duration_str = duration ? " (#{format_duration(duration)})" : ""
@@ -262,6 +264,22 @@ module Taski
             "#{@template.color_red}#{@template.icon_failure}#{@template.color_reset} #{name}#{error_str}"
           else
             "#{@template.icon_pending} #{name}"
+          end
+        end
+
+        MAX_OUTPUT_SUFFIX_LENGTH = 50
+
+        def build_output_suffix(task_class)
+          return nil unless @output_capture
+
+          last_line = @output_capture.last_line_for(task_class)
+          return nil unless last_line && !last_line.strip.empty?
+
+          line = last_line.strip
+          if line.length > MAX_OUTPUT_SUFFIX_LENGTH
+            "#{line[0, MAX_OUTPUT_SUFFIX_LENGTH - 3]}..."
+          else
+            line
           end
         end
 
