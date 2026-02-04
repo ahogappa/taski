@@ -316,17 +316,17 @@ module Taski
 
         # Render task start event
         def render_task_started(task_class)
-          render_template(:task_start, task_name: short_name(task_class))
+          render_template(:task_start, task_name: short_name(task_class), state: :running)
         end
 
         # Render task success event
         def render_task_succeeded(task_class, duration:)
-          render_template(:task_success, task_name: short_name(task_class), duration: duration)
+          render_template(:task_success, task_name: short_name(task_class), duration: duration, state: :completed)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          render_template(:task_fail, task_name: short_name(task_class), error_message: error&.message)
+          render_template(:task_fail, task_name: short_name(task_class), error_message: error&.message, state: :failed)
         end
 
         # Render clean start event

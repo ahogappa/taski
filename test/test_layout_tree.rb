@@ -64,20 +64,20 @@ class TestLayoutTreeRendering < Minitest::Test
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
   end
 
-  # Test that Layout::Tree can use Template::Default (Plain's base template)
-  # This proves the goal: "Same Template works with different Layouts"
+  # Test that Layout::Tree uses Template::Tree by default with icons/spinner
 
-  def test_outputs_task_start_with_template_default
+  def test_outputs_task_start_with_spinner
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.start
     @layout.update_task(task_class, state: :running)
     @layout.stop
 
-    assert_includes @output.string, "[START] MyTask"
+    # Template::Tree uses spinner for running tasks
+    assert_includes @output.string, "⠋ MyTask"
   end
 
-  def test_outputs_task_success_with_duration
+  def test_outputs_task_success_with_icon_and_duration
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.start
@@ -85,10 +85,13 @@ class TestLayoutTreeRendering < Minitest::Test
     @layout.update_task(task_class, state: :completed, duration: 123)
     @layout.stop
 
-    assert_includes @output.string, "[DONE] MyTask (123ms)"
+    # Template::Tree uses ✓ icon for completed tasks
+    assert_includes @output.string, "✓"
+    assert_includes @output.string, "MyTask"
+    assert_includes @output.string, "(123ms)"
   end
 
-  def test_outputs_task_fail_with_error
+  def test_outputs_task_fail_with_icon_and_error
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.start
@@ -96,7 +99,10 @@ class TestLayoutTreeRendering < Minitest::Test
     @layout.update_task(task_class, state: :failed, error: StandardError.new("Something went wrong"))
     @layout.stop
 
-    assert_includes @output.string, "[FAIL] MyTask: Something went wrong"
+    # Template::Tree uses ✗ icon for failed tasks
+    assert_includes @output.string, "✗"
+    assert_includes @output.string, "MyTask"
+    assert_includes @output.string, "Something went wrong"
   end
 
   def test_outputs_execution_start
@@ -159,9 +165,9 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.update_task(child, state: :running)
     @layout.stop
 
-    # Child should have tree prefix
+    # Child should have tree prefix with spinner
     output = @output.string
-    assert_includes output, "└── [START] ChildTask"
+    assert_includes output, "└── ⠋ ChildTask"
   end
 
   def test_tree_prefix_for_multiple_children
@@ -177,10 +183,10 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.stop
 
     output = @output.string
-    # First child should use branch
-    assert_includes output, "├── [START] Child1"
-    # Last child should use last_branch
-    assert_includes output, "└── [START] Child2"
+    # First child should use branch with spinner
+    assert_includes output, "├── ⠋ Child1"
+    # Last child should use last_branch with spinner
+    assert_includes output, "└── ⠋ Child2"
   end
 
   def test_tree_prefix_for_nested_children
@@ -196,10 +202,10 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.stop
 
     output = @output.string
-    # Child at depth 1
-    assert_includes output, "└── [START] ChildTask"
-    # Grandchild at depth 2 with proper indentation
-    assert_includes output, "    └── [START] GrandChild"
+    # Child at depth 1 with spinner
+    assert_includes output, "└── ⠋ ChildTask"
+    # Grandchild at depth 2 with proper indentation and spinner
+    assert_includes output, "    └── ⠋ GrandChild"
   end
 
   def test_tree_prefix_with_continuation_line
@@ -217,12 +223,12 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.stop
 
     output = @output.string
-    # Child1 is not last (has sibling child2)
-    assert_includes output, "├── [START] Child1"
-    # Grandchild should have vertical continuation line because child1 has siblings
-    assert_includes output, "│   └── [START] GrandChild"
-    # Child2 is last
-    assert_includes output, "└── [START] Child2"
+    # Child1 is not last (has sibling child2) with spinner
+    assert_includes output, "├── ⠋ Child1"
+    # Grandchild should have vertical continuation line with spinner
+    assert_includes output, "│   └── ⠋ GrandChild"
+    # Child2 is last with spinner
+    assert_includes output, "└── ⠋ Child2"
   end
 
   def test_root_task_has_no_prefix
@@ -233,11 +239,11 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.stop
 
     output = @output.string
-    # Root task should NOT have tree prefix
-    assert_includes output, "[START] RootTask"
+    # Root task should NOT have tree prefix, but should have spinner
+    assert_includes output, "⠋ RootTask"
     # But should not have the prefix before it
-    refute_includes output, "├── [START] RootTask"
-    refute_includes output, "└── [START] RootTask"
+    refute_includes output, "├── ⠋ RootTask"
+    refute_includes output, "└── ⠋ RootTask"
   end
 
   private
@@ -265,43 +271,47 @@ class TestLayoutTreeTaskContent < Minitest::Test
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
   end
 
-  def test_build_task_content_uses_task_pending_for_pending_state
+  def test_build_task_content_uses_icon_for_pending_state
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
 
     content = @layout.send(:build_task_content, task_class)
-    assert_includes content, "[PENDING]"
+    # Template::Tree uses ○ icon for pending
+    assert_includes content, "○"
     assert_includes content, "MyTask"
   end
 
-  def test_build_task_content_uses_task_start_for_running_state
+  def test_build_task_content_uses_spinner_for_running_state
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :running)
 
     content = @layout.send(:build_task_content, task_class)
-    assert_includes content, "[START]"
+    # Template::Tree uses spinner for running
+    assert_includes content, "⠋"
     assert_includes content, "MyTask"
   end
 
-  def test_build_task_content_uses_task_success_for_completed_state
+  def test_build_task_content_uses_icon_for_completed_state
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :completed, duration: 100)
 
     content = @layout.send(:build_task_content, task_class)
-    assert_includes content, "[DONE]"
+    # Template::Tree uses ✓ icon for completed
+    assert_includes content, "✓"
     assert_includes content, "MyTask"
     assert_includes content, "(100ms)"
   end
 
-  def test_build_task_content_uses_task_fail_for_failed_state
+  def test_build_task_content_uses_icon_for_failed_state
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :failed, error: StandardError.new("Something went wrong"))
 
     content = @layout.send(:build_task_content, task_class)
-    assert_includes content, "[FAIL]"
+    # Template::Tree uses ✗ icon for failed
+    assert_includes content, "✗"
     assert_includes content, "MyTask"
     assert_includes content, "Something went wrong"
   end

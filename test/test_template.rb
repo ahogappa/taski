@@ -4,6 +4,7 @@ require "test_helper"
 require "liquid"
 require "taski/progress/template/base"
 require "taski/progress/template/default"
+require "taski/progress/template/tree"
 require "taski/progress/layout/filters"
 require "taski/progress/layout/tags"
 require "taski/progress/layout/template_drop"
@@ -286,6 +287,91 @@ class TestTemplate < Minitest::Test
       "output_suffix" => nil)
     assert_includes rendered, "[0/5]"
     refute_includes rendered, "|"
+  end
+
+  private
+
+  def render_template(template_string, variables)
+    context_vars = variables.merge("template" => @template_drop)
+    Liquid::Template.parse(template_string, environment: @environment).render(context_vars)
+  end
+end
+
+class TestTemplateTree < Minitest::Test
+  def setup
+    @template = Taski::Progress::Template::Tree.new
+    @template_drop = Taski::Progress::Layout::TemplateDrop.new(@template)
+    @environment = Liquid::Environment.build do |env|
+      env.register_filter(Taski::Progress::Layout::ColorFilter)
+      env.register_tag("spinner", Taski::Progress::Layout::SpinnerTag)
+      env.register_tag("icon", Taski::Progress::Layout::IconTag)
+    end
+  end
+
+  # === Task pending with icon ===
+
+  def test_task_pending_renders_with_icon
+    template_string = @template.task_pending
+    rendered = render_template(template_string, "task_name" => "MyTask", "state" => "pending")
+    assert_includes rendered, "○"
+    assert_includes rendered, "MyTask"
+  end
+
+  # === Task start with spinner ===
+
+  def test_task_start_renders_with_spinner
+    template_string = @template.task_start
+    rendered = render_template(template_string, "task_name" => "MyTask", "spinner_index" => 0)
+    assert_includes rendered, "⠋"
+    assert_includes rendered, "MyTask"
+  end
+
+  # === Task success with colored icon ===
+
+  def test_task_success_renders_with_icon
+    template_string = @template.task_success
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "completed",
+      "duration" => 123)
+    assert_includes rendered, "✓"
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "(123ms)"
+  end
+
+  def test_task_success_renders_without_duration
+    template_string = @template.task_success
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "completed",
+      "duration" => nil)
+    assert_includes rendered, "✓"
+    assert_includes rendered, "MyTask"
+    refute_includes rendered, "()"
+  end
+
+  # === Task fail with colored icon ===
+
+  def test_task_fail_renders_with_icon
+    template_string = @template.task_fail
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "failed",
+      "error_message" => "Something went wrong")
+    assert_includes rendered, "✗"
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "Something went wrong"
+  end
+
+  def test_task_fail_renders_without_error
+    template_string = @template.task_fail
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "failed",
+      "error_message" => nil)
+    assert_includes rendered, "✗"
+    assert_includes rendered, "MyTask"
+    refute_includes rendered, ":"
   end
 
   private

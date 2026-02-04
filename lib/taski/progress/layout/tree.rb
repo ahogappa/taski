@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../template/default"
+require_relative "../template/tree"
 
 module Taski
   module Progress
@@ -40,7 +40,7 @@ module Taski
         SPACE = "    "
 
         def initialize(output: $stderr, template: nil)
-          template ||= Template::Default.new
+          template ||= Template::Tree.new
           super
           @tree_nodes = {}
           @node_depths = {}
@@ -256,7 +256,7 @@ module Taski
           when :failed
             render_task_failed(task_class, error: task_state.run_error)
           else
-            render_template(:task_pending, task_name: name)
+            render_template(:task_pending, task_name: name, state: :pending)
           end
         end
 
