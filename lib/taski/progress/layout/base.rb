@@ -205,12 +205,14 @@ module Taski
         # Uses scoped Liquid environment with ColorFilter and SpinnerTag.
         #
         # @param template_string [String] Liquid template string
-        # @param variables [Hash] Variables to pass to the template
+        # @param state [Symbol, nil] State for icon tag
+        # @param task [TaskDrop, nil] Task drop
+        # @param execution [ExecutionDrop, nil] Execution drop
         # @return [String] Rendered output
-        def render_template_string(template_string, **variables)
-          context_vars = build_context_vars(variables)
+        def render_template_string(template_string, state: nil, task: nil, execution: nil, **variables)
+          context_vars = build_context_vars(task:, execution:, **variables)
           template = Liquid::Template.parse(template_string, environment: @liquid_environment)
-          template.assigns["state"] = variables[:task]&.invoke_drop("state") || variables[:execution]&.invoke_drop("state")
+          template.assigns["state"] = state
           template.render(context_vars)
         end
 
@@ -300,18 +302,28 @@ module Taski
 
         # === Template rendering helpers ===
 
-        # Render a template method with Drop objects.
-        # Templates access variables through:
-        #   - task: TaskDrop for task-specific info (name, state, duration, error_message, group_name, stdout)
-        #   - execution: ExecutionDrop for execution-level info (state, counts, duration, root_task_name, task_names)
+        # Render a task-level template with task and execution drops.
+        # Uses task.state for icon tag.
         #
         # @param method_name [Symbol] The template method to call
-        # @param task [TaskDrop, nil] Task-level drop (for task templates)
-        # @param execution [ExecutionDrop, nil] Execution-level drop
+        # @param task [TaskDrop] Task-level drop
+        # @param execution [ExecutionDrop] Execution-level drop
         # @return [String] The rendered template
-        def render_template(method_name, task: nil, execution: nil)
+        def render_task_template(method_name, task:, execution:)
           template_string = @template.public_send(method_name)
-          render_template_string(template_string, task:, execution:)
+          render_template_string(template_string, state: task.invoke_drop("state"), task:, execution:)
+        end
+
+        # Render an execution-level template with execution drop only.
+        # Uses execution.state for icon tag.
+        #
+        # @param method_name [Symbol] The template method to call
+        # @param execution [ExecutionDrop] Execution-level drop
+        # @param task [TaskDrop, nil] Optional task drop (for stdout in execution_running)
+        # @return [String] The rendered template
+        def render_execution_template(method_name, execution:, task: nil)
+          template_string = @template.public_send(method_name)
+          render_template_string(template_string, state: execution.invoke_drop("state"), task:, execution:)
         end
 
         # === Event-to-template rendering methods ===
@@ -325,80 +337,80 @@ module Taski
         # Render task start event
         def render_task_started(task_class)
           task = TaskDrop.new(name: task_class_name(task_class), state: :running)
-          render_template(:task_start, task:, execution: execution_drop)
+          render_task_template(:task_start, task:, execution: execution_drop)
         end
 
         # Render task success event
         def render_task_succeeded(task_class, task_duration:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
-          render_template(:task_success, task:, execution: execution_drop)
+          render_task_template(:task_success, task:, execution: execution_drop)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
-          render_template(:task_fail, task:, execution: execution_drop)
+          render_task_template(:task_fail, task:, execution: execution_drop)
         end
 
         # Render clean start event
         def render_clean_started(task_class)
           task = TaskDrop.new(name: task_class_name(task_class), state: :cleaning)
-          render_template(:clean_start, task:, execution: execution_drop)
+          render_task_template(:clean_start, task:, execution: execution_drop)
         end
 
         # Render clean success event
         def render_clean_succeeded(task_class, task_duration:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :clean_completed, duration: task_duration)
-          render_template(:clean_success, task:, execution: execution_drop)
+          render_task_template(:clean_success, task:, execution: execution_drop)
         end
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :clean_failed, error_message: error&.message)
-          render_template(:clean_fail, task:, execution: execution_drop)
+          render_task_template(:clean_fail, task:, execution: execution_drop)
         end
 
         # Render group start event
         def render_group_started(task_class, group_name:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :running, group_name:)
-          render_template(:group_start, task:, execution: execution_drop)
+          render_task_template(:group_start, task:, execution: execution_drop)
         end
 
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:, duration: task_duration)
-          render_template(:group_success, task:, execution: execution_drop)
+          render_task_template(:group_success, task:, execution: execution_drop)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:, error_message: error&.message)
-          render_template(:group_fail, task:, execution: execution_drop)
+          render_task_template(:group_fail, task:, execution: execution_drop)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
           execution = ExecutionDrop.new(state: :running, root_task_name: task_class_name(root_task_class), **execution_context)
-          render_template(:execution_start, execution:)
+          render_execution_template(:execution_start, execution:)
         end
 
         # Render execution complete event
         def render_execution_completed(completed_count:, total_count:, total_duration:)
           execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:)
-          render_template(:execution_complete, execution:)
+          render_execution_template(:execution_complete, execution:)
         end
 
         # Render execution failure event
         def render_execution_failed(failed_count:, total_count:, total_duration:)
           execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:)
-          render_template(:execution_fail, execution:)
+          render_execution_template(:execution_fail, execution:)
         end
 
-        # Render execution running state
+        # Render execution running state (includes task for stdout display)
         def render_execution_running(done_count:, total_count:, task_names:, task_stdout:)
           task = TaskDrop.new(stdout: task_stdout)
           execution = ExecutionDrop.new(state: :running, done_count:, total_count:, task_names:)
-          render_template(:execution_running, task:, execution:)
+          render_execution_template(:execution_running, execution:, task:)
         end
 
         # Returns current execution context as a hash
