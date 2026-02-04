@@ -302,7 +302,7 @@ class TestLayoutTreeOutputCapture < Minitest::Test
     assert_nil suffix
   end
 
-  def test_build_output_suffix_truncates_long_output
+  def test_build_output_suffix_returns_full_output
     mock_capture = Object.new
     task_class = stub_task_class("MyTask")
 
@@ -313,9 +313,9 @@ class TestLayoutTreeOutputCapture < Minitest::Test
 
     @layout.set_output_capture(mock_capture)
 
+    # build_output_suffix no longer truncates; truncation is done by template's truncate_text filter
     suffix = @layout.send(:build_output_suffix, task_class)
-    assert_equal "#{"A" * 47}...", suffix
-    assert_equal 50, suffix.length
+    assert_equal long_output, suffix
   end
 
   def test_build_output_suffix_strips_whitespace

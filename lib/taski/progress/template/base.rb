@@ -237,7 +237,7 @@ module Taski
         # @return [String] Liquid template string
         def task_line
           <<~LIQUID.chomp
-            {% if state == "pending" %}{% icon pending %}{% elsif state == "running" %}{% spinner %}{% elsif state == "completed" %}{{ template.color_green }}{% icon success %}{{ template.color_reset }}{% elsif state == "failed" %}{{ template.color_red }}{% icon failure %}{{ template.color_reset }}{% endif %} {{ task_name }}{% if state == "completed" and duration %} ({{ duration | format_duration }}){% endif %}{% if state == "failed" and error_message %}: {{ error_message }}{% endif %}{% if state == "running" and output_suffix %} | {{ output_suffix }}{% endif %}
+            {% if state == "pending" %}{% icon pending %}{% elsif state == "running" %}{% spinner %}{% elsif state == "completed" %}{{ template.color_green }}{% icon success %}{{ template.color_reset }}{% elsif state == "failed" %}{{ template.color_red }}{% icon failure %}{{ template.color_reset }}{% endif %} {{ task_name }}{% if state == "completed" and duration %} ({{ duration | format_duration }}){% endif %}{% if state == "failed" and error_message %}: {{ error_message }}{% endif %}{% if state == "running" and output_suffix %} | {{ output_suffix | truncate_text: 50 }}{% endif %}
           LIQUID
         end
 

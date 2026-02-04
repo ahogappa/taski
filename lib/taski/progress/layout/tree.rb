@@ -256,20 +256,13 @@ module Taski
             output_suffix: build_output_suffix(task_class))
         end
 
-        MAX_OUTPUT_SUFFIX_LENGTH = 50
-
         def build_output_suffix(task_class)
           return nil unless @output_capture
 
           last_line = @output_capture.last_line_for(task_class)
           return nil unless last_line && !last_line.strip.empty?
 
-          line = last_line.strip
-          if line.length > MAX_OUTPUT_SUFFIX_LENGTH
-            "#{line[0, MAX_OUTPUT_SUFFIX_LENGTH - 3]}..."
-          else
-            line
-          end
+          last_line.strip
         end
 
         def build_tree_prefix(task_class)
