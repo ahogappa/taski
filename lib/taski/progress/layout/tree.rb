@@ -153,12 +153,7 @@ module Taski
 
         # Output execution summary for non-TTY mode
         def output_execution_summary
-          text = if failed_count > 0
-            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
-          else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
-          end
-          output_line(text)
+          output_line(render_execution_summary)
         end
 
         def build_tree_structure
@@ -202,14 +197,7 @@ module Taski
             clear_previous_output
 
             lines.each { |line| @output.puts line }
-
-            # Add summary line
-            summary = if failed_count > 0
-              render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
-            else
-              render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
-            end
-            @output.puts summary
+            @output.puts render_execution_summary
             @output.flush
           end
         end
@@ -242,6 +230,7 @@ module Taski
           end
         end
 
+        # TODO: Consider using render_for_task_event once :pending becomes a formal state
         def build_task_content(task_class)
           task_state = @tasks[task_class]
 

@@ -11,40 +11,18 @@ module Taski
       #   {{ task.error_message | red }}
       #   {{ task.state | dim }}
       module ColorFilter
-        # Default ANSI color codes (used when no template is provided)
-        DEFAULT_RED = "\e[31m"
-        DEFAULT_GREEN = "\e[32m"
-        DEFAULT_YELLOW = "\e[33m"
-        DEFAULT_DIM = "\e[2m"
-        DEFAULT_RESET = "\e[0m"
+        DEFAULT_COLORS = {
+          red: "\e[31m",
+          green: "\e[32m",
+          yellow: "\e[33m",
+          dim: "\e[2m",
+          reset: "\e[0m"
+        }.freeze
 
-        def red(input)
-          template = @context["template"]
-          color = template&.color_red || DEFAULT_RED
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
-
-        def green(input)
-          template = @context["template"]
-          color = template&.color_green || DEFAULT_GREEN
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
-
-        def yellow(input)
-          template = @context["template"]
-          color = template&.color_yellow || DEFAULT_YELLOW
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
-
-        def dim(input)
-          template = @context["template"]
-          color = template&.color_dim || DEFAULT_DIM
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
+        def red(input) = colorize(input, :red)
+        def green(input) = colorize(input, :green)
+        def yellow(input) = colorize(input, :yellow)
+        def dim(input) = colorize(input, :dim)
 
         # Format a count value using Template's format_count method.
         # Falls back to to_s if no template is provided.
@@ -127,6 +105,13 @@ module Taski
         end
 
         private
+
+        def colorize(input, color_name)
+          template = @context["template"]
+          color = template&.public_send(:"color_#{color_name}") || DEFAULT_COLORS[color_name]
+          reset = template&.color_reset || DEFAULT_COLORS[:reset]
+          "#{color}#{input}#{reset}"
+        end
 
         def default_format_duration(ms)
           if ms >= 1000

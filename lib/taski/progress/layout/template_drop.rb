@@ -46,16 +46,9 @@ module Taski
         def truncate_text_suffix = @template.truncate_text_suffix
       end
 
-      # Liquid Drop for task-specific variables.
-      # Provides access to individual task information in templates.
-      # Uses liquid_method_missing for dynamic property access.
-      #
-      # Available properties: name, state, duration, error_message, group_name, stdout
-      #
-      # @example Using in Liquid template
-      #   {{ task.name }} ({{ task.state }})
-      #   {{ task.duration | format_duration }}
-      class TaskDrop < Liquid::Drop
+      # Base class for Liquid Drops with dynamic property access.
+      # Provides common functionality for TaskDrop and ExecutionDrop.
+      class DataDrop < Liquid::Drop
         def initialize(**data)
           @data = data
         end
@@ -65,9 +58,18 @@ module Taski
         end
       end
 
+      # Liquid Drop for task-specific variables.
+      # Provides access to individual task information in templates.
+      #
+      # Available properties: name, state, duration, error_message, group_name, stdout
+      #
+      # @example Using in Liquid template
+      #   {{ task.name }} ({{ task.state }})
+      #   {{ task.duration | format_duration }}
+      class TaskDrop < DataDrop; end
+
       # Liquid Drop for execution-level variables.
       # Provides access to overall execution state in templates.
-      # Uses liquid_method_missing for dynamic property access.
       #
       # Available properties: state, pending_count, done_count, completed_count,
       #   failed_count, total_count, total_duration, root_task_name, task_names
@@ -75,15 +77,7 @@ module Taski
       # @example Using in Liquid template
       #   [{{ execution.completed_count }}/{{ execution.total_count }}]
       #   {{ execution.total_duration | format_duration }}
-      class ExecutionDrop < Liquid::Drop
-        def initialize(**data)
-          @data = data
-        end
-
-        def liquid_method_missing(method)
-          @data[method.to_sym]
-        end
-      end
+      class ExecutionDrop < DataDrop; end
     end
   end
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "liquid"
+require_relative "filters"
 
 module Taski
   module Progress
@@ -31,41 +32,43 @@ module Taski
       #   {% icon %} Task completed
       #   {% icon %} [{{ done }}/{{ total }}]
       class IconTag < Liquid::Tag
-        # Default icons (used when no template is provided)
-        DEFAULT_ICON_SUCCESS = "✓"
-        DEFAULT_ICON_FAILURE = "✗"
-        DEFAULT_ICON_PENDING = "○"
+        DEFAULTS = {
+          icon_success: "✓",
+          icon_failure: "✗",
+          icon_pending: "○",
+          color_green: ColorFilter::DEFAULT_COLORS[:green],
+          color_red: ColorFilter::DEFAULT_COLORS[:red],
+          color_yellow: ColorFilter::DEFAULT_COLORS[:yellow],
+          color_reset: ColorFilter::DEFAULT_COLORS[:reset]
+        }.freeze
 
-        # Default colors
-        DEFAULT_COLOR_GREEN = "\e[32m"
-        DEFAULT_COLOR_RED = "\e[31m"
-        DEFAULT_COLOR_YELLOW = "\e[33m"
-        DEFAULT_COLOR_RESET = "\e[0m"
+        STATE_CONFIG = {
+          "completed" => {icon: :icon_success, color: :color_green},
+          "clean_completed" => {icon: :icon_success, color: :color_green},
+          "failed" => {icon: :icon_failure, color: :color_red},
+          "clean_failed" => {icon: :icon_failure, color: :color_red},
+          "running" => {icon: :icon_pending, color: :color_yellow},
+          "cleaning" => {icon: :icon_pending, color: :color_yellow}
+        }.freeze
 
         def render(context)
-          template = context["template"]
+          @template = context["template"]
           state = context["state"]&.to_s
 
-          case state
-          when "completed", "clean_completed"
-            icon = template&.icon_success || DEFAULT_ICON_SUCCESS
-            color = template&.color_green || DEFAULT_COLOR_GREEN
-            reset = template&.color_reset || DEFAULT_COLOR_RESET
-            "#{color}#{icon}#{reset}"
-          when "failed", "clean_failed"
-            icon = template&.icon_failure || DEFAULT_ICON_FAILURE
-            color = template&.color_red || DEFAULT_COLOR_RED
-            reset = template&.color_reset || DEFAULT_COLOR_RESET
-            "#{color}#{icon}#{reset}"
-          when "running", "cleaning"
-            icon = template&.icon_pending || DEFAULT_ICON_PENDING
-            color = template&.color_yellow || DEFAULT_COLOR_YELLOW
-            reset = template&.color_reset || DEFAULT_COLOR_RESET
-            "#{color}#{icon}#{reset}"
-          else
-            # pending or unknown state - no color
-            template&.icon_pending || DEFAULT_ICON_PENDING
-          end
+          config = STATE_CONFIG[state]
+          return get_value(:icon_pending) unless config
+
+          colorize(get_value(config[:icon]), config[:color])
+        end
+
+        private
+
+        def get_value(key)
+          @template&.public_send(key) || DEFAULTS[key]
+        end
+
+        def colorize(icon, color_key)
+          "#{get_value(color_key)}#{icon}#{get_value(:color_reset)}"
         end
       end
     end

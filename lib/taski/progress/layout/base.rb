@@ -292,12 +292,16 @@ module Taski
         # Called when display stops.
         # Default: output execution complete or fail message.
         def on_stop
-          text = if failed_count > 0
+          output_line(render_execution_summary)
+        end
+
+        # Render execution summary based on current state (success or failure)
+        def render_execution_summary
+          if failed_count > 0
             render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
           else
             render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
           end
-          output_line(text)
         end
 
         # === Template rendering helpers ===
