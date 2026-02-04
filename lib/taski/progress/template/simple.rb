@@ -40,7 +40,7 @@ module Taski
 
         # Execution running with spinner
         def execution_running
-          "{% spinner %} [{{ execution.done_count }}/{{ execution.total_count }}]{% if execution.task_names %} {{ execution.task_names | truncate_list: 3 }}{% endif %}{% if task.stdout %} | {{ task.stdout | truncate_text: 40 }}{% endif %}"
+          "{% spinner %} [{{ execution.done_count }}/{{ execution.total_count }}]{% if execution.task_names %} {% for name in execution.task_names limit: 3 %}{{ name | short_name }}{% unless forloop.last %}, {% endunless %}{% endfor %}{% if execution.task_names.size > 3 %}...{% endif %}{% endif %}{% if task.stdout %} | {{ task.stdout | truncate_text: 40 }}{% endif %}"
         end
 
         # Execution complete with icon

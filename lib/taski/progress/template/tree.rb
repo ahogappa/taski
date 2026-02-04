@@ -20,22 +20,22 @@ module Taski
       class Tree < Default
         # Task pending with icon
         def task_pending
-          "{% icon %} {{ task.name }}"
+          "{% icon %} {{ task.name | short_name }}"
         end
 
         # Task start with spinner
         def task_start
-          "{% spinner %} {{ task.name }}"
+          "{% spinner %} {{ task.name | short_name }}"
         end
 
         # Task success with colored icon
         def task_success
-          "{% icon %} {{ task.name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
+          "{% icon %} {{ task.name | short_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
         # Task fail with colored icon
         def task_fail
-          "{% icon %} {{ task.name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
+          "{% icon %} {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
       end
     end
