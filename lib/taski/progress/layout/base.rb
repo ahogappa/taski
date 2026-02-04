@@ -316,7 +316,7 @@ module Taski
           root_task_name
           group_name
           task_names
-          output_suffix
+          task_output
         ].freeze
 
         # @param method_name [Symbol] The template method to call
@@ -395,12 +395,12 @@ module Taski
         end
 
         # Render execution running state
-        def render_execution_running(done_count:, total:, task_names:, output_suffix:)
+        def render_execution_running(done_count:, total:, task_names:, task_output:)
           render_template(:execution_running,
             done_count: done_count,
             total: total,
             task_names: task_names,
-            output_suffix: output_suffix,
+            task_output: task_output,
             state: :running)
         end
 

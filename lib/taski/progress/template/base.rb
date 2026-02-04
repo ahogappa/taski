@@ -10,7 +10,7 @@ module Taski
       # All templates have access to the same common variables:
       #   task_name, state, duration, error_message,
       #   done_count, completed, failed, total,
-      #   root_task_name, group_name, task_names, output_suffix
+      #   root_task_name, group_name, task_names, task_output
       #
       # Use {% if variable %} to conditionally render when a value is present.
       #

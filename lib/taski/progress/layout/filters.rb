@@ -94,7 +94,7 @@ module Taski
         # Uses Template's truncate_text_suffix if available.
         #
         # @example
-        #   {{ output_suffix | truncate_text: 40 }}
+        #   {{ task_output | truncate_text: 40 }}
         #   # => "Uploading files to server..."
         def truncate_text(input, max_length = 40)
           return "" if input.nil?
