@@ -44,7 +44,9 @@ module Taski
 
         def render(context)
           template = context["template"]
-          state = context["state"]&.to_s
+          # Get state from task drop first, fall back to execution drop
+          state = context["task"]&.invoke_drop("state") || context["execution"]&.invoke_drop("state")
+          state = state&.to_s
 
           case state
           when "completed", "clean_completed"

@@ -105,50 +105,54 @@ class TestLiquidTags < Minitest::Test
 
   def test_icon_tag_renders_success_icon_for_completed_state
     template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    task_drop = Taski::Progress::Layout::TaskDrop.new(state: :completed)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("template" => drop, "state" => "completed")
+    result = liquid_template.render("template" => template_drop, "task" => task_drop)
 
     assert_equal "\e[32m✓\e[0m", result
   end
 
   def test_icon_tag_renders_failure_icon_for_failed_state
     template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    task_drop = Taski::Progress::Layout::TaskDrop.new(state: :failed)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("template" => drop, "state" => "failed")
+    result = liquid_template.render("template" => template_drop, "task" => task_drop)
 
     assert_equal "\e[31m✗\e[0m", result
   end
 
   def test_icon_tag_renders_pending_icon_for_running_state
     template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    task_drop = Taski::Progress::Layout::TaskDrop.new(state: :running)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("template" => drop, "state" => "running")
+    result = liquid_template.render("template" => template_drop, "task" => task_drop)
 
     assert_equal "\e[33m○\e[0m", result
   end
 
   def test_icon_tag_renders_pending_icon_for_pending_state
     template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    task_drop = Taski::Progress::Layout::TaskDrop.new(state: :pending)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("template" => drop, "state" => "pending")
+    result = liquid_template.render("template" => template_drop, "task" => task_drop)
 
     assert_equal "○", result
   end
 
   def test_icon_tag_without_state_renders_pending
     template_obj = Taski::Progress::Template::Base.new
-    drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("template" => drop)
+    result = liquid_template.render("template" => template_drop)
 
     assert_equal "○", result
   end
@@ -164,17 +168,31 @@ class TestLiquidTags < Minitest::Test
       end
     end.new
 
-    drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
+    task_drop = Taski::Progress::Layout::TaskDrop.new(state: :completed)
 
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("template" => drop, "state" => "completed")
+    result = liquid_template.render("template" => template_drop, "task" => task_drop)
 
     assert_equal "\e[92m🎉\e[0m", result
   end
 
   def test_icon_tag_without_template_uses_defaults
+    task_drop = Taski::Progress::Layout::TaskDrop.new(state: :completed)
+
     liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
-    result = liquid_template.render("state" => "completed")
+    result = liquid_template.render("task" => task_drop)
+
+    assert_equal "\e[32m✓\e[0m", result
+  end
+
+  def test_icon_tag_uses_execution_state_when_no_task
+    template_obj = Taski::Progress::Template::Base.new
+    template_drop = Taski::Progress::Layout::TemplateDrop.new(template_obj)
+    execution_drop = Taski::Progress::Layout::ExecutionDrop.new(state: :completed)
+
+    liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
+    result = liquid_template.render("template" => template_drop, "execution" => execution_drop)
 
     assert_equal "\e[32m✓\e[0m", result
   end

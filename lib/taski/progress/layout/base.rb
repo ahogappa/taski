@@ -309,12 +309,8 @@ module Taski
         # @param execution [ExecutionDrop, nil] Execution-level drop
         # @return [String] The rendered template
         def render_template(method_name, task: nil, execution: nil)
-          # State for icon tag: prefer task state, fall back to execution state
-          state = task&.invoke_drop("state") || execution&.invoke_drop("state")
-
-          template_vars = {state:, task:, execution:}
           template_string = @template.public_send(method_name)
-          render_template_string(template_string, **template_vars)
+          render_template_string(template_string, task:, execution:)
         end
 
         # === Event-to-template rendering methods ===
