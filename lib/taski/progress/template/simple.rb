@@ -31,30 +31,26 @@ module Taski
       #     end
       #
       #     def status_complete
-      #       '{% icon %} {{ done_count | format_count }}完了 ({{ duration | format_duration }})'
+      #       '{% icon %} {{ execution.done_count | format_count }}完了 ({{ execution.total_duration | format_duration }})'
       #     end
       #   end
       class Simple < Default
         # Inherits ANSI colors from Base via Default.
+        # Adds spinner and icons for TTY environments.
 
-        # === Status line templates with spinner/icon ===
-
-        # Template for running status line (with spinner)
-        # @return [String] Liquid template string
-        def status_running
-          "{% spinner %} [{{ done_count | format_count }}/{{ total | format_count }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
+        # Execution running with spinner
+        def execution_running
+          "{% spinner %} [{{ execution.done_count }}/{{ execution.total_count }}]{% if execution.task_names %} {% for name in execution.task_names limit: 3 %}{{ name | short_name }}{% unless forloop.last %}, {% endunless %}{% endfor %}{% if execution.task_names.size > 3 %}...{% endif %}{% endif %}{% if task.stdout %} | {{ task.stdout | truncate_text: 40 }}{% endif %}"
         end
 
-        # Template for completed status line (with icon)
-        # @return [String] Liquid template string
-        def status_complete
-          "{% icon %} [{{ done_count | format_count }}/{{ total | format_count }}] All tasks completed ({{ duration | format_duration }})"
+        # Execution complete with icon
+        def execution_complete
+          "{% icon %} [TASKI] Completed: {{ execution.completed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
-        # Template for failed status line (with icon)
-        # @return [String] Liquid template string
-        def status_failed
-          "{% icon %} [{{ done_count | format_count }}/{{ total | format_count }}] {{ failed_task_name }} failed{% if error_message %}: {{ error_message }}{% endif %}"
+        # Execution fail with icon
+        def execution_fail
+          "{% icon %} [TASKI] Failed: {{ execution.failed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
       end
     end

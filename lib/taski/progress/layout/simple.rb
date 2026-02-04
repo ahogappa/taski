@@ -59,7 +59,7 @@ module Taski
         end
 
         def should_activate?
-          tty?
+          force_progress? || tty?
         end
 
         def on_start
@@ -106,24 +106,6 @@ module Taski
           node[:children].each { |child| register_tasks_from_tree(child) }
         end
 
-        def collect_section_candidates(node)
-          return unless node
-
-          task_class = node[:task_class]
-
-          if node[:is_section]
-            candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
-            candidates = candidate_nodes.map { |c| c[:task_class] }
-            @section_candidates[task_class] = candidates unless candidates.empty?
-
-            subtrees = {}
-            candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
-            @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
-          end
-
-          node[:children].each { |child| collect_section_candidates(child) }
-        end
-
         def render_live
           @monitor.synchronize do
             line = build_status_line
@@ -136,20 +118,9 @@ module Taski
         def render_final
           @monitor.synchronize do
             line = if failed_count > 0
-              first_error = failed_tasks.values.first&.run_error
-
-              render_status_failed(
-                done_count: completed_count,
-                total: total_count,
-                failed_task_name: short_name(failed_tasks.keys.first),
-                error_message: first_error&.message
-              )
+              render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
             else
-              render_status_completed(
-                done_count: completed_count,
-                total: total_count,
-                duration: total_duration
-              )
+              render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
             end
 
             @output.print "\r\e[K#{line}\n"
@@ -161,13 +132,13 @@ module Taski
           task_names = collect_current_task_names
 
           primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
-          output_suffix = build_output_suffix(primary_task)
+          task_stdout = build_task_stdout(primary_task)
 
-          render_status_running(
+          render_execution_running(
             done_count: done_count,
-            total: total_count,
+            total_count: total_count,
             task_names: task_names.empty? ? nil : task_names,
-            output_suffix: output_suffix
+            task_stdout: task_stdout
           )
         end
 
@@ -183,10 +154,10 @@ module Taski
             []
           end
 
-          current_tasks.map { |t| short_name(t) }
+          current_tasks.map { |t| task_class_name(t) }
         end
 
-        def build_output_suffix(task_class)
+        def build_task_stdout(task_class)
           return nil unless @output_capture && task_class
 
           last_line = @output_capture.last_line_for(task_class)

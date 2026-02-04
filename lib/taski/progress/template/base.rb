@@ -7,11 +7,17 @@ module Taski
       # Template classes are thin layers that only return Liquid template strings.
       # Rendering (Liquid parsing) is handled by Layout classes.
       #
-      # Users can subclass this to create custom templates:
+      # Templates have access to two Drop objects:
+      #   task: Task-specific info (name, state, duration, error_message, group_name, stdout)
+      #   execution: Execution-level info (state, pending_count, done_count, completed_count,
+      #              failed_count, total_count, total_duration, root_task_name, task_names)
       #
+      # Use {% if variable %} to conditionally render when a value is present.
+      #
+      # @example Custom template
       #   class MyTemplate < Taski::Progress::Template::Base
       #     def task_start
-      #       "Starting {{ task_name }}..."
+      #       "Starting {{ task.name }}..."
       #     end
       #   end
       #
@@ -19,92 +25,66 @@ module Taski
       class Base
         # === Task lifecycle templates ===
 
-        # Template shown when a task starts running
-        # @return [String] Liquid template string
+        def task_pending
+          "[PENDING] {{ task.name | short_name }}"
+        end
+
         def task_start
-          "[START] {{ task_name }}"
+          "[START] {{ task.name | short_name }}"
         end
 
-        # Template shown when a task completes successfully
-        # Available variables: task_name, duration (optional, in milliseconds)
-        # @return [String] Liquid template string
         def task_success
-          "[DONE] {{ task_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}"
+          "[DONE] {{ task.name | short_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
-        # Template shown when a task fails
-        # Available variables: task_name, error_message (optional)
-        # @return [String] Liquid template string
         def task_fail
-          "[FAIL] {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
+          "[FAIL] {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
         # === Clean lifecycle templates ===
 
-        # Template shown when a task's clean phase starts
-        # @return [String] Liquid template string
         def clean_start
-          "[CLEAN] {{ task_name }}"
+          "[CLEAN] {{ task.name | short_name }}"
         end
 
-        # Template shown when a task's clean phase completes
-        # Available variables: task_name, duration (optional, in milliseconds)
-        # @return [String] Liquid template string
         def clean_success
-          "[CLEAN DONE] {{ task_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}"
+          "[CLEAN DONE] {{ task.name | short_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}"
         end
 
-        # Template shown when a task's clean phase fails
-        # Available variables: task_name, error_message (optional)
-        # @return [String] Liquid template string
         def clean_fail
-          "[CLEAN FAIL] {{ task_name }}{% if error_message %}: {{ error_message }}{% endif %}"
+          "[CLEAN FAIL] {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
         # === Group lifecycle templates ===
 
-        # Template shown when a group starts
-        # Available variables: task_name, group_name
-        # @return [String] Liquid template string
         def group_start
-          '[GROUP] {{ task_name }}#{{ group_name }}'
+          '[GROUP] {{ task.name | short_name }}#{{ task.group_name }}'
         end
 
-        # Template shown when a group completes successfully
-        # Available variables: task_name, group_name, duration (optional, in milliseconds)
-        # @return [String] Liquid template string
         def group_success
-          '[GROUP DONE] {{ task_name }}#{{ group_name }}{% if duration %} ({{ duration | format_duration }}){% endif %}'
+          '[GROUP DONE] {{ task.name | short_name }}#{{ task.group_name }}{% if task.duration %} ({{ task.duration | format_duration }}){% endif %}'
         end
 
-        # Template shown when a group fails
-        # Available variables: task_name, group_name, error_message (optional)
-        # @return [String] Liquid template string
         def group_fail
-          '[GROUP FAIL] {{ task_name }}#{{ group_name }}{% if error_message %}: {{ error_message }}{% endif %}'
+          '[GROUP FAIL] {{ task.name | short_name }}#{{ task.group_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}'
         end
 
         # === Execution lifecycle templates ===
 
-        # Template shown when execution begins
-        # Available variables: root_task_name
-        # @return [String] Liquid template string
         def execution_start
-          "[TASKI] Starting {{ root_task_name }}"
+          "[TASKI] Starting {{ execution.root_task_name | short_name }}"
         end
 
-        # Template shown when all tasks complete successfully
-        # Available variables: completed, total, duration (in milliseconds)
-        # @return [String] Liquid template string
+        def execution_running
+          "[TASKI] Running: {{ execution.done_count }}/{{ execution.total_count }} tasks"
+        end
+
         def execution_complete
-          "[TASKI] Completed: {{ completed }}/{{ total }} tasks ({{ duration | format_duration }})"
+          "[TASKI] Completed: {{ execution.completed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
-        # Template shown when execution ends with failures
-        # Available variables: failed, total, duration (in milliseconds)
-        # @return [String] Liquid template string
         def execution_fail
-          "[TASKI] Failed: {{ failed }}/{{ total }} tasks ({{ duration | format_duration }})"
+          "[TASKI] Failed: {{ execution.failed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
         # === Spinner configuration ===
@@ -227,32 +207,6 @@ module Taski
         # @return [String] Suffix to append when text is truncated
         def truncate_text_suffix
           "..."
-        end
-
-        # === Status line templates (plain defaults) ===
-
-        # Template for running status line
-        # Available variables: done_count, total, task_names (optional, array), output_suffix (optional)
-        # Available tags: {% spinner %}
-        # @return [String] Liquid template string
-        def status_running
-          "[{{ done_count | format_count }}/{{ total | format_count }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if output_suffix %} | {{ output_suffix | truncate_text: 40 }}{% endif %}"
-        end
-
-        # Template for completed status line
-        # Available variables: done_count, total, duration, state
-        # Available tags: {% icon %}
-        # @return [String] Liquid template string
-        def status_complete
-          "[{{ done_count | format_count }}/{{ total | format_count }}] All tasks completed ({{ duration | format_duration }})"
-        end
-
-        # Template for failed status line
-        # Available variables: done_count, total, failed_task_name, error_message (optional), state
-        # Available tags: {% icon %}
-        # @return [String] Liquid template string
-        def status_failed
-          "[{{ done_count | format_count }}/{{ total | format_count }}] {{ failed_task_name }} failed{% if error_message %}: {{ error_message }}{% endif %}"
         end
       end
     end

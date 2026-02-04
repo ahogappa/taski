@@ -7,50 +7,28 @@ module Taski
       # Uses TemplateDrop from context to get color codes, falls back to defaults.
       #
       # @example Usage in Liquid template
-      #   {{ task_name | green }}
-      #   {{ error_message | red }}
-      #   {{ status | dim }}
+      #   {{ task.name | green }}
+      #   {{ task.error_message | red }}
+      #   {{ task.state | dim }}
       module ColorFilter
-        # Default ANSI color codes (used when no template is provided)
-        DEFAULT_RED = "\e[31m"
-        DEFAULT_GREEN = "\e[32m"
-        DEFAULT_YELLOW = "\e[33m"
-        DEFAULT_DIM = "\e[2m"
-        DEFAULT_RESET = "\e[0m"
+        DEFAULT_COLORS = {
+          red: "\e[31m",
+          green: "\e[32m",
+          yellow: "\e[33m",
+          dim: "\e[2m",
+          reset: "\e[0m"
+        }.freeze
 
-        def red(input)
-          template = @context["template"]
-          color = template&.color_red || DEFAULT_RED
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
-
-        def green(input)
-          template = @context["template"]
-          color = template&.color_green || DEFAULT_GREEN
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
-
-        def yellow(input)
-          template = @context["template"]
-          color = template&.color_yellow || DEFAULT_YELLOW
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
-
-        def dim(input)
-          template = @context["template"]
-          color = template&.color_dim || DEFAULT_DIM
-          reset = template&.color_reset || DEFAULT_RESET
-          "#{color}#{input}#{reset}"
-        end
+        def red(input) = colorize(input, :red)
+        def green(input) = colorize(input, :green)
+        def yellow(input) = colorize(input, :yellow)
+        def dim(input) = colorize(input, :dim)
 
         # Format a count value using Template's format_count method.
         # Falls back to to_s if no template is provided.
         #
         # @example
-        #   {{ done_count | format_count }}
+        #   {{ execution.done_count | format_count }}
         def format_count(input)
           template = @context["template"]
           template&.format_count(input) || input.to_s
@@ -60,7 +38,8 @@ module Taski
         # Falls back to default formatting if no template is provided.
         #
         # @example
-        #   {{ duration | format_duration }}
+        #   {{ task.duration | format_duration }}
+        #   {{ execution.total_duration | format_duration }}
         def format_duration(input)
           return "" if input.nil?
 
@@ -72,7 +51,7 @@ module Taski
         # Uses Template's truncate_list_separator and truncate_list_suffix if available.
         #
         # @example
-        #   {{ task_names | truncate_list: 3 }}
+        #   {{ execution.task_names | truncate_list: 3 }}
         #   # => "TaskA, TaskB, TaskC..."
         def truncate_list(input, limit = 3)
           return "" if input.nil?
@@ -90,11 +69,22 @@ module Taski
           result
         end
 
+        # Extract short name from a fully qualified class name.
+        # Returns the last component after "::".
+        #
+        # @example
+        #   {{ task.name | short_name }}
+        #   # "MyModule::MyTask" => "MyTask"
+        def short_name(input)
+          return "" if input.nil?
+          input.to_s.split("::").last || input.to_s
+        end
+
         # Truncate text to a maximum length, adding suffix if truncated.
         # Uses Template's truncate_text_suffix if available.
         #
         # @example
-        #   {{ output_suffix | truncate_text: 40 }}
+        #   {{ task.stdout | truncate_text: 40 }}
         #   # => "Uploading files to server..."
         def truncate_text(input, max_length = 40)
           return "" if input.nil?
@@ -115,6 +105,13 @@ module Taski
         end
 
         private
+
+        def colorize(input, color_name)
+          template = @context["template"]
+          color = template&.public_send(:"color_#{color_name}") || DEFAULT_COLORS[color_name]
+          reset = template&.color_reset || DEFAULT_COLORS[:reset]
+          "#{color}#{input}#{reset}"
+        end
 
         def default_format_duration(ms)
           if ms >= 1000

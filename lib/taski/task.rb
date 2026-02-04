@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "stringio"
 require_relative "static_analysis/analyzer"
 require_relative "execution/registry"
 require_relative "execution/task_wrapper"
@@ -137,8 +138,28 @@ module Taski
       # Renders a static tree representation of the task dependencies.
       # @return [String] The rendered tree string.
       def tree
-        Execution::TreeProgressDisplay.render_static_tree(self)
+        output = StringIO.new
+        layout = Progress::Layout::Tree.new(output: output)
+        layout.set_root_task(self)
+
+        render_tree_node(layout, self, output)
+        output.string
       end
+
+      def render_tree_node(layout, task_class, output)
+        prefix = layout.send(:build_tree_prefix, task_class)
+        name = task_class.name || task_class.to_s
+
+        output.puts "#{prefix}#{name}"
+
+        node = layout.instance_variable_get(:@tree_nodes)[task_class]
+        return unless node
+
+        node[:children].each do |child|
+          render_tree_node(layout, child[:task_class], output)
+        end
+      end
+      private :render_tree_node
 
       private
 

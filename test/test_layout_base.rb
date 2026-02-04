@@ -329,3 +329,178 @@ class TestLayoutBaseTaskStateTransitions < Minitest::Test
     assert_equal :failed, @layout.task_state(@task_class)
   end
 end
+
+class TestLayoutBaseCommonVariables < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
+  end
+
+  # All templates should have access to the same common variables
+  # even if the value is nil when not applicable
+
+  def test_task_start_can_use_duration_variable
+    # Create a custom template that uses duration in task_start
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_start
+        "{{ task.name }}{% if task.duration %} took {{ task.duration }}ms{% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
+
+    # duration is nil for task_start, so the if block should not render
+    assert_equal "MyTask", result
+  end
+
+  def test_task_success_can_use_task_error_message_variable
+    # Create a custom template that checks for task.error_message in task_success
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_success
+        "{{ task.name }} done{% if task.error_message %} (had error){% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_succeeded, stub_task_class("MyTask"), task_duration: 100)
+
+    # error_message is nil for success, so the if block should not render
+    assert_equal "MyTask done", result
+  end
+
+  def test_execution_complete_can_use_task_name_variable
+    # Create a custom template that uses task.name in execution_complete
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def execution_complete
+        "Done: {{ execution.completed_count }}/{{ execution.total_count }}{% if task.name %} ({{ task.name }}){% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 5, total_duration: 1000)
+
+    # task.name is nil for execution_complete, so the if block should not render
+    assert_equal "Done: 5/5", result
+  end
+
+  def test_task_and_execution_drops_available_in_any_template
+    # Create a template that uses task and execution drops
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_start
+        [
+          "task.name:{{ task.name }}",
+          "task.state:{{ task.state }}",
+          "task.duration:{{ task.duration }}",
+          "task.error_message:{{ task.error_message }}",
+          "execution.state:{{ execution.state }}",
+          "execution.pending_count:{{ execution.pending_count }}",
+          "execution.done_count:{{ execution.done_count }}",
+          "execution.completed_count:{{ execution.completed_count }}",
+          "execution.failed_count:{{ execution.failed_count }}",
+          "execution.total_count:{{ execution.total_count }}",
+          "execution.root_task_name:{{ execution.root_task_name }}"
+        ].join("|")
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
+
+    # Task drop should have name and state
+    assert_includes result, "task.name:MyTask"
+    assert_includes result, "task.state:running"
+    # Others should be empty but the variable names should still render (not cause errors)
+    assert_includes result, "task.duration:"
+    assert_includes result, "task.error_message:"
+    assert_includes result, "execution.state:running"
+  end
+
+  def test_task_drop_is_available_in_template
+    # Create a template that uses task drop
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_start
+        "{{ task.name }} ({{ task.state }})"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
+
+    assert_equal "MyTask (running)", result
+  end
+
+  def test_execution_drop_is_available_in_template
+    # Create a template that uses execution drop
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def execution_complete
+        "[{{ execution.completed_count }}/{{ execution.total_count }}] ({{ execution.total_duration }}ms)"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 10, total_duration: 1500)
+
+    assert_equal "[5/10] (1500ms)", result
+  end
+
+  def test_task_drop_has_all_task_specific_fields
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_fail
+        "{{ task.name }}|{{ task.state }}|{{ task.error_message }}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_task_failed, stub_task_class("FailTask"), error: StandardError.new("oops"))
+
+    assert_equal "FailTask|failed|oops", result
+  end
+
+  def test_execution_drop_has_all_execution_fields
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def execution_fail
+        "{{ execution.failed_count }}/{{ execution.total_count }} failed ({{ execution.state }})"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+    result = layout.send(:render_execution_failed, failed_count: 2, total_count: 5, total_duration: 1000)
+
+    assert_equal "2/5 failed (failed)", result
+  end
+
+  def test_task_template_can_access_execution_context
+    # Task-level templates should also have access to execution context
+    custom_template = Class.new(Taski::Progress::Template::Base) do
+      def task_fail
+        "[{{ execution.done_count }}/{{ execution.total_count }}] {{ task.name }}: {{ task.error_message }}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
+
+    # Register some tasks to have counts
+    task1 = stub_task_class("Task1")
+    task2 = stub_task_class("Task2")
+    task3 = stub_task_class("FailedTask")
+    layout.register_task(task1)
+    layout.register_task(task2)
+    layout.register_task(task3)
+    layout.update_task(task1, state: :completed, duration: 100)
+    layout.update_task(task2, state: :completed, duration: 100)
+
+    result = layout.send(:render_task_failed, task3, error: StandardError.new("connection refused"))
+
+    # done_count = 2 (completed tasks), total_count = 3 (registered tasks)
+    assert_equal "[2/3] FailedTask: connection refused", result
+  end
+
+  private
+
+  def stub_task_class(name)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass
+  end
+end

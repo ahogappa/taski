@@ -205,12 +205,15 @@ module Taski
         # Uses scoped Liquid environment with ColorFilter and SpinnerTag.
         #
         # @param template_string [String] Liquid template string
-        # @param variables [Hash] Variables to pass to the template
+        # @param state [Symbol, nil] State for icon tag
+        # @param task [TaskDrop, nil] Task drop
+        # @param execution [ExecutionDrop, nil] Execution drop
         # @return [String] Rendered output
-        def render_template_string(template_string, **variables)
-          context_vars = build_context_vars(variables)
-          Liquid::Template.parse(template_string, environment: @liquid_environment)
-            .render(context_vars)
+        def render_template_string(template_string, state: nil, task: nil, execution: nil, **variables)
+          context_vars = build_context_vars(task:, execution:, **variables)
+          template = Liquid::Template.parse(template_string, environment: @liquid_environment)
+          template.assigns["state"] = state
+          template.render(context_vars)
         end
 
         # Start the spinner animation timer.
@@ -289,117 +292,159 @@ module Taski
         # Called when display stops.
         # Default: output execution complete or fail message.
         def on_stop
-          duration = total_duration
+          output_line(render_execution_summary)
+        end
 
-          text = if failed_count > 0
-            render_execution_failed(failed: failed_count, total: total_count, duration: duration)
+        # Render execution summary based on current state (success or failure)
+        def render_execution_summary
+          if failed_count > 0
+            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
           else
-            render_execution_completed(completed: completed_count, total: total_count, duration: duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
           end
-          output_line(text)
         end
 
         # === Template rendering helpers ===
 
-        # Render a template method with the given variables
+        # Render a task-level template with task and execution drops.
+        # Uses task.state for icon tag.
+        #
         # @param method_name [Symbol] The template method to call
-        # @param variables [Hash] Variables to pass to the template
+        # @param task [TaskDrop] Task-level drop
+        # @param execution [ExecutionDrop] Execution-level drop
         # @return [String] The rendered template
-        def render_template(method_name, **variables)
+        def render_task_template(method_name, task:, execution:)
           template_string = @template.public_send(method_name)
-          render_template_string(template_string, **variables)
+          render_template_string(template_string, state: task.invoke_drop("state"), task:, execution:)
+        end
+
+        # Render an execution-level template with execution drop only.
+        # Uses execution.state for icon tag.
+        #
+        # @param method_name [Symbol] The template method to call
+        # @param execution [ExecutionDrop] Execution-level drop
+        # @param task [TaskDrop, nil] Optional task drop (for stdout in execution_running)
+        # @return [String] The rendered template
+        def render_execution_template(method_name, execution:, task: nil)
+          template_string = @template.public_send(method_name)
+          render_template_string(template_string, state: execution.invoke_drop("state"), task:, execution:)
         end
 
         # === Event-to-template rendering methods ===
         # These methods define which template is used for each event.
         # Subclasses call these instead of render_template directly.
+        #
+        # Task-level methods pass both TaskDrop and ExecutionDrop so templates
+        # can display progress like "[3/5] TaskName".
+        # Execution-level methods pass only ExecutionDrop.
 
         # Render task start event
         def render_task_started(task_class)
-          render_template(:task_start, task_name: short_name(task_class))
+          task = TaskDrop.new(name: task_class_name(task_class), state: :running)
+          render_task_template(:task_start, task:, execution: execution_drop)
         end
 
         # Render task success event
-        def render_task_succeeded(task_class, duration:)
-          render_template(:task_success, task_name: short_name(task_class), duration: duration)
+        def render_task_succeeded(task_class, task_duration:)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
+          render_task_template(:task_success, task:, execution: execution_drop)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          render_template(:task_fail, task_name: short_name(task_class), error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
+          render_task_template(:task_fail, task:, execution: execution_drop)
         end
 
         # Render clean start event
         def render_clean_started(task_class)
-          render_template(:clean_start, task_name: short_name(task_class))
+          task = TaskDrop.new(name: task_class_name(task_class), state: :cleaning)
+          render_task_template(:clean_start, task:, execution: execution_drop)
         end
 
         # Render clean success event
-        def render_clean_succeeded(task_class, duration:)
-          render_template(:clean_success, task_name: short_name(task_class), duration: duration)
+        def render_clean_succeeded(task_class, task_duration:)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :clean_completed, duration: task_duration)
+          render_task_template(:clean_success, task:, execution: execution_drop)
         end
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
-          render_template(:clean_fail, task_name: short_name(task_class), error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :clean_failed, error_message: error&.message)
+          render_task_template(:clean_fail, task:, execution: execution_drop)
         end
 
         # Render group start event
         def render_group_started(task_class, group_name:)
-          render_template(:group_start, task_name: short_name(task_class), group_name: group_name)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :running, group_name:)
+          render_task_template(:group_start, task:, execution: execution_drop)
         end
 
         # Render group success event
-        def render_group_succeeded(task_class, group_name:, duration:)
-          render_template(:group_success, task_name: short_name(task_class), group_name: group_name, duration: duration)
+        def render_group_succeeded(task_class, group_name:, task_duration:)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:, duration: task_duration)
+          render_task_template(:group_success, task:, execution: execution_drop)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          render_template(:group_fail, task_name: short_name(task_class), group_name: group_name, error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:, error_message: error&.message)
+          render_task_template(:group_fail, task:, execution: execution_drop)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
-          render_template(:execution_start, root_task_name: short_name(root_task_class))
+          execution = ExecutionDrop.new(state: :running, root_task_name: task_class_name(root_task_class), **execution_context)
+          render_execution_template(:execution_start, execution:)
         end
 
         # Render execution complete event
-        def render_execution_completed(completed:, total:, duration:)
-          render_template(:execution_complete, completed: completed, total: total, duration: duration)
+        def render_execution_completed(completed_count:, total_count:, total_duration:)
+          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:)
+          render_execution_template(:execution_complete, execution:)
         end
 
         # Render execution failure event
-        def render_execution_failed(failed:, total:, duration:)
-          render_template(:execution_fail, failed: failed, total: total, duration: duration)
+        def render_execution_failed(failed_count:, total_count:, total_duration:)
+          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:)
+          render_execution_template(:execution_fail, execution:)
         end
 
-        # Render running status line
-        def render_status_running(done_count:, total:, task_names:, output_suffix:)
-          render_template(:status_running,
-            done_count: done_count,
-            total: total,
-            task_names: task_names,
-            output_suffix: output_suffix)
+        # Render execution running state (includes task for stdout display)
+        def render_execution_running(done_count:, total_count:, task_names:, task_stdout:)
+          task = TaskDrop.new(stdout: task_stdout)
+          execution = ExecutionDrop.new(state: :running, done_count:, total_count:, task_names:)
+          render_execution_template(:execution_running, execution:, task:)
         end
 
-        # Render completed status line
-        def render_status_completed(done_count:, total:, duration:)
-          render_template(:status_complete,
-            state: :completed,
+        # Returns current execution context as a hash
+        def execution_context
+          {
+            state: execution_state,
+            pending_count: pending_count,
             done_count: done_count,
-            total: total,
-            duration: duration)
+            completed_count: completed_count,
+            failed_count: failed_count,
+            total_count: total_count,
+            total_duration: total_duration,
+            root_task_name: task_class_name(@root_task_class)
+          }
         end
 
-        # Render failed status line
-        def render_status_failed(done_count:, total:, failed_task_name:, error_message:)
-          render_template(:status_failed,
-            state: :failed,
-            done_count: done_count,
-            total: total,
-            failed_task_name: failed_task_name,
-            error_message: error_message)
+        # Returns current execution state
+        def execution_state
+          if failed_count > 0
+            :failed
+          elsif done_count == total_count && total_count > 0
+            :completed
+          else
+            :running
+          end
+        end
+
+        # Returns current execution context as an ExecutionDrop
+        def execution_drop
+          ExecutionDrop.new(**execution_context)
         end
 
         # === State-to-render dispatchers ===
@@ -407,18 +452,18 @@ module Taski
 
         # Dispatch task event to appropriate render method
         # @return [String, nil] Rendered output or nil if state not handled
-        def render_for_task_event(task_class, state, duration, error)
+        def render_for_task_event(task_class, state, task_duration, error)
           case state
           when :running
             render_task_started(task_class)
           when :completed
-            render_task_succeeded(task_class, duration: duration)
+            render_task_succeeded(task_class, task_duration: task_duration)
           when :failed
             render_task_failed(task_class, error: error)
           when :cleaning
             render_clean_started(task_class)
           when :clean_completed
-            render_clean_succeeded(task_class, duration: duration)
+            render_clean_succeeded(task_class, task_duration: task_duration)
           when :clean_failed
             render_clean_failed(task_class, error: error)
           end
@@ -426,12 +471,12 @@ module Taski
 
         # Dispatch group event to appropriate render method
         # @return [String, nil] Rendered output or nil if state not handled
-        def render_for_group_event(task_class, group_name, state, duration, error)
+        def render_for_group_event(task_class, group_name, state, task_duration, error)
           case state
           when :running
             render_group_started(task_class, group_name: group_name)
           when :completed
-            render_group_succeeded(task_class, group_name: group_name, duration: duration)
+            render_group_succeeded(task_class, group_name: group_name, task_duration: task_duration)
           when :failed
             render_group_failed(task_class, group_name: group_name, error: error)
           end
@@ -466,6 +511,10 @@ module Taski
           @tasks.select { |_, p| p.run_state == :failed }
         end
 
+        def pending_count
+          @tasks.values.count { |p| p.run_state == :pending }
+        end
+
         def done_count
           @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
         end
@@ -488,25 +537,20 @@ module Taski
 
         # === Utility methods ===
 
-        # Get short name of a task class
-        def short_name(task_class)
-          return "Unknown" unless task_class
-          task_class.name&.split("::")&.last || task_class.to_s
-        end
-
-        # Format duration for display
-        def format_duration(ms)
-          return nil unless ms
-          if ms >= 1000
-            "#{(ms / 1000.0).round(1)}s"
-          else
-            "#{ms.round(1)}ms"
-          end
+        # Get full name of a task class (for use with short_name filter in templates)
+        def task_class_name(task_class)
+          return nil unless task_class
+          task_class.name || task_class.to_s
         end
 
         # Check if output is a TTY
         def tty?
           @output.tty?
+        end
+
+        # Check if progress display should be forced regardless of TTY
+        def force_progress?
+          ENV["TASKI_FORCE_PROGRESS"] == "1"
         end
 
         # Collect all dependencies of a task class recursively
@@ -625,6 +669,27 @@ module Taski
         # TODO: Move to ExecutionContext (see #149)
         # These methods are here temporarily. Layout should not analyze task dependencies.
 
+        # Collect section candidates from a tree structure.
+        # Populates @section_candidates and @section_candidate_subtrees.
+        # @param node [Hash] Tree node
+        def collect_section_candidates(node)
+          return unless node
+
+          task_class = node[:task_class]
+
+          if node[:is_section]
+            candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
+            candidates = candidate_nodes.map { |c| c[:task_class] }
+            @section_candidates[task_class] = candidates unless candidates.empty?
+
+            subtrees = {}
+            candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
+            @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
+          end
+
+          node[:children].each { |child| collect_section_candidates(child) }
+        end
+
         # Build a tree structure from a root task class.
         # @param task_class [Class] The root task class
         # @param ancestors [Set] Set of ancestor classes (for circular detection)
@@ -643,7 +708,7 @@ module Taski
           return node if is_circular
 
           new_ancestors = ancestors + [task_class]
-          dependencies = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
+          dependencies = get_task_dependencies(task_class)
           is_section = section_class?(task_class)
 
           dependencies.each do |dep|
@@ -653,6 +718,22 @@ module Taski
           end
 
           node
+        end
+
+        # Get dependencies for a task class.
+        # Tries static analysis first, falls back to cached_dependencies.
+        # @param task_class [Class] The task class
+        # @return [Array<Class>] Array of dependency classes
+        def get_task_dependencies(task_class)
+          deps = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
+          return deps unless deps.empty?
+
+          # Fallback to cached_dependencies for test stubs
+          if task_class.respond_to?(:cached_dependencies)
+            task_class.cached_dependencies
+          else
+            []
+          end
         end
 
         # Check if a class is a Taski::Section subclass.
