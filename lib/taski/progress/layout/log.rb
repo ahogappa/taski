@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../template/plain"
+require_relative "../theme/plain"
 
 module Taski
   module Progress
     module Layout
-      # Plain layout for non-TTY environments (CI, log files, piped output).
+      # Log layout for non-TTY environments (CI, log files, piped output).
       # Outputs plain text without terminal escape codes.
       #
       # Output format:
@@ -15,10 +15,10 @@ module Taski
       #   [FAIL] TaskName: Error message
       #
       # This replaces the old PlainProgressDisplay class.
-      # Uses Template::Plain by default to ensure no ANSI escape codes in output.
-      class Plain < Base
-        def initialize(output: $stderr, template: nil)
-          template ||= Template::Plain.new
+      # Uses Theme::Plain by default to ensure no ANSI escape codes in output.
+      class Log < Base
+        def initialize(output: $stderr, theme: nil)
+          theme ||= Theme::Plain.new
           super
           @output.sync = true if @output.respond_to?(:sync=)
         end

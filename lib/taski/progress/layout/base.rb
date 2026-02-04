@@ -2,11 +2,11 @@
 
 require "monitor"
 require "liquid"
-require_relative "../template/default"
+require_relative "../theme/default"
 require_relative "../../static_analysis/analyzer"
 require_relative "filters"
 require_relative "tags"
-require_relative "template_drop"
+require_relative "theme_drop"
 
 module Taski
   module Progress
@@ -54,10 +54,10 @@ module Taski
 
         attr_reader :spinner_index
 
-        def initialize(output: $stderr, template: nil)
+        def initialize(output: $stderr, theme: nil)
           @output = output
-          @template = template || Template::Default.new
-          @template_drop = TemplateDrop.new(@template)
+          @theme = theme || Theme::Default.new
+          @theme_drop = ThemeDrop.new(@theme)
           @liquid_environment = build_liquid_environment
           @monitor = Monitor.new
           @tasks = {}
@@ -228,9 +228,9 @@ module Taski
             loop do
               running = @monitor.synchronize { @spinner_running }
               break unless running
-              sleep @template.spinner_interval
+              sleep @theme.spinner_interval
               @monitor.synchronize do
-                @spinner_index = (@spinner_index + 1) % @template.spinner_frames.size
+                @spinner_index = (@spinner_index + 1) % @theme.spinner_frames.size
               end
             end
           end
@@ -314,7 +314,7 @@ module Taski
         # @param execution [ExecutionDrop] Execution-level drop
         # @return [String] The rendered template
         def render_task_template(method_name, task:, execution:)
-          template_string = @template.public_send(method_name)
+          template_string = @theme.public_send(method_name)
           render_template_string(template_string, state: task.invoke_drop("state"), task:, execution:)
         end
 
@@ -326,7 +326,7 @@ module Taski
         # @param task [TaskDrop, nil] Optional task drop (for stdout in execution_running)
         # @return [String] The rendered template
         def render_execution_template(method_name, execution:, task: nil)
-          template_string = @template.public_send(method_name)
+          template_string = @theme.public_send(method_name)
           render_template_string(template_string, state: execution.invoke_drop("state"), task:, execution:)
         end
 
@@ -583,7 +583,7 @@ module Taski
         def build_context_vars(variables)
           spinner_idx = @monitor.synchronize { @spinner_index }
           base_vars = {
-            "template" => @template_drop,
+            "template" => @theme_drop,
             "spinner_index" => variables[:spinner_index] || spinner_idx
           }
           stringify_keys(variables).merge(base_vars)

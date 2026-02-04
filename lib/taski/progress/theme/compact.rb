@@ -4,8 +4,8 @@ require_relative "default"
 
 module Taski
   module Progress
-    module Template
-      # Simple template for TTY environments with single-line progress display.
+    module Theme
+      # Compact theme for TTY environments with single-line progress display.
       # Provides spinner animation, colored icons, and status formatting.
       #
       # Output format:
@@ -14,18 +14,18 @@ module Taski
       #
       # @example Usage
       #   layout = Taski::Progress::Layout::Simple.new(
-      #     template: Taski::Progress::Template::Simple.new
+      #     theme: Taski::Progress::Theme::Compact.new
       #   )
       #
       # @example Custom spinner frames
-      #   class MoonTemplate < Taski::Progress::Template::Simple
+      #   class MoonTheme < Taski::Progress::Theme::Compact
       #     def spinner_frames
       #       %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
       #     end
       #   end
       #
-      # @example Custom status template
-      #   class JapaneseTemplate < Taski::Progress::Template::Simple
+      # @example Custom status theme
+      #   class JapaneseTheme < Taski::Progress::Theme::Compact
       #     def format_count(count)
       #       "#{count}件"
       #     end
@@ -34,7 +34,7 @@ module Taski
       #       '{% icon %} {{ execution.done_count | format_count }}完了 ({{ execution.total_duration | format_duration }})'
       #     end
       #   end
-      class Simple < Default
+      class Compact < Default
         # Inherits ANSI colors from Base via Default.
         # Adds spinner and icons for TTY environments.
 

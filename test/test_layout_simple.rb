@@ -3,7 +3,7 @@
 require "test_helper"
 require "stringio"
 require "taski/progress/layout/simple"
-require "taski/progress/template/simple"
+require "taski/progress/theme/compact"
 
 class TestLayoutSimple < Minitest::Test
   def setup
@@ -87,7 +87,7 @@ class TestLayoutSimple < Minitest::Test
 
   def test_spinner_frames_loaded_from_template
     # Spinner frames are accessed via template
-    template = @layout.instance_variable_get(:@template)
+    template = @layout.instance_variable_get(:@theme)
     assert_equal 10, template.spinner_frames.size
   end
 
@@ -126,14 +126,14 @@ class TestLayoutSimple < Minitest::Test
   # === Icon and color configuration from Template ===
 
   def test_icons_available_via_template
-    template = @layout.instance_variable_get(:@template)
+    template = @layout.instance_variable_get(:@theme)
     assert_equal "✓", template.icon_success
     assert_equal "✗", template.icon_failure
     assert_equal "○", template.icon_pending
   end
 
   def test_colors_available_via_template
-    template = @layout.instance_variable_get(:@template)
+    template = @layout.instance_variable_get(:@theme)
     assert_equal "\e[32m", template.color_green
     assert_equal "\e[31m", template.color_red
     assert_equal "\e[33m", template.color_yellow
@@ -160,39 +160,39 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === Custom spinner frames ===
 
   def test_uses_custom_spinner_frames_from_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def spinner_frames
         %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
 
     # Verify the layout accesses the custom spinner frames via template
-    template = layout.instance_variable_get(:@template)
+    template = layout.instance_variable_get(:@theme)
     assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], template.spinner_frames
   end
 
   # === Custom render interval ===
 
   def test_uses_custom_render_interval_from_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def render_interval
         0.2
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
 
     # Verify the layout accesses render interval via template
-    template = layout.instance_variable_get(:@template)
+    template = layout.instance_variable_get(:@theme)
     assert_in_delta 0.2, template.render_interval, 0.001
   end
 
   # === Custom icons ===
 
   def test_uses_custom_icons_in_final_output
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def icon_success
         "🎉"
       end
@@ -202,7 +202,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
     layout.register_task(task_class)
     layout.start
@@ -215,7 +215,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   end
 
   def test_uses_custom_failure_icon_in_final_output
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def icon_failure
         "💥"
       end
@@ -225,7 +225,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("FailedTask")
     layout.register_task(task_class)
     layout.start
@@ -241,13 +241,13 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === Custom execution templates ===
 
   def test_uses_custom_execution_complete_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
         "{% icon %} Finished {{ execution.completed_count }} tasks in {{ execution.total_duration | format_duration }}"
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
     layout.register_task(task_class)
     layout.start
@@ -260,7 +260,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   # === No constants needed with template ===
 
   def test_layout_does_not_require_constants_when_using_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def spinner_frames
         %w[A B C]
       end
@@ -299,7 +299,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, template: custom_template)
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("TestTask")
     layout.register_task(task_class)
     layout.start

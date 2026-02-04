@@ -2,71 +2,71 @@
 
 require "minitest/autorun"
 require "liquid"
-require_relative "../lib/taski/progress/layout/template_drop"
-require_relative "../lib/taski/progress/template/base"
+require_relative "../lib/taski/progress/layout/theme_drop"
+require_relative "../lib/taski/progress/theme/base"
 
-class TestTemplateDrop < Minitest::Test
+class TestThemeDrop < Minitest::Test
   def setup
-    @template = Taski::Progress::Template::Base.new
-    @drop = Taski::Progress::Layout::TemplateDrop.new(@template)
+    @theme = Taski::Progress::Theme::Base.new
+    @drop = Taski::Progress::Layout::ThemeDrop.new(@theme)
   end
 
-  def test_template_drop_inherits_from_liquid_drop
-    assert Taski::Progress::Layout::TemplateDrop < Liquid::Drop
+  def test_theme_drop_inherits_from_liquid_drop
+    assert Taski::Progress::Layout::ThemeDrop < Liquid::Drop
   end
 
   def test_color_red_delegation
-    assert_equal @template.color_red, @drop.color_red
+    assert_equal @theme.color_red, @drop.color_red
     assert_equal "\e[31m", @drop.color_red
   end
 
   def test_color_green_delegation
-    assert_equal @template.color_green, @drop.color_green
+    assert_equal @theme.color_green, @drop.color_green
     assert_equal "\e[32m", @drop.color_green
   end
 
   def test_color_yellow_delegation
-    assert_equal @template.color_yellow, @drop.color_yellow
+    assert_equal @theme.color_yellow, @drop.color_yellow
     assert_equal "\e[33m", @drop.color_yellow
   end
 
   def test_color_dim_delegation
-    assert_equal @template.color_dim, @drop.color_dim
+    assert_equal @theme.color_dim, @drop.color_dim
     assert_equal "\e[2m", @drop.color_dim
   end
 
   def test_color_reset_delegation
-    assert_equal @template.color_reset, @drop.color_reset
+    assert_equal @theme.color_reset, @drop.color_reset
     assert_equal "\e[0m", @drop.color_reset
   end
 
   def test_spinner_frames_delegation
-    assert_equal @template.spinner_frames, @drop.spinner_frames
+    assert_equal @theme.spinner_frames, @drop.spinner_frames
     assert_equal %w[⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏], @drop.spinner_frames
   end
 
   def test_render_interval_delegation
-    assert_equal @template.render_interval, @drop.render_interval
+    assert_equal @theme.render_interval, @drop.render_interval
     assert_equal 0.1, @drop.render_interval
   end
 
   def test_icon_success_delegation
-    assert_equal @template.icon_success, @drop.icon_success
+    assert_equal @theme.icon_success, @drop.icon_success
     assert_equal "✓", @drop.icon_success
   end
 
   def test_icon_failure_delegation
-    assert_equal @template.icon_failure, @drop.icon_failure
+    assert_equal @theme.icon_failure, @drop.icon_failure
     assert_equal "✗", @drop.icon_failure
   end
 
   def test_icon_pending_delegation
-    assert_equal @template.icon_pending, @drop.icon_pending
+    assert_equal @theme.icon_pending, @drop.icon_pending
     assert_equal "○", @drop.icon_pending
   end
 
-  def test_drop_works_with_custom_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+  def test_drop_works_with_custom_theme
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def color_red
         "\e[91m"  # bright red
       end
@@ -80,7 +80,7 @@ class TestTemplateDrop < Minitest::Test
       end
     end.new
 
-    custom_drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
+    custom_drop = Taski::Progress::Layout::ThemeDrop.new(custom_theme)
 
     assert_equal "\e[91m", custom_drop.color_red
     assert_equal %w[| / - \\], custom_drop.spinner_frames
@@ -113,18 +113,18 @@ class TestTemplateDrop < Minitest::Test
   end
 
   def test_format_count_delegation
-    assert_equal @template.format_count(5), @drop.format_count(5)
+    assert_equal @theme.format_count(5), @drop.format_count(5)
     assert_equal "5", @drop.format_count(5)
   end
 
   def test_format_duration_delegation
-    assert_equal @template.format_duration(500), @drop.format_duration(500)
+    assert_equal @theme.format_duration(500), @drop.format_duration(500)
     assert_equal "500ms", @drop.format_duration(500)
     assert_equal "1.5s", @drop.format_duration(1500)
   end
 
-  def test_format_methods_with_custom_template
-    custom_template = Class.new(Taski::Progress::Template::Base) do
+  def test_format_methods_with_custom_theme
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def format_count(count)
         "#{count}件"
       end
@@ -134,7 +134,7 @@ class TestTemplateDrop < Minitest::Test
       end
     end.new
 
-    custom_drop = Taski::Progress::Layout::TemplateDrop.new(custom_template)
+    custom_drop = Taski::Progress::Layout::ThemeDrop.new(custom_theme)
 
     assert_equal "3件", custom_drop.format_count(3)
     assert_equal "100ミリ秒", custom_drop.format_duration(100)

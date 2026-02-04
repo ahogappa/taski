@@ -4,8 +4,8 @@ require_relative "default"
 
 module Taski
   module Progress
-    module Template
-      # Tree template for TTY environments with tree-structured progress display.
+    module Theme
+      # Detail theme for rich progress display with spinner and icons.
       # Provides spinner animation, colored icons for task states.
       #
       # Output format:
@@ -15,9 +15,9 @@ module Taski
       #
       # @example Usage
       #   layout = Taski::Progress::Layout::Tree.new(
-      #     template: Taski::Progress::Template::Tree.new
+      #     theme: Taski::Progress::Theme::Detail.new
       #   )
-      class Tree < Default
+      class Detail < Default
         # Task pending with icon
         def task_pending
           "{% icon %} {{ task.name | short_name }}"

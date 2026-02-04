@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../template/simple"
+require_relative "../theme/compact"
 
 module Taski
   module Progress
@@ -11,9 +11,9 @@ module Taski
       #
       #   ⠹ [3/5] DeployTask | Uploading files...
       #
-      # Customization is done through Template classes:
+      # Customization is done through Theme classes:
       #
-      #   class MyTemplate < Taski::Progress::Template::Base
+      #   class MyTheme < Taski::Progress::Theme::Base
       #     def spinner_frames
       #       %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
       #     end
@@ -31,10 +31,10 @@ module Taski
       #     end
       #   end
       #
-      #   layout = Taski::Progress::Layout::Simple.new(template: MyTemplate.new)
+      #   layout = Taski::Progress::Layout::Simple.new(theme: MyTheme.new)
       class Simple < Base
-        def initialize(output: $stdout, template: nil)
-          template ||= Template::Simple.new
+        def initialize(output: $stdout, theme: nil)
+          theme ||= Theme::Compact.new
           super
           @renderer_thread = nil
           @running = false
@@ -70,7 +70,7 @@ module Taski
             loop do
               break unless @running_mutex.synchronize { @running }
               render_live
-              sleep @template.render_interval
+              sleep @theme.render_interval
             end
           end
         end
