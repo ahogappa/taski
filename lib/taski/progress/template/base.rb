@@ -9,7 +9,7 @@ module Taski
       #
       # All templates have access to the same common variables:
       #   task_name, state, duration, error_message,
-      #   done_count, completed, failed, total,
+      #   pending_count, done_count, completed_count, failed_count, total_count,
       #   root_task_name, group_name, task_names, task_output
       #
       # Use {% if variable %} to conditionally render when a value is present.
@@ -76,15 +76,15 @@ module Taski
         end
 
         def execution_running
-          "[TASKI] Running: {{ done_count }}/{{ total }} tasks"
+          "[TASKI] Running: {{ done_count }}/{{ total_count }} tasks"
         end
 
         def execution_complete
-          "[TASKI] Completed: {{ completed }}/{{ total }} tasks ({{ duration | format_duration }})"
+          "[TASKI] Completed: {{ completed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
         end
 
         def execution_fail
-          "[TASKI] Failed: {{ failed }}/{{ total }} tasks ({{ duration | format_duration }})"
+          "[TASKI] Failed: {{ failed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
         end
 
         # === Spinner configuration ===

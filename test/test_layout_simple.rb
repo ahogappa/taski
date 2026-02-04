@@ -221,7 +221,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
 
       def execution_fail
-        "{% icon %} Boom! {{ failed }}/{{ total }}"
+        "{% icon %} Boom! {{ failed_count }}/{{ total_count }}"
       end
     end.new
 
@@ -243,7 +243,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   def test_uses_custom_execution_complete_template
     custom_template = Class.new(Taski::Progress::Template::Base) do
       def execution_complete
-        "{% icon %} Finished {{ completed }} tasks in {{ duration | format_duration }}"
+        "{% icon %} Finished {{ completed_count }} tasks in {{ duration | format_duration }}"
       end
     end.new
 

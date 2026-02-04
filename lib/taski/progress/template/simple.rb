@@ -40,17 +40,17 @@ module Taski
 
         # Execution running with spinner
         def execution_running
-          "{% spinner %} [{{ done_count }}/{{ total }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if task_output %} | {{ task_output | truncate_text: 40 }}{% endif %}"
+          "{% spinner %} [{{ done_count }}/{{ total_count }}]{% if task_names %} {{ task_names | truncate_list: 3 }}{% endif %}{% if task_output %} | {{ task_output | truncate_text: 40 }}{% endif %}"
         end
 
         # Execution complete with icon
         def execution_complete
-          "{% icon %} [TASKI] Completed: {{ completed }}/{{ total }} tasks ({{ duration | format_duration }})"
+          "{% icon %} [TASKI] Completed: {{ completed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
         end
 
         # Execution fail with icon
         def execution_fail
-          "{% icon %} [TASKI] Failed: {{ failed }}/{{ total }} tasks ({{ duration | format_duration }})"
+          "{% icon %} [TASKI] Failed: {{ failed_count }}/{{ total_count }} tasks ({{ duration | format_duration }})"
         end
       end
     end

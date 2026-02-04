@@ -156,9 +156,9 @@ module Taski
           duration = total_duration
 
           text = if failed_count > 0
-            render_execution_failed(failed: failed_count, total: total_count, duration: duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count, duration: duration)
           else
-            render_execution_completed(completed: completed_count, total: total_count, duration: duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, duration: duration)
           end
           output_line(text)
         end
@@ -207,9 +207,9 @@ module Taski
 
             # Add summary line
             summary = if failed_count > 0
-              render_execution_failed(failed: failed_count, total: total_count, duration: total_duration)
+              render_execution_failed(failed_count: failed_count, total_count: total_count, duration: total_duration)
             else
-              render_execution_completed(completed: completed_count, total: total_count, duration: total_duration)
+              render_execution_completed(completed_count: completed_count, total_count: total_count, duration: total_duration)
             end
             @output.puts summary
             @output.flush

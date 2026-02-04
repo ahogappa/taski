@@ -139,8 +139,8 @@ class TestTemplate < Minitest::Test
   def test_execution_complete_renders_with_stats
     template_string = @template.execution_complete
     rendered = render_template(template_string,
-      "completed" => 5,
-      "total" => 5,
+      "completed_count" => 5,
+      "total_count" => 5,
       "duration" => 1234)
     assert_includes rendered, "[TASKI] Completed: 5/5 tasks (1.2s)"
   end
@@ -148,8 +148,8 @@ class TestTemplate < Minitest::Test
   def test_execution_fail_renders_with_stats
     template_string = @template.execution_fail
     rendered = render_template(template_string,
-      "failed" => 2,
-      "total" => 5,
+      "failed_count" => 2,
+      "total_count" => 5,
       "duration" => 1234)
     assert_includes rendered, "[TASKI] Failed: 2/5 tasks (1.2s)"
   end
@@ -270,7 +270,7 @@ class TestTemplate < Minitest::Test
     template_string = @template.execution_running
     rendered = render_template(template_string,
       "done_count" => 3,
-      "total" => 5)
+      "total_count" => 5)
     assert_includes rendered, "[TASKI] Running: 3/5 tasks"
   end
 

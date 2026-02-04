@@ -373,12 +373,12 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     # Create a custom template that uses task_name in execution_complete
     custom_template = Class.new(Taski::Progress::Template::Base) do
       def execution_complete
-        "Done: {{ completed }}/{{ total }}{% if task_name %} ({{ task_name }}){% endif %}"
+        "Done: {{ completed_count }}/{{ total_count }}{% if task_name %} ({{ task_name }}){% endif %}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, template: custom_template)
-    result = layout.send(:render_execution_completed, completed: 5, total: 5, duration: 1000)
+    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 5, duration: 1000)
 
     # task_name is nil for execution_complete, so the if block should not render
     assert_equal "Done: 5/5", result
@@ -393,10 +393,11 @@ class TestLayoutBaseCommonVariables < Minitest::Test
           "state:{{ state }}",
           "duration:{{ duration }}",
           "error_message:{{ error_message }}",
+          "pending_count:{{ pending_count }}",
           "done_count:{{ done_count }}",
-          "completed:{{ completed }}",
-          "failed:{{ failed }}",
-          "total:{{ total }}",
+          "completed_count:{{ completed_count }}",
+          "failed_count:{{ failed_count }}",
+          "total_count:{{ total_count }}",
           "root_task_name:{{ root_task_name }}",
           "group_name:{{ group_name }}"
         ].join("|")

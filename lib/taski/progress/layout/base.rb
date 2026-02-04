@@ -292,9 +292,9 @@ module Taski
           duration = total_duration
 
           text = if failed_count > 0
-            render_execution_failed(failed: failed_count, total: total_count, duration: duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count, duration: duration)
           else
-            render_execution_completed(completed: completed_count, total: total_count, duration: duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, duration: duration)
           end
           output_line(text)
         end
@@ -309,10 +309,11 @@ module Taski
           state
           duration
           error_message
+          pending_count
           done_count
-          completed
-          failed
-          total
+          completed_count
+          failed_count
+          total_count
           root_task_name
           group_name
           task_names
@@ -385,20 +386,20 @@ module Taski
         end
 
         # Render execution complete event
-        def render_execution_completed(completed:, total:, duration:)
-          render_template(:execution_complete, completed: completed, total: total, duration: duration, state: :completed)
+        def render_execution_completed(completed_count:, total_count:, duration:)
+          render_template(:execution_complete, completed_count: completed_count, total_count: total_count, duration: duration, state: :completed)
         end
 
         # Render execution failure event
-        def render_execution_failed(failed:, total:, duration:)
-          render_template(:execution_fail, failed: failed, total: total, duration: duration, state: :failed)
+        def render_execution_failed(failed_count:, total_count:, duration:)
+          render_template(:execution_fail, failed_count: failed_count, total_count: total_count, duration: duration, state: :failed)
         end
 
         # Render execution running state
-        def render_execution_running(done_count:, total:, task_names:, task_output:)
+        def render_execution_running(done_count:, total_count:, task_names:, task_output:)
           render_template(:execution_running,
             done_count: done_count,
-            total: total,
+            total_count: total_count,
             task_names: task_names,
             task_output: task_output,
             state: :running)
@@ -466,6 +467,10 @@ module Taski
 
         def failed_tasks
           @tasks.select { |_, p| p.run_state == :failed }
+        end
+
+        def pending_count
+          @tasks.values.count { |p| p.run_state == :pending }
         end
 
         def done_count
