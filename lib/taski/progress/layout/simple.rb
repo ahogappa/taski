@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "base"
-require_relative "../theme/compact"
+require_relative 'base'
+require_relative '../theme/compact'
 
 module Taski
   module Progress
@@ -50,7 +50,7 @@ module Taski
         end
 
         # Simple layout uses periodic status line updates instead of per-event output
-        def render_task_state_change(_task_class, _state, _duration, _error)
+        def render_task_state_change(_task_class, _phase, _state, _duration, _error)
           # No per-event output; status line is updated by render_live
         end
 
@@ -121,19 +121,19 @@ module Taski
 
         def terminal_width
           @output.winsize[1]
-        rescue
+        rescue StandardError
           80 # Default fallback
         end
 
         def render_final
           @monitor.synchronize do
-            line = if failed_count > 0
-              render_execution_failed(failed_count: failed_count, total_count: total_count,
-                total_duration: total_duration)
-            else
-              render_execution_completed(completed_count: completed_count, total_count: total_count,
-                total_duration: total_duration)
-            end
+            line = if failed_count.positive?
+                     render_execution_failed(failed_count: failed_count, total_count: total_count,
+                                             total_duration: total_duration)
+                   else
+                     render_execution_completed(completed_count: completed_count, total_count: total_count,
+                                                total_duration: total_duration)
+                   end
 
             @output.print "\r\e[K#{line}\n"
             @output.flush
@@ -157,14 +157,14 @@ module Taski
         def collect_current_task_names
           # Prioritize: cleaning > running > pending
           current_tasks = if cleaning_tasks.any?
-            cleaning_tasks.keys
-          elsif running_tasks.any?
-            running_tasks.keys
-          elsif pending_tasks.any?
-            pending_tasks.keys
-          else
-            []
-          end
+                            cleaning_tasks.keys
+                          elsif running_tasks.any?
+                            running_tasks.keys
+                          elsif pending_tasks.any?
+                            pending_tasks.keys
+                          else
+                            []
+                          end
 
           current_tasks.map { |t| task_class_name(t) }
         end

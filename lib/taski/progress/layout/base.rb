@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require "monitor"
-require "liquid"
-require_relative "../theme/default"
-require_relative "../../static_analysis/analyzer"
-require_relative "../../execution/task_observer"
-require_relative "filters"
-require_relative "tags"
-require_relative "theme_drop"
+require 'monitor'
+require 'liquid'
+require_relative '../theme/default'
+require_relative '../../static_analysis/analyzer'
+require_relative '../../execution/task_observer'
+require_relative 'filters'
+require_relative 'tags'
+require_relative 'theme_drop'
 
 module Taski
   module Progress
@@ -39,8 +39,8 @@ module Taski
       class Base < Taski::Execution::TaskObserver
         # Internal class to track task state
         class TaskState
-          attr_accessor :run_state, :clean_state, :run_duration, :run_error, :clean_duration, :clean_error
-          attr_accessor :run_started_at, :clean_started_at
+          attr_accessor :run_state, :clean_state, :run_duration, :run_error, :clean_duration, :clean_error,
+                        :run_started_at, :clean_started_at
 
           def initialize
             @run_state = :pending
@@ -114,8 +114,8 @@ module Taski
           should_stop = false
           was_active = false
           @monitor.synchronize do
-            @nest_level -= 1 if @nest_level > 0
-            return unless @nest_level == 0
+            @nest_level -= 1 if @nest_level.positive?
+            return unless @nest_level.zero?
 
             was_active = @active
             @active = false
@@ -154,6 +154,7 @@ module Taski
         end
 
         # Update task state (old interface, kept for backward compatibility).
+        # Converts old-style states to phase + unified state.
         # @param task_class [Class] The task class to update
         # @param state [Symbol] The new state (:running, :completed, :failed, :cleaning, :clean_completed, :clean_failed)
         # @param duration [Float, nil] Duration in milliseconds
@@ -162,8 +163,11 @@ module Taski
           @monitor.synchronize do
             progress = @tasks[task_class]
             progress ||= @tasks[task_class] = TaskState.new
-            apply_state_transition(progress, state, duration, error)
-            render_task_state_change(task_class, state, duration, error)
+
+            # Convert old-style states to phase + unified state
+            phase, unified_state = convert_legacy_state(state)
+            apply_state_transition(progress, phase, unified_state, duration, error)
+            render_task_state_change(task_class, phase, unified_state, duration, error)
           end
         end
 
@@ -185,33 +189,23 @@ module Taski
 
             duration = nil
             if current_phase == :clean
-              # Clean phase handling
+              # Clean phase handling - track timestamps and calculate duration
               if previous_state == :pending && current_state == :running
                 progress.clean_started_at = timestamp
               elsif %i[completed failed].include?(current_state) && progress.clean_started_at
                 duration = ((timestamp - progress.clean_started_at) * 1000).round(1)
               end
-
-              # Convert to old clean state names for apply_state_transition
-              old_state = case current_state
-              when :running then :cleaning
-              when :completed then :clean_completed
-              when :failed then :clean_failed
-              else current_state
-              end
-              apply_state_transition(progress, old_state, duration, error)
-              render_task_state_change(task_class, old_state, duration, error)
-            else
-              # Run phase handling
-              if previous_state == :pending && current_state == :running
-                progress.run_started_at = timestamp
-              elsif %i[completed failed].include?(current_state) && progress.run_started_at
-                duration = ((timestamp - progress.run_started_at) * 1000).round(1)
-              end
-
-              apply_state_transition(progress, current_state, duration, error)
-              render_task_state_change(task_class, current_state, duration, error)
+            elsif previous_state == :pending && current_state == :running
+              # Run phase handling - track timestamps and calculate duration
+              progress.run_started_at = timestamp
+            elsif %i[completed failed].include?(current_state) && progress.run_started_at
+              duration = ((timestamp - progress.run_started_at) * 1000).round(1)
             end
+
+            # Apply state transition with unified state names
+            apply_state_transition(progress, current_phase, current_state, duration, error)
+            # Render with phase and unified state
+            render_task_state_change(task_class, current_phase, current_state, duration, error)
           end
         end
 
@@ -266,7 +260,7 @@ module Taski
         def render_template_string(template_string, state: nil, task: nil, execution: nil, **variables)
           context_vars = build_context_vars(task:, execution:, **variables)
           template = Liquid::Template.parse(template_string, environment: @liquid_environment)
-          template.assigns["state"] = state
+          template.assigns['state'] = state
           template.render(context_vars)
         end
 
@@ -315,8 +309,13 @@ module Taski
 
         # Called internally when a task state is updated.
         # Default: render and output the event.
-        def render_task_state_change(task_class, state, duration, error)
-          text = render_for_task_event(task_class, state, duration, error)
+        # @param task_class [Class] The task class
+        # @param phase [Symbol] :run or :clean
+        # @param state [Symbol] Unified state: :pending, :running, :completed, :failed, :skipped
+        # @param duration [Float, nil] Duration in ms
+        # @param error [Exception, nil] Error if failed
+        def render_task_state_change(task_class, phase, state, duration, error)
+          text = render_for_task_event(task_class, phase, state, duration, error)
           output_line(text) if text
         end
 
@@ -354,12 +353,12 @@ module Taski
 
         # Render execution summary based on current state (success or failure)
         def render_execution_summary
-          if failed_count > 0
+          if failed_count.positive?
             render_execution_failed(failed_count: failed_count, total_count: total_count,
-              total_duration: total_duration)
+                                    total_duration: total_duration)
           else
             render_execution_completed(completed_count: completed_count, total_count: total_count,
-              total_duration: total_duration)
+                                       total_duration: total_duration)
           end
         end
 
@@ -374,7 +373,7 @@ module Taski
         # @return [String] The rendered template
         def render_task_template(method_name, task:, execution:)
           template_string = @theme.public_send(method_name)
-          render_template_string(template_string, state: task.invoke_drop("state"), task:, execution:)
+          render_template_string(template_string, state: task.invoke_drop('state'), task:, execution:)
         end
 
         # Render an execution-level template with execution drop only.
@@ -386,7 +385,7 @@ module Taski
         # @return [String] The rendered template
         def render_execution_template(method_name, execution:, task: nil)
           template_string = @theme.public_send(method_name)
-          render_template_string(template_string, state: execution.invoke_drop("state"), task:, execution:)
+          render_template_string(template_string, state: execution.invoke_drop('state'), task:, execution:)
         end
 
         # === Event-to-template rendering methods ===
@@ -415,21 +414,27 @@ module Taski
           render_task_template(:task_fail, task:, execution: execution_drop)
         end
 
+        # Render task skipped event
+        def render_task_skipped(task_class)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :skipped)
+          render_task_template(:task_skipped, task:, execution: execution_drop)
+        end
+
         # Render clean start event
         def render_clean_started(task_class)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :cleaning)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :running)
           render_task_template(:clean_start, task:, execution: execution_drop)
         end
 
         # Render clean success event
         def render_clean_succeeded(task_class, task_duration:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :clean_completed, duration: task_duration)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
           render_task_template(:clean_success, task:, execution: execution_drop)
         end
 
         # Render clean failure event
         def render_clean_failed(task_class, error:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :clean_failed, error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
           render_task_template(:clean_fail, task:, execution: execution_drop)
         end
 
@@ -442,14 +447,14 @@ module Taski
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:,
-            duration: task_duration)
+                              duration: task_duration)
           render_task_template(:group_success, task:, execution: execution_drop)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
           task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:,
-            error_message: error&.message)
+                              error_message: error&.message)
           render_task_template(:group_fail, task:, execution: execution_drop)
         end
 
@@ -495,9 +500,9 @@ module Taski
 
         # Returns current execution state
         def execution_state
-          if failed_count > 0
+          if failed_count.positive?
             :failed
-          elsif done_count == total_count && total_count > 0
+          elsif done_count == total_count && total_count.positive?
             :completed
           else
             :running
@@ -514,20 +519,34 @@ module Taski
 
         # Dispatch task event to appropriate render method
         # @return [String, nil] Rendered output or nil if state not handled
-        def render_for_task_event(task_class, state, task_duration, error)
-          case state
-          when :running
-            render_task_started(task_class)
-          when :completed
-            render_task_succeeded(task_class, task_duration: task_duration)
-          when :failed
-            render_task_failed(task_class, error: error)
-          when :cleaning
-            render_clean_started(task_class)
-          when :clean_completed
-            render_clean_succeeded(task_class, task_duration: task_duration)
-          when :clean_failed
-            render_clean_failed(task_class, error: error)
+        # Dispatch task event to appropriate render method based on phase and state
+        # @param task_class [Class] The task class
+        # @param phase [Symbol] :run or :clean
+        # @param state [Symbol] Unified state: :running, :completed, :failed, :skipped
+        # @param task_duration [Float, nil] Duration in ms
+        # @param error [Exception, nil] Error if failed
+        # @return [String, nil] Rendered output or nil if state not handled
+        def render_for_task_event(task_class, phase, state, task_duration, error)
+          if phase == :clean
+            case state
+            when :running
+              render_clean_started(task_class)
+            when :completed
+              render_clean_succeeded(task_class, task_duration: task_duration)
+            when :failed
+              render_clean_failed(task_class, error: error)
+            end
+          else
+            case state
+            when :running
+              render_task_started(task_class)
+            when :completed
+              render_task_succeeded(task_class, task_duration: task_duration)
+            when :failed
+              render_task_failed(task_class, error: error)
+            when :skipped
+              render_task_skipped(task_class)
+            end
           end
         end
 
@@ -614,7 +633,7 @@ module Taski
 
         # Check if progress display should be forced regardless of TTY
         def force_progress?
-          ENV["TASKI_FORCE_PROGRESS"] == "1"
+          ENV['TASKI_FORCE_PROGRESS'] == '1'
         end
 
         # Collect all dependencies of a task class recursively
@@ -635,8 +654,8 @@ module Taski
         def build_liquid_environment
           Liquid::Environment.build do |env|
             env.register_filter(ColorFilter)
-            env.register_tag("spinner", SpinnerTag)
-            env.register_tag("icon", IconTag)
+            env.register_tag('spinner', SpinnerTag)
+            env.register_tag('icon', IconTag)
           end
         end
 
@@ -647,8 +666,8 @@ module Taski
         def build_context_vars(variables)
           spinner_idx = @monitor.synchronize { @spinner_index }
           base_vars = {
-            "template" => @theme_drop,
-            "spinner_index" => variables[:spinner_index] || spinner_idx
+            'template' => @theme_drop,
+            'spinner_index' => variables[:spinner_index] || spinner_idx
           }
           stringify_keys(variables).merge(base_vars)
         end
@@ -665,34 +684,64 @@ module Taski
         # Apply state transition to TaskState
         # Once a task reaches :completed or :failed, it cannot go back to :running
         # (prevents progress count from decreasing when nested executors re-execute)
-        def apply_state_transition(progress, state, duration, error)
-          case state
-          when :pending
-            progress.run_state = :pending
-          when :running
-            return if run_state_finalized?(progress)
+        # @param progress [TaskState] The task state object
+        # @param phase [Symbol] :run or :clean
+        # @param state [Symbol] Unified state: :pending, :running, :completed, :failed, :skipped
+        # @param duration [Float, nil] Duration in ms
+        # @param error [Exception, nil] Error if failed
+        def apply_state_transition(progress, phase, state, duration, error)
+          if phase == :clean
+            case state
+            when :pending
+              progress.clean_state = :pending
+            when :running
+              progress.clean_state = :running
+            when :completed
+              progress.clean_state = :completed
+              progress.clean_duration = duration if duration
+            when :failed
+              progress.clean_state = :failed
+              progress.clean_error = error if error
+            end
+          else
+            # Run phase
+            case state
+            when :pending
+              progress.run_state = :pending
+            when :running
+              return if run_state_finalized?(progress)
 
-            progress.run_state = :running
-          when :completed
-            progress.run_state = :completed
-            progress.run_duration = duration if duration
-          when :failed
-            progress.run_state = :failed
-            progress.run_error = error if error
-          when :cleaning
-            # Phase 1: unified clean state values (same as run state names)
-            progress.clean_state = :running
-          when :clean_completed
-            progress.clean_state = :completed
-            progress.clean_duration = duration if duration
-          when :clean_failed
-            progress.clean_state = :failed
-            progress.clean_error = error if error
+              progress.run_state = :running
+            when :completed
+              progress.run_state = :completed
+              progress.run_duration = duration if duration
+            when :failed
+              progress.run_state = :failed
+              progress.run_error = error if error
+            when :skipped
+              progress.run_state = :skipped
+            end
           end
         end
 
         def run_state_finalized?(progress)
           %i[completed failed].include?(progress.run_state)
+        end
+
+        # Convert old-style state to phase + unified state
+        # @param state [Symbol] Old-style state
+        # @return [Array<Symbol, Symbol>] [phase, unified_state]
+        def convert_legacy_state(state)
+          case state
+          when :cleaning
+            %i[clean running]
+          when :clean_completed
+            %i[clean completed]
+          when :clean_failed
+            %i[clean failed]
+          else
+            [:run, state]
+          end
         end
 
         def collect_dependencies_recursive(task_class, collected)

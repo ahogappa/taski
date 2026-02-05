@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "base"
-require_relative "../theme/detail"
+require_relative 'base'
+require_relative '../theme/detail'
 
 module Taski
   module Progress
@@ -34,10 +34,10 @@ module Taski
       #   layout = Taski::Progress::Layout::Tree.new(theme: Taski::Progress::Theme::Default.new)
       class Tree < Base
         # Tree connector characters
-        BRANCH = "├── "
-        LAST_BRANCH = "└── "
-        VERTICAL = "│   "
-        SPACE = "    "
+        BRANCH = '├── '
+        LAST_BRANCH = '└── '
+        VERTICAL = '│   '
+        SPACE = '    '
 
         def initialize(output: $stderr, theme: nil)
           theme ||= Theme::Detail.new
@@ -77,8 +77,8 @@ module Taski
           was_active = false
           non_tty_was_started = false
           @monitor.synchronize do
-            @nest_level -= 1 if @nest_level > 0
-            return unless @nest_level == 0
+            @nest_level -= 1 if @nest_level.positive?
+            return unless @nest_level.zero?
 
             was_active = @active
             non_tty_was_started = @non_tty_started
@@ -103,11 +103,11 @@ module Taski
 
         # In TTY mode, tree is updated by render_live periodically.
         # In non-TTY mode, output lines immediately with tree prefix.
-        def render_task_state_change(task_class, state, duration, error)
+        def render_task_state_change(task_class, phase, state, duration, error)
           return if @active # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
-          text = render_for_task_event(task_class, state, duration, error)
+          text = render_for_task_event(task_class, phase, state, duration, error)
           output_with_prefix(task_class, text) if text
         end
 
@@ -173,7 +173,7 @@ module Taski
           @tasks[task_class] ||= TaskState.new
           @tree_nodes[task_class] = node
           @node_depths[task_class] = depth
-          @node_is_last[task_class] = {is_last: is_last, ancestors_last: ancestors_last.dup}
+          @node_is_last[task_class] = { is_last: is_last, ancestors_last: ancestors_last.dup }
 
           children = node[:children]
           children.each_with_index do |child, index|
@@ -205,7 +205,7 @@ module Taski
         end
 
         def clear_previous_output
-          return if @last_line_count == 0
+          return if @last_line_count.zero?
 
           # Move cursor up and clear lines
           @output.print "\e[#{@last_line_count}A\e[J"
@@ -252,15 +252,15 @@ module Taski
 
         def build_tree_prefix(task_class)
           depth = @node_depths[task_class]
-          return "" if depth.nil? || depth == 0
+          return '' if depth.nil? || depth.zero?
 
           last_info = @node_is_last[task_class]
-          return "" unless last_info
+          return '' unless last_info
 
           ancestors_last = last_info[:ancestors_last]
           is_last = last_info[:is_last]
 
-          prefix = ""
+          prefix = ''
           # Skip the first ancestor (root) since root has no visual prefix
           ancestors_last[1..].each do |ancestor_is_last|
             prefix += ancestor_is_last ? SPACE : VERTICAL
