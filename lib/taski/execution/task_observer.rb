@@ -4,7 +4,7 @@ module Taski
   module Execution
     # Base class for task execution observers.
     # Observers receive notifications about task lifecycle events and can
-    # pull additional information from the context.
+    # pull additional information from the facade.
     #
     # == Observer Pattern with Pull API
     #
@@ -12,7 +12,7 @@ module Taski
     # and can pull additional context information as needed:
     #
     #   - Push: task_class, previous_state, current_state, timestamp
-    #   - Pull: context.current_phase, context.dependency_graph, context.output_stream
+    #   - Pull: facade.current_phase, facade.dependency_graph, facade.output_stream
     #
     # == Usage
     #
@@ -20,7 +20,7 @@ module Taski
     #
     #   class MyObserver < Taski::Execution::TaskObserver
     #     def on_ready
-    #       @graph = context.dependency_graph
+    #       @graph = facade.dependency_graph
     #       build_tree(@graph)
     #     end
     #
@@ -38,17 +38,17 @@ module Taski
     #
     # When added to ExecutionContext, the context is automatically injected:
     #
-    #   context.add_observer(my_observer)
+    #   facade.add_observer(my_observer)
     #   # my_observer.context is now set to context
     #
     class TaskObserver
       # The execution context that this observer is attached to.
       # Set automatically when added via ExecutionContext#add_observer.
       # @return [ExecutionContext, nil]
-      attr_accessor :context
+      attr_accessor :facade
 
       # Called when execution is ready (root task and dependencies resolved).
-      # Use this to pull initial state from context.
+      # Use this to pull initial state from facade.
       def on_ready
       end
 

@@ -84,7 +84,7 @@ class TestLayoutBase < Minitest::Test
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
-    @layout.context = mock_context
+    @layout.facade = mock_context
 
     @layout.update_task(task_class, state: :running)
     # Clean state should be tracked with unified state name :running
@@ -99,7 +99,7 @@ class TestLayoutBase < Minitest::Test
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
-    @layout.context = mock_context
+    @layout.facade = mock_context
 
     @layout.update_task(task_class, state: :running)
     @layout.update_task(task_class, state: :completed, duration: 50)

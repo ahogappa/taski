@@ -58,7 +58,7 @@ module Taski
       # Called when execution is ready (root task and dependencies resolved).
       # Logs the total task count from the dependency graph.
       def on_ready
-        graph = context&.dependency_graph
+        graph = facade&.dependency_graph
         total_tasks = graph&.all_tasks&.size || 0
 
         Logging.info(
@@ -74,7 +74,7 @@ module Taski
       # @param timestamp [Time] When the transition occurred
       # @param error [Exception, nil] The error if state is :failed
       def on_task_updated(task_class, previous_state:, current_state:, timestamp:, error: nil)
-        current_phase = context&.current_phase || :run
+        current_phase = facade&.current_phase || :run
 
         if current_phase == :clean
           handle_clean_event(task_class, previous_state, current_state, timestamp, error)

@@ -3,7 +3,7 @@
 
 # Demonstrates Taski.message API
 #
-# Taski.message outputs text to the user without being captured by TaskOutputRouter.
+# Taski.message outputs text to the user without being captured by OutputHub.
 # Messages are queued during progress display and shown after task completion.
 #
 # Usage:
@@ -16,7 +16,7 @@ class ProcessDataTask < Taski::Task
   exports :processed_count
 
   def run
-    puts "Starting data processing..." # Captured by TaskOutputRouter
+    puts "Starting data processing..." # Captured by OutputHub
 
     # Simulate processing
     5.times do |i|
@@ -26,7 +26,7 @@ class ProcessDataTask < Taski::Task
 
     @processed_count = 42
 
-    # These messages bypass TaskOutputRouter and appear after execution
+    # These messages bypass OutputHub and appear after execution
     Taski.message("Created: /tmp/output.txt")
     Taski.message("Summary: #{@processed_count} items processed successfully")
   end

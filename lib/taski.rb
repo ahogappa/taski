@@ -168,7 +168,7 @@ module Taski
     @env_monitor.synchronize { @env }
   end
 
-  # Output a message to the user without being captured by TaskOutputRouter.
+  # Output a message to the user without being captured by OutputHub.
   # During task execution with progress display, messages are queued and
   # displayed after execution completes. Without progress display or outside
   # task execution, messages are output immediately.

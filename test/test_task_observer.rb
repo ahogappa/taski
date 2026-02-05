@@ -5,11 +5,11 @@ require "test_helper"
 class TestTaskObserver < Minitest::Test
   def test_context_accessor
     observer = Taski::Execution::TaskObserver.new
-    assert_nil observer.context
+    assert_nil observer.facade
 
     mock_context = Object.new
-    observer.context = mock_context
-    assert_equal mock_context, observer.context
+    observer.facade = mock_context
+    assert_equal mock_context, observer.facade
   end
 
   def test_has_default_empty_implementations
@@ -57,11 +57,11 @@ class TestExecutionContextObserverInjection < Minitest::Test
     context = Taski::Execution::ExecutionContext.new
     observer = Taski::Execution::TaskObserver.new
 
-    assert_nil observer.context
+    assert_nil observer.facade
 
     context.add_observer(observer)
 
-    assert_equal context, observer.context
+    assert_equal context, observer.facade
   end
 
   def test_add_observer_works_with_non_task_observer

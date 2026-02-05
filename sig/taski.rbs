@@ -191,7 +191,7 @@ module Taski
       @observers: Array[untyped]
       @execution_trigger: (^(Class, Registry) -> void)?
       @clean_trigger: (^(Class, Registry) -> void)?
-      @output_capture: TaskOutputRouter?
+      @output_capture: OutputHub?
       @original_stdout: IO?
       @runtime_dependencies: Hash[Class, Set[Class]]
 
@@ -202,7 +202,7 @@ module Taski
       def output_capture_active?: () -> bool
       def setup_output_capture: (IO output_io) -> void
       def teardown_output_capture: () -> void
-      def output_capture: () -> TaskOutputRouter?
+      def output_capture: () -> OutputHub?
       def execution_trigger=: ((^(Class, Registry) -> void)? trigger) -> void
       def clean_trigger=: ((^(Class, Registry) -> void)? trigger) -> void
       def trigger_execution: (Class task_class, registry: Registry) -> void
@@ -229,8 +229,8 @@ module Taski
       def dispatch: (Symbol method_name, *untyped args, **untyped kwargs) -> void
     end
 
-    # TaskOutputRouter for routing task output
-    class TaskOutputRouter
+    # OutputHub for routing task output
+    class OutputHub
       def initialize: (IO original_io) -> void
       def current_write_io: () -> IO?
       def start_capture: (Class task_class) -> void

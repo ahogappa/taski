@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "monitor"
-require_relative "task_output_router"
+require_relative "output_hub"
 require_relative "task_observer"
 
 module Taski
@@ -49,7 +49,7 @@ module Taski
     # - context.current_phase - Current phase (:run or :clean)
     # - context.root_task_class - The root task class
     # - context.dependency_graph - Static dependency graph
-    # - context.output_stream - Captured output (TaskOutputRouter)
+    # - context.output_stream - Captured output (OutputHub)
     #
     # == Thread Safety
     #
@@ -142,7 +142,7 @@ module Taski
 
       # Get the output stream (OutputHub) for captured output
       # Alias for output_capture, provides Pull API naming consistency
-      # @return [TaskOutputRouter, nil] The output stream or nil if not capturing
+      # @return [OutputHub, nil] The output stream or nil if not capturing
       def output_stream
         @monitor.synchronize { @output_capture }
       end
@@ -162,14 +162,14 @@ module Taski
       end
 
       # Set up output capture for inline progress display.
-      # Creates TaskOutputRouter and replaces $stdout.
+      # Creates OutputHub and replaces $stdout.
       # Should only be called when progress display is active and not already set up.
       #
       # @param output_io [IO] The original output IO (usually $stdout)
       def setup_output_capture(output_io)
         @monitor.synchronize do
           @original_stdout = output_io
-          @output_capture = TaskOutputRouter.new(@original_stdout, self)
+          @output_capture = OutputHub.new(@original_stdout, self)
           @output_capture.start_polling
           $stdout = @output_capture
         end
@@ -193,7 +193,7 @@ module Taski
       # Get the current output capture instance.
       # Thread-safe accessor for worker threads.
       #
-      # @return [TaskOutputRouter, nil] The output capture or nil if not set
+      # @return [OutputHub, nil] The output capture or nil if not set
       def output_capture
         @monitor.synchronize { @output_capture }
       end
@@ -307,7 +307,7 @@ module Taski
       # @param observer [Object] The observer to add
       def add_observer(observer)
         # Inject context for TaskObserver subclasses (Pull API support)
-        observer.context = self if observer.respond_to?(:context=)
+        observer.facade = self if observer.respond_to?(:facade=)
         @monitor.synchronize { @observers << observer }
       end
 

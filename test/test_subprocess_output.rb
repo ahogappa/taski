@@ -4,7 +4,7 @@ require "test_helper"
 
 # Tests for system() method override in Task.
 # This file focuses on return values and basic functionality.
-# Output capture through TaskOutputRouter is tested in test_tree_display.rb.
+# Output capture through OutputHub is tested in test_tree_display.rb.
 class TestSubprocessOutput < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)

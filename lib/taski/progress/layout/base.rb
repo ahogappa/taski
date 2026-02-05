@@ -155,7 +155,7 @@ module Taski
 
         # Update task state (old interface, kept for backward compatibility).
         # Uses unified state names (:pending, :running, :completed, :failed, :skipped)
-        # and determines phase from context.current_phase.
+        # and determines phase from facade.current_phase.
         # @param task_class [Class] The task class to update
         # @param state [Symbol] The unified state (:running, :completed, :failed, :skipped)
         # @param duration [Float, nil] Duration in milliseconds
@@ -166,7 +166,7 @@ module Taski
             progress ||= @tasks[task_class] = TaskState.new
 
             # Get phase from context (defaults to :run if not set)
-            phase = context&.current_phase || :run
+            phase = facade&.current_phase || :run
             apply_state_transition(progress, phase, state, duration, error)
             render_task_state_change(task_class, phase, state, duration, error)
           end
@@ -174,7 +174,7 @@ module Taski
 
         # New unified task state update interface (Phase 5).
         # Receives state transitions from ExecutionContext.notify_task_updated.
-        # Uses context.current_phase to determine if this is run or clean phase.
+        # Uses facade.current_phase to determine if this is run or clean phase.
         # @param task_class [Class] The task class
         # @param previous_state [Symbol] The previous state
         # @param current_state [Symbol] The new state
@@ -186,7 +186,7 @@ module Taski
             progress ||= @tasks[task_class] = TaskState.new
 
             # Determine if this is run or clean phase
-            current_phase = context&.current_phase || :run
+            current_phase = facade&.current_phase || :run
 
             duration = nil
             if current_phase == :clean
@@ -294,7 +294,7 @@ module Taski
         # Pulls dependency_graph from context for later use.
         # Subclasses can override to perform additional initialization.
         def on_ready
-          @dependency_graph = context&.dependency_graph
+          @dependency_graph = facade&.dependency_graph
         end
 
         protected

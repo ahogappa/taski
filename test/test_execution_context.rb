@@ -171,7 +171,7 @@ class TestExecutionContext < Minitest::Test
       # Observers can access output_stream via Pull API (no set_output_capture event)
       refute_nil context.output_stream
       refute_nil context.output_capture
-      assert_kind_of Taski::Execution::TaskOutputRouter, $stdout
+      assert_kind_of Taski::Execution::OutputHub, $stdout
 
       context.teardown_output_capture
       assert_nil context.output_capture
@@ -190,7 +190,7 @@ class TestExecutionContext < Minitest::Test
     context.setup_output_capture(mock_io)
 
     # Capture should be set up regardless of TTY status
-    assert_instance_of Taski::Execution::TaskOutputRouter, context.output_capture
+    assert_instance_of Taski::Execution::OutputHub, context.output_capture
   end
 
   def test_teardown_output_capture_when_not_set
@@ -343,7 +343,7 @@ class TestExecutionContext < Minitest::Test
     output = StringIO.new
     context.setup_output_capture(output)
     refute_nil context.output_stream
-    assert_kind_of Taski::Execution::TaskOutputRouter, context.output_stream
+    assert_kind_of Taski::Execution::OutputHub, context.output_stream
 
     context.teardown_output_capture
   end

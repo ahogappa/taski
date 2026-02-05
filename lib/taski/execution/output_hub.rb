@@ -14,7 +14,10 @@ module Taski
     # - Writes are routed to the appropriate pipe based on Thread.current
     # - A reader thread polls all pipes using IO.select for efficiency
     # - When no pipe is registered for a thread, output goes to original stdout
-    class TaskOutputRouter
+    #
+    # Public Pull API:
+    # - read(task_class, limit: nil) - Get captured output lines for a task
+    class OutputHub
       include MonitorMixin
 
       POLL_TIMEOUT = 0.05 # 50ms timeout for IO.select
@@ -300,7 +303,7 @@ module Taski
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
 
-        warn "[TaskOutputRouter] #{message}"
+        warn "[OutputHub] #{message}"
       end
     end
   end
