@@ -67,7 +67,6 @@ module Taski
           @nest_level = 0
           @start_time = nil
           @root_task_class = nil
-          @output_capture = nil
           @message_queue = []
           @section_candidates = {}
           @section_candidate_subtrees = {}
@@ -235,12 +234,6 @@ module Taski
           @monitor.synchronize do
             on_group_updated(task_class, group_name, state, duration, error)
           end
-        end
-
-        # Set the output capture for getting task output
-        # @param capture [ThreadOutputCapture] The output capture instance
-        def set_output_capture(capture)
-          @monitor.synchronize { @output_capture = capture }
         end
 
         # Queue a message to be displayed after progress display stops

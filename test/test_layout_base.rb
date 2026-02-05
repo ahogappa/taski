@@ -22,7 +22,6 @@ class TestLayoutBase < Minitest::Test
     assert_respond_to @layout, :update_task
     assert_respond_to @layout, :register_section_impl
     assert_respond_to @layout, :update_group
-    assert_respond_to @layout, :set_output_capture
     assert_respond_to @layout, :start
     assert_respond_to @layout, :stop
     assert_respond_to @layout, :queue_message

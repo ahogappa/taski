@@ -111,6 +111,9 @@ module Taski
         # Build dependency graph from static analysis
         @scheduler.build_dependency_graph(root_task_class)
 
+        # Build static dependency graph for Pull API (observers can query this)
+        @execution_context.dependency_graph = StaticAnalysis::DependencyGraph.new.build_from(root_task_class)
+
         with_display_lifecycle(root_task_class) do
           # Start run phase
           @execution_context.current_phase = :run

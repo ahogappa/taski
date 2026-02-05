@@ -131,7 +131,10 @@ class TestExecutionContext < Minitest::Test
     context.add_observer(observer)
     context.notify_set_root_task(String)
 
+    # Should notify observers
     assert_equal String, called_with
+    # Should also set root_task_class accessor for Pull API
+    assert_equal String, context.root_task_class
   end
 
   def test_notify_start_and_stop
@@ -234,18 +237,12 @@ class TestExecutionContext < Minitest::Test
     mock_io = StringIO.new
     mock_io.define_singleton_method(:tty?) { true }
 
-    set_capture_called = false
-    observer = Object.new
-    observer.define_singleton_method(:set_output_capture) do |_capture|
-      set_capture_called = true
-    end
-    context.add_observer(observer)
-
     original_stdout = $stdout
     begin
       context.setup_output_capture(mock_io)
 
-      assert set_capture_called
+      # Observers can access output_stream via Pull API (no set_output_capture event)
+      refute_nil context.output_stream
       refute_nil context.output_capture
       assert_kind_of Taski::Execution::TaskOutputRouter, $stdout
 

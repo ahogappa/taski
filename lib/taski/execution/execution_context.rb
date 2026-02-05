@@ -31,9 +31,10 @@ module Taski
     #   :pending, :running, :completed, :failed, :skipped
     # - register_section_impl(section_class, impl_class) - Called on section impl selection
     # - set_root_task(task_class) - Called when root task is set
-    # - set_output_capture(output_capture) - Called when output capture is configured
     # - start - Called when execution starts
     # - stop - Called when execution ends
+    #
+    # Observers can access captured output via context.output_stream (Pull API).
     #
     # == Thread Safety
     #
@@ -138,8 +139,7 @@ module Taski
           @output_capture.start_polling
           $stdout = @output_capture
         end
-
-        notify_set_output_capture(@output_capture)
+        # Observers can access output via context.output_stream (Pull API)
       end
 
       # Tear down output capture and restore original $stdout.
@@ -258,9 +258,10 @@ module Taski
       # - update_task(task_class, state:, duration:, error:)
       # - register_section_impl(section_class, impl_class)
       # - set_root_task(task_class)
-      # - set_output_capture(output_capture)
       # - start
       # - stop
+      #
+      # Observers can access captured output via context.output_stream (Pull API).
       #
       # @param observer [Object] The observer to add
       def add_observer(observer)
@@ -315,18 +316,12 @@ module Taski
         dispatch(:register_section_impl, section_class, impl_class)
       end
 
-      # Notify observers to set the root task.
+      # Notify observers to set the root task and store for Pull API.
       #
       # @param task_class [Class] The root task class
       def notify_set_root_task(task_class)
+        @root_task_class = task_class
         dispatch(:set_root_task, task_class)
-      end
-
-      # Notify observers to set the output capture.
-      #
-      # @param output_capture [TaskOutputRouter] The output capture instance
-      def notify_set_output_capture(output_capture)
-        dispatch(:set_output_capture, output_capture)
       end
 
       # Notify observers to start.

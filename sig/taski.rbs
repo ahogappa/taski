@@ -217,7 +217,6 @@ module Taski
       def notify_task_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
       def notify_section_impl_selected: (Class section_class, Class impl_class) -> void
       def notify_set_root_task: (Class task_class) -> void
-      def notify_set_output_capture: (TaskOutputRouter output_capture) -> void
       def notify_start: () -> void
       def notify_stop: () -> void
       def notify_clean_started: (Class task_class) -> void

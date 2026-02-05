@@ -173,7 +173,6 @@ class TestUserAbort < Minitest::Test
     # Create a spy progress display
     progress_spy = Object.new
     progress_spy.define_singleton_method(:set_root_task) { |_| }
-    progress_spy.define_singleton_method(:set_output_capture) { |_| }
     progress_spy.define_singleton_method(:register_task) { |_| }
     progress_spy.define_singleton_method(:task_registered?) { |_| false }
     progress_spy.define_singleton_method(:update_task) { |_, **_| }

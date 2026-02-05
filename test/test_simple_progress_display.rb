@@ -131,19 +131,6 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert true
   end
 
-  def test_set_output_capture
-    mock_capture = Object.new
-    @display.set_output_capture(mock_capture)
-    # Verify no error raised
-    assert true
-  end
-
-  def test_set_output_capture_with_nil
-    @display.set_output_capture(nil)
-    # Verify no error raised
-    assert true
-  end
-
   def test_update_group
     @display.register_task(FixtureTaskA)
     @display.update_group(FixtureTaskA, "test_group", state: :running)

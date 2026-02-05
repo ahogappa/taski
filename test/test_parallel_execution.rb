@@ -682,4 +682,31 @@ class TestParallelExecution < Minitest::Test
     result = task_class.run_and_clean
     assert_equal 84, result
   end
+
+  # ========================================
+  # Pull API Integration Tests
+  # ========================================
+
+  def test_executor_sets_dependency_graph_on_context
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    context = Taski::Execution::ExecutionContext.new
+
+    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+
+    # Verify dependency_graph is set and is the correct type
+    refute_nil context.dependency_graph, "dependency_graph should be set after execution"
+    assert_kind_of Taski::StaticAnalysis::DependencyGraph, context.dependency_graph
+
+    # Verify graph contains at least the root task
+    all_tasks = context.dependency_graph.all_tasks
+    assert_includes all_tasks, task_class
+  end
 end
