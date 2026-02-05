@@ -219,6 +219,31 @@ class TestExecutionContext < Minitest::Test
     end
   end
 
+  def test_setup_output_capture_captures_stderr_too
+    context = Taski::Execution::ExecutionContext.new
+    mock_io = StringIO.new
+
+    original_stdout = $stdout
+    original_stderr = $stderr
+    begin
+      context.setup_output_capture(mock_io)
+
+      # Both stdout and stderr should be captured
+      assert_kind_of Taski::Execution::OutputHub, $stdout
+      assert_kind_of Taski::Execution::OutputHub, $stderr
+      assert_equal $stdout, $stderr, "stdout and stderr should point to same OutputHub"
+
+      context.teardown_output_capture
+
+      # Both should be restored
+      assert_equal original_stdout, $stdout
+      assert_equal original_stderr, $stderr
+    ensure
+      $stdout = original_stdout
+      $stderr = original_stderr
+    end
+  end
+
   # Clean Lifecycle Notification Tests have been removed
   # Clean phase state changes are now handled via notify_task_updated with context.current_phase = :clean
   # See Phase 3 Unified Event Tests for the new event system

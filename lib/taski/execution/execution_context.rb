@@ -116,6 +116,7 @@ module Taski
         @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
+        @original_stderr = nil
         @runtime_dependencies = {}
 
         # Phase 2: Pull API state
@@ -162,21 +163,24 @@ module Taski
       end
 
       # Set up output capture for inline progress display.
-      # Creates OutputHub and replaces $stdout.
+      # Creates OutputHub and replaces both $stdout and $stderr.
+      # External tools often write progress to stderr, so we capture both.
       # Should only be called when progress display is active and not already set up.
       #
-      # @param output_io [IO] The original output IO (usually $stdout)
+      # @param output_io [IO] The IO for OutputHub to write to (usually $stdout)
       def setup_output_capture(output_io)
         @monitor.synchronize do
-          @original_stdout = output_io
-          @output_capture = OutputHub.new(@original_stdout, self)
+          @original_stdout = $stdout
+          @original_stderr = $stderr
+          @output_capture = OutputHub.new(output_io, self)
           @output_capture.start_polling
           $stdout = @output_capture
+          $stderr = @output_capture
         end
         # Observers can access output via context.output_stream (Pull API)
       end
 
-      # Tear down output capture and restore original $stdout.
+      # Tear down output capture and restore original $stdout and $stderr.
       def teardown_output_capture
         capture = nil
         @monitor.synchronize do
@@ -184,8 +188,10 @@ module Taski
 
           capture = @output_capture
           $stdout = @original_stdout
+          $stderr = @original_stderr
           @output_capture = nil
           @original_stdout = nil
+          @original_stderr = nil
         end
         capture&.stop_polling
       end
