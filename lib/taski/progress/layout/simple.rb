@@ -45,12 +45,18 @@ module Taski
 
         # === Template method overrides ===
 
-        def on_root_task_set
+        # Override to build tree structure after dependency_graph is available
+        def on_ready
+          super
           build_tree_structure
         end
 
+        def on_root_task_set
+          # Tree structure is built in on_ready after dependency_graph is available
+        end
+
         # Simple layout uses periodic status line updates instead of per-event output
-        def render_task_state_change(_task_class, _phase, _state, _duration, _error)
+        def render_task_state_change(_task_class, _phase, _state, _duration)
           # No per-event output; status line is updated by render_live
         end
 
@@ -86,25 +92,22 @@ module Taski
 
         private
 
-        # TODO: Move tree building logic to ExecutionContext (see #149)
-        # Layout should not be responsible for analyzing task dependencies.
-        # ExecutionContext should pre-register all tasks before execution.
-
         def build_tree_structure
           return unless @root_task_class
+          return unless @dependency_graph
 
-          tree = build_tree_node(@root_task_class)
-          register_tasks_from_tree(tree)
-          collect_section_candidates(tree)
+          # Register all tasks from dependency graph
+          register_tasks_from_graph(@root_task_class)
         end
 
-        def register_tasks_from_tree(node)
-          return unless node
+        def register_tasks_from_graph(task_class, visited = Set.new)
+          return if visited.include?(task_class)
 
-          task_class = node[:task_class]
-          @tasks[task_class] ||= TaskState.new
+          visited.add(task_class)
+          @task_run_states[task_class] ||= :pending
 
-          node[:children].each { |child| register_tasks_from_tree(child) }
+          dependencies = @dependency_graph.dependencies_for(task_class)
+          dependencies.each { |dep| register_tasks_from_graph(dep, visited) }
         end
 
         def render_live

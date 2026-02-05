@@ -132,8 +132,10 @@ class TestLogging < Minitest::Test
     failed_event = log_lines.find { |e| e["event"] == "task.failed" }
 
     refute_nil failed_event, "task.failed event should be logged"
-    assert_equal "RuntimeError", failed_event["data"]["error_class"]
-    assert_equal "intentional error", failed_event["data"]["message"]
+    # Note: error details are NOT available via notification - exceptions propagate to top level (Plan design)
+    # error_class and message fields are no longer included in task.failed event
+    assert_nil failed_event["data"]["error_class"]
+    assert_nil failed_event["data"]["message"]
   end
 
   def test_dependency_resolved_event_is_logged_at_debug_level

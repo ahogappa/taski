@@ -35,9 +35,10 @@ module Taski
     # - on_phase_completed(phase) - Called when a phase completes
     #
     # === Task Events (1)
-    # - on_task_updated(task_class, previous_state:, current_state:, timestamp:, error:)
+    # - on_task_updated(task_class, previous_state:, current_state:, timestamp:)
     #   Called on state transitions. Unified state values for both run and clean phases:
     #   :pending, :running, :completed, :failed, :skipped
+    #   Note: error is NOT passed via notification - exceptions propagate to top level
     #
     # === Group Events (2)
     # - on_group_started(task_class, group_name) - Called when a group starts
@@ -300,7 +301,7 @@ module Taski
       # - on_stop - Called when execution ends
       # - on_phase_started(phase) - Called when a phase starts
       # - on_phase_completed(phase) - Called when a phase completes
-      # - on_task_updated(task_class, previous_state:, current_state:, timestamp:, error:)
+      # - on_task_updated(task_class, previous_state:, current_state:, timestamp:)
       # - on_group_started(task_class, group_name)
       # - on_group_completed(task_class, group_name)
       #
@@ -334,9 +335,8 @@ module Taski
       # Notify observers to set the root task and store for Pull API.
       #
       # @param task_class [Class] The root task class
-      def notify_set_root_task(task_class)
+      def set_root_task(task_class)
         @root_task_class = task_class
-        dispatch(:set_root_task, task_class)
       end
 
       # Notify observers to start.
@@ -397,10 +397,10 @@ module Taski
       # @param previous_state [Symbol] The previous state
       # @param current_state [Symbol] The new state
       # @param timestamp [Time] When the transition occurred
-      # @param error [Exception, nil] The error if state is :failed
-      def notify_task_updated(task_class, previous_state:, current_state:, timestamp: Time.now, error: nil)
+      # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
+      def notify_task_updated(task_class, previous_state:, current_state:, timestamp: Time.now)
         dispatch(:on_task_updated, task_class,
-          previous_state: previous_state, current_state: current_state, timestamp: timestamp, error: error)
+          previous_state: previous_state, current_state: current_state, timestamp: timestamp)
       end
 
       private

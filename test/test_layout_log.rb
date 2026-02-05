@@ -5,6 +5,8 @@ require "stringio"
 require "taski/progress/layout/log"
 
 class TestLayoutLog < Minitest::Test
+  include LayoutTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Log.new(output: @output)
@@ -15,7 +17,7 @@ class TestLayoutLog < Minitest::Test
   def test_outputs_task_start
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
 
     assert_includes @output.string, "[START] MyTask"
   end
@@ -23,39 +25,33 @@ class TestLayoutLog < Minitest::Test
   def test_outputs_task_success_with_duration
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 123.4)
+    start_time = Time.now
+    simulate_task_start(@layout, task_class, timestamp: start_time)
+    simulate_task_complete(@layout, task_class, timestamp: start_time + 0.1234)
 
-    assert_includes @output.string, "[DONE] MyTask (123.4ms)"
+    assert_match(/\[DONE\] MyTask \(\d+(\.\d+)?ms\)/, @output.string)
   end
 
   def test_outputs_task_success_without_duration
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed)
+    # When start and complete happen at same time, duration should be ~0ms
+    now = Time.now
+    simulate_task_start(@layout, task_class, timestamp: now)
+    simulate_task_complete(@layout, task_class, timestamp: now)
 
     assert_includes @output.string, "[DONE] MyTask"
-    refute_includes @output.string, "()"
   end
 
-  def test_outputs_task_fail_with_error
-    task_class = stub_task_class("MyTask")
-    error = StandardError.new("Something went wrong")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: error)
-
-    assert_includes @output.string, "[FAIL] MyTask: Something went wrong"
-  end
-
-  def test_outputs_task_fail_without_error
+  def test_outputs_task_fail
+    # Note: error message is not passed via notification - exceptions propagate to top level (Plan design)
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed)
+    simulate_task_start(@layout, task_class)
+    simulate_task_fail(@layout, task_class)
 
     assert_includes @output.string, "[FAIL] MyTask"
+    # Error details are NOT shown via notification - they come from top-level exception
     refute_includes @output.string, "[FAIL] MyTask:"
   end
 
@@ -64,14 +60,15 @@ class TestLayoutLog < Minitest::Test
   def test_outputs_clean_start
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
 
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
     @layout.facade = mock_context
 
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
 
     assert_includes @output.string, "[CLEAN] MyTask"
   end
@@ -79,34 +76,39 @@ class TestLayoutLog < Minitest::Test
   def test_outputs_clean_success_with_duration
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
 
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
     @layout.facade = mock_context
 
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 50)
+    start_time = Time.now
+    simulate_task_start(@layout, task_class, timestamp: start_time)
+    simulate_task_complete(@layout, task_class, timestamp: start_time + 0.05)
 
-    assert_includes @output.string, "[CLEAN DONE] MyTask (50ms)"
+    assert_match(/\[CLEAN DONE\] MyTask \(\d+(\.\d+)?ms\)/, @output.string)
   end
 
-  def test_outputs_clean_fail_with_error
+  def test_outputs_clean_fail
+    # Note: error message is not passed via notification - exceptions propagate to top level (Plan design)
     task_class = stub_task_class("MyTask")
-    error = StandardError.new("Cleanup failed")
     @layout.start
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
 
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
     @layout.facade = mock_context
 
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: error)
+    simulate_task_start(@layout, task_class)
+    simulate_task_fail(@layout, task_class)
 
-    assert_includes @output.string, "[CLEAN FAIL] MyTask: Cleanup failed"
+    assert_includes @output.string, "[CLEAN FAIL] MyTask"
+    # Error details are NOT shown via notification - they come from top-level exception
+    refute_includes @output.string, "[CLEAN FAIL] MyTask:"
   end
 
   # === Group lifecycle output ===
@@ -152,8 +154,8 @@ class TestLayoutLog < Minitest::Test
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
     @layout.stop
 
     # Check for completion message
@@ -166,10 +168,10 @@ class TestLayoutLog < Minitest::Test
     @layout.register_task(task1)
     @layout.register_task(task2)
     @layout.start
-    @layout.update_task(task1, state: :running)
-    @layout.update_task(task1, state: :completed, duration: 100)
-    @layout.update_task(task2, state: :running)
-    @layout.update_task(task2, state: :failed, error: StandardError.new("oops"))
+    simulate_task_start(@layout, task1)
+    simulate_task_complete(@layout, task1)
+    simulate_task_start(@layout, task2)
+    simulate_task_fail(@layout, task2)
     @layout.stop
 
     assert_match(%r{\[TASKI\] Failed: 1/2 tasks \(\d+ms\)}, @output.string)
@@ -191,8 +193,9 @@ class TestLayoutLog < Minitest::Test
   def test_formats_duration_in_seconds_when_over_1000ms
     task_class = stub_task_class("MyTask")
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 1500)
+    start_time = Time.now
+    simulate_task_start(@layout, task_class, timestamp: start_time)
+    simulate_task_complete(@layout, task_class, timestamp: start_time + 1.5) # 1500ms
 
     assert_includes @output.string, "[DONE] MyTask (1.5s)"
   end
@@ -205,7 +208,7 @@ class TestLayoutLog < Minitest::Test
 
     task_class = stub_task_class("MyTask")
     layout.start
-    layout.update_task(task_class, state: :running)
+    simulate_task_start(layout, task_class)
 
     assert_includes @output.string, "CUSTOM START MyTask"
   end

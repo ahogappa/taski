@@ -97,17 +97,23 @@ module Taski
 
         protected
 
-        def on_root_task_set
+        # Override to build tree structure after dependency_graph is available
+        def on_ready
+          super
           build_tree_structure
+        end
+
+        def on_root_task_set
+          # Tree structure is built in on_ready after dependency_graph is available
         end
 
         # In TTY mode, tree is updated by render_live periodically.
         # In non-TTY mode, output lines immediately with tree prefix.
-        def render_task_state_change(task_class, phase, state, duration, error)
+        def render_task_state_change(task_class, phase, state, duration)
           return if @active # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
-          text = render_for_task_event(task_class, phase, state, duration, error)
+          text = render_for_task_event(task_class, phase, state, duration)
           output_with_prefix(task_class, text) if text
         end
 
@@ -160,17 +166,28 @@ module Taski
 
         def build_tree_structure
           return unless @root_task_class
+          return unless @dependency_graph
 
-          tree = build_tree_node(@root_task_class)
+          tree = build_tree_from_graph(@root_task_class)
           register_tree_nodes(tree, depth: 0, is_last: true, ancestors_last: [])
-          collect_section_candidates(tree)
+        end
+
+        # Build tree node structure from dependency_graph
+        def build_tree_from_graph(task_class, visited = Set.new)
+          return nil if visited.include?(task_class)
+
+          visited.add(task_class)
+          dependencies = @dependency_graph.dependencies_for(task_class)
+          children = dependencies.map { |dep| build_tree_from_graph(dep, visited) }.compact
+
+          { task_class: task_class, children: children }
         end
 
         def register_tree_nodes(node, depth:, is_last:, ancestors_last:)
           return unless node
 
           task_class = node[:task_class]
-          @tasks[task_class] ||= TaskState.new
+          @task_run_states[task_class] ||= :pending
           @tree_nodes[task_class] = node
           @node_depths[task_class] = depth
           @node_is_last[task_class] = { is_last: is_last, ancestors_last: ancestors_last.dup }
@@ -233,17 +250,16 @@ module Taski
           end
         end
 
-        # TODO: Consider using render_for_task_event once :pending becomes a formal state
         def build_task_content(task_class)
-          task_state = @tasks[task_class]
+          state = @task_run_states[task_class]
 
-          case task_state&.run_state
+          case state
           when :running
             render_task_started(task_class)
           when :completed
-            render_task_succeeded(task_class, task_duration: task_state.run_duration)
+            render_task_succeeded(task_class, task_duration: task_duration(task_class))
           when :failed
-            render_task_failed(task_class, error: task_state.run_error)
+            render_task_failed(task_class)
           when :skipped
             render_task_skipped(task_class)
           else

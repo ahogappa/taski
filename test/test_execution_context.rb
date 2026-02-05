@@ -47,21 +47,33 @@ class TestExecutionContext < Minitest::Test
   # Test observer notifications - Legacy events have been removed
   # See Phase 3 Unified Event Tests for the new event system
 
-  def test_notify_set_root_task
+  # set_root_task is a setter only (no dispatch) - Plan Phase 3 consolidation
+  # Observers pull root_task_class in on_ready via context.root_task_class
+  def test_set_root_task_is_setter_only
     context = Taski::Execution::ExecutionContext.new
-    called_with = nil
+
+    # set_root_task should only set the internal state
+    context.set_root_task(String)
+
+    # Should set root_task_class accessor for Pull API
+    assert_equal String, context.root_task_class
+  end
+
+  def test_on_ready_observers_can_pull_root_task_class
+    context = Taski::Execution::ExecutionContext.new
+    pulled_root_task = nil
     observer = Object.new
-    observer.define_singleton_method(:set_root_task) do |task_class|
-      called_with = task_class
+    observer.define_singleton_method(:facade=) { |ctx| @context = ctx }
+    observer.define_singleton_method(:on_ready) do
+      pulled_root_task = @context.root_task_class
     end
 
     context.add_observer(observer)
-    context.notify_set_root_task(String)
+    context.set_root_task(String)
+    context.notify_ready
 
-    # Should notify observers
-    assert_equal String, called_with
-    # Should also set root_task_class accessor for Pull API
-    assert_equal String, context.root_task_class
+    # Observer should be able to pull root_task_class in on_ready
+    assert_equal String, pulled_root_task
   end
 
   def test_notify_start_and_stop
@@ -471,13 +483,12 @@ class TestExecutionContext < Minitest::Test
     context = Taski::Execution::ExecutionContext.new
     called_with = nil
     observer = Object.new
-    observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:, error:|
+    observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
       called_with = {
         task_class: task_class,
         previous_state: previous_state,
         current_state: current_state,
-        timestamp: timestamp,
-        error: error
+        timestamp: timestamp
       }
     end
 
@@ -489,39 +500,37 @@ class TestExecutionContext < Minitest::Test
     assert_equal :pending, called_with[:previous_state]
     assert_equal :running, called_with[:current_state]
     assert_equal timestamp, called_with[:timestamp]
-    assert_nil called_with[:error]
   end
 
-  def test_notify_task_updated_with_error
+  def test_notify_task_updated_for_failed_state
+    # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
     context = Taski::Execution::ExecutionContext.new
     called_with = nil
     observer = Object.new
-    observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:, error:|
+    observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
       called_with = {
         task_class: task_class,
         previous_state: previous_state,
         current_state: current_state,
-        timestamp: timestamp,
-        error: error
+        timestamp: timestamp
       }
     end
 
     timestamp = Time.now
-    test_error = StandardError.new("test error")
     context.add_observer(observer)
-    context.notify_task_updated(String, previous_state: :running, current_state: :failed, timestamp: timestamp, error: test_error)
+    context.notify_task_updated(String, previous_state: :running, current_state: :failed, timestamp: timestamp)
 
     assert_equal String, called_with[:task_class]
     assert_equal :running, called_with[:previous_state]
     assert_equal :failed, called_with[:current_state]
-    assert_equal test_error, called_with[:error]
+    assert_equal timestamp, called_with[:timestamp]
   end
 
   def test_notify_task_updated_for_skipped_state
     context = Taski::Execution::ExecutionContext.new
     called_with = nil
     observer = Object.new
-    observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:, error:|
+    observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
       called_with = {previous_state: previous_state, current_state: current_state}
     end
 

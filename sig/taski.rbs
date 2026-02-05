@@ -220,7 +220,7 @@ module Taski
       def notify_ready: () -> void
       def notify_phase_started: (Symbol phase) -> void
       def notify_phase_completed: (Symbol phase) -> void
-      def notify_task_updated: (Class task_class, previous_state: Symbol, current_state: Symbol, ?timestamp: Time, ?error: Exception?) -> void
+      def notify_task_updated: (Class task_class, previous_state: Symbol, current_state: Symbol, ?timestamp: Time) -> void
       def notify_group_started: (Class task_class, String group_name) -> void
       def notify_group_completed: (Class task_class, String group_name) -> void
 

@@ -218,7 +218,7 @@ module Taski
           @state = STATE_FAILED
           @condition.broadcast
         end
-        notify_state_transition(:running, :failed, timestamp, error: error)
+        notify_state_transition(:running, :failed, timestamp)
       end
 
       # Called to mark a task as skipped (e.g., unselected Section candidate).
@@ -275,7 +275,7 @@ module Taski
           @clean_state = STATE_FAILED
           @clean_condition.broadcast
         end
-        notify_state_transition(:running, :failed, timestamp, error: error)
+        notify_state_transition(:running, :failed, timestamp)
       end
 
       ##
@@ -434,11 +434,11 @@ module Taski
       end
 
       # Notifies observers of a task state transition using the unified event.
+      # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
       # @param previous_state [Symbol] The previous state (:pending or :running)
       # @param current_state [Symbol] The new state (:running, :completed, or :failed)
       # @param timestamp [Time] When the transition occurred
-      # @param error [Exception, nil] The error if state is :failed
-      def notify_state_transition(previous_state, current_state, timestamp, error: nil)
+      def notify_state_transition(previous_state, current_state, timestamp)
         # Defensive fallback: try to get current context if not set during initialization
         @execution_context ||= ExecutionContext.current
         return unless @execution_context
@@ -447,8 +447,7 @@ module Taski
           @task.class,
           previous_state: previous_state,
           current_state: current_state,
-          timestamp: timestamp,
-          error: error
+          timestamp: timestamp
         )
       end
 

@@ -141,14 +141,13 @@ class TestLoggerObserver < Minitest::Test
     @log_output.truncate(0)
     @log_output.rewind
 
-    error = RuntimeError.new("Something went wrong")
-    error.set_backtrace(["line1", "line2"])
-
-    observer.on_task_updated(task_class, previous_state: :running, current_state: :failed, timestamp: end_time, error: error)
+    # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
+    observer.on_task_updated(task_class, previous_state: :running, current_state: :failed, timestamp: end_time)
 
     log_content = @log_output.string
     assert_match(/task\.failed/, log_content)
-    assert_match(/RuntimeError/, log_content)
-    assert_match(/Something went wrong/, log_content)
+    # Error details are NOT included - they propagate via exceptions
+    refute_match(/RuntimeError/, log_content)
+    refute_match(/Something went wrong/, log_content)
   end
 end

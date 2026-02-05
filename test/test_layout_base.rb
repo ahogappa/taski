@@ -9,6 +9,8 @@ require "taski/progress/layout/base"
 require "taski/progress/layout/theme_drop"
 
 class TestLayoutBase < Minitest::Test
+  include LayoutTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
@@ -19,7 +21,7 @@ class TestLayoutBase < Minitest::Test
   def test_responds_to_observer_interface
     assert_respond_to @layout, :set_root_task
     assert_respond_to @layout, :register_task
-    assert_respond_to @layout, :update_task
+    assert_respond_to @layout, :on_task_updated
     assert_respond_to @layout, :register_section_impl
     assert_respond_to @layout, :update_group
     assert_respond_to @layout, :start
@@ -44,65 +46,67 @@ class TestLayoutBase < Minitest::Test
 
   # === Task state management ===
 
-  def test_update_task_running_changes_state
+  def test_on_task_updated_running_changes_state
     task_class = Class.new
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
     assert_equal :running, @layout.task_state(task_class)
   end
 
-  def test_update_task_completed_changes_state
+  def test_on_task_updated_completed_changes_state
     task_class = Class.new
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 123.4)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
     assert_equal :completed, @layout.task_state(task_class)
   end
 
-  def test_update_task_failed_changes_state
+  def test_on_task_updated_failed_changes_state
     task_class = Class.new
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
     error = StandardError.new("test error")
-    @layout.update_task(task_class, state: :failed, error: error)
+    simulate_task_fail(@layout, task_class)
     assert_equal :failed, @layout.task_state(task_class)
   end
 
-  def test_update_task_registers_if_not_registered
+  def test_on_task_updated_registers_if_not_registered
     task_class = Class.new
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
     assert @layout.task_registered?(task_class)
   end
 
   # === Clean state management ===
 
-  def test_update_task_clean_running_state
+  def test_on_task_updated_clean_running_state
     task_class = Class.new
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
 
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
     @layout.facade = mock_context
 
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
     # Clean state should be tracked with unified state name :running
     assert_equal :running, @layout.task_state(task_class)
   end
 
-  def test_update_task_clean_completed_state
+  def test_on_task_updated_clean_completed_state
     task_class = Class.new
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
 
     # Set up mock context for clean phase
     mock_context = Object.new
     mock_context.define_singleton_method(:current_phase) { :clean }
     @layout.facade = mock_context
 
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 50)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
     # Clean state should be tracked with unified state name :completed
     assert_equal :completed, @layout.task_state(task_class)
   end
@@ -151,24 +155,21 @@ class TestLayoutBase < Minitest::Test
     candidate_a = Class.new { def self.name = "CandidateA" }
     candidate_b = Class.new { def self.name = "CandidateB" }
 
-    # Simulate tree structure with section candidates
+    # Register tasks
     @layout.register_task(section_class)
     @layout.register_task(candidate_a)
     @layout.register_task(candidate_b)
 
-    # Register section candidates (normally done during tree building)
-    @layout.instance_variable_get(:@section_candidates)[section_class] = [candidate_a, candidate_b]
-    @layout.instance_variable_get(:@section_candidate_subtrees)[section_class] = {
-      candidate_a => {task_class: candidate_a, children: []},
-      candidate_b => {task_class: candidate_b, children: []}
-    }
-
     # When section selects candidate_a
     @layout.register_section_impl(section_class, candidate_a)
 
-    # Then candidate_b should be skipped (not completed)
-    assert_equal :skipped, @layout.task_state(candidate_b),
-      "Unselected candidate should have :skipped state, not :completed"
+    # In the new design, marking unselected candidates as skipped is done via
+    # task_updated notifications from the execution layer, not by Layout.
+    # Layout just tracks the selected impl.
+    assert_equal :pending, @layout.task_state(candidate_a),
+      "Selected impl should remain pending until actually executed"
+    assert_equal :completed, @layout.task_state(section_class),
+      "Section should be marked as completed after impl selection"
   end
 
   # === Message queue ===
@@ -213,12 +214,14 @@ class TestLayoutBase < Minitest::Test
     end
   end
 
-  def test_concurrent_update_task_is_safe
+  def test_concurrent_on_task_updated_is_safe
     task_class = Class.new
     @layout.register_task(task_class)
 
     threads = 10.times.map do
-      Thread.new { @layout.update_task(task_class, state: :running) }
+      Thread.new do
+        @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, timestamp: Time.now)
+      end
     end
     threads.each(&:join)
     # No error raised
@@ -335,6 +338,8 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
 end
 
 class TestLayoutBaseTaskStateTransitions < Minitest::Test
+  include LayoutTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
@@ -343,28 +348,30 @@ class TestLayoutBaseTaskStateTransitions < Minitest::Test
   end
 
   def test_pending_to_running_allowed
-    @layout.update_task(@task_class, state: :running)
+    simulate_task_start(@layout, @task_class)
     assert_equal :running, @layout.task_state(@task_class)
   end
 
   def test_running_to_completed_allowed
-    @layout.update_task(@task_class, state: :running)
-    @layout.update_task(@task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, @task_class)
+    simulate_task_complete(@layout, @task_class)
     assert_equal :completed, @layout.task_state(@task_class)
   end
 
   def test_completed_to_running_blocked
-    @layout.update_task(@task_class, state: :running)
-    @layout.update_task(@task_class, state: :completed, duration: 100)
-    @layout.update_task(@task_class, state: :running)
+    simulate_task_start(@layout, @task_class)
+    simulate_task_complete(@layout, @task_class)
+    # Try to start again (should be blocked)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, timestamp: Time.now)
     # Should remain completed (nested executor re-execution guard)
     assert_equal :completed, @layout.task_state(@task_class)
   end
 
   def test_failed_to_running_blocked
-    @layout.update_task(@task_class, state: :running)
-    @layout.update_task(@task_class, state: :failed, error: StandardError.new)
-    @layout.update_task(@task_class, state: :running)
+    simulate_task_start(@layout, @task_class)
+    simulate_task_fail(@layout, @task_class)
+    # Try to start again (should be blocked)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, timestamp: Time.now)
     # Should remain failed
     assert_equal :failed, @layout.task_state(@task_class)
   end
@@ -485,16 +492,17 @@ class TestLayoutBaseCommonVariables < Minitest::Test
   end
 
   def test_task_drop_has_all_task_specific_fields
+    # Note: error_message is NOT available in task_fail template - exceptions propagate to top level (Plan design)
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_fail
-        "{{ task.name }}|{{ task.state }}|{{ task.error_message }}"
+        "{{ task.name }}|{{ task.state }}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
-    result = layout.send(:render_task_failed, stub_task_class("FailTask"), error: StandardError.new("oops"))
+    result = layout.send(:render_task_failed, stub_task_class("FailTask"))
 
-    assert_equal "FailTask|failed|oops", result
+    assert_equal "FailTask|failed", result
   end
 
   def test_execution_drop_has_all_execution_fields
@@ -512,9 +520,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_task_template_can_access_execution_context
     # Task-level templates should also have access to execution context
+    # Note: error_message is NOT available - exceptions propagate to top level (Plan design)
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_fail
-        "[{{ execution.done_count }}/{{ execution.total_count }}] {{ task.name }}: {{ task.error_message }}"
+        "[{{ execution.done_count }}/{{ execution.total_count }}] {{ task.name }}"
       end
     end.new
 
@@ -527,13 +536,18 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     layout.register_task(task1)
     layout.register_task(task2)
     layout.register_task(task3)
-    layout.update_task(task1, state: :completed, duration: 100)
-    layout.update_task(task2, state: :completed, duration: 100)
 
-    result = layout.send(:render_task_failed, task3, error: StandardError.new("connection refused"))
+    # Use on_task_updated to simulate task completion
+    now = Time.now
+    layout.on_task_updated(task1, previous_state: :pending, current_state: :running, timestamp: now)
+    layout.on_task_updated(task1, previous_state: :running, current_state: :completed, timestamp: now)
+    layout.on_task_updated(task2, previous_state: :pending, current_state: :running, timestamp: now)
+    layout.on_task_updated(task2, previous_state: :running, current_state: :completed, timestamp: now)
+
+    result = layout.send(:render_task_failed, task3)
 
     # done_count = 2 (completed tasks), total_count = 3 (registered tasks)
-    assert_equal "[2/3] FailedTask: connection refused", result
+    assert_equal "[2/3] FailedTask", result
   end
 
   private

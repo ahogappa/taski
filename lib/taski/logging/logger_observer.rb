@@ -68,24 +68,24 @@ module Taski
       end
 
       # Unified event interface for task state transitions
+      # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
       # @param task_class [Class] The task class
       # @param previous_state [Symbol] The previous state
       # @param current_state [Symbol] The new state
       # @param timestamp [Time] When the transition occurred
-      # @param error [Exception, nil] The error if state is :failed
-      def on_task_updated(task_class, previous_state:, current_state:, timestamp:, error: nil)
+      def on_task_updated(task_class, previous_state:, current_state:, timestamp:)
         current_phase = facade&.current_phase || :run
 
         if current_phase == :clean
-          handle_clean_event(task_class, previous_state, current_state, timestamp, error)
+          handle_clean_event(task_class, previous_state, current_state, timestamp)
         else
-          handle_run_event(task_class, previous_state, current_state, timestamp, error)
+          handle_run_event(task_class, previous_state, current_state, timestamp)
         end
       end
 
       private
 
-      def handle_run_event(task_class, previous_state, current_state, timestamp, error)
+      def handle_run_event(task_class, previous_state, current_state, timestamp)
         case [previous_state, current_state]
         when [:pending, :running]
           @task_start_times[[:run, task_class]] = timestamp
@@ -95,13 +95,13 @@ module Taski
           log_task_completed(task_class, duration)
         when [:running, :failed]
           duration = calculate_duration(:run, task_class, timestamp)
-          log_task_failed(task_class, duration, error)
+          log_task_failed(task_class, duration)
         when [:pending, :skipped]
           log_task_skipped(task_class)
         end
       end
 
-      def handle_clean_event(task_class, previous_state, current_state, timestamp, error)
+      def handle_clean_event(task_class, previous_state, current_state, timestamp)
         case [previous_state, current_state]
         when [:pending, :running]
           @task_start_times[[:clean, task_class]] = timestamp
@@ -111,7 +111,7 @@ module Taski
           log_clean_completed(task_class, duration)
         when [:running, :failed]
           duration = calculate_duration(:clean, task_class, timestamp)
-          log_clean_failed(task_class, duration, error)
+          log_clean_failed(task_class, duration)
         end
       end
 
@@ -137,23 +137,12 @@ module Taski
         )
       end
 
-      def log_task_failed(task_class, duration, error)
-        data = {
-          duration_ms: duration,
-          error_class: error&.class&.name,
-          message: error&.message
-        }
-
-        # Include backtrace for debugging
-        data[:backtrace] = error.backtrace.first(10) if error&.backtrace
-
-        # Include captured output if available from TaskFailure context
-        # Note: captured_output is added during error aggregation in Executor
-
+      def log_task_failed(task_class, duration)
+        # Note: error details are NOT available via notification - exceptions propagate to top level (Plan design)
         Logging.error(
           Events::TASK_FAILED,
           task: task_class.name,
-          **data
+          duration_ms: duration
         )
       end
 
@@ -179,13 +168,12 @@ module Taski
         )
       end
 
-      def log_clean_failed(task_class, duration, error)
+      def log_clean_failed(task_class, duration)
+        # Note: error details are NOT available via notification - exceptions propagate to top level (Plan design)
         Logging.warn(
           Events::TASK_CLEAN_FAILED,
           task: task_class.name,
-          duration_ms: duration,
-          error_class: error&.class&.name,
-          message: error&.message
+          duration_ms: duration
         )
       end
     end

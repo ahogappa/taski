@@ -2,8 +2,26 @@
 
 require "test_helper"
 require_relative "fixtures/parallel_tasks"
+require "taski/static_analysis/dependency_graph"
+
+# Mock facade for testing Layout without full ExecutionContext
+class MockLayoutFacade
+  attr_reader :dependency_graph
+  attr_accessor :root_task_class
+
+  def initialize(dependency_graph, root_task_class = nil)
+    @dependency_graph = dependency_graph
+    @root_task_class = root_task_class
+  end
+
+  def current_phase
+    :run
+  end
+end
 
 class TestSimpleProgressDisplay < Minitest::Test
+  include LayoutTestHelper
+
   def setup
     Taski.reset_progress_display!
     @output = StringIO.new
@@ -29,23 +47,23 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert @display.task_registered?(FixtureTaskA)
   end
 
-  def test_update_task_state
+  def test_on_task_updated_state
     @display.register_task(FixtureTaskA)
-    @display.update_task(FixtureTaskA, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
     assert_equal :running, @display.task_state(FixtureTaskA)
   end
 
-  def test_update_task_state_to_completed
+  def test_on_task_updated_state_to_completed
     @display.register_task(FixtureTaskA)
-    @display.update_task(FixtureTaskA, state: :running)
-    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    simulate_task_start(@display, FixtureTaskA)
+    simulate_task_complete(@display, FixtureTaskA)
     assert_equal :completed, @display.task_state(FixtureTaskA)
   end
 
-  def test_update_task_state_to_failed
+  def test_on_task_updated_state_to_failed
     @display.register_task(FixtureTaskA)
-    @display.update_task(FixtureTaskA, state: :running)
-    @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
+    simulate_task_start(@display, FixtureTaskA)
+    simulate_task_fail(@display, FixtureTaskA)
     assert_equal :failed, @display.task_state(FixtureTaskA)
   end
 
@@ -54,14 +72,14 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_set_root_task
-    @display.set_root_task(FixtureTaskB)
-    # After setting root task, the root and its dependencies should be registered
+    setup_display_with_graph(FixtureTaskB)
+    # After on_ready, the root and its dependencies should be registered
     assert @display.task_registered?(FixtureTaskB)
     assert @display.task_registered?(FixtureTaskA)
   end
 
   def test_set_root_task_is_idempotent
-    @display.set_root_task(FixtureTaskB)
+    setup_display_with_graph(FixtureTaskB)
     @display.set_root_task(FixtureTaskA) # Should be ignored
     # Only the first root task's dependencies should be registered
     assert @display.task_registered?(FixtureTaskB)
@@ -69,14 +87,14 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_register_section_impl
-    @display.set_root_task(NestedSection)
+    setup_display_with_graph(NestedSection)
     @display.register_section_impl(NestedSection, NestedSection::LocalDB)
     # Verify registration was successful (no error raised)
     assert @display.task_registered?(NestedSection)
   end
 
   def test_register_section_impl_marks_section_as_completed
-    @display.set_root_task(NestedSection)
+    setup_display_with_graph(NestedSection)
     # Before registration, section should be pending
     assert_equal :pending, @display.task_state(NestedSection)
     @display.register_section_impl(NestedSection, NestedSection::LocalDB)
@@ -85,31 +103,30 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert_equal :completed, @display.task_state(NestedSection)
   end
 
-  def test_register_section_impl_marks_unselected_candidates_as_skipped
+  def test_register_section_impl_registers_selected_impl
     # Use LazyDependencyTest::MySection which references both OptionA and OptionB in impl
-    @display.set_root_task(LazyDependencyTest::MySection)
+    setup_display_with_graph(LazyDependencyTest::MySection)
     @display.register_section_impl(
       LazyDependencyTest::MySection,
       LazyDependencyTest::MySection::OptionB
     )
-    # Unselected candidate (OptionA) should be marked as skipped
-    assert_equal :skipped, @display.task_state(LazyDependencyTest::MySection::OptionA)
-    # Selected impl should remain in its current state (pending until actually run)
+    # Selected impl should be registered as pending
     assert_equal :pending, @display.task_state(LazyDependencyTest::MySection::OptionB)
+    # Note: Marking unselected candidates as skipped is now the responsibility
+    # of the execution layer via task_updated notifications
   end
 
-  def test_register_section_impl_marks_unselected_candidate_descendants_as_skipped
+  def test_register_section_impl_keeps_section_dependencies_pending
     # Use LazyDependencyTest::MySection which has:
     # - OptionA (depends on ExpensiveTask)
     # - OptionB (depends on CheapTask)
-    @display.set_root_task(LazyDependencyTest::MySection)
+    setup_display_with_graph(LazyDependencyTest::MySection)
     @display.register_section_impl(
       LazyDependencyTest::MySection,
       LazyDependencyTest::MySection::OptionB
     )
-    # OptionA's dependency (ExpensiveTask) should also be marked as skipped
-    assert_equal :skipped, @display.task_state(LazyDependencyTest::ExpensiveTask)
-    # OptionB's dependency (CheapTask) should remain pending (will be executed)
+    # All tasks remain in their initial pending state
+    # (marking as skipped is now done via task_updated notifications from execution layer)
     assert_equal :pending, @display.task_state(LazyDependencyTest::CheapTask)
   end
 
@@ -139,19 +156,30 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_section_completed_without_impl_registration
-    @display.set_root_task(NestedSection)
+    setup_display_with_graph(NestedSection)
     # Start section without registering impl
-    @display.update_task(NestedSection, state: :running)
-    @display.update_task(NestedSection, state: :completed)
+    simulate_task_start(@display, NestedSection)
+    simulate_task_complete(@display, NestedSection)
 
     # Section should be completed
     assert_equal :completed, @display.task_state(NestedSection)
     # Impl candidates should still be pending (never executed)
     assert_equal :pending, @display.task_state(NestedSection::LocalDB)
   end
+
+  private
+
+  def setup_display_with_graph(root_task)
+    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from(root_task)
+    facade = MockLayoutFacade.new(graph, root_task)
+    @display.facade = facade
+    @display.send(:on_ready)
+  end
 end
 
 class TestSimpleProgressDisplayWithTTY < Minitest::Test
+  include LayoutTestHelper
+
   # Create a StringIO that reports itself as a TTY
   class TTYStringIO < StringIO
     def tty?
@@ -193,7 +221,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_shows_task_count
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
     sleep 0.05
 
     output = @output.string
@@ -204,7 +232,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_shows_running_task_name
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
     sleep 0.05
 
     output = @output.string
@@ -214,7 +242,8 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_shows_checkmark_for_completed_task
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    simulate_task_start(@display, FixtureTaskA)
+    simulate_task_complete(@display, FixtureTaskA)
     sleep 0.05
 
     output = @output.string
@@ -225,7 +254,8 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_shows_x_for_failed_task
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
+    simulate_task_start(@display, FixtureTaskA)
+    simulate_task_fail(@display, FixtureTaskA)
     @display.stop
 
     output = @output.string
@@ -236,8 +266,8 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_shows_multiple_running_tasks
     @display.set_root_task(FixtureNamespace::TaskD)
     @display.start
-    @display.update_task(FixtureTaskA, state: :running)
-    @display.update_task(FixtureNamespace::TaskC, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
+    simulate_task_start(@display, FixtureNamespace::TaskC)
     sleep 0.05
 
     output = @output.string
@@ -249,8 +279,10 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_final_render_shows_completion
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :completed, duration: 50)
-    @display.update_task(FixtureTaskB, state: :completed, duration: 100)
+    simulate_task_start(@display, FixtureTaskA)
+    simulate_task_complete(@display, FixtureTaskA)
+    simulate_task_start(@display, FixtureTaskB)
+    simulate_task_complete(@display, FixtureTaskB)
     @display.stop
 
     output = @output.string
@@ -261,7 +293,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_simple_mode_uses_single_line
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
     sleep 0.05
 
     output = @output.string
@@ -274,7 +306,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_live_overwrites_same_line
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
     sleep 0.15 # Wait for at least one render cycle
 
     output = @output.string
@@ -293,7 +325,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def test_render_live_respects_terminal_width
     @display.set_root_task(FixtureTaskB)
     @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    simulate_task_start(@display, FixtureTaskA)
     sleep 0.15 # Wait for at least one render cycle
     @display.stop
 

@@ -36,3 +36,28 @@ module TaskiTestHelper
     Taski::Task.reset! if defined?(Taski::Task)
   end
 end
+
+# Helper for Layout tests to simulate state transitions via on_task_updated
+module LayoutTestHelper
+  # Simulate task starting (pending -> running)
+  def simulate_task_start(layout, task_class, timestamp: Time.now)
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, timestamp: timestamp)
+  end
+
+  # Simulate task completion (running -> completed)
+  # Duration is calculated from timestamps, so pass start_time to control duration
+  def simulate_task_complete(layout, task_class, timestamp: Time.now)
+    layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, timestamp: timestamp)
+  end
+
+  # Simulate task failure (running -> failed)
+  # Note: error is not passed via notification - exceptions propagate to top level (Plan design)
+  def simulate_task_fail(layout, task_class, timestamp: Time.now)
+    layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, timestamp: timestamp)
+  end
+
+  # Simulate task skip (pending -> skipped)
+  def simulate_task_skip(layout, task_class, timestamp: Time.now)
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :skipped, timestamp: timestamp)
+  end
+end

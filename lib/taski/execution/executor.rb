@@ -376,7 +376,7 @@ module Taski
       # @param root_task_class [Class] The root task class
       # @return [void]
       def setup_progress_display(root_task_class)
-        @execution_context.notify_set_root_task(root_task_class)
+        @execution_context.set_root_task(root_task_class)
       end
 
       # Set up output capture if progress display is active and not already set up

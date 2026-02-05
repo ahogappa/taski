@@ -71,12 +71,12 @@ module Taski
       end
 
       # Called when a task's state changes.
+      # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
       # @param task_class [Class] The task class
       # @param previous_state [Symbol] The previous state
       # @param current_state [Symbol] The new state
       # @param timestamp [Time] When the transition occurred
-      # @param error [Exception, nil] The error if state is :failed
-      def on_task_updated(task_class, previous_state:, current_state:, timestamp:, error: nil)
+      def on_task_updated(task_class, previous_state:, current_state:, timestamp:)
       end
 
       # Called when a group starts.

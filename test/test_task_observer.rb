@@ -112,18 +112,17 @@ class TestNotifyNewEvents < Minitest::Test
     assert_equal :pending, event[2][:previous_state]
     assert_equal :running, event[2][:current_state]
     assert_equal timestamp, event[2][:timestamp]
-    assert_nil event[2][:error]
   end
 
-  def test_notify_task_updated_with_error
+  def test_notify_task_updated_for_failed_state
+    # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
     timestamp = Time.now
-    error = StandardError.new("test error")
-    @context.notify_task_updated(String, previous_state: :running, current_state: :failed, timestamp: timestamp, error: error)
+    @context.notify_task_updated(String, previous_state: :running, current_state: :failed, timestamp: timestamp)
 
     assert_equal 1, @events.size
     event = @events.first
     assert_equal :failed, event[2][:current_state]
-    assert_equal error, event[2][:error]
+    assert_equal timestamp, event[2][:timestamp]
   end
 
   private
@@ -134,8 +133,8 @@ class TestNotifyNewEvents < Minitest::Test
       define_method(:on_ready) { events << [:on_ready] }
       define_method(:on_phase_started) { |phase| events << [:on_phase_started, phase] }
       define_method(:on_phase_completed) { |phase| events << [:on_phase_completed, phase] }
-      define_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:, error: nil|
-        events << [:on_task_updated, task_class, {previous_state:, current_state:, timestamp:, error:}]
+      define_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
+        events << [:on_task_updated, task_class, {previous_state:, current_state:, timestamp:}]
       end
     end.new
   end

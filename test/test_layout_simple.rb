@@ -5,7 +5,48 @@ require "stringio"
 require "taski/progress/layout/simple"
 require "taski/progress/theme/compact"
 
+# Mock dependency graph that builds from task's cached_dependencies
+class MockSimpleDependencyGraph
+  def initialize(root_task)
+    @root_task = root_task
+    @graph = {}
+    build_graph(root_task)
+  end
+
+  def dependencies_for(task_class)
+    @graph[task_class] || []
+  end
+
+  private
+
+  def build_graph(task_class, visited = Set.new)
+    return if visited.include?(task_class)
+
+    visited.add(task_class)
+    deps = task_class.respond_to?(:cached_dependencies) ? task_class.cached_dependencies : []
+    @graph[task_class] = deps
+    deps.each { |dep| build_graph(dep, visited) }
+  end
+end
+
+# Mock facade for testing
+class MockSimpleFacade
+  attr_reader :dependency_graph
+  attr_accessor :root_task_class
+
+  def initialize(dependency_graph, root_task_class = nil)
+    @dependency_graph = dependency_graph
+    @root_task_class = root_task_class
+  end
+
+  def current_phase
+    :run
+  end
+end
+
 class TestLayoutSimple < Minitest::Test
+  include LayoutTestHelper
+
   def setup
     @output = StringIO.new
     # Stub tty? to return true for testing
@@ -39,7 +80,7 @@ class TestLayoutSimple < Minitest::Test
   def test_tracks_task_state
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    simulate_task_start(@layout, task_class)
 
     assert_equal :running, @layout.task_state(task_class)
   end
@@ -47,8 +88,8 @@ class TestLayoutSimple < Minitest::Test
   def test_tracks_completed_task
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
 
     assert_equal :completed, @layout.task_state(task_class)
   end
@@ -59,8 +100,8 @@ class TestLayoutSimple < Minitest::Test
     task_class = stub_task_class("MyTask")
     @layout.register_task(task_class)
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(@layout, task_class)
+    simulate_task_complete(@layout, task_class)
     @layout.stop
 
     # Should include success icon and task count
@@ -73,8 +114,8 @@ class TestLayoutSimple < Minitest::Test
     task_class = stub_task_class("FailedTask")
     @layout.register_task(task_class)
     @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
+    simulate_task_start(@layout, task_class)
+    simulate_task_fail(@layout, task_class)
     @layout.stop
 
     # Should include failure icon and task count
@@ -114,13 +155,20 @@ class TestLayoutSimple < Minitest::Test
 
   # === Root task tree building ===
 
-  def test_builds_tree_structure_on_root_task_set
+  def test_builds_tree_structure_on_ready
     # This is a basic test to ensure tree building doesn't crash
     root_task = stub_task_class("RootTask")
-    @layout.set_root_task(root_task)
+    setup_layout_with_graph(root_task)
 
     # Layout should have registered the root task
     assert @layout.task_registered?(root_task)
+  end
+
+  def setup_layout_with_graph(root_task)
+    graph = MockSimpleDependencyGraph.new(root_task)
+    facade = MockSimpleFacade.new(graph, root_task)
+    @layout.facade = facade
+    @layout.send(:on_ready)
   end
 
   # === Icon and color configuration from Template ===
@@ -152,6 +200,8 @@ class TestLayoutSimple < Minitest::Test
 end
 
 class TestLayoutSimpleWithCustomTemplate < Minitest::Test
+  include LayoutTestHelper
+
   def setup
     @output = StringIO.new
     @output.define_singleton_method(:tty?) { true }
@@ -206,8 +256,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     task_class = stub_task_class("MyTask")
     layout.register_task(task_class)
     layout.start
-    layout.update_task(task_class, state: :running)
-    layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(layout, task_class)
+    simulate_task_complete(layout, task_class)
     layout.stop
 
     assert_includes @output.string, "🎉"
@@ -229,8 +279,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     task_class = stub_task_class("FailedTask")
     layout.register_task(task_class)
     layout.start
-    layout.update_task(task_class, state: :running)
-    layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
+    simulate_task_start(layout, task_class)
+    simulate_task_fail(layout, task_class)
     layout.stop
 
     assert_includes @output.string, "💥"
@@ -251,7 +301,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     task_class = stub_task_class("MyTask")
     layout.register_task(task_class)
     layout.start
-    layout.update_task(task_class, state: :completed, duration: 100)
+    simulate_task_start(layout, task_class)
+    simulate_task_complete(layout, task_class)
     layout.stop
 
     assert_includes @output.string, "Finished 1 tasks"
@@ -303,7 +354,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     task_class = stub_task_class("TestTask")
     layout.register_task(task_class)
     layout.start
-    layout.update_task(task_class, state: :completed, duration: 50)
+    simulate_task_start(layout, task_class)
+    simulate_task_complete(layout, task_class)
     layout.stop
 
     # Should complete without errors and use custom values
