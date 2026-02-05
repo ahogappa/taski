@@ -405,7 +405,7 @@ class TestThemeDetail < Minitest::Test
     rendered = render_template(template_string,
       "task_name" => "MyTask",
       "state" => "skipped")
-    assert_includes rendered, "○"
+    assert_includes rendered, "⊘"
     assert_includes rendered, "MyTask"
   end
 

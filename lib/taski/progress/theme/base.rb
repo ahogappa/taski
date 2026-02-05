@@ -131,6 +131,12 @@ module Taski
           "○"
         end
 
+        # Icon for skipped state (unselected Section candidate)
+        # @return [String] Skipped icon
+        def icon_skipped
+          "⊘"
+        end
+
         # === Color configuration (ANSI codes) ===
 
         # Green color ANSI escape code

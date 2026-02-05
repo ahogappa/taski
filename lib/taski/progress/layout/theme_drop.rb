@@ -33,6 +33,7 @@ module Taski
         def icon_success = @theme.icon_success
         def icon_failure = @theme.icon_failure
         def icon_pending = @theme.icon_pending
+        def icon_skipped = @theme.icon_skipped
 
         # Formatting methods (used by filters)
         def format_count(count) = @theme.format_count(count)

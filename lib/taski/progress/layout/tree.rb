@@ -244,6 +244,8 @@ module Taski
             render_task_succeeded(task_class, task_duration: task_state.run_duration)
           when :failed
             render_task_failed(task_class, error: task_state.run_error)
+          when :skipped
+            render_task_skipped(task_class)
           else
             task = TaskDrop.new(name: task_class_name(task_class), state: :pending)
             render_task_template(:task_pending, task:, execution: execution_drop)

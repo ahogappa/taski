@@ -287,6 +287,15 @@ module Taski
           @spinner_timer = nil
         end
 
+        # === Pull-based event handlers (TaskObserver interface) ===
+
+        # Called when execution is ready (root task and dependencies resolved).
+        # Pulls dependency_graph from context for later use.
+        # Subclasses can override to perform additional initialization.
+        def on_ready
+          @dependency_graph = context&.dependency_graph
+        end
+
         protected
 
         # === Template methods - Override in subclasses ===
@@ -817,10 +826,16 @@ module Taski
         end
 
         # Get dependencies for a task class.
-        # Tries static analysis first, falls back to cached_dependencies.
+        # Uses cached dependency graph if available, otherwise falls back to static analysis.
         # @param task_class [Class] The task class
         # @return [Array<Class>] Array of dependency classes
         def get_task_dependencies(task_class)
+          # Use cached dependency graph if available (set via on_ready)
+          if @dependency_graph
+            return @dependency_graph.dependencies_for(task_class).to_a
+          end
+
+          # Fallback to static analysis
           deps = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
           return deps unless deps.empty?
 

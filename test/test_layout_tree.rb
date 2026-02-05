@@ -316,6 +316,17 @@ class TestLayoutTreeTaskContent < Minitest::Test
     assert_includes content, "Something went wrong"
   end
 
+  def test_build_task_content_uses_icon_for_skipped_state
+    task_class = stub_task_class("SkippedTask")
+    @layout.register_task(task_class)
+    @layout.update_task(task_class, state: :skipped)
+
+    content = @layout.send(:build_task_content, task_class)
+    # Theme::Detail uses ⊘ icon for skipped
+    assert_includes content, "⊘"
+    assert_includes content, "SkippedTask"
+  end
+
   private
 
   def stub_task_class(name)
@@ -401,6 +412,78 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { deps }
+    klass.define_singleton_method(:section?) { false }
+    klass
+  end
+end
+
+class TestLayoutTreeOnReady < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Progress::Layout::Tree.new(output: @output)
+    @context = Taski::Execution::ExecutionContext.new
+    @context.add_observer(@layout)
+  end
+
+  def test_on_ready_stores_dependency_graph_from_context
+    # Create a mock dependency graph
+    mock_graph = Object.new
+    @context.dependency_graph = mock_graph
+
+    # Set root task on context
+    root_task = stub_task_class("RootTask")
+    @context.root_task_class = root_task
+
+    # Call on_ready
+    @layout.on_ready
+
+    # Verify layout has access to the stored graph
+    assert_equal mock_graph, @layout.instance_variable_get(:@dependency_graph)
+  end
+
+  def test_on_ready_works_without_dependency_graph
+    # Context without dependency_graph set
+    root_task = stub_task_class("RootTask")
+    @context.root_task_class = root_task
+
+    # Should not raise
+    @layout.on_ready
+
+    # Graph should be nil
+    assert_nil @layout.instance_variable_get(:@dependency_graph)
+  end
+
+  def test_get_task_dependencies_uses_dependency_graph_when_available
+    # Create tasks
+    child_task = stub_task_class("ChildTask")
+    parent_task = stub_task_class("ParentTask")
+
+    # Create a mock dependency graph that returns specific dependencies
+    # The graph returns [child_task] for parent_task - this is ONLY accessible via the graph
+    mock_graph = Object.new
+    mock_graph.define_singleton_method(:dependencies_for) do |task_class|
+      if task_class.name == "ParentTask"
+        Set.new([child_task]) # Return child_task as dependency
+      else
+        Set.new
+      end
+    end
+    @context.dependency_graph = mock_graph
+
+    # Call on_ready to store the graph
+    @layout.on_ready
+
+    # get_task_dependencies should use the cached graph and return [child_task]
+    deps = @layout.send(:get_task_dependencies, parent_task)
+    assert_equal [child_task], deps.to_a
+  end
+
+  private
+
+  def stub_task_class(name)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass.define_singleton_method(:cached_dependencies) { [] }
     klass.define_singleton_method(:section?) { false }
     klass
   end
