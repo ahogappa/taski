@@ -8,14 +8,63 @@ module Taski
     # to emit structured log events for task execution lifecycle.
     #
     # This observer is automatically registered when Taski.logger is set.
+    # It uses the Pull API to access context information like the current phase
+    # and dependency graph.
     #
-    # @example
-    #   # Internal use - automatically registered by Executor
-    #   context.add_observer(LoggerObserver.new)
+    # == Events Logged
+    #
+    # - execution.ready - When execution is ready with total task count
+    # - task.started - When a task begins execution
+    # - task.completed - When a task completes with duration
+    # - task.failed - When a task fails with error details
+    # - task.skipped - When a task is skipped (e.g., unselected Section candidate)
+    # - task.clean_started - When clean phase begins for a task
+    # - task.clean_completed - When clean phase completes for a task
+    # - task.clean_failed - When clean phase fails for a task
+    #
+    # == Usage
+    #
+    # LoggerObserver is typically registered automatically when Taski.logger is set:
+    #
+    #   require 'logger'
+    #   Taski.logger = Logger.new($stderr, level: Logger::INFO)
+    #
+    # For custom integration with ExecutionContext:
+    #
+    #   context = Taski::Execution::ExecutionContext.new
+    #   observer = Taski::Logging::LoggerObserver.new
+    #   context.add_observer(observer)
+    #   # observer.context is automatically set to context
+    #
+    # == Pull API Usage
+    #
+    # The observer uses the injected context to pull information:
+    #
+    #   def on_ready
+    #     graph = context.dependency_graph  # Pull static dependency graph
+    #     total = graph.all_tasks.size
+    #   end
+    #
+    #   def on_task_updated(task_class, ...)
+    #     phase = context.current_phase     # Pull current phase (:run or :clean)
+    #   end
+    #
     class LoggerObserver < Taski::Execution::TaskObserver
       def initialize
         super
         @task_start_times = {}
+      end
+
+      # Called when execution is ready (root task and dependencies resolved).
+      # Logs the total task count from the dependency graph.
+      def on_ready
+        graph = context&.dependency_graph
+        total_tasks = graph&.all_tasks&.size || 0
+
+        Logging.info(
+          Events::EXECUTION_READY,
+          total_tasks: total_tasks
+        )
       end
 
       # Unified event interface for task state transitions

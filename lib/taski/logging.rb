@@ -18,6 +18,7 @@ module Taski
   module Logging
     # Event type constants
     module Events
+      EXECUTION_READY = "execution.ready"
       EXECUTION_STARTED = "execution.started"
       EXECUTION_COMPLETED = "execution.completed"
       TASK_STARTED = "task.started"
