@@ -154,9 +154,10 @@ module Taski
         end
 
         # Update task state (old interface, kept for backward compatibility).
-        # Converts old-style states to phase + unified state.
+        # Uses unified state names (:pending, :running, :completed, :failed, :skipped)
+        # and determines phase from context.current_phase.
         # @param task_class [Class] The task class to update
-        # @param state [Symbol] The new state (:running, :completed, :failed, :cleaning, :clean_completed, :clean_failed)
+        # @param state [Symbol] The unified state (:running, :completed, :failed, :skipped)
         # @param duration [Float, nil] Duration in milliseconds
         # @param error [Exception, nil] Error object for failed states
         def update_task(task_class, state:, duration: nil, error: nil)
@@ -164,10 +165,10 @@ module Taski
             progress = @tasks[task_class]
             progress ||= @tasks[task_class] = TaskState.new
 
-            # Convert old-style states to phase + unified state
-            phase, unified_state = convert_legacy_state(state)
-            apply_state_transition(progress, phase, unified_state, duration, error)
-            render_task_state_change(task_class, phase, unified_state, duration, error)
+            # Get phase from context (defaults to :run if not set)
+            phase = context&.current_phase || :run
+            apply_state_transition(progress, phase, state, duration, error)
+            render_task_state_change(task_class, phase, state, duration, error)
           end
         end
 
@@ -726,22 +727,6 @@ module Taski
 
         def run_state_finalized?(progress)
           %i[completed failed].include?(progress.run_state)
-        end
-
-        # Convert old-style state to phase + unified state
-        # @param state [Symbol] Old-style state
-        # @return [Array<Symbol, Symbol>] [phase, unified_state]
-        def convert_legacy_state(state)
-          case state
-          when :cleaning
-            %i[clean running]
-          when :clean_completed
-            %i[clean completed]
-          when :clean_failed
-            %i[clean failed]
-          else
-            [:run, state]
-          end
         end
 
         def collect_dependencies_recursive(task_class, collected)

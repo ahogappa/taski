@@ -26,12 +26,49 @@ module Taski
     # TaskWrapper manages the state and synchronization for a single task.
     # In the Producer-Consumer pattern, TaskWrapper does NOT start threads.
     # The Executor controls all scheduling and execution.
+    #
+    # == State Machine
+    #
+    # TaskWrapper tracks two independent state machines: one for the run phase
+    # and one for the clean phase. Both use the same unified state set.
+    #
+    # === Unified State Set
+    #
+    #   :pending   - Initial state, waiting to be executed
+    #   :running   - Task is currently executing
+    #   :completed - Task finished successfully
+    #   :failed    - Task finished with an error
+    #   :skipped   - Task was not executed (e.g., unselected Section candidate)
+    #
+    # === Run Phase Transitions
+    #
+    #   pending  --> running    (mark_running)
+    #   pending  --> skipped    (mark_skipped - Section candidate not selected)
+    #   running  --> completed  (mark_completed)
+    #   running  --> failed     (mark_failed)
+    #
+    # === Clean Phase Transitions
+    #
+    #   nil/pending --> running    (mark_clean_running)
+    #   running     --> completed  (mark_clean_completed)
+    #   running     --> failed     (mark_clean_failed)
+    #
+    # Note: Clean phase is only executed for tasks that completed the run phase.
+    # Tasks with run_state :skipped or :failed do not enter clean phase.
+    #
+    # === Terminal States
+    #
+    # Both :completed, :failed, and :skipped are terminal states.
+    # Once a task reaches a terminal state, it cannot transition to another state.
+    #
     class TaskWrapper
       attr_reader :task, :result, :error, :timing, :clean_error
 
       STATE_PENDING = :pending
       STATE_RUNNING = :running
       STATE_COMPLETED = :completed
+      STATE_FAILED = :failed
+      STATE_SKIPPED = :skipped
 
       ##
       # Create a new TaskWrapper for the given task and registry.
@@ -61,6 +98,11 @@ module Taski
       # @return [Symbol] Current state
       def state
         @monitor.synchronize { @state }
+      end
+
+      # @return [Symbol] Current clean state
+      def clean_state
+        @monitor.synchronize { @clean_state }
       end
 
       # @return [Boolean] true if task is pending
@@ -173,10 +215,25 @@ module Taski
         timestamp = Time.now
         @monitor.synchronize do
           @error = error
-          @state = STATE_COMPLETED
+          @state = STATE_FAILED
           @condition.broadcast
         end
         notify_state_transition(:running, :failed, timestamp, error: error)
+      end
+
+      # Called to mark a task as skipped (e.g., unselected Section candidate).
+      # Only valid from pending state. Skipped is a terminal state.
+      # @return [Boolean] true if state changed, false otherwise
+      def mark_skipped
+        timestamp = Time.now
+        @monitor.synchronize do
+          return false unless @state == STATE_PENDING
+
+          @state = STATE_SKIPPED
+          @condition.broadcast
+        end
+        notify_state_transition(:pending, :skipped, timestamp)
+        true
       end
 
       # Called by Executor to mark clean as running.
@@ -215,7 +272,7 @@ module Taski
         timestamp = Time.now
         @monitor.synchronize do
           @clean_error = error
-          @clean_state = STATE_COMPLETED
+          @clean_state = STATE_FAILED
           @clean_condition.broadcast
         end
         notify_state_transition(:running, :failed, timestamp, error: error)

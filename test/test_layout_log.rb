@@ -65,7 +65,13 @@ class TestLayoutLog < Minitest::Test
     task_class = stub_task_class("MyTask")
     @layout.start
     @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
+
+    # Set up mock context for clean phase
+    mock_context = Object.new
+    mock_context.define_singleton_method(:current_phase) { :clean }
+    @layout.context = mock_context
+
+    @layout.update_task(task_class, state: :running)
 
     assert_includes @output.string, "[CLEAN] MyTask"
   end
@@ -74,8 +80,14 @@ class TestLayoutLog < Minitest::Test
     task_class = stub_task_class("MyTask")
     @layout.start
     @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    @layout.update_task(task_class, state: :clean_completed, duration: 50)
+
+    # Set up mock context for clean phase
+    mock_context = Object.new
+    mock_context.define_singleton_method(:current_phase) { :clean }
+    @layout.context = mock_context
+
+    @layout.update_task(task_class, state: :running)
+    @layout.update_task(task_class, state: :completed, duration: 50)
 
     assert_includes @output.string, "[CLEAN DONE] MyTask (50ms)"
   end
@@ -85,8 +97,14 @@ class TestLayoutLog < Minitest::Test
     error = StandardError.new("Cleanup failed")
     @layout.start
     @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    @layout.update_task(task_class, state: :clean_failed, error: error)
+
+    # Set up mock context for clean phase
+    mock_context = Object.new
+    mock_context.define_singleton_method(:current_phase) { :clean }
+    @layout.context = mock_context
+
+    @layout.update_task(task_class, state: :running)
+    @layout.update_task(task_class, state: :failed, error: error)
 
     assert_includes @output.string, "[CLEAN FAIL] MyTask: Cleanup failed"
   end

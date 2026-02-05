@@ -27,8 +27,8 @@ module Taski
     #
     # - register_task(task_class) - Called when a task is registered
     # - update_task(task_class, state:, duration:, error:) - Called on state changes
-    #   State values for run: :pending, :running, :completed, :failed
-    #   State values for clean: :cleaning, :clean_completed, :clean_failed
+    #   Unified state values for both run and clean phases:
+    #   :pending, :running, :completed, :failed, :skipped
     # - register_section_impl(section_class, impl_class) - Called on section impl selection
     # - set_root_task(task_class) - Called when root task is set
     # - set_output_capture(output_capture) - Called when output capture is configured
@@ -347,10 +347,11 @@ module Taski
       #
       ##
       # Notifies observers that cleaning of the given task has started.
-      # Dispatches an `:update_task` notification with `state: :cleaning`.
+      # Dispatches an `:update_task` notification with `state: :running`.
+      # Uses unified state names (same as run phase).
       # @param [Class] task_class The task class that started cleaning.
       def notify_clean_started(task_class)
-        dispatch(:update_task, task_class, state: :cleaning)
+        dispatch(:update_task, task_class, state: :running)
       end
 
       # Notify observers that a task's clean has completed.
@@ -359,13 +360,14 @@ module Taski
       # @param duration [Float, nil] The clean duration in milliseconds
       ##
       # Notifies observers that a task's clean has completed, including duration and any error.
-      # Observers receive an `:update_task` notification with `state` set to `:clean_completed` when
-      # `error` is nil, or `:clean_failed` when `error` is provided.
+      # Uses unified state names (same as run phase):
+      # - `:completed` when error is nil
+      # - `:failed` when error is provided
       # @param [Class] task_class - The task class that finished cleaning.
       # @param [Numeric, nil] duration - The duration of the clean operation in milliseconds, or `nil` if unknown.
       # @param [Exception, nil] error - The error raised during cleaning, or `nil` if the clean succeeded.
       def notify_clean_completed(task_class, duration: nil, error: nil)
-        state = error ? :clean_failed : :clean_completed
+        state = error ? :failed : :completed
         dispatch(:update_task, task_class, state: state, duration: duration, error: error)
       end
 

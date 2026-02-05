@@ -77,12 +77,18 @@ class TestLayoutBase < Minitest::Test
 
   # === Clean state management ===
 
-  def test_update_task_cleaning_state
+  def test_update_task_clean_running_state
     task_class = Class.new
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    # Clean state should be tracked (Phase 1: unified to :running)
+
+    # Set up mock context for clean phase
+    mock_context = Object.new
+    mock_context.define_singleton_method(:current_phase) { :clean }
+    @layout.context = mock_context
+
+    @layout.update_task(task_class, state: :running)
+    # Clean state should be tracked with unified state name :running
     assert_equal :running, @layout.task_state(task_class)
   end
 
@@ -90,9 +96,15 @@ class TestLayoutBase < Minitest::Test
     task_class = Class.new
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    @layout.update_task(task_class, state: :clean_completed, duration: 50)
-    # Phase 1: unified to :completed
+
+    # Set up mock context for clean phase
+    mock_context = Object.new
+    mock_context.define_singleton_method(:current_phase) { :clean }
+    @layout.context = mock_context
+
+    @layout.update_task(task_class, state: :running)
+    @layout.update_task(task_class, state: :completed, duration: 50)
+    # Clean state should be tracked with unified state name :completed
     assert_equal :completed, @layout.task_state(task_class)
   end
 

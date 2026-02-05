@@ -39,6 +39,13 @@ module Taski
       # @param state [Symbol] The state (:running)
       # @param duration [Float, nil] Duration (nil for start events)
       # @param error [Exception, nil] Error (nil for start events)
+      # Handle task state updates.
+      # Note: With unified states, :running/:completed/:failed are used for both run and clean phases.
+      # Observers should use context.current_phase to distinguish between phases if needed.
+      # @param task_class [Class] The task class
+      # @param state [Symbol] The state (:running, :completed, :failed, :skipped)
+      # @param duration [Float, nil] Duration (nil for start events)
+      # @param error [Exception, nil] Error (nil for start events)
       def update_task(task_class, state:, duration: nil, error: nil)
         case state
         when :running
@@ -47,12 +54,8 @@ module Taski
           log_task_completed(task_class, duration)
         when :failed
           log_task_failed(task_class, duration, error)
-        when :cleaning
-          log_clean_started(task_class)
-        when :clean_completed
-          log_clean_completed(task_class, duration)
-        when :clean_failed
-          log_clean_failed(task_class, duration, error)
+        when :skipped
+          log_task_skipped(task_class)
         end
       end
 

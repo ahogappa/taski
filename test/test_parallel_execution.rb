@@ -587,7 +587,9 @@ class TestParallelExecution < Minitest::Test
     test_error = StandardError.new("Test error")
     wrapper.mark_failed(test_error)
 
-    assert wrapper.completed?
+    # Failed tasks have state :failed, not :completed
+    assert_equal :failed, wrapper.state
+    refute wrapper.completed?, "Failed tasks should not be considered completed"
     assert_equal test_error, wrapper.error
   end
 

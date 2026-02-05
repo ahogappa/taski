@@ -310,7 +310,8 @@ class TestExecutionContext < Minitest::Test
     context.add_observer(observer)
     context.notify_clean_started(String)
 
-    assert_equal({task_class: String, state: :cleaning}, called_with)
+    # Unified state: :running (not :cleaning)
+    assert_equal({task_class: String, state: :running}, called_with)
   end
 
   def test_notify_clean_completed_success
@@ -325,7 +326,8 @@ class TestExecutionContext < Minitest::Test
     context.notify_clean_completed(String, duration: 2.5)
 
     assert_equal String, called_with[:task_class]
-    assert_equal :clean_completed, called_with[:state]
+    # Unified state: :completed (not :clean_completed)
+    assert_equal :completed, called_with[:state]
     assert_equal 2.5, called_with[:duration]
     assert_nil called_with[:error]
   end
@@ -342,7 +344,8 @@ class TestExecutionContext < Minitest::Test
     context.add_observer(observer)
     context.notify_clean_completed(String, error: test_error)
 
-    assert_equal :clean_failed, called_with[:state]
+    # Unified state: :failed (not :clean_failed)
+    assert_equal :failed, called_with[:state]
     assert_equal test_error, called_with[:error]
   end
 
