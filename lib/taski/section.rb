@@ -26,11 +26,12 @@ module Taski
         return
       end
 
-      # Register runtime dependency for clean phase (before register_impl_selection)
+      # Register runtime dependency for clean phase
       register_runtime_dependency(implementation_class)
 
-      # Register selected impl for progress display
-      register_impl_selection(implementation_class)
+      # Note: Section impl selection is now detected via state transitions
+      # (pending → running for selected impl, pending → skipped for unselected candidates)
+      # The old notify_section_impl_selected event has been removed.
 
       apply_interface_to_implementation(implementation_class)
 
@@ -56,13 +57,6 @@ module Taski
     def register_runtime_dependency(impl_class)
       context = Execution::ExecutionContext.current
       context&.register_runtime_dependency(self.class, impl_class)
-    end
-
-    def register_impl_selection(implementation_class)
-      context = Execution::ExecutionContext.current
-      return unless context
-
-      context.notify_section_impl_selected(self.class, implementation_class)
     end
 
     # @param implementation_class [Class] The implementation task class

@@ -432,6 +432,9 @@ module Taski
       def with_display_lifecycle(root_task_class)
         setup_progress_display(root_task_class)
         should_teardown_capture = setup_output_capture_if_needed
+        # Notify observers that execution is ready (root task and dependencies resolved)
+        # Observers can pull initial state from context in on_ready
+        @execution_context.notify_ready
         start_progress_display
 
         yield

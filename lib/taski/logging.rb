@@ -23,6 +23,7 @@ module Taski
       TASK_STARTED = "task.started"
       TASK_COMPLETED = "task.completed"
       TASK_FAILED = "task.failed"
+      TASK_SKIPPED = "task.skipped"
       TASK_CLEAN_STARTED = "task.clean_started"
       TASK_CLEAN_COMPLETED = "task.clean_completed"
       TASK_CLEAN_FAILED = "task.clean_failed"

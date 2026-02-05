@@ -20,40 +20,74 @@ module Taski
     # - WorkerPool manages worker threads that execute tasks
     # - ExecutionContext notifies observers about execution events
     #
-    # == Observer Pattern
+    # == Observer Pattern (Unified Events)
     #
     # Observers are registered using {#add_observer} and receive notifications
-    # via duck-typed method dispatch. Observers should implement any subset of:
+    # via duck-typed method dispatch. The unified event system consists of 8 events:
     #
-    # - register_task(task_class) - Called when a task is registered
-    # - update_task(task_class, state:, duration:, error:) - Called on state changes
-    #   Unified state values for both run and clean phases:
-    #   :pending, :running, :completed, :failed, :skipped
-    # - register_section_impl(section_class, impl_class) - Called on section impl selection
-    # - set_root_task(task_class) - Called when root task is set
+    # === Lifecycle Events (3)
+    # - on_ready - Called when execution is ready (root task and dependencies resolved)
     # - start - Called when execution starts
     # - stop - Called when execution ends
     #
-    # Observers can access captured output via context.output_stream (Pull API).
+    # === Phase Events (2)
+    # - on_phase_started(phase) - Called when a phase starts (:run or :clean)
+    # - on_phase_completed(phase) - Called when a phase completes
+    #
+    # === Task Events (1)
+    # - on_task_updated(task_class, previous_state:, current_state:, timestamp:, error:)
+    #   Called on state transitions. Unified state values for both run and clean phases:
+    #   :pending, :running, :completed, :failed, :skipped
+    #
+    # === Group Events (2)
+    # - on_group_started(task_class, group_name) - Called when a group starts
+    # - on_group_completed(task_class, group_name) - Called when a group completes
+    #
+    # == Pull API
+    #
+    # Observers can access additional information via the Pull API:
+    # - context.current_phase - Current phase (:run or :clean)
+    # - context.root_task_class - The root task class
+    # - context.dependency_graph - Static dependency graph
+    # - context.output_stream - Captured output (TaskOutputRouter)
     #
     # == Thread Safety
     #
     # All observer operations are synchronized using Monitor. The output capture
     # getter is also thread-safe for access from worker threads.
     #
-    # == Backward Compatibility
+    # == Execution Order
     #
-    # TreeProgressDisplay works as an observer without any API changes.
-    # Existing task code works unchanged.
+    # Events are dispatched in this order:
+    #   ready → start → phase_started(:run) → task_updated... →
+    #   phase_completed(:run) → phase_started(:clean) → task_updated... →
+    #   phase_completed(:clean) → stop
+    #
+    # == Push vs Pull
+    #
+    # Events push minimal identifiers (task_class, state transitions).
+    # Observers pull detailed information from context as needed:
+    # - dependency_graph for task relationships
+    # - output_stream.read(task_class) for captured output
+    # - current_phase to distinguish run vs clean
+    #
+    # == Legacy Observer Methods
+    #
+    # For backward compatibility, the following legacy methods are still dispatched:
+    # - set_root_task(task_class) - Called when root task is set
+    # - start / stop - Called when execution starts/ends
     #
     # @example Registering an observer
     #   context = ExecutionContext.new
-    #   context.add_observer(TreeProgressDisplay.new)
+    #   context.add_observer(MyObserver.new)
     #
-    # @example Sending notifications
-    #   context.notify_task_registered(MyTask)
-    #   context.notify_task_started(MyTask)
-    #   context.notify_task_completed(MyTask, duration: 1.5)
+    # @example Using Pull API in observer
+    #   class MyObserver < TaskObserver
+    #     def on_ready
+    #       @graph = context.dependency_graph
+    #       @root = context.root_task_class
+    #     end
+    #   end
     class ExecutionContext
       # Thread-local key for storing the current execution context
       THREAD_LOCAL_KEY = :taski_execution_context
@@ -253,15 +287,22 @@ module Taski
       end
 
       # Add an observer to receive execution notifications.
-      # Observers should implement the following methods (all optional):
-      # - register_task(task_class)
-      # - update_task(task_class, state:, duration:, error:)
-      # - register_section_impl(section_class, impl_class)
-      # - set_root_task(task_class)
-      # - start
-      # - stop
       #
-      # Observers can access captured output via context.output_stream (Pull API).
+      # Observers should extend TaskObserver or implement the unified event methods:
+      # - on_ready - Called when execution is ready
+      # - on_start - Called when execution starts
+      # - on_stop - Called when execution ends
+      # - on_phase_started(phase) - Called when a phase starts
+      # - on_phase_completed(phase) - Called when a phase completes
+      # - on_task_updated(task_class, previous_state:, current_state:, timestamp:, error:)
+      # - on_group_started(task_class, group_name)
+      # - on_group_completed(task_class, group_name)
+      #
+      # Legacy methods are also supported for backward compatibility:
+      # - set_root_task(task_class)
+      # - start / stop
+      #
+      # Observers can access Pull API via context attribute.
       #
       # @param observer [Object] The observer to add
       def add_observer(observer)
@@ -284,38 +325,6 @@ module Taski
         @monitor.synchronize { @observers.dup }
       end
 
-      # Notify observers that a task has been registered.
-      #
-      # @param task_class [Class] The task class that was registered
-      def notify_task_registered(task_class)
-        dispatch(:register_task, task_class)
-      end
-
-      # Notify observers that a task has started execution.
-      #
-      # @param task_class [Class] The task class that started
-      def notify_task_started(task_class)
-        dispatch(:update_task, task_class, state: :running)
-      end
-
-      # Notify observers that a task has completed.
-      #
-      # @param task_class [Class] The task class that completed
-      # @param duration [Float, nil] The execution duration in seconds
-      # @param error [Exception, nil] The error if the task failed
-      def notify_task_completed(task_class, duration: nil, error: nil)
-        state = error ? :failed : :completed
-        dispatch(:update_task, task_class, state: state, duration: duration, error: error)
-      end
-
-      # Notify observers that a section implementation has been selected.
-      #
-      # @param section_class [Class] The section class
-      # @param impl_class [Class] The selected implementation class
-      def notify_section_impl_selected(section_class, impl_class)
-        dispatch(:register_section_impl, section_class, impl_class)
-      end
-
       # Notify observers to set the root task and store for Pull API.
       #
       # @param task_class [Class] The root task class
@@ -335,38 +344,6 @@ module Taski
       end
 
       # ========================================
-      # Clean Lifecycle Notifications
-      # ========================================
-
-      # Notify observers that a task's clean has started.
-      #
-      ##
-      # Notifies observers that cleaning of the given task has started.
-      # Dispatches an `:update_task` notification with `state: :running`.
-      # Uses unified state names (same as run phase).
-      # @param [Class] task_class The task class that started cleaning.
-      def notify_clean_started(task_class)
-        dispatch(:update_task, task_class, state: :running)
-      end
-
-      # Notify observers that a task's clean has completed.
-      #
-      # @param task_class [Class] The task class that completed cleaning
-      # @param duration [Float, nil] The clean duration in milliseconds
-      ##
-      # Notifies observers that a task's clean has completed, including duration and any error.
-      # Uses unified state names (same as run phase):
-      # - `:completed` when error is nil
-      # - `:failed` when error is provided
-      # @param [Class] task_class - The task class that finished cleaning.
-      # @param [Numeric, nil] duration - The duration of the clean operation in milliseconds, or `nil` if unknown.
-      # @param [Exception, nil] error - The error raised during cleaning, or `nil` if the clean succeeded.
-      def notify_clean_completed(task_class, duration: nil, error: nil)
-        state = error ? :failed : :completed
-        dispatch(:update_task, task_class, state: state, duration: duration, error: error)
-      end
-
-      # ========================================
       # Group Lifecycle Notifications
       # ========================================
 
@@ -375,18 +352,15 @@ module Taski
       # @param task_class [Class] The task class containing the group
       # @param group_name [String] The name of the group
       def notify_group_started(task_class, group_name)
-        dispatch(:update_group, task_class, group_name, state: :running)
+        dispatch(:on_group_started, task_class, group_name)
       end
 
       # Notify observers that a group has completed within a task.
       #
       # @param task_class [Class] The task class containing the group
       # @param group_name [String] The name of the group
-      # @param duration [Float, nil] The group duration in milliseconds
-      # @param error [Exception, nil] The error if the group failed
-      def notify_group_completed(task_class, group_name, duration: nil, error: nil)
-        state = error ? :failed : :completed
-        dispatch(:update_group, task_class, group_name, state: state, duration: duration, error: error)
+      def notify_group_completed(task_class, group_name)
+        dispatch(:on_group_completed, task_class, group_name)
       end
 
       # ========================================
@@ -418,7 +392,7 @@ module Taski
       # @param current_state [Symbol] The new state
       # @param timestamp [Time] When the transition occurred
       # @param error [Exception, nil] The error if state is :failed
-      def notify_task_updated(task_class, previous_state:, current_state:, timestamp:, error: nil)
+      def notify_task_updated(task_class, previous_state:, current_state:, timestamp: Time.now, error: nil)
         dispatch(:on_task_updated, task_class,
           previous_state: previous_state, current_state: current_state, timestamp: timestamp, error: error)
       end

@@ -18,7 +18,7 @@ module Taski
         @task_start_times = {}
       end
 
-      # New unified interface (Phase 5)
+      # Unified event interface for task state transitions
       # @param task_class [Class] The task class
       # @param previous_state [Symbol] The previous state
       # @param current_state [Symbol] The new state
@@ -31,31 +31,6 @@ module Taski
           handle_clean_event(task_class, previous_state, current_state, timestamp, error)
         else
           handle_run_event(task_class, previous_state, current_state, timestamp, error)
-        end
-      end
-
-      # Old interface kept for backward compatibility
-      # @param task_class [Class] The task class that started
-      # @param state [Symbol] The state (:running)
-      # @param duration [Float, nil] Duration (nil for start events)
-      # @param error [Exception, nil] Error (nil for start events)
-      # Handle task state updates.
-      # Note: With unified states, :running/:completed/:failed are used for both run and clean phases.
-      # Observers should use context.current_phase to distinguish between phases if needed.
-      # @param task_class [Class] The task class
-      # @param state [Symbol] The state (:running, :completed, :failed, :skipped)
-      # @param duration [Float, nil] Duration (nil for start events)
-      # @param error [Exception, nil] Error (nil for start events)
-      def update_task(task_class, state:, duration: nil, error: nil)
-        case state
-        when :running
-          log_task_started(task_class)
-        when :completed
-          log_task_completed(task_class, duration)
-        when :failed
-          log_task_failed(task_class, duration, error)
-        when :skipped
-          log_task_skipped(task_class)
         end
       end
 
@@ -72,6 +47,8 @@ module Taski
         when [:running, :failed]
           duration = calculate_duration(:run, task_class, timestamp)
           log_task_failed(task_class, duration, error)
+        when [:pending, :skipped]
+          log_task_skipped(task_class)
         end
       end
 
@@ -128,6 +105,13 @@ module Taski
           Events::TASK_FAILED,
           task: task_class.name,
           **data
+        )
+      end
+
+      def log_task_skipped(task_class)
+        Logging.debug(
+          Events::TASK_SKIPPED,
+          task: task_class.name
         )
       end
 
