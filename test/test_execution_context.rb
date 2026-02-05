@@ -470,4 +470,58 @@ class TestExecutionContext < Minitest::Test
 
     context.teardown_output_capture
   end
+
+  # === output_stream.read API tests ===
+
+  def test_output_stream_read_returns_all_lines_by_default
+    context = Taski::Execution::ExecutionContext.new
+    output = StringIO.new
+    context.setup_output_capture(output)
+
+    task_class = Class.new
+    output_router = context.output_stream
+    output_router.start_capture(task_class)
+
+    # Simulate output capture by writing directly to recent_lines
+    output_router.instance_variable_get(:@recent_lines)[task_class] = %w[line1 line2 line3]
+
+    # Read without limit should return all lines
+    result = output_router.read(task_class)
+    assert_equal %w[line1 line2 line3], result
+
+    output_router.stop_capture
+    context.teardown_output_capture
+  end
+
+  def test_output_stream_read_respects_limit
+    context = Taski::Execution::ExecutionContext.new
+    output = StringIO.new
+    context.setup_output_capture(output)
+
+    task_class = Class.new
+    output_router = context.output_stream
+    output_router.start_capture(task_class)
+
+    # Simulate output capture
+    output_router.instance_variable_get(:@recent_lines)[task_class] = %w[line1 line2 line3 line4 line5]
+
+    # Read with limit should return only the last N lines
+    result = output_router.read(task_class, limit: 2)
+    assert_equal %w[line4 line5], result
+
+    output_router.stop_capture
+    context.teardown_output_capture
+  end
+
+  def test_output_stream_read_returns_empty_array_for_unknown_task
+    context = Taski::Execution::ExecutionContext.new
+    output = StringIO.new
+    context.setup_output_capture(output)
+
+    unknown_task = Class.new
+    result = context.output_stream.read(unknown_task)
+    assert_equal [], result
+
+    context.teardown_output_capture
+  end
 end

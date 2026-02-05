@@ -149,6 +149,19 @@ module Taski
         synchronize { (@recent_lines[task_class] || []).dup }
       end
 
+      # Read captured output lines for a task
+      # This is the public Pull API for observers
+      # @param task_class [Class] The task class
+      # @param limit [Integer, nil] Maximum number of lines to return (from the end).
+      #   If nil, returns all captured lines (up to MAX_RECENT_LINES)
+      # @return [Array<String>] Captured output lines
+      def read(task_class, limit: nil)
+        synchronize do
+          lines = @recent_lines[task_class] || []
+          limit ? lines.last(limit) : lines.dup
+        end
+      end
+
       # Close all pipes and clean up
       def close_all
         synchronize do
