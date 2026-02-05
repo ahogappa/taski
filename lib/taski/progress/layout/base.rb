@@ -4,6 +4,7 @@ require 'monitor'
 require 'liquid'
 require_relative '../theme/default'
 require_relative '../../static_analysis/analyzer'
+require_relative '../../static_analysis/tree_builder'
 require_relative '../../execution/task_observer'
 require_relative 'filters'
 require_relative 'tags'
@@ -796,72 +797,13 @@ module Taski
         end
 
         # Build a tree structure from a root task class.
+        # Delegates to StaticAnalysis::TreeBuilder for actual tree construction.
         # @param task_class [Class] The root task class
-        # @param ancestors [Set] Set of ancestor classes (for circular detection)
         # @return [Hash] Tree node hash
-        def build_tree_node(task_class, ancestors = Set.new)
-          is_circular = ancestors.include?(task_class)
-
-          node = {
-            task_class: task_class,
-            is_section: section_class?(task_class),
-            is_circular: is_circular,
-            is_impl_candidate: false,
-            children: []
-          }
-
-          return node if is_circular
-
-          new_ancestors = ancestors + [task_class]
-          dependencies = get_task_dependencies(task_class)
-          is_section = section_class?(task_class)
-
-          dependencies.each do |dep|
-            child_node = build_tree_node(dep, new_ancestors)
-            child_node[:is_impl_candidate] = is_section && nested_class?(dep, task_class)
-            node[:children] << child_node
-          end
-
-          node
+        def build_tree_node(task_class)
+          StaticAnalysis::TreeBuilder.build_tree(task_class, dependency_graph: @dependency_graph)
         end
 
-        # Get dependencies for a task class.
-        # Uses cached dependency graph if available, otherwise falls back to static analysis.
-        # @param task_class [Class] The task class
-        # @return [Array<Class>] Array of dependency classes
-        def get_task_dependencies(task_class)
-          # Use cached dependency graph if available (set via on_ready)
-          if @dependency_graph
-            return @dependency_graph.dependencies_for(task_class).to_a
-          end
-
-          # Fallback to static analysis
-          deps = Taski::StaticAnalysis::Analyzer.analyze(task_class).to_a
-          return deps unless deps.empty?
-
-          # Fallback to cached_dependencies for test stubs
-          if task_class.respond_to?(:cached_dependencies)
-            task_class.cached_dependencies
-          else
-            []
-          end
-        end
-
-        # Check if a class is a Taski::Section subclass.
-        def section_class?(klass)
-          defined?(Taski::Section) && klass < Taski::Section
-        end
-
-        # Check if a class is nested within another class by name prefix.
-        # Returns false for anonymous classes (nil or empty names).
-        def nested_class?(child_class, parent_class)
-          parent_name = parent_class.name
-          child_name = child_class.name
-          return false if parent_name.nil? || parent_name.empty?
-          return false if child_name.nil? || child_name.empty?
-
-          child_name.start_with?("#{parent_name}::")
-        end
       end
     end
   end

@@ -453,7 +453,7 @@ class TestLayoutTreeOnReady < Minitest::Test
     assert_nil @layout.instance_variable_get(:@dependency_graph)
   end
 
-  def test_get_task_dependencies_uses_dependency_graph_when_available
+  def test_build_tree_node_uses_dependency_graph_when_available
     # Create tasks
     child_task = stub_task_class("ChildTask")
     parent_task = stub_task_class("ParentTask")
@@ -473,9 +473,11 @@ class TestLayoutTreeOnReady < Minitest::Test
     # Call on_ready to store the graph
     @layout.on_ready
 
-    # get_task_dependencies should use the cached graph and return [child_task]
-    deps = @layout.send(:get_task_dependencies, parent_task)
-    assert_equal [child_task], deps.to_a
+    # build_tree_node should use the cached graph via TreeBuilder
+    tree = @layout.send(:build_tree_node, parent_task)
+    assert_equal parent_task, tree[:task_class]
+    assert_equal 1, tree[:children].size
+    assert_equal child_task, tree[:children].first[:task_class]
   end
 
   private
