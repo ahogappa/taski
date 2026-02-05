@@ -97,6 +97,7 @@ module Taski
 
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
+
         puts "[WorkerPool] #{message}"
       end
     end

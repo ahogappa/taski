@@ -211,7 +211,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
 
     output = @output.string
     # Should include task count format like [0/2] or [1/2]
-    assert_match(/\[\d+\/\d+\]/, output)
+    assert_match(%r{\[\d+/\d+\]}, output)
   end
 
   def test_render_shows_running_task_name
@@ -288,7 +288,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
     @display.set_root_task(FixtureTaskB)
     @display.start
     @display.update_task(FixtureTaskA, state: :running)
-    sleep 0.15  # Wait for at least one render cycle
+    sleep 0.15 # Wait for at least one render cycle
 
     output = @output.string
     # Count occurrences of \r\e[K - should have multiple (from render cycles)

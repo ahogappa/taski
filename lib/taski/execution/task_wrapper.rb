@@ -8,6 +8,7 @@ module Taski
       # @return [Float, nil] Duration in milliseconds or nil if not available
       def duration_ms
         return nil unless start_time && end_time
+
         ((end_time - start_time) * 1000).round(1)
       end
 
@@ -96,6 +97,7 @@ module Taski
         with_args_lifecycle do
           trigger_execution_and_wait
           raise @error if @error # steep:ignore
+
           @result
         end
       end
@@ -131,88 +133,92 @@ module Taski
         with_args_lifecycle do
           trigger_execution_and_wait
           raise @error if @error # steep:ignore
+
           @task.public_send(method_name)
         end
       end
 
-      # Called by Executor to mark task as running
+      # Called by Executor to mark task as running.
+      # Notifies observers of the state transition.
       def mark_running
+        timestamp = nil
         @monitor.synchronize do
           return false unless @state == STATE_PENDING
+
           @state = STATE_RUNNING
           @timing = TaskTiming.start_now
-          true
+          timestamp = @timing.start_time
         end
+        notify_state_transition(:pending, :running, timestamp)
+        true
       end
 
       # Called by Executor after task.run completes successfully
       # @param result [Object] The result of task execution
       def mark_completed(result)
         @timing = @timing&.with_end_now
+        timestamp = Time.now
         @monitor.synchronize do
           @result = result
           @state = STATE_COMPLETED
           @condition.broadcast
         end
-        update_progress(:completed, duration: @timing&.duration_ms)
+        notify_state_transition(:running, :completed, timestamp)
       end
 
-      # Called by Executor when task.run raises an error
-      ##
-      # Marks the task as failed and records the error.
-      # Records the provided error, sets the task state to completed, updates the timing end time, notifies threads waiting for completion, and reports the failure to the execution context.
-      # @param [Exception] error - The exception raised during task execution.
+      # Called by Executor when task.run raises an error.
+      # @param error [Exception] The exception raised during task execution.
       def mark_failed(error)
         @timing = @timing&.with_end_now
+        timestamp = Time.now
         @monitor.synchronize do
           @error = error
           @state = STATE_COMPLETED
           @condition.broadcast
         end
-        update_progress(:failed, error: error)
+        notify_state_transition(:running, :failed, timestamp, error: error)
       end
 
-      # Called by Executor to mark clean as running
-      ##
-      # Mark the task's cleanup state as running and start timing.
-      # @return [Boolean] `true` if the clean state was changed from pending to running, `false` otherwise.
+      # Called by Executor to mark clean as running.
+      # Notifies observers of the state transition.
+      # @return [Boolean] true if state changed, false otherwise
       def mark_clean_running
+        timestamp = nil
         @monitor.synchronize do
           return false unless @clean_state == STATE_PENDING
+
           @clean_state = STATE_RUNNING
           @clean_timing = TaskTiming.start_now
-          true
+          timestamp = @clean_timing.start_time
         end
+        notify_state_transition(:pending, :running, timestamp)
+        true
       end
 
-      # Called by Executor after clean completes
-      ##
-      # Marks the cleanup run as completed, stores the cleanup result, sets the clean state to COMPLETED,
-      # notifies any waiters, and reports completion to observers.
-      # @param [Object] result - The result of the cleanup operation.
+      # Called by Executor after clean completes.
+      # @param result [Object] The result of the cleanup operation.
       def mark_clean_completed(result)
         @clean_timing = @clean_timing&.with_end_now
+        timestamp = Time.now
         @monitor.synchronize do
           @clean_result = result
           @clean_state = STATE_COMPLETED
           @clean_condition.broadcast
         end
-        update_clean_progress(:clean_completed, duration: @clean_timing&.duration_ms)
+        notify_state_transition(:running, :completed, timestamp)
       end
 
-      # Called by Executor when clean raises an error
-      ##
-      # Marks the cleanup as failed by storing the cleanup error, transitioning the cleanup state to completed,
-      # notifying any waiters, and reports failure to observers.
-      # @param [Exception] error - The exception raised during the cleanup run.
+      # Called by Executor when clean raises an error.
+      # @param error [Exception] The exception raised during the cleanup.
       def mark_clean_failed(error)
         @clean_timing = @clean_timing&.with_end_now
+        timestamp = Time.now
         @monitor.synchronize do
           @clean_error = error
           @clean_state = STATE_COMPLETED
           @clean_condition.broadcast
         end
-        update_clean_progress(:clean_failed, duration: @clean_timing&.duration_ms, error: error)
+        notify_state_transition(:running, :failed, timestamp, error: error)
       end
 
       ##
@@ -321,21 +327,21 @@ module Taski
           end
         end
 
-        if should_execute
-          # Execute outside the lock to avoid deadlock
-          context = ensure_execution_context
-          trigger.call(context)
-          # After execution returns, the task is completed
-        end
+        return unless should_execute
+
+        # Execute outside the lock to avoid deadlock
+        context = ensure_execution_context
+        trigger.call(context)
+        # After execution returns, the task is completed
       end
 
       ##
       # Checks whether the registry has requested an abort and raises an exception to stop starting new tasks.
       # @raise [Taski::TaskAbortException] if `@registry.abort_requested?` is true — raised with the message "Execution aborted - no new tasks will start".
       def check_abort!
-        if @registry.abort_requested?
-          raise Taski::TaskAbortException, "Execution aborted - no new tasks will start"
-        end
+        return unless @registry.abort_requested?
+
+        raise Taski::TaskAbortException, "Execution aborted - no new tasks will start"
       end
 
       ##
@@ -357,47 +363,36 @@ module Taski
         context.add_observer(progress) if progress
 
         # Add logger observer if logging is enabled
-        if Taski.logger
-          context.add_observer(Taski::Logging::LoggerObserver.new)
-        end
+        context.add_observer(Taski::Logging::LoggerObserver.new) if Taski.logger
 
         # Set triggers to reuse this context for nested executions
-        context.execution_trigger = ->(task_class, registry) do
+        context.execution_trigger = lambda { |task_class, registry|
           Executor.execute(task_class, registry: registry, execution_context: context)
-        end
-        context.clean_trigger = ->(task_class, registry) do
+        }
+        context.clean_trigger = lambda { |task_class, registry|
           Executor.execute_clean(task_class, registry: registry, execution_context: context)
-        end
+        }
 
         context
       end
 
-      ##
-      # Notifies the execution context of task completion or failure.
-      # Falls back to getting the current context if not set during initialization.
-      # @param state [Symbol] The completion state (unused, kept for API consistency).
-      # @param duration [Numeric, nil] The execution duration in milliseconds.
-      # @param error [Exception, nil] The error if the task failed.
-      def update_progress(state, duration: nil, error: nil)
+      # Notifies observers of a task state transition using the unified event.
+      # @param previous_state [Symbol] The previous state (:pending or :running)
+      # @param current_state [Symbol] The new state (:running, :completed, or :failed)
+      # @param timestamp [Time] When the transition occurred
+      # @param error [Exception, nil] The error if state is :failed
+      def notify_state_transition(previous_state, current_state, timestamp, error: nil)
         # Defensive fallback: try to get current context if not set during initialization
         @execution_context ||= ExecutionContext.current
         return unless @execution_context
 
-        @execution_context.notify_task_completed(@task.class, duration: duration, error: error)
-      end
-
-      ##
-      # Notifies the execution context of clean completion or failure.
-      # Falls back to getting the current context if not set during initialization.
-      # @param state [Symbol] The clean state (unused, kept for API consistency).
-      # @param duration [Numeric, nil] The clean duration in milliseconds.
-      # @param error [Exception, nil] The error if the clean failed.
-      def update_clean_progress(state, duration: nil, error: nil)
-        # Defensive fallback: try to get current context if not set during initialization
-        @execution_context ||= ExecutionContext.current
-        return unless @execution_context
-
-        @execution_context.notify_clean_completed(@task.class, duration: duration, error: error)
+        @execution_context.notify_task_updated(
+          @task.class,
+          previous_state: previous_state,
+          current_state: current_state,
+          timestamp: timestamp,
+          error: error
+        )
       end
 
       ##
@@ -405,6 +400,7 @@ module Taski
       # @param message [String] The debug message to output.
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
+
         puts "[TaskWrapper] #{message}"
       end
     end

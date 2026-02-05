@@ -16,7 +16,7 @@ class TestSection < Minitest::Test
   def test_nested_class_inherits_interfaces
     # After Section execution, the implementation class has interface methods
     NestedSection.run
-    assert_equal [:host, :port], NestedSection::LocalDB.exported_methods
+    assert_equal %i[host port], NestedSection::LocalDB.exported_methods
   end
 
   # Test Section with nested implementation works end-to-end

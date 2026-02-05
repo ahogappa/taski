@@ -68,7 +68,7 @@ class TestThemeDrop < Minitest::Test
   def test_drop_works_with_custom_theme
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def color_red
-        "\e[91m"  # bright red
+        "\e[91m" # bright red
       end
 
       def spinner_frames
@@ -245,8 +245,8 @@ class TestExecutionDrop < Minitest::Test
   end
 
   def test_exposes_task_names
-    drop = Taski::Progress::Layout::ExecutionDrop.new(task_names: ["TaskA", "TaskB"])
-    assert_equal ["TaskA", "TaskB"], drop.invoke_drop("task_names")
+    drop = Taski::Progress::Layout::ExecutionDrop.new(task_names: %w[TaskA TaskB])
+    assert_equal %w[TaskA TaskB], drop.invoke_drop("task_names")
   end
 
   def test_nil_values_for_unset_attributes

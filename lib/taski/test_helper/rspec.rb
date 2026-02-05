@@ -28,10 +28,10 @@ module Taski
         base.include(Taski::TestHelper)
 
         # Add before/after hooks when included in RSpec
-        if base.respond_to?(:before) && base.respond_to?(:after)
-          base.before(:each) { Taski::TestHelper.reset_mocks! }
-          base.after(:each) { Taski::TestHelper.reset_mocks! }
-        end
+        return unless base.respond_to?(:before) && base.respond_to?(:after)
+
+        base.before(:each) { Taski::TestHelper.reset_mocks! }
+        base.after(:each) { Taski::TestHelper.reset_mocks! }
       end
     end
   end

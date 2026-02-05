@@ -77,6 +77,7 @@ module Taski
         #   # "MyModule::MyTask" => "MyTask"
         def short_name(input)
           return "" if input.nil?
+
           input.to_s.split("::").last || input.to_s
         end
 

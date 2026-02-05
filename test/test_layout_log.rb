@@ -139,7 +139,7 @@ class TestLayoutLog < Minitest::Test
     @layout.stop
 
     # Check for completion message
-    assert_match(/\[TASKI\] Completed: 1\/1 tasks \(\d+ms\)/, @output.string)
+    assert_match(%r{\[TASKI\] Completed: 1/1 tasks \(\d+ms\)}, @output.string)
   end
 
   def test_outputs_execution_fail_when_tasks_failed
@@ -154,7 +154,7 @@ class TestLayoutLog < Minitest::Test
     @layout.update_task(task2, state: :failed, error: StandardError.new("oops"))
     @layout.stop
 
-    assert_match(/\[TASKI\] Failed: 1\/2 tasks \(\d+ms\)/, @output.string)
+    assert_match(%r{\[TASKI\] Failed: 1/2 tasks \(\d+ms\)}, @output.string)
   end
 
   # === Section impl registration ===

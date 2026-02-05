@@ -64,7 +64,7 @@ class TestUserAbort < Minitest::Test
 
     # Both tasks should have started execution
     # (Task B runs but fails when accessing A's value)
-    assert_equal [:task_b, :task_a].sort, executed_tasks.sort
+    assert_equal %i[task_b task_a].sort, executed_tasks.sort
   end
 
   # Test abort message is preserved through the exception chain

@@ -82,8 +82,8 @@ class TestLayoutBase < Minitest::Test
     @layout.register_task(task_class)
     @layout.update_task(task_class, state: :completed, duration: 100)
     @layout.update_task(task_class, state: :cleaning)
-    # Clean state should be tracked
-    assert_equal :cleaning, @layout.task_state(task_class)
+    # Clean state should be tracked (Phase 1: unified to :running)
+    assert_equal :running, @layout.task_state(task_class)
   end
 
   def test_update_task_clean_completed_state
@@ -92,14 +92,15 @@ class TestLayoutBase < Minitest::Test
     @layout.update_task(task_class, state: :completed, duration: 100)
     @layout.update_task(task_class, state: :cleaning)
     @layout.update_task(task_class, state: :clean_completed, duration: 50)
-    assert_equal :clean_completed, @layout.task_state(task_class)
+    # Phase 1: unified to :completed
+    assert_equal :completed, @layout.task_state(task_class)
   end
 
   # === Nest level management ===
 
   def test_start_and_stop_manage_nest_level
     @layout.start
-    @layout.start  # Nested call
+    @layout.start # Nested call
     @layout.stop
     # First stop shouldn't finalize
     @layout.stop
@@ -245,7 +246,7 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
   def test_render_template_string_uses_custom_theme_colors
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def color_red
-        "\e[91m"  # bright red
+        "\e[91m" # bright red
       end
     end.new
 
@@ -260,7 +261,7 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
     initial_index = @layout.spinner_index
 
     # Poll for spinner index change with timeout (more robust than fixed sleep)
-    timeout = 1.0  # 1 second timeout
+    timeout = 1.0 # 1 second timeout
     start_time = Time.now
     new_index = initial_index
     while new_index == initial_index && (Time.now - start_time) < timeout

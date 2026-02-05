@@ -50,7 +50,7 @@ module Taski
         end
 
         # Simple layout uses periodic status line updates instead of per-event output
-        def on_task_updated(_task_class, _state, _duration, _error)
+        def render_task_state_change(_task_class, _state, _duration, _error)
           # No per-event output; status line is updated by render_live
         end
 
@@ -69,6 +69,7 @@ module Taski
           @renderer_thread = Thread.new do
             loop do
               break unless @running_mutex.synchronize { @running }
+
               render_live
               sleep @theme.render_interval
             end
@@ -110,7 +111,7 @@ module Taski
           @monitor.synchronize do
             line = build_status_line
             # Truncate line to terminal width to prevent line wrap
-            max_width = terminal_width - 1  # Leave space for cursor
+            max_width = terminal_width - 1 # Leave space for cursor
             line = line[0, max_width] if line.length > max_width
             # Clear line and write new content
             @output.print "\r\e[K#{line}"
@@ -127,9 +128,11 @@ module Taski
         def render_final
           @monitor.synchronize do
             line = if failed_count > 0
-              render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
+              render_execution_failed(failed_count: failed_count, total_count: total_count,
+                total_duration: total_duration)
             else
-              render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
+              render_execution_completed(completed_count: completed_count, total_count: total_count,
+                total_duration: total_duration)
             end
 
             @output.print "\r\e[K#{line}\n"

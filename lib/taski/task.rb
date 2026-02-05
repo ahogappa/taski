@@ -254,9 +254,7 @@ module Taski
         graph = StaticAnalysis::DependencyGraph.new.build_from(self)
         cyclic_components = graph.cyclic_components
 
-        if cyclic_components.any?
-          raise Taski::CircularDependencyError.new(cyclic_components)
-        end
+        raise Taski::CircularDependencyError.new(cyclic_components) if cyclic_components.any?
 
         @circular_dependency_checked = true
       end
@@ -268,9 +266,9 @@ module Taski
       def validate_workers!(workers)
         return if workers.nil?
 
-        unless workers.is_a?(Integer) && workers >= 1
-          raise ArgumentError, "workers must be a positive integer or nil, got: #{workers.inspect}"
-        end
+        return if workers.is_a?(Integer) && workers >= 1
+
+        raise ArgumentError, "workers must be a positive integer or nil, got: #{workers.inspect}"
       end
     end
 
@@ -299,7 +297,7 @@ module Taski
 
       if write_io && !opts.key?(:out)
         # Redirect subprocess output to the task's pipe (stderr merged into stdout)
-        Kernel.system(*args, out: write_io, err: [:child, :out], **opts)
+        Kernel.system(*args, out: write_io, err: %i[child out], **opts)
       else
         # No capture active or user provided custom :out, use normal system
         Kernel.system(*args, **opts)

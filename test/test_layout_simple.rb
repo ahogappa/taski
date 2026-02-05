@@ -333,10 +333,10 @@ class TestLayoutSimpleWithTreeProgressDisplay < Minitest::Test
 
   def test_tree_building_uses_tree_progress_display_method
     # If TreeProgressDisplay is available, it should use its tree building
-    if defined?(Taski::Execution::TreeProgressDisplay)
-      root = Taski::Task
-      # Just verify it doesn't crash when TreeProgressDisplay is available
-      @layout.set_root_task(root)
-    end
+    return unless defined?(Taski::Execution::TreeProgressDisplay)
+
+    root = Taski::Task
+    # Just verify it doesn't crash when TreeProgressDisplay is available
+    @layout.set_root_task(root)
   end
 end

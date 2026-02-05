@@ -79,6 +79,7 @@ module Taski
           @monitor.synchronize do
             @nest_level -= 1 if @nest_level > 0
             return unless @nest_level == 0
+
             was_active = @active
             non_tty_was_started = @non_tty_started
             @active = false
@@ -102,8 +103,8 @@ module Taski
 
         # In TTY mode, tree is updated by render_live periodically.
         # In non-TTY mode, output lines immediately with tree prefix.
-        def on_task_updated(task_class, state, duration, error)
-          return if @active  # TTY mode: skip per-event output
+        def render_task_state_change(task_class, state, duration, error)
+          return if @active # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
           text = render_for_task_event(task_class, state, duration, error)
@@ -111,7 +112,7 @@ module Taski
         end
 
         def on_group_updated(task_class, group_name, state, duration, error)
-          return if @active  # TTY mode: skip per-event output
+          return if @active # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
           text = render_for_group_event(task_class, group_name, state, duration, error)
@@ -129,6 +130,7 @@ module Taski
           @renderer_thread = Thread.new do
             loop do
               break unless @running_mutex.synchronize { @running }
+
               render_live
               sleep @theme.render_interval
             end
@@ -204,6 +206,7 @@ module Taski
 
         def clear_previous_output
           return if @last_line_count == 0
+
           # Move cursor up and clear lines
           @output.print "\e[#{@last_line_count}A\e[J"
         end

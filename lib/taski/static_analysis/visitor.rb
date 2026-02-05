@@ -115,9 +115,7 @@ module Taski
       # Collect all method definitions in the target class for later analysis
       def collect_method_definitions(class_node)
         class_node.body&.body&.each do |node|
-          if node.is_a?(Prism::DefNode)
-            @class_method_defs[node.name] = node
-          end
+          @class_method_defs[node.name] = node if node.is_a?(Prism::DefNode)
         end
       end
 

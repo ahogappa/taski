@@ -191,6 +191,7 @@ module Taski
   def self.start_env(root_task:)
     @env_monitor.synchronize do
       return false if @env
+
       @env = Env.new(root_task: root_task)
       true
     end
@@ -222,6 +223,7 @@ module Taski
   def self.start_args(options:)
     @args_monitor.synchronize do
       return false if @args
+
       @args = Args.new(options: options)
       true
     end
@@ -253,6 +255,7 @@ module Taski
   # - TASKI_PROGRESS_MODE=simple|tree: Set display mode (default: tree)
   def self.progress_display
     return nil if progress_disabled?
+
     @progress_display ||= create_progress_display
   end
 

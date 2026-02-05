@@ -2,6 +2,7 @@
 
 require "monitor"
 require_relative "task_output_router"
+require_relative "task_observer"
 
 module Taski
   module Execution
@@ -81,6 +82,34 @@ module Taski
         @output_capture = nil
         @original_stdout = nil
         @runtime_dependencies = {}
+
+        # Phase 2: Pull API state
+        @current_phase = nil
+        @root_task_class = nil
+        @dependency_graph = nil
+      end
+
+      # ========================================
+      # Pull API (Phase 2)
+      # ========================================
+
+      # Current execution phase (:run or :clean)
+      # @return [Symbol, nil] The current phase or nil if not set
+      attr_accessor :current_phase
+
+      # The root task class being executed
+      # @return [Class, nil] The root task class or nil if not set
+      attr_accessor :root_task_class
+
+      # Static dependency graph for the execution
+      # @return [StaticAnalysis::DependencyGraph, nil] The dependency graph or nil if not set
+      attr_accessor :dependency_graph
+
+      # Get the output stream (OutputHub) for captured output
+      # Alias for output_capture, provides Pull API naming consistency
+      # @return [TaskOutputRouter, nil] The output stream or nil if not capturing
+      def output_stream
+        @monitor.synchronize { @output_capture }
       end
 
       # Check if output capture is already active.
@@ -235,6 +264,8 @@ module Taski
       #
       # @param observer [Object] The observer to add
       def add_observer(observer)
+        # Inject context for TaskObserver subclasses (Pull API support)
+        observer.context = self if observer.respond_to?(:context=)
         @monitor.synchronize { @observers << observer }
       end
 
@@ -359,6 +390,40 @@ module Taski
       def notify_group_completed(task_class, group_name, duration: nil, error: nil)
         state = error ? :failed : :completed
         dispatch(:update_group, task_class, group_name, state: state, duration: duration, error: error)
+      end
+
+      # ========================================
+      # New Unified Events (Phase 3)
+      # ========================================
+
+      # Notify observers that execution is ready.
+      # Called when root task and dependencies have been resolved.
+      # Observers can pull initial state from context in on_ready.
+      def notify_ready
+        dispatch(:on_ready)
+      end
+
+      # Notify observers that a phase has started.
+      # @param phase [Symbol] :run or :clean
+      def notify_phase_started(phase)
+        dispatch(:on_phase_started, phase)
+      end
+
+      # Notify observers that a phase has completed.
+      # @param phase [Symbol] :run or :clean
+      def notify_phase_completed(phase)
+        dispatch(:on_phase_completed, phase)
+      end
+
+      # Notify observers of a task state transition.
+      # @param task_class [Class] The task class
+      # @param previous_state [Symbol] The previous state
+      # @param current_state [Symbol] The new state
+      # @param timestamp [Time] When the transition occurred
+      # @param error [Exception, nil] The error if state is :failed
+      def notify_task_updated(task_class, previous_state:, current_state:, timestamp:, error: nil)
+        dispatch(:on_task_updated, task_class,
+          previous_state: previous_state, current_state: current_state, timestamp: timestamp, error: error)
       end
 
       private

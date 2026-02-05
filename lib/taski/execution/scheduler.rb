@@ -45,10 +45,10 @@ module Taski
       STATE_ENQUEUED = :enqueued
       STATE_COMPLETED = :completed
 
-      # Clean execution states (independent from run states)
-      CLEAN_STATE_PENDING = :clean_pending
-      CLEAN_STATE_ENQUEUED = :clean_enqueued
-      CLEAN_STATE_COMPLETED = :clean_completed
+      # Clean execution states (unified with run states: same state names, separate tracking)
+      CLEAN_STATE_PENDING = :pending
+      CLEAN_STATE_ENQUEUED = :enqueued
+      CLEAN_STATE_COMPLETED = :completed
 
       ##
       # Initializes internal data structures used to track normal and clean task execution.
@@ -111,6 +111,7 @@ module Taski
         @task_states.each_key do |task_class|
           next unless @task_states[task_class] == STATE_PENDING
           next unless ready_to_execute?(task_class)
+
           ready << task_class
         end
         ready
@@ -277,6 +278,7 @@ module Taski
         @clean_task_states.each_key do |task_class|
           next unless @clean_task_states[task_class] == CLEAN_STATE_PENDING
           next unless ready_to_clean?(task_class)
+
           ready << task_class
         end
         ready

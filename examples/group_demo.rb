@@ -32,7 +32,7 @@ class BuildTask < Taski::Task
   exports :artifacts
 
   def run
-    ConfigTask.config  # Ensure config is loaded
+    ConfigTask.config # Ensure config is loaded
 
     group("Compiling source") do
       puts "Analyzing dependencies..."

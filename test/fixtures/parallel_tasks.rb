@@ -44,7 +44,7 @@ class ParallelTaskA < Taski::Task
   exports :task_a_value
 
   def run
-    @task_a_value = "TaskA value #{rand(10000)}"
+    @task_a_value = "TaskA value #{rand(10_000)}"
   end
 end
 
@@ -651,8 +651,10 @@ module LazyDependencyTest
     def executed_before_impl?(task_name)
       @mutex.synchronize do
         return false unless @impl_call_order
+
         task_entry = @executed_tasks.find { |entry| entry[:name] == task_name }
         return false unless task_entry
+
         task_entry[:time] < @impl_call_order
       end
     end

@@ -216,6 +216,7 @@ class TestLogging < Minitest::Test
     log_output.lines.map do |line|
       json_part = extract_json_from_log_line(line)
       next unless json_part
+
       JSON.parse(json_part)
     end.compact
   end

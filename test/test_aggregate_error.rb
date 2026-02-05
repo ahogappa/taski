@@ -102,7 +102,8 @@ class TestAggregateError < Minitest::Test
     end
 
     aggregate = Taski::AggregateError.new([
-      Taski::TaskFailure.new(task_class: String, error: custom_error_class.new("Custom error"))
+      Taski::TaskFailure.new(task_class: String,
+        error: custom_error_class.new("Custom error"))
     ])
 
     # The custom error class should match AggregateError via ===
@@ -116,7 +117,8 @@ class TestAggregateError < Minitest::Test
     end
 
     aggregate = Taski::AggregateError.new([
-      Taski::TaskFailure.new(task_class: String, error: RuntimeError.new("Runtime"))
+      Taski::TaskFailure.new(task_class: String,
+        error: RuntimeError.new("Runtime"))
     ])
 
     # Should not match because aggregate doesn't contain custom_error_class
@@ -143,7 +145,8 @@ class TestAggregateError < Minitest::Test
     end
 
     aggregate = Taski::AggregateError.new([
-      Taski::TaskFailure.new(task_class: String, error: custom_error_class.new("Test"))
+      Taski::TaskFailure.new(task_class: String,
+        error: custom_error_class.new("Test"))
     ])
 
     rescued = false
@@ -441,6 +444,6 @@ class TestAggregateError < Minitest::Test
     refute_empty error.errors
     # The error should be from task A (the one that actually failed)
     error_messages = error.errors.map { |e| e.error.message }
-    assert error_messages.any? { |m| m.include?("Task A failed") }
+    assert(error_messages.any? { |m| m.include?("Task A failed") })
   end
 end

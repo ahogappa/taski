@@ -50,7 +50,7 @@ class TestParallelExecution < Minitest::Test
       exports :value
 
       def run
-        @value = "value_#{rand(10000)}"
+        @value = "value_#{rand(10_000)}"
       end
     end
 
@@ -66,7 +66,7 @@ class TestParallelExecution < Minitest::Test
       exports :value
 
       def run
-        @value = "value_#{rand(10000)}"
+        @value = "value_#{rand(10_000)}"
       end
     end
 
@@ -83,7 +83,7 @@ class TestParallelExecution < Minitest::Test
       exports :value
 
       def run
-        @value = "value_#{rand(10000)}"
+        @value = "value_#{rand(10_000)}"
       end
     end
 
@@ -101,7 +101,7 @@ class TestParallelExecution < Minitest::Test
       exports :value
 
       def run
-        @value = "value_#{rand(10000)}"
+        @value = "value_#{rand(10_000)}"
       end
     end
 
@@ -188,7 +188,7 @@ class TestParallelExecution < Minitest::Test
         exports :value
 
         def run
-          @value = rand(10000)
+          @value = rand(10_000)
         end
       end)
     end
@@ -324,7 +324,7 @@ class TestParallelExecution < Minitest::Test
     ParallelChainStartTimes.reset
 
     # Verify dependencies
-    assert_equal ["ParallelChain1B", "ParallelChain2D"], ParallelChainFinal.cached_dependencies.map(&:name).sort
+    assert_equal %w[ParallelChain1B ParallelChain2D], ParallelChainFinal.cached_dependencies.map(&:name).sort
     assert_equal ["ParallelChain1A"], ParallelChain1B.cached_dependencies.map(&:name)
     assert_equal ["ParallelChain2C"], ParallelChain2D.cached_dependencies.map(&:name)
 
@@ -346,7 +346,8 @@ class TestParallelExecution < Minitest::Test
     # Start time difference should be minimal (< 50ms) if truly parallel
     # This is much more stable than checking total execution time
     start_time_diff = (chain1_start - chain2_start).abs
-    assert start_time_diff < 0.05, "Independent chains should start nearly simultaneously. Difference: #{(start_time_diff * 1000).round}ms"
+    assert start_time_diff < 0.05,
+      "Independent chains should start nearly simultaneously. Difference: #{(start_time_diff * 1000).round}ms"
   end
 
   def test_clean_execution_order
@@ -409,7 +410,7 @@ class TestParallelExecution < Minitest::Test
       exports :value
 
       def run
-        @value = "value_#{rand(10000)}"
+        @value = "value_#{rand(10_000)}"
       end
     end
 
@@ -630,10 +631,10 @@ class TestParallelExecution < Minitest::Test
     assert_equal "base_child", result
 
     # Run should execute base first, then child (dependency order)
-    assert_equal [:base, :child], RunAndCleanFixtures::RunOrder.order
+    assert_equal %i[base child], RunAndCleanFixtures::RunOrder.order
 
     # Clean should execute child first, then base (reverse dependency order)
-    assert_equal [:child, :base], RunAndCleanFixtures::CleanOrder.order
+    assert_equal %i[child base], RunAndCleanFixtures::CleanOrder.order
   end
 
   def test_run_and_clean_error_still_cleans

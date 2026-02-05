@@ -198,9 +198,9 @@ class TestExecutionContext < Minitest::Test
     context = Taski::Execution::ExecutionContext.new
     triggered_with = nil
 
-    context.execution_trigger = ->(task_class, registry) do
+    context.execution_trigger = lambda { |task_class, registry|
       triggered_with = {task_class: task_class, registry: registry}
-    end
+    }
 
     registry = Taski::Execution::Registry.new
     context.trigger_execution(String, registry: registry)
@@ -409,5 +409,65 @@ class TestExecutionContext < Minitest::Test
     classes.each do |cls|
       assert deps.key?(cls), "Expected #{cls} to have dependencies registered"
     end
+  end
+
+  # ========================================
+  # Phase 2: Pull API Tests
+  # ========================================
+
+  def test_current_phase_defaults_to_nil
+    context = Taski::Execution::ExecutionContext.new
+    assert_nil context.current_phase
+  end
+
+  def test_current_phase_can_be_set_to_run
+    context = Taski::Execution::ExecutionContext.new
+    context.current_phase = :run
+    assert_equal :run, context.current_phase
+  end
+
+  def test_current_phase_can_be_set_to_clean
+    context = Taski::Execution::ExecutionContext.new
+    context.current_phase = :clean
+    assert_equal :clean, context.current_phase
+  end
+
+  def test_root_task_class_defaults_to_nil
+    context = Taski::Execution::ExecutionContext.new
+    assert_nil context.root_task_class
+  end
+
+  def test_root_task_class_can_be_set
+    context = Taski::Execution::ExecutionContext.new
+    task_class = Class.new
+    context.root_task_class = task_class
+    assert_equal task_class, context.root_task_class
+  end
+
+  def test_dependency_graph_defaults_to_nil
+    context = Taski::Execution::ExecutionContext.new
+    assert_nil context.dependency_graph
+  end
+
+  def test_dependency_graph_can_be_injected
+    context = Taski::Execution::ExecutionContext.new
+    # Use a mock object as dependency graph
+    mock_graph = Object.new
+    context.dependency_graph = mock_graph
+    assert_equal mock_graph, context.dependency_graph
+  end
+
+  def test_output_stream_returns_output_capture
+    context = Taski::Execution::ExecutionContext.new
+    # Before output capture is set, output_stream should be nil
+    assert_nil context.output_stream
+
+    # After setting up output capture
+    output = StringIO.new
+    context.setup_output_capture(output)
+    refute_nil context.output_stream
+    assert_kind_of Taski::Execution::TaskOutputRouter, context.output_stream
+
+    context.teardown_output_capture
   end
 end

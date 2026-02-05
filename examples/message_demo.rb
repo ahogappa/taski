@@ -16,11 +16,11 @@ class ProcessDataTask < Taski::Task
   exports :processed_count
 
   def run
-    puts "Starting data processing..."  # Captured by TaskOutputRouter
+    puts "Starting data processing..." # Captured by TaskOutputRouter
 
     # Simulate processing
     5.times do |i|
-      puts "Processing batch #{i + 1}/5..."  # Captured
+      puts "Processing batch #{i + 1}/5..." # Captured
       sleep 0.3
     end
 
@@ -38,7 +38,7 @@ class GenerateReportTask < Taski::Task
   def run
     # Dependency: ProcessDataTask will be executed first
     count = ProcessDataTask.processed_count
-    puts "Generating report for #{count} items..."  # Captured
+    puts "Generating report for #{count} items..." # Captured
 
     sleep 0.5
 

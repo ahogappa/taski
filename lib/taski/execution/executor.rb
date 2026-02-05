@@ -112,6 +112,10 @@ module Taski
         @scheduler.build_dependency_graph(root_task_class)
 
         with_display_lifecycle(root_task_class) do
+          # Start run phase
+          @execution_context.current_phase = :run
+          @execution_context.notify_phase_started(:run)
+
           # Start worker threads
           @worker_pool.start
 
@@ -123,6 +127,9 @@ module Taski
 
           # Shutdown workers
           @worker_pool.shutdown
+
+          # End run phase
+          @execution_context.notify_phase_completed(:run)
         end
 
         log_execution_completed(root_task_class, start_time)
@@ -150,6 +157,10 @@ module Taski
         @scheduler.merge_runtime_dependencies(runtime_deps)
 
         with_display_lifecycle(root_task_class) do
+          # Start clean phase
+          @execution_context.current_phase = :clean
+          @execution_context.notify_phase_started(:clean)
+
           # Create a new worker pool for clean operations
           # Uses the same worker count as the run phase
           @clean_worker_pool = WorkerPool.new(
@@ -168,6 +179,9 @@ module Taski
 
           # Shutdown workers
           @clean_worker_pool.shutdown
+
+          # End clean phase
+          @execution_context.notify_phase_completed(:clean)
         end
 
         # Raise aggregated errors if any clean tasks failed
@@ -201,9 +215,7 @@ module Taski
           return
         end
 
-        @execution_context.notify_task_registered(task_class)
-        @execution_context.notify_task_started(task_class)
-
+        # Note: mark_running now notifies observers via notify_task_updated
         @worker_pool.enqueue(task_class, wrapper)
       end
 
@@ -286,8 +298,7 @@ module Taski
         wrapper = get_or_create_wrapper(task_class)
         return unless wrapper.mark_clean_running
 
-        @execution_context.notify_clean_started(task_class)
-
+        # Note: mark_clean_running now notifies observers via notify_task_updated
         @clean_worker_pool.enqueue(task_class, wrapper)
       end
 
@@ -325,7 +336,7 @@ module Taski
       # Continuously pops events from the internal completion queue and delegates them to the clean completion handler,
       # stopping early if an abort is requested and no clean tasks are running.
       # @param [Class] root_task_class - The root task class that defines the overall clean lifecycle.
-      def run_clean_main_loop(root_task_class)
+      def run_clean_main_loop(_root_task_class)
         # Find all tasks in the dependency graph
         # Continue until all tasks have been cleaned
         until all_tasks_cleaned?
@@ -433,20 +444,19 @@ module Taski
         context.add_observer(progress) if progress
 
         # Add logger observer if logging is enabled
-        if Taski.logger
-          context.add_observer(Taski::Logging::LoggerObserver.new)
-        end
+        context.add_observer(Taski::Logging::LoggerObserver.new) if Taski.logger
 
         # Set execution trigger to break circular dependency with TaskWrapper
-        context.execution_trigger = ->(task_class, registry) do
+        context.execution_trigger = lambda { |task_class, registry|
           Executor.execute(task_class, registry: registry, execution_context: context)
-        end
+        }
 
         context
       end
 
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
+
         puts "[Executor] #{message}"
       end
 

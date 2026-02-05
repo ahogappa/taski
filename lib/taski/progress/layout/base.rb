@@ -4,6 +4,7 @@ require "monitor"
 require "liquid"
 require_relative "../theme/default"
 require_relative "../../static_analysis/analyzer"
+require_relative "../../execution/task_observer"
 require_relative "filters"
 require_relative "tags"
 require_relative "theme_drop"
@@ -12,38 +13,40 @@ module Taski
   module Progress
     module Layout
       # Base class for layout implementations.
+      # Inherits from TaskObserver to receive execution events.
+      #
       # Layouts are responsible for:
-      # - Receiving events from ExecutionContext (Observer pattern)
+      # - Receiving events from ExecutionContext (Observer pattern via TaskObserver)
       # - Managing task state tracking
       # - Rendering templates using Liquid
       # - Handling screen output
       #
-      # === Event to Template Mapping ===
+      # === Event to Template Mapping (New Interface) ===
       #
       # ExecutionContext Event              | Layout Method              | Template Method
       # ------------------------------------|----------------------------|---------------------------
-      # notify_set_root_task                | set_root_task              | execution_start
-      # notify_start                        | start                      | (internal setup)
-      # notify_stop                         | stop                       | execution_complete/fail
-      # notify_task_registered              | register_task              | (state tracking)
-      # notify_task_started (:running)      | update_task                | task_start
-      # notify_task_completed (:completed)  | update_task                | task_success
-      # notify_task_completed (:failed)     | update_task                | task_fail
-      # notify_clean_started (:cleaning)    | update_task                | clean_start
-      # notify_clean_completed (:clean_*)   | update_task                | clean_success/fail
-      # notify_section_impl_selected        | register_section_impl      | (skip handling)
-      # notify_group_started                | update_group               | group_start
-      # notify_group_completed              | update_group               | group_success/fail
-      class Base
+      # notify_ready                        | on_ready                   | (initial setup)
+      # notify_start (on_start)             | start                      | (internal setup)
+      # notify_stop (on_stop)               | stop                       | execution_complete/fail
+      # notify_task_updated                 | on_task_updated            | task_start/success/fail
+      # notify_phase_started                | on_phase_started           | (phase tracking)
+      # notify_phase_completed              | on_phase_completed         | (phase tracking)
+      # notify_group_started                | on_group_started           | group_start
+      # notify_group_completed              | on_group_completed         | group_success/fail
+      #
+      # === Legacy Interface (for backward compatibility) ===
+      # update_task, register_task, etc. - kept for tests and gradual migration
+      class Base < Taski::Execution::TaskObserver
         # Internal class to track task state
         class TaskState
-          attr_accessor :run_state, :clean_state
-          attr_accessor :run_duration, :run_error
-          attr_accessor :clean_duration, :clean_error
+          attr_accessor :run_state, :clean_state, :run_duration, :run_error, :clean_duration, :clean_error
+          attr_accessor :run_started_at, :clean_started_at
 
           def initialize
             @run_state = :pending
             @clean_state = nil
+            @run_started_at = nil
+            @clean_started_at = nil
           end
 
           # Returns the most relevant state for display
@@ -82,6 +85,7 @@ module Taski
         def set_root_task(task_class)
           @monitor.synchronize do
             return if @root_task_class
+
             @root_task_class = task_class
             on_root_task_set
           end
@@ -95,6 +99,7 @@ module Taski
             @nest_level += 1
             return if @nest_level > 1
             return unless should_activate?
+
             @start_time = Time.now
             @active = true
             should_start = true
@@ -111,12 +116,14 @@ module Taski
           @monitor.synchronize do
             @nest_level -= 1 if @nest_level > 0
             return unless @nest_level == 0
+
             was_active = @active
             @active = false
             should_stop = true
           end
 
           return unless should_stop
+
           on_stop if was_active
           flush_queued_messages
         end
@@ -126,6 +133,7 @@ module Taski
         def register_task(task_class)
           @monitor.synchronize do
             return if @tasks.key?(task_class)
+
             @tasks[task_class] = TaskState.new
             on_task_registered(task_class)
           end
@@ -145,7 +153,7 @@ module Taski
           @monitor.synchronize { @tasks[task_class]&.state }
         end
 
-        # Update task state
+        # Update task state (old interface, kept for backward compatibility).
         # @param task_class [Class] The task class to update
         # @param state [Symbol] The new state (:running, :completed, :failed, :cleaning, :clean_completed, :clean_failed)
         # @param duration [Float, nil] Duration in milliseconds
@@ -155,7 +163,55 @@ module Taski
             progress = @tasks[task_class]
             progress ||= @tasks[task_class] = TaskState.new
             apply_state_transition(progress, state, duration, error)
-            on_task_updated(task_class, state, duration, error)
+            render_task_state_change(task_class, state, duration, error)
+          end
+        end
+
+        # New unified task state update interface (Phase 5).
+        # Receives state transitions from ExecutionContext.notify_task_updated.
+        # Uses context.current_phase to determine if this is run or clean phase.
+        # @param task_class [Class] The task class
+        # @param previous_state [Symbol] The previous state
+        # @param current_state [Symbol] The new state
+        # @param timestamp [Time] When the transition occurred
+        # @param error [Exception, nil] The error if state is :failed
+        def on_task_updated(task_class, previous_state:, current_state:, timestamp:, error: nil)
+          @monitor.synchronize do
+            progress = @tasks[task_class]
+            progress ||= @tasks[task_class] = TaskState.new
+
+            # Determine if this is run or clean phase
+            current_phase = context&.current_phase || :run
+
+            duration = nil
+            if current_phase == :clean
+              # Clean phase handling
+              if previous_state == :pending && current_state == :running
+                progress.clean_started_at = timestamp
+              elsif %i[completed failed].include?(current_state) && progress.clean_started_at
+                duration = ((timestamp - progress.clean_started_at) * 1000).round(1)
+              end
+
+              # Convert to old clean state names for apply_state_transition
+              old_state = case current_state
+              when :running then :cleaning
+              when :completed then :clean_completed
+              when :failed then :clean_failed
+              else current_state
+              end
+              apply_state_transition(progress, old_state, duration, error)
+              render_task_state_change(task_class, old_state, duration, error)
+            else
+              # Run phase handling
+              if previous_state == :pending && current_state == :running
+                progress.run_started_at = timestamp
+              elsif %i[completed failed].include?(current_state) && progress.run_started_at
+                duration = ((timestamp - progress.run_started_at) * 1000).round(1)
+              end
+
+              apply_state_transition(progress, current_state, duration, error)
+              render_task_state_change(task_class, current_state, duration, error)
+            end
           end
         end
 
@@ -167,9 +223,7 @@ module Taski
             @tasks[impl_class] ||= TaskState.new
 
             # Mark section itself as completed
-            if @tasks[section_class]
-              @tasks[section_class].run_state = :completed
-            end
+            @tasks[section_class].run_state = :completed if @tasks[section_class]
 
             mark_unselected_candidates_completed(section_class, impl_class)
             on_section_impl_registered(section_class, impl_class)
@@ -221,6 +275,7 @@ module Taski
         def start_spinner_timer
           @monitor.synchronize do
             return if @spinner_running
+
             @spinner_running = true
           end
 
@@ -228,6 +283,7 @@ module Taski
             loop do
               running = @monitor.synchronize { @spinner_running }
               break unless running
+
               sleep @theme.spinner_interval
               @monitor.synchronize do
                 @spinner_index = (@spinner_index + 1) % @theme.spinner_frames.size
@@ -257,9 +313,9 @@ module Taski
           # Default: no-op
         end
 
-        # Called when a task state is updated.
+        # Called internally when a task state is updated.
         # Default: render and output the event.
-        def on_task_updated(task_class, state, duration, error)
+        def render_task_state_change(task_class, state, duration, error)
           text = render_for_task_event(task_class, state, duration, error)
           output_line(text) if text
         end
@@ -286,6 +342,7 @@ module Taski
         # Default: output execution start message.
         def on_start
           return unless @root_task_class
+
           output_line(render_execution_started(@root_task_class))
         end
 
@@ -298,9 +355,11 @@ module Taski
         # Render execution summary based on current state (success or failure)
         def render_execution_summary
           if failed_count > 0
-            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count,
+              total_duration: total_duration)
           else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count,
+              total_duration: total_duration)
           end
         end
 
@@ -382,19 +441,22 @@ module Taski
 
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:, duration: task_duration)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:,
+            duration: task_duration)
           render_task_template(:group_success, task:, execution: execution_drop)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:, error_message: error&.message)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:,
+            error_message: error&.message)
           render_task_template(:group_fail, task:, execution: execution_drop)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
-          execution = ExecutionDrop.new(state: :running, root_task_name: task_class_name(root_task_class), **execution_context)
+          execution = ExecutionDrop.new(state: :running, root_task_name: task_class_name(root_task_class),
+                                        **execution_context)
           render_execution_template(:execution_start, execution:)
         end
 
@@ -496,7 +558,8 @@ module Taski
         end
 
         def cleaning_tasks
-          @tasks.select { |_, p| p.clean_state == :cleaning }
+          # Phase 1: clean_state now uses unified :running value
+          @tasks.select { |_, p| p.clean_state == :running }
         end
 
         def pending_tasks
@@ -516,7 +579,7 @@ module Taski
         end
 
         def done_count
-          @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
+          @tasks.values.count { |p| %i[completed failed].include?(p.run_state) }
         end
 
         def completed_count
@@ -540,6 +603,7 @@ module Taski
         # Get full name of a task class (for use with short_name filter in templates)
         def task_class_name(task_class)
           return nil unless task_class
+
           task_class.name || task_class.to_s
         end
 
@@ -607,6 +671,7 @@ module Taski
             progress.run_state = :pending
           when :running
             return if run_state_finalized?(progress)
+
             progress.run_state = :running
           when :completed
             progress.run_state = :completed
@@ -615,25 +680,28 @@ module Taski
             progress.run_state = :failed
             progress.run_error = error if error
           when :cleaning
-            progress.clean_state = :cleaning
+            # Phase 1: unified clean state values (same as run state names)
+            progress.clean_state = :running
           when :clean_completed
-            progress.clean_state = :clean_completed
+            progress.clean_state = :completed
             progress.clean_duration = duration if duration
           when :clean_failed
-            progress.clean_state = :clean_failed
+            progress.clean_state = :failed
             progress.clean_error = error if error
           end
         end
 
         def run_state_finalized?(progress)
-          progress.run_state == :completed || progress.run_state == :failed
+          %i[completed failed].include?(progress.run_state)
         end
 
         def collect_dependencies_recursive(task_class, collected)
           return if collected.include?(task_class)
+
           collected.add(task_class)
 
           return unless task_class.respond_to?(:cached_dependencies)
+
           task_class.cached_dependencies.each do |dep|
             collect_dependencies_recursive(dep, collected)
           end
@@ -647,6 +715,7 @@ module Taski
 
           candidates.each do |candidate|
             next if candidate == impl_class
+
             mark_subtree_completed(subtrees[candidate], exclude: selected_deps)
           end
         end

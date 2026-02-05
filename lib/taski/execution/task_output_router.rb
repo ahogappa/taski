@@ -38,12 +38,14 @@ module Taski
       def start_polling
         synchronize do
           return if @polling
+
           @polling = true
         end
 
         @poll_thread = Thread.new do
           loop do
             break unless @polling
+
             poll
             sleep POLL_INTERVAL
           end
@@ -226,8 +228,10 @@ module Taski
         synchronize do
           task_class = @thread_map[Thread.current]
           return nil unless task_class
+
           pipe = @pipes[task_class]
           return nil if pipe.nil? || pipe.write_closed?
+
           pipe.write_io
         end
       end
@@ -247,6 +251,7 @@ module Taski
         synchronize do
           task_class = @thread_map[Thread.current]
           return nil unless task_class
+
           @pipes[task_class]
         end
       end
@@ -281,6 +286,7 @@ module Taski
 
       def debug_log(message)
         return unless ENV["TASKI_DEBUG"]
+
         warn "[TaskOutputRouter] #{message}"
       end
     end
