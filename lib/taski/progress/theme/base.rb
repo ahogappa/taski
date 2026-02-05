@@ -41,6 +41,10 @@ module Taski
           "[FAIL] {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
+        def task_skipped
+          "[SKIP] {{ task.name | short_name }}"
+        end
+
         # === Clean lifecycle templates ===
 
         def clean_start

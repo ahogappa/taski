@@ -37,6 +37,11 @@ module Taski
         def task_fail
           "{% icon %} {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
+
+        # Task skipped with icon
+        def task_skipped
+          "{% icon %} {{ task.name | short_name }}"
+        end
       end
     end
   end

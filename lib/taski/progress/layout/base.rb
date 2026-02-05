@@ -731,7 +731,7 @@ module Taski
 
         def mark_task_as_skipped(task_class)
           progress = @tasks[task_class]
-          progress.run_state = :completed if progress&.run_state == :pending
+          progress.run_state = :skipped if progress&.run_state == :pending
         end
 
         # === Tree building helpers ===

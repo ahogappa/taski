@@ -85,20 +85,20 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert_equal :completed, @display.task_state(NestedSection)
   end
 
-  def test_register_section_impl_marks_unselected_candidates_as_completed
+  def test_register_section_impl_marks_unselected_candidates_as_skipped
     # Use LazyDependencyTest::MySection which references both OptionA and OptionB in impl
     @display.set_root_task(LazyDependencyTest::MySection)
     @display.register_section_impl(
       LazyDependencyTest::MySection,
       LazyDependencyTest::MySection::OptionB
     )
-    # Unselected candidate (OptionA) should be marked as completed (skipped)
-    assert_equal :completed, @display.task_state(LazyDependencyTest::MySection::OptionA)
+    # Unselected candidate (OptionA) should be marked as skipped
+    assert_equal :skipped, @display.task_state(LazyDependencyTest::MySection::OptionA)
     # Selected impl should remain in its current state (pending until actually run)
     assert_equal :pending, @display.task_state(LazyDependencyTest::MySection::OptionB)
   end
 
-  def test_register_section_impl_marks_unselected_candidate_descendants_as_completed
+  def test_register_section_impl_marks_unselected_candidate_descendants_as_skipped
     # Use LazyDependencyTest::MySection which has:
     # - OptionA (depends on ExpensiveTask)
     # - OptionB (depends on CheapTask)
@@ -107,8 +107,8 @@ class TestSimpleProgressDisplay < Minitest::Test
       LazyDependencyTest::MySection,
       LazyDependencyTest::MySection::OptionB
     )
-    # OptionA's dependency (ExpensiveTask) should also be marked as completed (skipped)
-    assert_equal :completed, @display.task_state(LazyDependencyTest::ExpensiveTask)
+    # OptionA's dependency (ExpensiveTask) should also be marked as skipped
+    assert_equal :skipped, @display.task_state(LazyDependencyTest::ExpensiveTask)
     # OptionB's dependency (CheapTask) should remain pending (will be executed)
     assert_equal :pending, @display.task_state(LazyDependencyTest::CheapTask)
   end

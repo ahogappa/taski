@@ -70,6 +70,20 @@ class TestTheme < Minitest::Test
     assert_includes rendered, "[FAIL] MyTask: Something went wrong"
   end
 
+  # === Skipped state ===
+
+  def test_task_skipped_returns_liquid_template_string
+    result = @theme.task_skipped
+    assert_includes result, "{{ task.name | short_name }}"
+  end
+
+  def test_task_skipped_renders_with_task_name
+    template_string = @theme.task_skipped
+    rendered = render_template(template_string, "task_name" => "MyTask")
+    assert_includes rendered, "MyTask"
+    assert_includes rendered, "[SKIP]"
+  end
+
   # === Clean lifecycle templates ===
 
   def test_clean_start_returns_liquid_template_string
@@ -382,6 +396,17 @@ class TestThemeDetail < Minitest::Test
     assert_includes rendered, "✗"
     assert_includes rendered, "MyTask"
     refute_includes rendered, ":"
+  end
+
+  # === Task skipped with icon ===
+
+  def test_task_skipped_renders_with_icon
+    template_string = @theme.task_skipped
+    rendered = render_template(template_string,
+      "task_name" => "MyTask",
+      "state" => "skipped")
+    assert_includes rendered, "○"
+    assert_includes rendered, "MyTask"
   end
 
   private

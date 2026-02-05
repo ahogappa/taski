@@ -132,6 +132,34 @@ class TestLayoutBase < Minitest::Test
     assert @layout.task_registered?(impl_class)
   end
 
+  # === Skipped state ===
+
+  def test_unselected_section_candidate_becomes_skipped
+    # Setup: Section with two candidates
+    section_class = Class.new { def self.name = "TestSection" }
+    candidate_a = Class.new { def self.name = "CandidateA" }
+    candidate_b = Class.new { def self.name = "CandidateB" }
+
+    # Simulate tree structure with section candidates
+    @layout.register_task(section_class)
+    @layout.register_task(candidate_a)
+    @layout.register_task(candidate_b)
+
+    # Register section candidates (normally done during tree building)
+    @layout.instance_variable_get(:@section_candidates)[section_class] = [candidate_a, candidate_b]
+    @layout.instance_variable_get(:@section_candidate_subtrees)[section_class] = {
+      candidate_a => {task_class: candidate_a, children: []},
+      candidate_b => {task_class: candidate_b, children: []}
+    }
+
+    # When section selects candidate_a
+    @layout.register_section_impl(section_class, candidate_a)
+
+    # Then candidate_b should be skipped (not completed)
+    assert_equal :skipped, @layout.task_state(candidate_b),
+      "Unselected candidate should have :skipped state, not :completed"
+  end
+
   # === Message queue ===
 
   def test_queue_message_stores_message
