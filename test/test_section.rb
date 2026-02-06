@@ -357,3 +357,84 @@ class TestSection < Minitest::Test
       NestedExecutorFixtures::RaceConditionTask.output
   end
 end
+
+# ========================================
+# Section skipped notification tests
+# ========================================
+class TestSectionSkippedNotification < Minitest::Test
+  def setup
+    Taski::Task.reset!
+    @facade = Taski::Execution::ExecutionFacade.new
+    @events = []
+    @observer = create_recording_observer
+    @facade.add_observer(@observer)
+  end
+
+  def teardown
+    Taski::Task.reset!
+    Taski::Execution::ExecutionFacade.current = nil
+  end
+
+  def test_section_notifies_skipped_for_unselected_candidates
+    Taski::Execution::ExecutionFacade.current = @facade
+
+    NestedSection.run
+
+    skipped_events = @events.select do |event|
+      event[0] == :on_task_updated &&
+        event[2][:current_state] == :skipped
+    end
+
+    skipped_classes = skipped_events.map { |e| e[1] }
+    assert_includes skipped_classes, NestedSection::ProductionDB,
+      "ProductionDB should receive pending -> skipped notification"
+
+    production_event = skipped_events.find { |e| e[1] == NestedSection::ProductionDB }
+    assert_equal :pending, production_event[2][:previous_state]
+  end
+
+  def test_section_does_not_skip_selected_impl
+    Taski::Execution::ExecutionFacade.current = @facade
+
+    NestedSection.run
+
+    skipped_classes = @events.select { |e|
+      e[0] == :on_task_updated && e[2][:current_state] == :skipped
+    }.map { |e| e[1] }
+
+    refute_includes skipped_classes, NestedSection::LocalDB,
+      "LocalDB (selected impl) should NOT receive skipped notification"
+  end
+
+  def test_section_without_facade_does_not_raise
+    # No facade set (ExecutionFacade.current is nil)
+    NestedSection.run
+
+    assert_equal "localhost", NestedSection.host
+  end
+
+  def test_external_impl_section_does_not_emit_skipped
+    Taski::Execution::ExecutionFacade.current = @facade
+
+    ExternalImplSection.run
+
+    skipped_events = @events.select do |event|
+      event[0] == :on_task_updated &&
+        event[2][:current_state] == :skipped
+    end
+
+    assert_empty skipped_events,
+      "External impl Section should not emit skipped notifications (no nested candidates)"
+  end
+
+  private
+
+  def create_recording_observer
+    events = @events
+    Class.new(Taski::Execution::TaskObserver) do
+      define_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
+        events << [:on_task_updated, task_class, {previous_state: previous_state, current_state: current_state, timestamp: timestamp}]
+      end
+    end.new
+  end
+end

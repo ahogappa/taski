@@ -139,6 +139,9 @@ module Taski
 
     private
 
+    def register_runtime_dependency: (task_class impl_class) -> void
+    def notify_unselected_candidates_skipped: (task_class selected_impl) -> void
+    def nested_impl_candidates: () -> Array[task_class]
     def apply_interface_to_implementation: (task_class implementation_class) -> void
   end
 
@@ -212,8 +215,7 @@ module Taski
       def add_observer: (untyped observer) -> void
       def remove_observer: (untyped observer) -> void
       def observers: () -> Array[untyped]
-      # Legacy observer methods (for backward compatibility)
-      def notify_set_root_task: (Class task_class) -> void
+      def set_root_task: (Class task_class) -> void
       def notify_start: () -> void
       def notify_stop: () -> void
       # Unified event methods

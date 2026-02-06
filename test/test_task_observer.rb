@@ -26,6 +26,32 @@ class TestTaskObserver < Minitest::Test
     assert_nil observer.on_group_completed(String, "group_name")
   end
 
+  def test_start_delegates_to_on_start
+    observer = Class.new(Taski::Execution::TaskObserver) do
+      attr_reader :called
+
+      def on_start
+        @called = true
+      end
+    end.new
+
+    observer.start
+    assert observer.called, "start should delegate to on_start"
+  end
+
+  def test_stop_delegates_to_on_stop
+    observer = Class.new(Taski::Execution::TaskObserver) do
+      attr_reader :called
+
+      def on_stop
+        @called = true
+      end
+    end.new
+
+    observer.stop
+    assert observer.called, "stop should delegate to on_stop"
+  end
+
   def test_subclass_can_override_methods
     custom_observer = Class.new(Taski::Execution::TaskObserver) do
       attr_reader :events
@@ -89,6 +115,18 @@ class TestNotifyNewEvents < Minitest::Test
     assert_equal [[:on_ready]], @events
   end
 
+  def test_notify_start_calls_on_start
+    @context.notify_start
+
+    assert_equal [[:on_start]], @events
+  end
+
+  def test_notify_stop_calls_on_stop
+    @context.notify_stop
+
+    assert_equal [[:on_stop]], @events
+  end
+
   def test_notify_phase_started_calls_on_phase_started
     @context.notify_phase_started(:run)
 
@@ -131,6 +169,8 @@ class TestNotifyNewEvents < Minitest::Test
     events = @events
     Class.new(Taski::Execution::TaskObserver) do
       define_method(:on_ready) { events << [:on_ready] }
+      define_method(:on_start) { events << [:on_start] }
+      define_method(:on_stop) { events << [:on_stop] }
       define_method(:on_phase_started) { |phase| events << [:on_phase_started, phase] }
       define_method(:on_phase_completed) { |phase| events << [:on_phase_completed, phase] }
       define_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|

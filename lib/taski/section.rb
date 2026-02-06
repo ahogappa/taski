@@ -29,9 +29,8 @@ module Taski
       # Register runtime dependency for clean phase
       register_runtime_dependency(implementation_class)
 
-      # Note: Section impl selection is now detected via state transitions
-      # (pending → running for selected impl, pending → skipped for unselected candidates)
-      # The old notify_section_impl_selected event has been removed.
+      # Notify unselected nested impl candidates as skipped
+      notify_unselected_candidates_skipped(implementation_class)
 
       apply_interface_to_implementation(implementation_class)
 
@@ -57,6 +56,38 @@ module Taski
     def register_runtime_dependency(impl_class)
       context = Execution::ExecutionFacade.current
       context&.register_runtime_dependency(self.class, impl_class)
+    end
+
+    # Notify observers that unselected nested impl candidates are skipped.
+    # Only nested classes (impl candidates) are notified, not external implementations.
+    #
+    # @param selected_impl [Class] The selected implementation class
+    def notify_unselected_candidates_skipped(selected_impl)
+      context = Execution::ExecutionFacade.current
+      return unless context
+
+      timestamp = Time.now
+      nested_impl_candidates.each do |candidate|
+        next if candidate == selected_impl
+
+        context.notify_task_updated(
+          candidate,
+          previous_state: :pending,
+          current_state: :skipped,
+          timestamp: timestamp
+        )
+      end
+    end
+
+    # Find nested classes that are impl candidates for this Section.
+    # A nested impl candidate is a constant defined directly in this Section class
+    # that is itself a subclass of Taski::Task.
+    #
+    # @return [Array<Class>] Nested impl candidate classes
+    def nested_impl_candidates
+      self.class.constants
+        .map { |c| self.class.const_get(c) }
+        .select { |c| c.is_a?(Class) && c < Taski::Task }
     end
 
     # @param implementation_class [Class] The implementation task class

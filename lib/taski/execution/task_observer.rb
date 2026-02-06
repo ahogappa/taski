@@ -52,11 +52,25 @@ module Taski
       def on_ready
       end
 
-      # Called when execution starts.
+      # Entry point called by ExecutionFacade dispatch.
+      # Delegates to on_start hook. Subclasses may override this
+      # for wrapping logic (e.g., Layout::Base adds nesting support).
+      def start
+        on_start
+      end
+
+      # Entry point called by ExecutionFacade dispatch.
+      # Delegates to on_stop hook. Subclasses may override this
+      # for wrapping logic (e.g., Layout::Base adds nesting support).
+      def stop
+        on_stop
+      end
+
+      # Called when execution starts. Override in subclasses.
       def on_start
       end
 
-      # Called when execution stops.
+      # Called when execution stops. Override in subclasses.
       def on_stop
       end
 
