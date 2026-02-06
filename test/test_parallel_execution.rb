@@ -688,25 +688,20 @@ class TestParallelExecution < Minitest::Test
   # ========================================
 
   def test_executor_sets_dependency_graph_on_context
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "test"
-      end
-    end
+    require_relative "fixtures/parallel_tasks"
 
     registry = Taski::Execution::Registry.new
     context = Taski::Execution::ExecutionFacade.new
 
-    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+    Taski::Execution::Executor.execute(FixtureTaskB, registry: registry, execution_context: context)
 
     # Verify dependency_graph is set and is the correct type
     refute_nil context.dependency_graph, "dependency_graph should be set after execution"
     assert_kind_of Taski::StaticAnalysis::DependencyGraph, context.dependency_graph
 
-    # Verify graph contains at least the root task
+    # Verify graph contains both the root task and its dependency
     all_tasks = context.dependency_graph.all_tasks
-    assert_includes all_tasks, task_class
+    assert_includes all_tasks, FixtureTaskB, "Graph should contain root task"
+    assert_includes all_tasks, FixtureTaskA, "Graph should contain dependency (static analysis resolved)"
   end
 end
