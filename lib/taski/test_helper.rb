@@ -32,16 +32,26 @@ module Taski
           # No mock - call original implementation via registry lookup
           registry = Taski.current_registry
           if registry
-            wrapper = registry.get_or_create(self) do
-              task_instance = allocate
-              task_instance.__send__(:initialize)
-              Execution::TaskWrapper.new(
-                task_instance,
-                registry: registry,
-                execution_context: Execution::ExecutionContext.current
-              )
+            if Thread.current[:taski_fiber_context]
+              # Fiber-based lazy resolution
+              result = Fiber.yield([:need_dep, self, method])
+              if result.is_a?(Array) && result[0] == :_taski_error
+                raise result[1]
+              end
+              result
+            else
+              # Traditional Monitor-based resolution (clean phase, outside Fiber)
+              wrapper = registry.get_or_create(self) do
+                task_instance = allocate
+                task_instance.__send__(:initialize)
+                Execution::TaskWrapper.new(
+                  task_instance,
+                  registry: registry,
+                  execution_context: Execution::ExecutionContext.current
+                )
+              end
+              wrapper.get_exported_value(method)
             end
-            wrapper.get_exported_value(method)
           else
             Taski.send(:with_env, root_task: self) do
               Taski.send(:with_args, options: {}) do
@@ -83,6 +93,24 @@ module Taski
         # Skip execution if task is mocked
         if MockRegistry.mock_for(task_class)
           wrapper.mark_completed(nil)
+          @completion_queue.push({task_class: task_class, wrapper: wrapper})
+          return
+        end
+
+        super
+      end
+    end
+
+    # Module prepended to FiberWorkerPool to skip execution of mocked tasks.
+    # @api private
+    module FiberWorkerPoolExtension
+      def drive_fiber(task_class, wrapper, queue)
+        return if @registry.abort_requested?
+
+        if MockRegistry.mock_for(task_class)
+          wrapper.mark_running unless wrapper.completed?
+          wrapper.mark_completed(nil) unless wrapper.completed?
+          @shared_state.mark_completed(task_class)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
           return
         end
@@ -244,3 +272,4 @@ end
 Taski::Task.singleton_class.prepend(Taski::TestHelper::TaskExtension)
 Taski::Execution::Scheduler.prepend(Taski::TestHelper::SchedulerExtension)
 Taski::Execution::Executor.prepend(Taski::TestHelper::ExecutorExtension)
+Taski::Execution::FiberWorkerPool.prepend(Taski::TestHelper::FiberWorkerPoolExtension)

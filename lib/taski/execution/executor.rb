@@ -50,7 +50,10 @@ module Taski
         # @param execution_context [ExecutionContext, nil] Optional execution context to use; when nil a default context is created.
         # @return [Object] The result returned by the execution of the root task.
         def execute(root_task_class, registry:, execution_context: nil)
-          new(registry: registry, execution_context: execution_context).execute(root_task_class)
+          FiberExecutor.new(
+            registry: registry,
+            execution_context: execution_context
+          ).execute(root_task_class)
         end
 
         # Execute clean for a task and all its dependencies (in reverse order)
