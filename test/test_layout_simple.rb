@@ -102,7 +102,7 @@ class TestLayoutSimple < Minitest::Test
     assert @layout.task_registered?(root_task)
   end
 
-  # === Icon and color configuration from Template ===
+  # === Icon and color configuration from Theme ===
 
   def test_icons_available_via_template
     template = @layout.instance_variable_get(:@theme)
@@ -125,7 +125,6 @@ class TestLayoutSimple < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end
@@ -295,7 +294,6 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end

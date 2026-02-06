@@ -53,7 +53,6 @@ class TestLayoutTree < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end
@@ -144,7 +143,6 @@ class TestLayoutTreeRendering < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end
@@ -252,7 +250,6 @@ class TestLayoutTreePrefix < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 
@@ -260,7 +257,6 @@ class TestLayoutTreePrefix < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { deps }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end
@@ -322,7 +318,6 @@ class TestLayoutTreeTaskContent < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end
@@ -393,7 +388,6 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 
@@ -401,7 +395,6 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     klass = Class.new
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { deps }
-    klass.define_singleton_method(:section?) { false }
     klass
   end
 end

@@ -14,7 +14,6 @@ module Taski
       #   [DONE] TaskName (123.4ms)
       #   [FAIL] TaskName: Error message
       #
-      # This replaces the old PlainProgressDisplay class.
       # Uses Theme::Plain by default to ensure no ANSI escape codes in output.
       class Log < Base
         def initialize(output: $stderr, theme: nil)

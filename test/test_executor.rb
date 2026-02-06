@@ -13,7 +13,7 @@ class TestExecutor < Minitest::Test
     task_class = Class.new(Taski::Task) do
       exports :value
       def run
-        @value = "fiber_result"
+        @value = "result_value"
       end
     end
 
@@ -29,7 +29,7 @@ class TestExecutor < Minitest::Test
 
     wrapper = registry.get_task(task_class)
     assert wrapper.completed?
-    assert_equal "fiber_result", wrapper.task.value
+    assert_equal "result_value", wrapper.task.value
   end
 
   def test_linear_chain

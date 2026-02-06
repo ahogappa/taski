@@ -292,7 +292,7 @@ module Taski
     case progress_mode
     when :simple
       Progress::Layout::Simple.new
-    when :log
+    when :log, :plain
       Progress::Layout::Log.new
     else
       Progress::Layout::Tree.new
@@ -304,7 +304,7 @@ module Taski
     case ENV["TASKI_PROGRESS_MODE"]
     when "simple"
       :simple
-    when "log"
+    when "log", "plain"
       :log
     else
       :tree

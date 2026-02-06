@@ -18,9 +18,9 @@ module Taski
       # - Rendering templates using Liquid
       # - Handling screen output
       #
-      # === Event to Template Mapping ===
+      # === Event to Theme Mapping ===
       #
-      # ExecutionContext Event              | Layout Method              | Template Method
+      # ExecutionContext Event              | Layout Method              | Theme Method
       # ------------------------------------|----------------------------|---------------------------
       # notify_set_root_task                | set_root_task              | execution_start
       # notify_start                        | start                      | (internal setup)

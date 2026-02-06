@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "monitor"
-
 module Taski
   module Execution
     # SharedState provides centralized, thread-safe state management for the

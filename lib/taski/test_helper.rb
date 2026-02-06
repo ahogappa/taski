@@ -19,47 +19,18 @@ module Taski
   #   end
   module TestHelper
     # Module prepended to Task's singleton class to intercept define_class_accessor.
+    # Wraps the original accessor with a mock check.
     # @api private
     module TaskExtension
       def define_class_accessor(method)
-        singleton_class.undef_method(method) if singleton_class.method_defined?(method)
+        super
+        original_method = self.method(method)
 
         define_singleton_method(method) do
-          # Check for mock first
           mock = MockRegistry.mock_for(self)
           return mock.get_exported_value(method) if mock
 
-          # No mock - call original implementation via registry lookup
-          registry = Taski.current_registry
-          if registry
-            if Thread.current[:taski_fiber_context]
-              # Fiber-based lazy resolution
-              result = Fiber.yield([:need_dep, self, method])
-              if result.is_a?(Array) && result[0] == :_taski_error
-                raise result[1]
-              end
-              result
-            else
-              # Traditional Monitor-based resolution (clean phase, outside Fiber)
-              wrapper = registry.get_or_create(self) do
-                task_instance = allocate
-                task_instance.__send__(:initialize)
-                Execution::TaskWrapper.new(
-                  task_instance,
-                  registry: registry,
-                  execution_context: Execution::ExecutionContext.current
-                )
-              end
-              wrapper.get_exported_value(method)
-            end
-          else
-            Taski.send(:with_env, root_task: self) do
-              Taski.send(:with_args, options: {}) do
-                validate_no_circular_dependencies!
-                fresh_wrapper.get_exported_value(method)
-              end
-            end
-          end
+          original_method.call
         end
       end
     end

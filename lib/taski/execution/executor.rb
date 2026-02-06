@@ -123,13 +123,7 @@ module Taski
 
       # Pre-start leaf tasks (tasks with no dependencies) for parallelism.
       def pre_start_leaf_tasks
-        @scheduler.next_ready_tasks.each do |task_class|
-          @scheduler.mark_enqueued(task_class)
-          @enqueued_tasks.add(task_class)
-          wrapper = get_or_create_wrapper(task_class)
-          @shared_state.register(task_class, wrapper)
-          @worker_pool.enqueue(task_class, wrapper)
-        end
+        @scheduler.next_ready_tasks.each { |task_class| enqueue_for_execution(task_class) }
       end
 
       # Enqueue the root task if it wasn't already started as a leaf.
@@ -137,11 +131,7 @@ module Taski
         return if @scheduler.completed?(root_task_class)
         return if @enqueued_tasks.include?(root_task_class)
 
-        wrapper = get_or_create_wrapper(root_task_class)
-        @shared_state.register(root_task_class, wrapper)
-        @scheduler.mark_enqueued(root_task_class)
-        @enqueued_tasks.add(root_task_class)
-        @worker_pool.enqueue(root_task_class, wrapper)
+        enqueue_for_execution(root_task_class)
       end
 
       # Main event loop - wait for tasks to complete.
@@ -161,12 +151,16 @@ module Taski
 
         @scheduler.next_ready_tasks.each do |ready_class|
           next if @enqueued_tasks.include?(ready_class)
-          @scheduler.mark_enqueued(ready_class)
-          @enqueued_tasks.add(ready_class)
-          wrapper = get_or_create_wrapper(ready_class)
-          @shared_state.register(ready_class, wrapper)
-          @worker_pool.enqueue(ready_class, wrapper)
+          enqueue_for_execution(ready_class)
         end
+      end
+
+      def enqueue_for_execution(task_class)
+        @scheduler.mark_enqueued(task_class)
+        @enqueued_tasks.add(task_class)
+        wrapper = @registry.create_wrapper(task_class, execution_context: @execution_context)
+        @shared_state.register(task_class, wrapper)
+        @worker_pool.enqueue(task_class, wrapper)
       end
 
       # Notify observers about tasks that were in the static dependency graph
@@ -183,7 +177,7 @@ module Taski
       # ========================================
 
       def start_clean_workers
-        effective_count = @effective_worker_count || default_worker_count
+        effective_count = @effective_worker_count || Execution.default_worker_count
         @clean_queue = Queue.new
         @clean_threads = effective_count.times.map do
           thread = Thread.new do
@@ -214,7 +208,7 @@ module Taski
 
         @scheduler.mark_clean_enqueued(task_class)
 
-        wrapper = get_or_create_wrapper(task_class)
+        wrapper = @registry.create_wrapper(task_class, execution_context: @execution_context)
         return unless wrapper.mark_clean_running
 
         @execution_context.notify_clean_started(task_class)
@@ -257,18 +251,6 @@ module Taski
 
       def all_tasks_cleaned?
         @scheduler.next_ready_clean_tasks.empty? && !@scheduler.running_clean_tasks?
-      end
-
-      # ========================================
-      # Shared Methods
-      # ========================================
-
-      def get_or_create_wrapper(task_class)
-        @registry.get_or_create(task_class) do
-          task_instance = task_class.allocate
-          task_instance.send(:initialize)
-          TaskWrapper.new(task_instance, registry: @registry, execution_context: @execution_context)
-        end
       end
 
       # Execute a block with task-local context set up (used by clean phase).
@@ -406,7 +388,7 @@ module Taski
         Taski::Logging.info(
           Taski::Logging::Events::EXECUTION_STARTED,
           task: root_task_class.name,
-          worker_count: @effective_worker_count || default_worker_count
+          worker_count: @effective_worker_count || Execution.default_worker_count
         )
       end
 
@@ -419,10 +401,6 @@ module Taski
           task_count: @scheduler.task_count,
           skipped_count: @scheduler.skipped_task_classes.size
         )
-      end
-
-      def default_worker_count
-        Etc.nprocessors.clamp(2, 8)
       end
 
       def debug_log(message)

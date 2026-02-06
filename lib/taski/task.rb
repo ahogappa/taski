@@ -228,7 +228,7 @@ module Taski
               end
               result
             else
-              # Traditional Monitor-based resolution (clean phase, outside Fiber)
+              # Synchronous resolution (clean phase, outside Fiber)
               wrapper = registry.get_or_create(self) do
                 task_instance = allocate
                 task_instance.__send__(:initialize)

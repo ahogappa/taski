@@ -4,6 +4,12 @@ require "etc"
 
 module Taski
   module Execution
+    # Default number of worker threads based on CPU count.
+    # @return [Integer]
+    def self.default_worker_count
+      Etc.nprocessors.clamp(2, 8)
+    end
+
     # WorkerPool manages N threads, each with its own command Queue.
     # Tasks are executed within Fibers on worker threads.
     # When a Fiber yields [:need_dep, dep_class, method], the worker
@@ -30,7 +36,7 @@ module Taski
         @shared_state = shared_state
         @registry = registry
         @execution_context = execution_context
-        @worker_count = worker_count || default_worker_count
+        @worker_count = worker_count || Execution.default_worker_count
         @completion_queue = completion_queue
         @threads = []
         @thread_queues = []
@@ -68,10 +74,6 @@ module Taski
       end
 
       private
-
-      def default_worker_count
-        Etc.nprocessors.clamp(2, 8)
-      end
 
       def worker_loop(queue)
         loop do
@@ -113,12 +115,14 @@ module Taski
         @execution_context.notify_task_started(task_class)
 
         start_output_capture(task_class)
-        run_fiber_loop(fiber, task_class, wrapper, queue)
+        drive_fiber_loop(fiber, task_class, wrapper, queue)
       end
 
-      # Drive a Fiber forward, handling yields and completion.
-      def run_fiber_loop(fiber, task_class, wrapper, queue)
-        result = fiber.resume
+      # Drive a Fiber forward by resuming it with resume_value.
+      # fiber.resume is called INSIDE this method so that exceptions
+      # are caught by the rescue and routed to fail_task.
+      def drive_fiber_loop(fiber, task_class, wrapper, queue, resume_value = nil)
+        result = fiber.resume(resume_value)
 
         while fiber.alive?
           if result.is_a?(Array) && result[0] == :need_dep
@@ -126,12 +130,10 @@ module Taski
             handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
             return # Fiber is either continuing or parked
           else
-            # Unknown yield - treat as completion
             break
           end
         end
 
-        # Fiber completed normally
         complete_task(task_class, wrapper, result)
       rescue => e
         fail_task(task_class, wrapper, e)
@@ -143,59 +145,15 @@ module Taski
 
         case status[0]
         when :completed
-          # Resume immediately
-          value = status[1]
-          continue_fiber(fiber, value, task_class, wrapper, queue)
+          drive_fiber_loop(fiber, task_class, wrapper, queue, status[1])
         when :error
-          # Dependency failed
-          error = status[1]
-          continue_fiber_with_error(fiber, error, task_class, wrapper, queue)
+          drive_fiber_loop(fiber, task_class, wrapper, queue, [:_taski_error, status[1]])
         when :wait
-          # Fiber is parked. Store context for when it's resumed.
           store_fiber_context(fiber, task_class, wrapper)
         when :start
-          # Need to start the dependency - store waiting fiber context first
           store_fiber_context(fiber, task_class, wrapper)
           start_dependency(dep_class, queue)
         end
-      end
-
-      # Continue a fiber after a dependency resolves synchronously.
-      def continue_fiber(fiber, value, task_class, wrapper, queue)
-        result = fiber.resume(value)
-
-        while fiber.alive?
-          if result.is_a?(Array) && result[0] == :need_dep
-            _, dep_class, method = result
-            handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
-            return
-          else
-            break
-          end
-        end
-
-        complete_task(task_class, wrapper, result)
-      rescue => e
-        fail_task(task_class, wrapper, e)
-      end
-
-      # Continue a fiber with an error (dependency failed).
-      def continue_fiber_with_error(fiber, error, task_class, wrapper, queue)
-        result = fiber.resume([:_taski_error, error])
-
-        while fiber.alive?
-          if result.is_a?(Array) && result[0] == :need_dep
-            _, dep_class, method = result
-            handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
-            return
-          else
-            break
-          end
-        end
-
-        complete_task(task_class, wrapper, result)
-      rescue => e
-        fail_task(task_class, wrapper, e)
       end
 
       # Resume a parked Fiber from the thread queue.
@@ -208,7 +166,7 @@ module Taski
         task_class, wrapper = context
         setup_fiber_context
         start_output_capture(task_class)
-        continue_fiber(fiber, value, task_class, wrapper, queue)
+        drive_fiber_loop(fiber, task_class, wrapper, queue, value)
       end
 
       # Resume a parked Fiber with an error.
@@ -221,12 +179,12 @@ module Taski
         task_class, wrapper = context
         setup_fiber_context
         start_output_capture(task_class)
-        continue_fiber_with_error(fiber, error, task_class, wrapper, queue)
+        drive_fiber_loop(fiber, task_class, wrapper, queue, [:_taski_error, error])
       end
 
       # Start a dependency task as a new Fiber on this thread.
       def start_dependency(dep_class, queue)
-        dep_wrapper = get_or_create_wrapper(dep_class)
+        dep_wrapper = @registry.create_wrapper(dep_class, execution_context: @execution_context)
         @shared_state.register(dep_class, dep_wrapper)
         drive_fiber(dep_class, dep_wrapper, queue)
       end
@@ -278,14 +236,6 @@ module Taski
       def get_fiber_context(fiber)
         @fiber_contexts_mutex.synchronize do
           @fiber_contexts.delete(fiber.object_id)
-        end
-      end
-
-      def get_or_create_wrapper(task_class)
-        @registry.get_or_create(task_class) do
-          task_instance = task_class.allocate
-          task_instance.send(:initialize)
-          TaskWrapper.new(task_instance, registry: @registry, execution_context: @execution_context)
         end
       end
 
