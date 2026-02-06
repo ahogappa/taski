@@ -239,6 +239,116 @@ class TestFiberExecutor < Minitest::Test
     assert_raises(RuntimeError) { registry.get_task(dep_task) }
   end
 
+  def test_multiple_exported_methods
+    # A task exporting two methods, accessed via separate Fiber.yields
+    dep_task = Class.new(Taski::Task) do
+      exports :first_name, :age
+      def run
+        @first_name = "Alice"
+        @age = 30
+      end
+    end
+
+    main_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    main_task.define_method(:run) do
+      n = Fiber.yield([:need_dep, dep_task, :first_name])
+      a = Fiber.yield([:need_dep, dep_task, :age])
+      @value = "#{n}:#{a}"
+    end
+
+    dep_task.instance_variable_set(:@dependencies_cache, Set.new)
+    main_task.instance_variable_set(:@dependencies_cache, Set[dep_task])
+
+    registry = Taski::Execution::Registry.new
+    execution_context = create_execution_context(registry)
+
+    executor = Taski::Execution::FiberExecutor.new(
+      registry: registry,
+      execution_context: execution_context
+    )
+
+    executor.execute(main_task)
+
+    wrapper = registry.get_task(main_task)
+    assert wrapper.completed?
+    assert_equal "Alice:30", wrapper.task.value
+  end
+
+  def test_dependency_error_propagates_to_waiting_fiber
+    # A dependency that fails should propagate the error to the waiting task
+    failing_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        raise StandardError, "dep failed"
+      end
+    end
+
+    main_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    main_task.define_method(:run) do
+      Fiber.yield([:need_dep, failing_dep, :value])
+      @value = "should not reach"
+    end
+
+    failing_dep.instance_variable_set(:@dependencies_cache, Set.new)
+    main_task.instance_variable_set(:@dependencies_cache, Set[failing_dep])
+
+    registry = Taski::Execution::Registry.new
+    execution_context = create_execution_context(registry)
+
+    executor = Taski::Execution::FiberExecutor.new(
+      registry: registry,
+      execution_context: execution_context
+    )
+
+    error = assert_raises(Taski::AggregateError) do
+      executor.execute(main_task)
+    end
+
+    # At least the failing_dep's error should be present
+    assert error.errors.any? { |f| f.error.message.include?("dep failed") }
+  end
+
+  def test_dynamic_dependency_not_in_static_graph
+    # A dependency that is NOT in the static dependency graph
+    # but is resolved lazily at runtime via Fiber.yield
+    dynamic_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "dynamic"
+      end
+    end
+
+    main_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    main_task.define_method(:run) do
+      v = Fiber.yield([:need_dep, dynamic_dep, :value])
+      @value = "got:#{v}"
+    end
+
+    # dynamic_dep is NOT in main_task's static dependencies
+    dynamic_dep.instance_variable_set(:@dependencies_cache, Set.new)
+    main_task.instance_variable_set(:@dependencies_cache, Set.new)
+
+    registry = Taski::Execution::Registry.new
+    execution_context = create_execution_context(registry)
+
+    executor = Taski::Execution::FiberExecutor.new(
+      registry: registry,
+      execution_context: execution_context
+    )
+
+    executor.execute(main_task)
+
+    wrapper = registry.get_task(main_task)
+    assert wrapper.completed?
+    assert_equal "got:dynamic", wrapper.task.value
+  end
+
   private
 
   def create_execution_context(registry)
