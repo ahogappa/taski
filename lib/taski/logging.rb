@@ -26,6 +26,7 @@ module Taski
       TASK_CLEAN_STARTED = "task.clean_started"
       TASK_CLEAN_COMPLETED = "task.clean_completed"
       TASK_CLEAN_FAILED = "task.clean_failed"
+      TASK_SKIPPED = "task.skipped"
       DEPENDENCY_RESOLVED = "dependency.resolved"
     end
 

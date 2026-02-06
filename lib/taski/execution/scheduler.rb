@@ -147,6 +147,15 @@ module Taski
         @task_states.size
       end
 
+      # Get task classes that were never executed (remained in STATE_PENDING).
+      # These are tasks that were discovered by static analysis but skipped
+      # during execution (e.g., unselected Section implementation candidates).
+      #
+      # @return [Array<Class>] Array of skipped task classes
+      def skipped_task_classes
+        @task_states.select { |_, state| state == STATE_PENDING }.keys
+      end
+
       # ========================================
       # Clean Operations (Reverse Dependency Order)
       # ========================================

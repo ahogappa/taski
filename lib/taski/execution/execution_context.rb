@@ -245,6 +245,13 @@ module Taski
         dispatch(:update_task, task_class, state: state, duration: duration, error: error)
       end
 
+      # Notify observers that a task was skipped (never executed).
+      #
+      # @param task_class [Class] The task class that was skipped
+      def notify_task_skipped(task_class)
+        dispatch(:update_task, task_class, state: :skipped)
+      end
+
       # Notify observers to set the root task.
       #
       # @param task_class [Class] The root task class

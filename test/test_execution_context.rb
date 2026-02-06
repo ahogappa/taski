@@ -316,6 +316,24 @@ class TestExecutionContext < Minitest::Test
     assert_nil called_with[:error]
   end
 
+  # ========================================
+  # Skipped Task Notification Tests
+  # ========================================
+
+  def test_notify_task_skipped
+    context = Taski::Execution::ExecutionContext.new
+    called_with = nil
+    observer = Object.new
+    observer.define_singleton_method(:update_task) do |task_class, state:, **_kwargs|
+      called_with = {task_class: task_class, state: state}
+    end
+
+    context.add_observer(observer)
+    context.notify_task_skipped(String)
+
+    assert_equal({task_class: String, state: :skipped}, called_with)
+  end
+
   def test_notify_clean_completed_with_error
     context = Taski::Execution::ExecutionContext.new
     called_with = nil

@@ -54,6 +54,8 @@ module Taski
           run_main_loop(root_task_class)
 
           @fiber_pool.shutdown
+
+          notify_skipped_tasks
         end
 
         log_execution_completed(root_task_class, start_time)
@@ -109,6 +111,15 @@ module Taski
           wrapper = get_or_create_wrapper(ready_class)
           @shared_state.register(ready_class, wrapper)
           @fiber_pool.enqueue(ready_class, wrapper)
+        end
+      end
+
+      # Notify observers about tasks that were in the static dependency graph
+      # but never executed (remained in STATE_PENDING).
+      def notify_skipped_tasks
+        @scheduler.skipped_task_classes.each do |task_class|
+          @execution_context.notify_task_registered(task_class)
+          @execution_context.notify_task_skipped(task_class)
         end
       end
 
@@ -235,7 +246,8 @@ module Taski
           Taski::Logging::Events::EXECUTION_COMPLETED,
           task: root_task_class.name,
           duration_ms: duration_ms,
-          task_count: @scheduler.task_count
+          task_count: @scheduler.task_count,
+          skipped_count: @scheduler.skipped_task_classes.size
         )
       end
 

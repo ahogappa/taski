@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "logger"
+require "json"
 
 class TestFiberExecutor < Minitest::Test
   def setup
@@ -347,6 +349,133 @@ class TestFiberExecutor < Minitest::Test
     wrapper = registry.get_task(main_task)
     assert wrapper.completed?
     assert_equal "got:dynamic", wrapper.task.value
+  end
+
+  def test_skipped_tasks_are_notified_to_observers
+    # Graph: root -> middle -> slow_leaf
+    # Root completes before slow_leaf, so middle never becomes ready -> skipped
+    slow_leaf = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.2
+        @value = "leaf"
+      end
+    end
+
+    middle_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    middle_task.define_method(:run) do
+      v = Fiber.yield([:need_dep, slow_leaf, :value])
+      @value = "middle(#{v})"
+    end
+
+    root_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    root_task.define_method(:run) do
+      @value = "root_done"
+    end
+
+    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
+    middle_task.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
+    root_task.instance_variable_set(:@dependencies_cache, Set[middle_task])
+
+    # Track observer notifications
+    skipped_tasks = []
+    registered_tasks = []
+    observer = Object.new
+    observer.define_singleton_method(:register_task) { |tc| registered_tasks << tc }
+    observer.define_singleton_method(:update_task) do |tc, state:, **_|
+      skipped_tasks << tc if state == :skipped
+    end
+    observer.define_singleton_method(:set_root_task) { |_| }
+    observer.define_singleton_method(:start) {}
+    observer.define_singleton_method(:stop) {}
+
+    registry = Taski::Execution::Registry.new
+    context = Taski::Execution::ExecutionContext.new
+    context.add_observer(observer)
+    context.execution_trigger = ->(tc, reg) do
+      Taski::Execution::FiberExecutor.new(
+        registry: reg,
+        execution_context: context,
+        worker_count: 2
+      ).execute(tc)
+    end
+
+    executor = Taski::Execution::FiberExecutor.new(
+      registry: registry,
+      execution_context: context,
+      worker_count: 2
+    )
+
+    executor.execute(root_task)
+
+    # middle_task was in static graph but never enqueued -> should be skipped
+    assert_includes skipped_tasks, middle_task, "middle_task should be skipped"
+    assert_includes registered_tasks, middle_task, "middle_task should be registered first"
+    refute_includes skipped_tasks, root_task, "root_task should not be skipped"
+  end
+
+  def test_log_execution_completed_includes_skipped_count
+    # Graph: root -> middle -> slow_leaf
+    # Root completes before slow_leaf, so middle is skipped
+    slow_leaf = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.2
+        @value = "leaf"
+      end
+    end
+
+    middle_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    middle_task.define_method(:run) do
+      v = Fiber.yield([:need_dep, slow_leaf, :value])
+      @value = "middle(#{v})"
+    end
+
+    root_task = Class.new(Taski::Task) do
+      exports :value
+    end
+    root_task.define_method(:run) { @value = "root" }
+
+    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
+    middle_task.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
+    root_task.instance_variable_set(:@dependencies_cache, Set[middle_task])
+
+    log_output = StringIO.new
+    original_logger = Taski.logger
+    Taski.logger = Logger.new(log_output, level: Logger::INFO)
+
+    registry = Taski::Execution::Registry.new
+    context = Taski::Execution::ExecutionContext.new
+    context.add_observer(Taski::Logging::LoggerObserver.new)
+    context.execution_trigger = ->(tc, reg) do
+      Taski::Execution::FiberExecutor.new(
+        registry: reg,
+        execution_context: context,
+        worker_count: 2
+      ).execute(tc)
+    end
+
+    executor = Taski::Execution::FiberExecutor.new(
+      registry: registry,
+      execution_context: context,
+      worker_count: 2
+    )
+
+    executor.execute(root_task)
+
+    Taski.logger = original_logger
+
+    log_lines = log_output.string.lines.map { |l| l[/\{.*\}/] }.compact.map { |j| JSON.parse(j) }
+    completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
+
+    refute_nil completed_event
+    assert_equal 1, completed_event["data"]["skipped_count"]
   end
 
   private

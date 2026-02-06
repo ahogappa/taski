@@ -24,6 +24,8 @@ module Taski
           log_task_completed(task_class, duration)
         when :failed
           log_task_failed(task_class, duration, error)
+        when :skipped
+          log_task_skipped(task_class)
         when :cleaning
           log_clean_started(task_class)
         when :clean_completed
@@ -69,6 +71,13 @@ module Taski
           Events::TASK_FAILED,
           task: task_class.name,
           **data
+        )
+      end
+
+      def log_task_skipped(task_class)
+        Logging.info(
+          Events::TASK_SKIPPED,
+          task: task_class.name
         )
       end
 

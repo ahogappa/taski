@@ -273,9 +273,9 @@ module Taski
         # Render execution summary based on current state (success or failure)
         def render_execution_summary
           if failed_count > 0
-            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
           else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
           end
         end
 
@@ -331,6 +331,12 @@ module Taski
           render_task_template(:task_fail, task:, execution: execution_drop)
         end
 
+        # Render task skipped event
+        def render_task_skipped(task_class)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :skipped)
+          render_task_template(:task_skip, task:, execution: execution_drop)
+        end
+
         # Render clean start event
         def render_clean_started(task_class)
           task = TaskDrop.new(name: task_class_name(task_class), state: :cleaning)
@@ -374,14 +380,14 @@ module Taski
         end
 
         # Render execution complete event
-        def render_execution_completed(completed_count:, total_count:, total_duration:)
-          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:)
+        def render_execution_completed(completed_count:, total_count:, total_duration:, skipped_count: 0)
+          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:, skipped_count:)
           render_execution_template(:execution_complete, execution:)
         end
 
         # Render execution failure event
-        def render_execution_failed(failed_count:, total_count:, total_duration:)
-          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:)
+        def render_execution_failed(failed_count:, total_count:, total_duration:, skipped_count: 0)
+          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:, skipped_count:)
           render_execution_template(:execution_fail, execution:)
         end
 
@@ -400,6 +406,7 @@ module Taski
             done_count: done_count,
             completed_count: completed_count,
             failed_count: failed_count,
+            skipped_count: skipped_count,
             total_count: total_count,
             total_duration: total_duration,
             root_task_name: task_class_name(@root_task_class)
@@ -435,6 +442,8 @@ module Taski
             render_task_succeeded(task_class, task_duration: task_duration)
           when :failed
             render_task_failed(task_class, error: error)
+          when :skipped
+            render_task_skipped(task_class)
           when :cleaning
             render_clean_started(task_class)
           when :clean_completed
@@ -491,7 +500,11 @@ module Taski
         end
 
         def done_count
-          @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
+          @tasks.values.count { |p| [:completed, :failed, :skipped].include?(p.run_state) }
+        end
+
+        def skipped_count
+          @tasks.values.count { |p| p.run_state == :skipped }
         end
 
         def completed_count
@@ -589,6 +602,9 @@ module Taski
           when :failed
             progress.run_state = :failed
             progress.run_error = error if error
+          when :skipped
+            return if run_state_finalized?(progress)
+            progress.run_state = :skipped
           when :cleaning
             progress.clean_state = :cleaning
           when :clean_completed
@@ -601,7 +617,7 @@ module Taski
         end
 
         def run_state_finalized?(progress)
-          progress.run_state == :completed || progress.run_state == :failed
+          [:completed, :failed, :skipped].include?(progress.run_state)
         end
 
         def collect_dependencies_recursive(task_class, collected)
