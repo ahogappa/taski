@@ -20,24 +20,16 @@
 
 require_relative "../lib/taski"
 
-# Configuration section with multiple implementations
-class DatabaseSection < Taski::Section
-  interfaces :connection_string
+# Configuration task with conditional logic
+class DatabaseConfig < Taski::Task
+  exports :connection_string
 
-  def impl
-    (ENV["USE_PROD_DB"] == "1") ? ProductionDB : DevelopmentDB
-  end
-
-  class ProductionDB < Taski::Task
-    def run
+  def run
+    if ENV["USE_PROD_DB"] == "1"
       puts "Connecting to production database..."
       sleep(0.4)
       @connection_string = "postgresql://prod-server:5432/myapp"
-    end
-  end
-
-  class DevelopmentDB < Taski::Task
-    def run
+    else
       puts "Connecting to development database..."
       sleep(0.3)
       @connection_string = "postgresql://localhost:5432/myapp_dev"
@@ -109,7 +101,7 @@ class BuildApplication < Taski::Task
   exports :result
 
   def run
-    db = DatabaseSection.connection_string
+    db = DatabaseConfig.connection_string
     layers = ExtractLayers.extracted_data
     RunSystemCommand.command_result
 
