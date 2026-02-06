@@ -2,7 +2,7 @@ module Taski
   VERSION: String
 
   self.@global_registry: Execution::Registry?
-  self.@progress_display: Execution::TreeProgressDisplay?
+  self.@progress_display: Progress::Layout::Base?
   self.@args: Args?
   self.@args_monitor: Monitor
 
@@ -13,7 +13,7 @@ module Taski
   # Module-level methods
   def self.global_registry: () -> Execution::Registry
   def self.reset_global_registry!: () -> void
-  def self.progress_display: () -> Execution::TreeProgressDisplay?
+  def self.progress_display: () -> Progress::Layout::Base?
   def self.progress_disabled?: () -> bool
   def self.reset_progress_display!: () -> void
   def self.args: () -> Args?
@@ -130,18 +130,6 @@ module Taski
     def self.validate_workers!: (untyped workers) -> void
   end
 
-  # Section class for abstraction layers (inherits from Task)
-  class Section < Task
-    def self.interfaces: (*Symbol interface_methods) -> void
-
-    def run: () -> void
-    def impl: () -> task_class
-
-    private
-
-    def apply_interface_to_implementation: (task_class implementation_class) -> void
-  end
-
   # Execution module
   module Execution
     # TaskTiming struct (Data.define)
@@ -193,13 +181,13 @@ module Taski
       @clean_trigger: (^(Class, Registry) -> void)?
       @output_capture: TaskOutputRouter?
       @original_stdout: IO?
-      @runtime_dependencies: Hash[Class, Set[Class]]
 
       def self.current: () -> ExecutionContext?
       def self.current=: (ExecutionContext? context) -> void
 
       def initialize: () -> void
       def output_capture_active?: () -> bool
+      def original_stdout: () -> IO?
       def setup_output_capture: (IO output_io) -> void
       def teardown_output_capture: () -> void
       def output_capture: () -> TaskOutputRouter?
@@ -207,21 +195,21 @@ module Taski
       def clean_trigger=: ((^(Class, Registry) -> void)? trigger) -> void
       def trigger_execution: (Class task_class, registry: Registry) -> void
       def trigger_clean: (Class task_class, registry: Registry) -> untyped
-      def register_runtime_dependency: (Class from_class, Class to_class) -> void
-      def runtime_dependencies: () -> Hash[Class, Set[Class]]
       def add_observer: (untyped observer) -> void
       def remove_observer: (untyped observer) -> void
       def observers: () -> Array[untyped]
       def notify_task_registered: (Class task_class) -> void
       def notify_task_started: (Class task_class) -> void
       def notify_task_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
-      def notify_section_impl_selected: (Class section_class, Class impl_class) -> void
+      def notify_task_skipped: (Class task_class) -> void
       def notify_set_root_task: (Class task_class) -> void
       def notify_set_output_capture: (TaskOutputRouter output_capture) -> void
       def notify_start: () -> void
       def notify_stop: () -> void
       def notify_clean_started: (Class task_class) -> void
       def notify_clean_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
+      def notify_group_started: (Class task_class, String group_name) -> void
+      def notify_group_completed: (Class task_class, String group_name, ?duration: Float?, ?error: Exception?) -> void
 
       private
 
@@ -230,7 +218,7 @@ module Taski
 
     # TaskOutputRouter for routing task output
     class TaskOutputRouter
-      def initialize: (IO original_io) -> void
+      def initialize: (IO original_io, ?ExecutionContext? execution_context) -> void
       def current_write_io: () -> IO?
       def start_capture: (Class task_class) -> void
       def stop_capture: () -> void
@@ -245,7 +233,7 @@ module Taski
       CLEAN_STATE_ENQUEUED: Symbol
       CLEAN_STATE_COMPLETED: Symbol
 
-      @dependencies: Hash[Class, Set[Class]]
+      @dependencies: Hash[Class, Array[Class]]
       @task_states: Hash[Class, Symbol]
       @completed_tasks: Set[Class]
       @reverse_dependencies: Hash[Class, Set[Class]]
@@ -259,7 +247,8 @@ module Taski
       def mark_completed: (Class task_class) -> void
       def completed?: (Class task_class) -> bool
       def running_tasks?: () -> bool
-      def merge_runtime_dependencies: (Hash[Class, Set[Class]] runtime_deps) -> void
+      def task_count: () -> Integer
+      def skipped_task_classes: () -> Array[Class]
       def build_reverse_dependency_graph: (Class root_task_class) -> void
       def next_ready_clean_tasks: () -> Array[Class]
       def mark_clean_enqueued: (Class task_class) -> void
@@ -276,6 +265,7 @@ module Taski
     # WorkerPool manages a pool of worker threads that execute tasks
     class WorkerPool
       attr_reader execution_queue: Thread::Queue
+      attr_reader worker_count: Integer
 
       @worker_count: Integer
       @registry: Registry
@@ -297,6 +287,7 @@ module Taski
     end
 
     # Executor class for parallel task execution (Producer-Consumer pattern)
+    # Run phase delegates to FiberExecutor; clean phase uses WorkerPool threads
     class Executor
       @registry: Registry
       @completion_queue: Thread::Queue
@@ -305,6 +296,7 @@ module Taski
       @effective_worker_count: Integer?
       @worker_pool: WorkerPool
       @clean_worker_pool: WorkerPool?
+      @saved_output_capture: TaskOutputRouter?
 
       def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
       def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
@@ -331,14 +323,132 @@ module Taski
       def teardown_output_capture: () -> void
       def start_progress_display: () -> void
       def stop_progress_display: () -> void
+      def with_task_context: (Class task_class) { () -> void } -> void
+      def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
       def create_default_execution_context: () -> ExecutionContext
       def debug_log: (String message) -> void
+      def log_execution_started: (Class root_task_class) -> void
+      def log_execution_completed: (Class root_task_class, Time start_time) -> void
+      def raise_if_any_failures: () -> void
+      def raise_if_any_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> void
+      def flatten_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> Array[TaskFailure]
+      def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
+      def raise_if_any_clean_failures: () -> void
+      def error_identity: (Exception error) -> Integer
+    end
+
+    # FiberExecutor orchestrates the Fiber-based run phase
+    # Uses Scheduler for static dependency analysis and FiberWorkerPool
+    # for Fiber-based task execution with lazy dependency resolution
+    class FiberExecutor
+      @registry: Registry
+      @execution_context: ExecutionContext
+      @scheduler: Scheduler
+      @effective_worker_count: Integer?
+      @shared_state: SharedState
+      @completion_queue: Thread::Queue
+      @enqueued_tasks: Set[Class]
+      @fiber_pool: FiberWorkerPool?
+      @saved_output_capture: TaskOutputRouter?
+
+      def initialize: (registry: Registry, ?execution_context: ExecutionContext?, ?worker_count: Integer?) -> void
+      def execute: (Class root_task_class) -> void
+
+      private
+
+      def pre_start_leaf_tasks: () -> void
+      def enqueue_root_if_needed: (Class root_task_class) -> void
+      def run_main_loop: (Class root_task_class) -> void
+      def handle_completion: (Hash[Symbol, untyped] event) -> void
+      def notify_skipped_tasks: () -> void
+      def get_or_create_wrapper: (Class task_class) -> TaskWrapper
+      def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
+      def setup_progress_display: (Class root_task_class) -> void
+      def setup_output_capture_if_needed: () -> bool
+      def teardown_output_capture: () -> void
+      def start_progress_display: () -> void
+      def stop_progress_display: () -> void
       def raise_if_any_failures: () -> void
       def flatten_failures: (Array[TaskWrapper] failed_wrappers) -> Array[TaskFailure]
       def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
-      def raise_if_any_clean_failures: () -> void
-      def flatten_clean_failures: (Array[TaskWrapper] failed_wrappers) -> Array[TaskFailure]
       def error_identity: (Exception error) -> Integer
+      def create_default_execution_context: () -> ExecutionContext
+      def log_execution_started: (Class root_task_class) -> void
+      def log_execution_completed: (Class root_task_class, Time start_time) -> void
+      def debug_log: (String message) -> void
+    end
+
+    # FiberWorkerPool manages N threads, each with its own command Queue
+    # Tasks are executed within Fibers on worker threads
+    class FiberWorkerPool
+      attr_reader worker_count: Integer
+
+      @shared_state: SharedState
+      @registry: Registry
+      @execution_context: ExecutionContext
+      @worker_count: Integer
+      @completion_queue: Thread::Queue
+      @threads: Array[Thread]
+      @thread_queues: Array[Thread::Queue]
+      @next_thread_index: Integer
+      @fiber_contexts_mutex: Mutex
+      @fiber_contexts: Hash[Integer, Array[untyped]]
+
+      def initialize: (shared_state: SharedState, registry: Registry, execution_context: ExecutionContext, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
+      def start: () -> void
+      def enqueue: (Class task_class, TaskWrapper wrapper) -> void
+      def shutdown: () -> void
+
+      private
+
+      def default_worker_count: () -> Integer
+      def worker_loop: (Thread::Queue queue) -> void
+      def drive_fiber: (Class task_class, TaskWrapper wrapper, Thread::Queue queue) -> void
+      def run_fiber_loop: (Fiber fiber, Class task_class, TaskWrapper wrapper, Thread::Queue queue) -> void
+      def handle_dependency: (Class dep_class, Symbol method, Fiber fiber, Class task_class, TaskWrapper wrapper, Thread::Queue queue) -> void
+      def continue_fiber: (Fiber fiber, untyped value, Class task_class, TaskWrapper wrapper, Thread::Queue queue) -> void
+      def continue_fiber_with_error: (Fiber fiber, Exception error, Class task_class, TaskWrapper wrapper, Thread::Queue queue) -> void
+      def resume_fiber: (Fiber fiber, untyped value, Thread::Queue queue) -> void
+      def resume_fiber_with_error: (Fiber fiber, Exception error, Thread::Queue queue) -> void
+      def start_dependency: (Class dep_class, Thread::Queue queue) -> void
+      def complete_task: (Class task_class, TaskWrapper wrapper, untyped result) -> void
+      def fail_task: (Class task_class, TaskWrapper wrapper, Exception error) -> void
+      def setup_fiber_context: () -> void
+      def teardown_fiber_context: () -> void
+      def start_output_capture: (Class task_class) -> void
+      def stop_output_capture: () -> void
+      def store_fiber_context: (Fiber fiber, Class task_class, TaskWrapper wrapper) -> void
+      def get_fiber_context: (Fiber fiber) -> Array[untyped]?
+      def get_or_create_wrapper: (Class task_class) -> TaskWrapper
+      def debug_log: (String message) -> void
+    end
+
+    # SharedState provides centralized, thread-safe state management
+    # for the Fiber-based executor
+    class SharedState
+      STATE_PENDING: Symbol
+      STATE_RUNNING: Symbol
+      STATE_COMPLETED: Symbol
+      STATE_ERROR: Symbol
+
+      @mutex: Mutex
+      @states: Hash[Class, Symbol]
+      @wrappers: Hash[Class, TaskWrapper]
+      @errors: Hash[Class, Exception]
+      @waiters: Hash[Class, Array[Array[untyped]]]
+
+      def initialize: () -> void
+      def register: (Class task_class, TaskWrapper wrapper) -> void
+      def mark_running: (Class task_class) -> bool
+      def mark_completed: (Class task_class) -> void
+      def mark_failed: (Class task_class, Exception error) -> void
+      def completed?: (Class task_class) -> bool
+      def get_wrapper: (Class task_class) -> TaskWrapper?
+      def request_dependency: (Class dep_class, Symbol method, Thread::Queue thread_queue, Fiber fiber) -> Array[untyped]
+
+      private
+
+      def notify_waiters: (Class task_class, Array[Array[untyped]] waiters) -> void
     end
 
     # TaskWrapper class for task execution
@@ -399,81 +509,14 @@ module Taski
       def update_progress: (Symbol state, ?duration: Numeric?, ?error: Exception?) -> void
       def debug_log: (String message) -> void
     end
+  end
 
-    # TreeProgressDisplay class for tree-based progress visualization
-    class TreeProgressDisplay
-      SPINNER_FRAMES: Array[String]
-      COLORS: Hash[Symbol, String]
-      ICONS: Hash[Symbol, String]
-
-      @output: IO
-      @tasks: Hash[Class, TaskProgress]
-      @monitor: Monitor
-      @spinner_index: Integer
-      @renderer_thread: Thread?
-      @running: bool
-      @nest_level: Integer
-      @root_task_class: Class?
-      @tree_structure: Hash[Symbol, untyped]?
-      @section_impl_map: Hash[Class, Class]
-      @last_line_count: Integer
-
-      # Shared class methods
-      def self.section_class?: (Class klass) -> bool
-      def self.nested_class?: (Class child_class, Class parent_class) -> bool
-      def self.render_static_tree: (Class root_task_class) -> String
-
-      # Static tree renderer (internal class)
-      class StaticTreeRenderer
-        @task_index_map: Hash[Class, Integer]
-
-        def render: (Class root_task_class) -> String
-
-        private
-
-        def build_tree: (Class task_class, String prefix, bool is_impl, Set[Class] ancestors) -> String
-        def render_dependency_branch: (Class dep, String prefix, bool is_last, bool is_impl, Set[Class] ancestors) -> String
-        def get_task_number: (Class task_class) -> String
-        def colored_type_label: (Class klass) -> String
+  # Progress module
+  module Progress
+    module Layout
+      # Base class for progress display layouts
+      class Base
       end
-
-      class TaskProgress
-        attr_accessor state: Symbol
-        attr_accessor start_time: Time?
-        attr_accessor end_time: Time?
-        attr_accessor error: Exception?
-        attr_accessor duration: Numeric?
-        attr_accessor is_impl_candidate: bool
-
-        def initialize: () -> void
-      end
-
-      def initialize: (?output: IO) -> void
-      def set_root_task: (Class root_task_class) -> void
-      def register_section_impl: (Class section_class, Class impl_class) -> void
-      def register_task: (Class task_class) -> void
-      def task_registered?: (Class task_class) -> bool
-      def update_task: (Class task_class, state: Symbol, ?duration: Numeric?, ?error: Exception?) -> void
-      def task_state: (Class task_class) -> Symbol?
-      def start: () -> void
-      def stop: () -> void
-
-      private
-
-      def build_tree_structure: () -> void
-      def build_tree_node: (Class task_class, Set[Class] ancestors) -> Hash[Symbol, untyped]?
-      def register_tasks_from_tree: (Hash[Symbol, untyped] node) -> void
-      def render_live: () -> void
-      def render_final: () -> void
-      def build_tree_display: () -> Array[String]
-      def build_root_tree_lines: (Hash[Symbol, untyped] node, String prefix, Array[String] lines) -> void
-      def render_children: (Hash[Symbol, untyped] node, String prefix, Array[String] lines, Class parent_task_class, bool ancestor_selected) -> void
-      def format_tree_line: (Class task_class, TaskProgress? progress, bool is_impl, bool is_selected) -> String
-      def format_unknown_task: (Class task_class, ?bool is_selected) -> String
-      def spinner_char: () -> String
-      def type_label_for: (Class task_class, ?bool is_selected) -> String
-      def section_class?: (Class klass) -> bool
-      def nested_class?: (Class child_class, Class parent_class) -> bool
     end
   end
 
@@ -485,7 +528,6 @@ module Taski
 
       private
 
-      def self.target_method_for: (Class task_class) -> Symbol
       def self.extract_method_location: (Class task_class, Symbol method_name) -> [String, Integer]?
     end
 
@@ -499,7 +541,7 @@ module Taski
 
       attr_reader dependencies: Set[task_class]
 
-      def initialize: (Class task_class, Symbol target_method) -> void
+      def initialize: (Class task_class, ?Symbol target_method, ?Array[Symbol]? methods_to_analyze) -> void
       def visit_class_node: (Prism::ClassNode node) -> untyped
       def visit_module_node: (Prism::ModuleNode node) -> untyped
       def visit_def_node: (Prism::DefNode node) -> untyped
@@ -507,19 +549,20 @@ module Taski
 
       private
 
+      def follow_method_calls: () -> void
+      def collect_method_definitions: (Prism::ClassNode class_node) -> void
       def within_namespace: (String? name) { () -> void } -> void
       def in_target_class?: () -> bool
-      def in_impl_method?: () -> bool
       def extract_constant_name: (untyped node) -> String?
+      def should_analyze_method?: (Symbol method_name) -> bool
+      def detect_method_call_to_follow: (Prism::CallNode node) -> void
+      def self_receiver?: (untyped receiver) -> bool
       def detect_task_dependency: (Prism::CallNode node) -> void
-      def detect_impl_candidate: (untyped node) -> void
       def extract_receiver_constant: (untyped receiver) -> String?
       def resolve_and_add_dependency: (String constant_name) -> void
       def resolve_constant: (String name) -> task_class?
       def resolve_with_namespace_prefix: (String name) -> task_class?
       def valid_dependency?: (task_class klass) -> bool
-      def is_parallel_task?: (task_class klass) -> boolish
-      def is_parallel_section?: (task_class klass) -> boolish
     end
 
     # DependencyGraph class for topological sorting and cycle detection
