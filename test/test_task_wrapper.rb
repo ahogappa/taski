@@ -68,6 +68,47 @@ class TestTaskWrapper < Minitest::Test
     assert_equal :pending, wrapper.clean_state
   end
 
+  def test_mark_skipped_dispatches_notification
+    task_class = create_simple_task
+    events = []
+    context = Taski::Execution::ExecutionFacade.new
+    observer = Object.new
+    observer.define_singleton_method(:on_task_updated) do |tc, previous_state:, current_state:, timestamp:|
+      events << {task_class: tc, previous_state: previous_state, current_state: current_state}
+    end
+    context.add_observer(observer)
+
+    wrapper = create_wrapper_with_context(task_class, context)
+
+    wrapper.mark_skipped
+
+    skipped_event = events.find { |e| e[:current_state] == :skipped }
+    refute_nil skipped_event, "mark_skipped should dispatch task_updated notification"
+    assert_equal :pending, skipped_event[:previous_state]
+    assert_equal :skipped, skipped_event[:current_state]
+    assert_equal task_class, skipped_event[:task_class]
+  end
+
+  def test_mark_running_dispatches_notification
+    task_class = create_simple_task
+    events = []
+    context = Taski::Execution::ExecutionFacade.new
+    observer = Object.new
+    observer.define_singleton_method(:on_task_updated) do |tc, previous_state:, current_state:, timestamp:|
+      events << {task_class: tc, previous_state: previous_state, current_state: current_state}
+    end
+    context.add_observer(observer)
+
+    wrapper = create_wrapper_with_context(task_class, context)
+
+    wrapper.mark_running
+
+    running_event = events.find { |e| e[:current_state] == :running }
+    refute_nil running_event, "mark_running should dispatch task_updated notification"
+    assert_equal :pending, running_event[:previous_state]
+    assert_equal :running, running_event[:current_state]
+  end
+
   # ========================================
   # STATE_FAILED Tests
   # ========================================
@@ -157,6 +198,15 @@ class TestTaskWrapper < Minitest::Test
   def create_wrapper(task_class)
     context = Taski::Execution::ExecutionFacade.new
     registry = Taski::Execution::Registry.new
-    Taski::Execution::TaskWrapper.new(task_class, registry: registry, execution_context: context)
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_context: context)
+  end
+
+  def create_wrapper_with_context(task_class, context)
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_context: context)
   end
 end

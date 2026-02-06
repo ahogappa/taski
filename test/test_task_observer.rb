@@ -163,6 +163,29 @@ class TestNotifyNewEvents < Minitest::Test
     assert_equal timestamp, event[2][:timestamp]
   end
 
+  def test_notify_task_updated_for_skipped_state
+    timestamp = Time.now
+    @context.notify_task_updated(String, previous_state: :pending, current_state: :skipped, timestamp: timestamp)
+
+    assert_equal 1, @events.size
+    event = @events.first
+    assert_equal :on_task_updated, event[0]
+    assert_equal :pending, event[2][:previous_state]
+    assert_equal :skipped, event[2][:current_state]
+  end
+
+  def test_notify_group_started_calls_on_group_started
+    @context.notify_group_started(String, "my_group")
+
+    assert_equal [[:on_group_started, String, "my_group"]], @events
+  end
+
+  def test_notify_group_completed_calls_on_group_completed
+    @context.notify_group_completed(String, "my_group")
+
+    assert_equal [[:on_group_completed, String, "my_group"]], @events
+  end
+
   private
 
   def create_recording_observer
@@ -176,6 +199,8 @@ class TestNotifyNewEvents < Minitest::Test
       define_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
         events << [:on_task_updated, task_class, {previous_state:, current_state:, timestamp:}]
       end
+      define_method(:on_group_started) { |task_class, group_name| events << [:on_group_started, task_class, group_name] }
+      define_method(:on_group_completed) { |task_class, group_name| events << [:on_group_completed, task_class, group_name] }
     end.new
   end
 end

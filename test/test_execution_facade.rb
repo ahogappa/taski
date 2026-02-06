@@ -76,6 +76,39 @@ class TestExecutionFacade < Minitest::Test
     assert_equal String, pulled_root_task
   end
 
+  def test_observer_can_pull_current_phase_during_on_task_updated
+    context = Taski::Execution::ExecutionFacade.new
+    pulled_phase = nil
+
+    observer = Taski::Execution::TaskObserver.new
+    observer.define_singleton_method(:on_task_updated) do |_task_class, previous_state:, current_state:, timestamp:|
+      pulled_phase = facade.current_phase
+    end
+
+    context.add_observer(observer)
+    context.current_phase = :run
+    context.notify_task_updated(String, previous_state: :pending, current_state: :running, timestamp: Time.now)
+
+    assert_equal :run, pulled_phase, "Observer should be able to pull current_phase during on_task_updated"
+  end
+
+  def test_observer_can_pull_dependency_graph_during_on_ready
+    context = Taski::Execution::ExecutionFacade.new
+    pulled_graph = nil
+
+    observer = Taski::Execution::TaskObserver.new
+    observer.define_singleton_method(:on_ready) do
+      pulled_graph = facade.dependency_graph
+    end
+
+    mock_graph = Object.new
+    context.dependency_graph = mock_graph
+    context.add_observer(observer)
+    context.notify_ready
+
+    assert_equal mock_graph, pulled_graph, "Observer should be able to pull dependency_graph during on_ready"
+  end
+
   def test_notify_start_and_stop
     context = Taski::Execution::ExecutionFacade.new
     start_called = false
@@ -567,5 +600,164 @@ class TestExecutionFacade < Minitest::Test
     refute_nil called_with, "on_group_completed should have been called"
     assert_equal String, called_with[:task_class]
     assert_equal "test_group", called_with[:group_name]
+  end
+end
+
+# ========================================
+# Integration test: Execution lifecycle event order
+# Verifies the order specified in Issue #147:
+#   ready → start → phase_started(:run) → task_updated... →
+#   phase_completed(:run) → stop
+# For run_and_clean:
+#   ready → start → phase_started(:run) → task_updated... → phase_completed(:run) → stop →
+#   ready → start → phase_started(:clean) → task_updated... → phase_completed(:clean) → stop
+# ========================================
+class TestExecutionLifecycleEventOrder < Minitest::Test
+  def setup
+    Taski::Task.reset!
+  end
+
+  def teardown
+    Taski::Task.reset!
+  end
+
+  def test_run_phase_event_order
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "done"
+      end
+    end
+
+    events = []
+    observer = create_lifecycle_recording_observer(events)
+
+    registry = Taski::Execution::Registry.new
+    context = Taski::Execution::ExecutionFacade.new
+    context.add_observer(observer)
+
+    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+
+    event_types = events.map { |e| e[0] }
+
+    # Verify the order specified in Issue #147:
+    # ready → start → phase_started(:run) → task_updated(pending→running) →
+    # task_updated(running→completed) → phase_completed(:run) → stop
+    assert_equal :on_ready, event_types[0], "First event should be on_ready"
+    assert_equal :start, event_types[1], "Second event should be start"
+    assert_equal :on_phase_started, event_types[2], "Third event should be on_phase_started"
+
+    # task_updated events should be between phase_started and phase_completed
+    phase_started_idx = event_types.index(:on_phase_started)
+    phase_completed_idx = event_types.index(:on_phase_completed)
+
+    task_updated_indices = event_types.each_index.select { |i| event_types[i] == :on_task_updated }
+    task_updated_indices.each do |i|
+      assert i > phase_started_idx, "task_updated should be after phase_started"
+      assert i < phase_completed_idx, "task_updated should be before phase_completed"
+    end
+
+    assert_equal :on_phase_completed, event_types[phase_completed_idx]
+    assert_equal :stop, event_types.last, "Last event should be stop"
+
+    # Verify phase is :run
+    phase_event = events.find { |e| e[0] == :on_phase_started }
+    assert_equal :run, phase_event[1]
+  end
+
+  def test_run_and_clean_full_lifecycle_event_order
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "done"
+      end
+
+      def clean
+        @value = nil
+      end
+    end
+
+    events = []
+    observer = create_lifecycle_recording_observer(events)
+
+    registry = Taski::Execution::Registry.new
+    context = Taski::Execution::ExecutionFacade.new
+    context.add_observer(observer)
+
+    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+    Taski::Execution::Executor.execute_clean(task_class, registry: registry, execution_context: context)
+
+    # Find all phase events
+    phase_starts = events.each_with_index.select { |e, _| e[0] == :on_phase_started }
+    phase_completes = events.each_with_index.select { |e, _| e[0] == :on_phase_completed }
+
+    assert_equal 2, phase_starts.size, "Should have 2 phase_started events (run + clean)"
+    assert_equal 2, phase_completes.size, "Should have 2 phase_completed events (run + clean)"
+
+    # First phase should be :run
+    assert_equal :run, phase_starts[0][0][1]
+    assert_equal :run, phase_completes[0][0][1]
+
+    # Second phase should be :clean
+    assert_equal :clean, phase_starts[1][0][1]
+    assert_equal :clean, phase_completes[1][0][1]
+
+    # Run phase_completed should come before clean phase_started
+    run_completed_idx = phase_completes[0][1]
+    clean_started_idx = phase_starts[1][1]
+    assert run_completed_idx < clean_started_idx,
+      "run phase_completed (#{run_completed_idx}) should precede clean phase_started (#{clean_started_idx})"
+  end
+
+  def test_task_state_transitions_in_run_phase
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "done"
+      end
+    end
+
+    events = []
+    observer = create_lifecycle_recording_observer(events)
+
+    registry = Taski::Execution::Registry.new
+    context = Taski::Execution::ExecutionFacade.new
+    context.add_observer(observer)
+
+    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+
+    # Extract task_updated events
+    task_events = events.select { |e| e[0] == :on_task_updated }
+
+    assert_operator task_events.size, :>=, 2, "Should have at least 2 task_updated events"
+
+    # First task_updated should be pending → running
+    assert_equal :pending, task_events[0][2][:previous_state]
+    assert_equal :running, task_events[0][2][:current_state]
+
+    # Last task_updated for this task should be running → completed
+    last_event = task_events.last
+    assert_equal :running, last_event[2][:previous_state]
+    assert_equal :completed, last_event[2][:current_state]
+  end
+
+  private
+
+  def create_lifecycle_recording_observer(events)
+    Class.new(Taski::Execution::TaskObserver) do
+      define_method(:on_ready) { events << [:on_ready] }
+      define_method(:start) { events << [:start]; super() }
+      define_method(:stop) { events << [:stop]; super() }
+      define_method(:on_phase_started) { |phase| events << [:on_phase_started, phase] }
+      define_method(:on_phase_completed) { |phase| events << [:on_phase_completed, phase] }
+      define_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
+        events << [:on_task_updated, task_class, {previous_state: previous_state, current_state: current_state, timestamp: timestamp}]
+      end
+      define_method(:on_group_started) { |task_class, group_name| events << [:on_group_started, task_class, group_name] }
+      define_method(:on_group_completed) { |task_class, group_name| events << [:on_group_completed, task_class, group_name] }
+    end.new
   end
 end
