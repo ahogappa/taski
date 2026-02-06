@@ -342,7 +342,7 @@ module Taski
 
       ##
       # Ensures the task is executed if still pending and waits for completion.
-      # If the task is pending, triggers execution (via the configured ExecutionContext when present, otherwise via Executor) outside the monitor; if the task is running, waits until it becomes completed; if already completed, returns immediately.
+      # If the task is pending, triggers execution (via the configured ExecutionFacade when present, otherwise via Executor) outside the monitor; if the task is running, waits until it becomes completed; if already completed, returns immediately.
       # @raise [Taski::TaskAbortException] If the registry requested an abort before execution begins.
       def trigger_execution_and_wait
         trigger_and_wait(
@@ -355,7 +355,7 @@ module Taski
       ##
       # Triggers task cleanup through the configured execution mechanism and waits until the cleanup completes.
       #
-      # If an ExecutionContext is configured the cleanup is invoked through it; otherwise a fallback executor is used.
+      # If an ExecutionFacade is configured the cleanup is invoked through it; otherwise a fallback executor is used.
       # @raise [Taski::TaskAbortException] if the registry has requested an abort.
       def trigger_clean_and_wait
         trigger_and_wait(
@@ -405,7 +405,7 @@ module Taski
       # Ensures an execution context exists for this wrapper.
       # Returns the existing context if set, otherwise creates a shared context.
       # This enables run and clean phases to share state like runtime dependencies.
-      # @return [ExecutionContext] The execution context for this wrapper
+      # @return [ExecutionFacade] The execution context for this wrapper
       def ensure_execution_context
         @execution_context ||= create_shared_context
       end
@@ -413,9 +413,9 @@ module Taski
       ##
       # Creates a shared execution context with proper triggers for run and clean.
       # The context is configured to reuse itself when triggering nested executions.
-      # @return [ExecutionContext] A new execution context
+      # @return [ExecutionFacade] A new execution context
       def create_shared_context
-        context = ExecutionContext.new
+        context = ExecutionFacade.new
         progress = Taski.progress_display
         context.add_observer(progress) if progress
 
@@ -440,7 +440,7 @@ module Taski
       # @param timestamp [Time] When the transition occurred
       def notify_state_transition(previous_state, current_state, timestamp)
         # Defensive fallback: try to get current context if not set during initialization
-        @execution_context ||= ExecutionContext.current
+        @execution_context ||= ExecutionFacade.current
         return unless @execution_context
 
         @execution_context.notify_task_updated(

@@ -155,7 +155,7 @@ class TestTaskWrapper < Minitest::Test
   end
 
   def create_wrapper(task_class)
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     registry = Taski::Execution::Registry.new
     Taski::Execution::TaskWrapper.new(task_class, registry: registry, execution_context: context)
   end

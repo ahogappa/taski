@@ -2,27 +2,27 @@
 
 require "test_helper"
 
-class TestExecutionContext < Minitest::Test
+class TestExecutionFacade < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
   end
 
   # Test thread-local current context
   def test_current_context_thread_local
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
-    assert_nil Taski::Execution::ExecutionContext.current
+    assert_nil Taski::Execution::ExecutionFacade.current
 
-    Taski::Execution::ExecutionContext.current = context
-    assert_equal context, Taski::Execution::ExecutionContext.current
+    Taski::Execution::ExecutionFacade.current = context
+    assert_equal context, Taski::Execution::ExecutionFacade.current
 
-    Taski::Execution::ExecutionContext.current = nil
-    assert_nil Taski::Execution::ExecutionContext.current
+    Taski::Execution::ExecutionFacade.current = nil
+    assert_nil Taski::Execution::ExecutionFacade.current
   end
 
   # Test observer management
   def test_add_and_remove_observer
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     observer = Object.new
 
     context.add_observer(observer)
@@ -33,7 +33,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_observers_returns_copy
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     observer = Object.new
     context.add_observer(observer)
 
@@ -50,7 +50,7 @@ class TestExecutionContext < Minitest::Test
   # set_root_task is a setter only (no dispatch) - Plan Phase 3 consolidation
   # Observers pull root_task_class in on_ready via context.root_task_class
   def test_set_root_task_is_setter_only
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     # set_root_task should only set the internal state
     context.set_root_task(String)
@@ -60,7 +60,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_on_ready_observers_can_pull_root_task_class
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     pulled_root_task = nil
     observer = Object.new
     observer.define_singleton_method(:facade=) { |ctx| @context = ctx }
@@ -77,7 +77,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_start_and_stop
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     start_called = false
     stop_called = false
     observer = Object.new
@@ -95,7 +95,7 @@ class TestExecutionContext < Minitest::Test
 
   # Test dispatch handles observer exceptions gracefully
   def test_dispatch_handles_observer_exception
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     first_called = false
     second_called = false
@@ -126,7 +126,7 @@ class TestExecutionContext < Minitest::Test
 
   # Test dispatch skips observers that don't respond to method
   def test_dispatch_skips_non_responding_observers
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     observer = Object.new # No methods defined
 
     context.add_observer(observer)
@@ -137,7 +137,7 @@ class TestExecutionContext < Minitest::Test
 
   # Test execution trigger
   def test_execution_trigger_with_custom_trigger
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     triggered_with = nil
 
     context.execution_trigger = lambda { |task_class, registry|
@@ -152,7 +152,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_execution_trigger_fallback
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     task_class = Class.new(Taski::Task) do
       exports :value
@@ -170,7 +170,7 @@ class TestExecutionContext < Minitest::Test
 
   # Test output capture with TTY
   def test_setup_output_capture_with_tty
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     # Create a mock TTY IO
     mock_io = StringIO.new
@@ -193,7 +193,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_setup_output_capture_always_sets_capture
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     # setup_output_capture now always sets up capture when called
     # The caller (Executor) is responsible for checking if progress display is enabled
@@ -206,7 +206,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_teardown_output_capture_when_not_set
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     # Should not raise when no capture is set
     context.teardown_output_capture
@@ -214,7 +214,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_output_capture_active
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     mock_io = StringIO.new
 
     original_stdout = $stdout
@@ -232,7 +232,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_setup_output_capture_captures_stderr_too
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     mock_io = StringIO.new
 
     original_stdout = $stdout
@@ -265,7 +265,7 @@ class TestExecutionContext < Minitest::Test
   # ========================================
 
   def test_register_runtime_dependency
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     context.register_runtime_dependency(String, Integer)
 
@@ -274,7 +274,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_register_multiple_runtime_dependencies
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     context.register_runtime_dependency(String, Integer)
     context.register_runtime_dependency(String, Float)
@@ -289,7 +289,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_runtime_dependencies_returns_copy
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.register_runtime_dependency(String, Integer)
 
     deps = context.runtime_dependencies
@@ -303,7 +303,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_runtime_dependencies_thread_safety
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     threads = []
     classes = Array.new(10) { Class.new }
 
@@ -330,41 +330,41 @@ class TestExecutionContext < Minitest::Test
   # ========================================
 
   def test_current_phase_defaults_to_nil
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     assert_nil context.current_phase
   end
 
   def test_current_phase_can_be_set_to_run
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :run
     assert_equal :run, context.current_phase
   end
 
   def test_current_phase_can_be_set_to_clean
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :clean
     assert_equal :clean, context.current_phase
   end
 
   def test_root_task_class_defaults_to_nil
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     assert_nil context.root_task_class
   end
 
   def test_root_task_class_can_be_set
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     task_class = Class.new
     context.root_task_class = task_class
     assert_equal task_class, context.root_task_class
   end
 
   def test_dependency_graph_defaults_to_nil
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     assert_nil context.dependency_graph
   end
 
   def test_dependency_graph_can_be_injected
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     # Use a mock object as dependency graph
     mock_graph = Object.new
     context.dependency_graph = mock_graph
@@ -372,7 +372,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_output_stream_returns_output_capture
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     # Before output capture is set, output_stream should be nil
     assert_nil context.output_stream
 
@@ -388,7 +388,7 @@ class TestExecutionContext < Minitest::Test
   # === output_stream.read API tests ===
 
   def test_output_stream_read_returns_all_lines_by_default
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     output = StringIO.new
     context.setup_output_capture(output)
 
@@ -408,7 +408,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_output_stream_read_respects_limit
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     output = StringIO.new
     context.setup_output_capture(output)
 
@@ -428,7 +428,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_output_stream_read_returns_empty_array_for_unknown_task
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     output = StringIO.new
     context.setup_output_capture(output)
 
@@ -444,7 +444,7 @@ class TestExecutionContext < Minitest::Test
   # ========================================
 
   def test_notify_ready
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     ready_called = false
     observer = Object.new
     observer.define_singleton_method(:on_ready) { ready_called = true }
@@ -456,7 +456,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_phase_started
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_phase_started) { |phase| called_with = phase }
@@ -468,7 +468,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_phase_completed
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_phase_completed) { |phase| called_with = phase }
@@ -480,7 +480,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_task_updated
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
@@ -504,7 +504,7 @@ class TestExecutionContext < Minitest::Test
 
   def test_notify_task_updated_for_failed_state
     # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
@@ -527,7 +527,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_task_updated_for_skipped_state
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, timestamp:|
@@ -542,7 +542,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_group_started
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_group_started) { |task_class, group_name| called_with = {task_class: task_class, group_name: group_name} }
@@ -556,7 +556,7 @@ class TestExecutionContext < Minitest::Test
   end
 
   def test_notify_group_completed
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_group_completed) { |task_class, group_name| called_with = {task_class: task_class, group_name: group_name} }

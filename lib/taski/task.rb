@@ -64,7 +64,7 @@ module Taski
         wrapper = Execution::TaskWrapper.new(
           task_instance,
           registry: fresh_registry,
-          execution_context: Execution::ExecutionContext.current,
+          execution_context: Execution::ExecutionFacade.current,
           args: args.merge(_workers: workers)
         )
         fresh_registry.register(self, wrapper)
@@ -191,7 +191,7 @@ module Taski
         wrapper = Execution::TaskWrapper.new(
           task_instance,
           registry: fresh_registry,
-          execution_context: Execution::ExecutionContext.current
+          execution_context: Execution::ExecutionFacade.current
         )
         fresh_registry.register(self, wrapper)
         wrapper
@@ -229,7 +229,7 @@ module Taski
               Execution::TaskWrapper.new(
                 task_instance,
                 registry: registry,
-                execution_context: Execution::ExecutionContext.current
+                execution_context: Execution::ExecutionFacade.current
               )
             end
             wrapper.get_exported_value(method)
@@ -324,7 +324,7 @@ module Taski
     #     end
     #   end
     def group(name)
-      context = Execution::ExecutionContext.current
+      context = Execution::ExecutionFacade.current
       context&.notify_group_started(self.class, name)
       start_time = Time.now
 

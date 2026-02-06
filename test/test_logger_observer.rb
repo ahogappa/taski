@@ -17,7 +17,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_ready_logs_execution_ready_with_task_count
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     # Create a mock dependency graph with 3 tasks
     mock_graph = Object.new
@@ -35,7 +35,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_ready_works_without_dependency_graph
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     context.add_observer(observer)
 
@@ -48,7 +48,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_task_updated_logs_run_phase_transitions
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :run
     context.add_observer(observer)
 
@@ -66,7 +66,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_task_updated_logs_skipped_state
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :run
     context.add_observer(observer)
 
@@ -82,7 +82,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_task_updated_logs_clean_phase_transitions
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :clean
     context.add_observer(observer)
 
@@ -99,7 +99,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_task_updated_calculates_duration
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :run
     context.add_observer(observer)
 
@@ -127,7 +127,7 @@ class TestLoggerObserver < Minitest::Test
 
   def test_on_task_updated_logs_error_on_failure
     observer = Taski::Logging::LoggerObserver.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     context.current_phase = :run
     context.add_observer(observer)
 

@@ -51,11 +51,11 @@ module Taski
 
     # Register the selected implementation as a runtime dependency.
     # This allows the clean phase to include the dynamically selected impl.
-    # Handles nil ExecutionContext gracefully.
+    # Handles nil ExecutionFacade gracefully.
     #
     # @param impl_class [Class] The selected implementation class
     def register_runtime_dependency(impl_class)
-      context = Execution::ExecutionContext.current
+      context = Execution::ExecutionFacade.current
       context&.register_runtime_dependency(self.class, impl_class)
     end
 

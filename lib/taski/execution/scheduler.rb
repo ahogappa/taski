@@ -176,7 +176,7 @@ module Taski
       # This method also updates reverse dependencies if they exist (for clean operations).
       # This method is idempotent - calling it multiple times with the same data is safe.
       #
-      # @param runtime_deps [Hash{Class => Set<Class>}] Runtime dependencies from ExecutionContext
+      # @param runtime_deps [Hash{Class => Set<Class>}] Runtime dependencies from ExecutionFacade
       def merge_runtime_dependencies(runtime_deps)
         queue = []
 

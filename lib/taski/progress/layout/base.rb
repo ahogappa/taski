@@ -15,7 +15,7 @@ module Taski
       # Inherits from TaskObserver to receive execution events.
       #
       # Layouts are responsible for:
-      # - Receiving events from ExecutionContext (Observer pattern via TaskObserver)
+      # - Receiving events from ExecutionFacade (Observer pattern via TaskObserver)
       # - Rendering templates using Liquid
       # - Handling screen output
       #
@@ -25,7 +25,7 @@ module Taski
       #
       # === Event to Template Mapping ===
       #
-      # ExecutionContext Event              | Layout Method              | Template Method
+      # ExecutionFacade Event              | Layout Method              | Template Method
       # ------------------------------------|----------------------------|---------------------------
       # notify_ready                        | on_ready                   | (initial setup)
       # notify_start (on_start)             | start                      | (internal setup)
@@ -62,7 +62,7 @@ module Taski
           @active = false
         end
 
-        # === Observer interface (called by ExecutionContext) ===
+        # === Observer interface (called by ExecutionFacade) ===
 
         # Set the root task class for tree building
         # Only sets if not already set (prevents nested executor overwrite)
@@ -141,7 +141,7 @@ module Taski
         end
 
         # Unified task state update interface (the canonical Push API).
-        # Receives state transitions from ExecutionContext.notify_task_updated.
+        # Receives state transitions from ExecutionFacade.notify_task_updated.
         # Note: error is NOT passed via notification - exceptions propagate to top level (Plan design)
         # @param task_class [Class] The task class
         # @param previous_state [Symbol] The previous state

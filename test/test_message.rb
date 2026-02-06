@@ -8,7 +8,7 @@ class TestMessage < Minitest::Test
     Taski::Task.reset! if defined?(Taski::Task)
     Taski.reset_progress_display!
     # Clear any thread-local context
-    Taski::Execution::ExecutionContext.current = nil
+    Taski::Execution::ExecutionFacade.current = nil
     # Ensure progress is not disabled from other tests
     ENV.delete("TASKI_PROGRESS_DISABLE")
     ENV.delete("TASKI_PROGRESS_MODE")
@@ -16,7 +16,7 @@ class TestMessage < Minitest::Test
 
   def teardown
     Taski.reset_progress_display!
-    Taski::Execution::ExecutionContext.current = nil
+    Taski::Execution::ExecutionFacade.current = nil
     ENV.delete("TASKI_PROGRESS_DISABLE")
     ENV.delete("TASKI_PROGRESS_MODE")
   end

@@ -29,9 +29,9 @@ module Taski
     #   require 'logger'
     #   Taski.logger = Logger.new($stderr, level: Logger::INFO)
     #
-    # For custom integration with ExecutionContext:
+    # For custom integration with ExecutionFacade:
     #
-    #   context = Taski::Execution::ExecutionContext.new
+    #   context = Taski::Execution::ExecutionFacade.new
     #   observer = Taski::Logging::LoggerObserver.new
     #   context.add_observer(observer)
     #   # observer.context is automatically set to context

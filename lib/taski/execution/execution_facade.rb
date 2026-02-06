@@ -6,19 +6,19 @@ require_relative "task_observer"
 
 module Taski
   module Execution
-    # ExecutionContext manages execution state and notifies observers about execution events.
+    # ExecutionFacade manages execution state and notifies observers about execution events.
     # It decouples progress display from Executor using the observer pattern.
     #
     # == Architecture
     #
-    # ExecutionContext is the central hub for execution events in the Taski framework:
+    # ExecutionFacade is the central hub for execution events in the Taski framework:
     #
-    #   Executor → Scheduler/WorkerPool/ExecutionContext → Observers
+    #   Executor → Scheduler/WorkerPool/ExecutionFacade → Observers
     #
     # - Executor coordinates the overall execution flow
     # - Scheduler manages dependency state and determines execution order
     # - WorkerPool manages worker threads that execute tasks
-    # - ExecutionContext notifies observers about execution events
+    # - ExecutionFacade notifies observers about execution events
     #
     # == Observer Pattern (Unified Events)
     #
@@ -79,8 +79,8 @@ module Taski
     # - start / stop - Called when execution starts/ends
     #
     # @example Registering an observer
-    #   context = ExecutionContext.new
-    #   context.add_observer(MyObserver.new)
+    #   facade = ExecutionFacade.new
+    #   facade.add_observer(MyObserver.new)
     #
     # @example Using Pull API in observer
     #   class MyObserver < TaskObserver
@@ -89,24 +89,24 @@ module Taski
     #       @root = context.root_task_class
     #     end
     #   end
-    class ExecutionContext
-      # Thread-local key for storing the current execution context
-      THREAD_LOCAL_KEY = :taski_execution_context
+    class ExecutionFacade
+      # Thread-local key for storing the current execution facade
+      THREAD_LOCAL_KEY = :taski_execution_facade
 
-      # Get the current execution context for this thread.
-      # @return [ExecutionContext, nil] The current context or nil if not set
+      # Get the current execution facade for this thread.
+      # @return [ExecutionFacade, nil] The current facade or nil if not set
       def self.current
         Thread.current[THREAD_LOCAL_KEY]
       end
 
-      # Set the current execution context for this thread.
-      # @param context [ExecutionContext, nil] The context to set
-      def self.current=(context)
-        Thread.current[THREAD_LOCAL_KEY] = context
+      # Set the current execution facade for this thread.
+      # @param facade [ExecutionFacade, nil] The facade to set
+      def self.current=(facade)
+        Thread.current[THREAD_LOCAL_KEY] = facade
       end
 
       ##
-      # Creates a new ExecutionContext and initializes its internal synchronization and state.
+      # Creates a new ExecutionFacade and initializes its internal synchronization and state.
       #
       # Initializes a monitor for thread-safe operations and sets up empty observer storage
       # and nil defaults for execution/clean triggers and output capture related fields.
@@ -423,7 +423,7 @@ module Taski
               observer.public_send(method_name, *args, **kwargs)
             end
           rescue => e
-            warn "[ExecutionContext] Observer #{observer.class} raised error in #{method_name}: #{e.message}"
+            warn "[ExecutionFacade] Observer #{observer.class} raised error in #{method_name}: #{e.message}"
           end
         end
       end

@@ -38,7 +38,7 @@ module Taski
               Execution::TaskWrapper.new(
                 task_instance,
                 registry: registry,
-                execution_context: Execution::ExecutionContext.current
+                execution_context: Execution::ExecutionFacade.current
               )
             end
             wrapper.get_exported_value(method)

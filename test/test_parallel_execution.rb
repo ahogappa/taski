@@ -697,7 +697,7 @@ class TestParallelExecution < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
 
     Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
 

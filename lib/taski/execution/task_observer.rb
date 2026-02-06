@@ -36,15 +36,15 @@ module Taski
     #
     # == Registration
     #
-    # When added to ExecutionContext, the context is automatically injected:
+    # When added to ExecutionFacade, the context is automatically injected:
     #
     #   facade.add_observer(my_observer)
     #   # my_observer.context is now set to context
     #
     class TaskObserver
       # The execution context that this observer is attached to.
-      # Set automatically when added via ExecutionContext#add_observer.
-      # @return [ExecutionContext, nil]
+      # Set automatically when added via ExecutionFacade#add_observer.
+      # @return [ExecutionFacade, nil]
       attr_accessor :facade
 
       # Called when execution is ready (root task and dependencies resolved).

@@ -496,7 +496,7 @@ class TestLayoutTreeOnReady < Minitest::Test
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
-    @context = Taski::Execution::ExecutionContext.new
+    @context = Taski::Execution::ExecutionFacade.new
     @context.add_observer(@layout)
   end
 

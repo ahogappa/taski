@@ -52,9 +52,9 @@ class TestTaskObserver < Minitest::Test
   end
 end
 
-class TestExecutionContextObserverInjection < Minitest::Test
+class TestExecutionFacadeObserverInjection < Minitest::Test
   def test_add_observer_injects_context
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     observer = Taski::Execution::TaskObserver.new
 
     assert_nil observer.facade
@@ -65,7 +65,7 @@ class TestExecutionContextObserverInjection < Minitest::Test
   end
 
   def test_add_observer_works_with_non_task_observer
-    context = Taski::Execution::ExecutionContext.new
+    context = Taski::Execution::ExecutionFacade.new
     # Plain object without context= method
     observer = Object.new
 
@@ -77,7 +77,7 @@ end
 
 class TestNotifyNewEvents < Minitest::Test
   def setup
-    @context = Taski::Execution::ExecutionContext.new
+    @context = Taski::Execution::ExecutionFacade.new
     @events = []
     @observer = create_recording_observer
     @context.add_observer(@observer)

@@ -13,13 +13,13 @@ module Taski
     #   Executor
     #     ├── Scheduler: Dependency management and execution order
     #     ├── WorkerPool: Thread management and task distribution
-    #     └── ExecutionContext: Observer notifications and output capture
+    #     └── ExecutionFacade: Observer notifications and output capture
     #             └── Observers (e.g., TreeProgressDisplay)
     #
     # == Execution Flow
     #
     # 1. Build dependency graph via Scheduler
-    # 2. Set up progress display via ExecutionContext
+    # 2. Set up progress display via ExecutionFacade
     # 3. Start WorkerPool threads
     # 4. Enqueue ready tasks (no dependencies) to WorkerPool
     # 5. Run event loop:
@@ -47,7 +47,7 @@ module Taski
         # Create a new Executor and run execution for the specified root task class.
         # @param root_task_class [Class] The top-level task class to execute.
         # @param registry [Taski::Registry] Registry providing task definitions and state.
-        # @param execution_context [ExecutionContext, nil] Optional execution context to use; when nil a default context is created.
+        # @param execution_context [ExecutionFacade, nil] Optional execution context to use; when nil a default context is created.
         # @return [Object] The result returned by the execution of the root task.
         def execute(root_task_class, registry:, execution_context: nil)
           new(registry: registry, execution_context: execution_context).execute(root_task_class)
@@ -60,7 +60,7 @@ module Taski
         # Runs reverse-order clean execution beginning at the given root task class.
         # @param [Class] root_task_class - The root task class whose dependency graph will drive the clean run.
         # @param [Object] registry - Task registry used to resolve and track tasks during execution.
-        # @param [ExecutionContext, nil] execution_context - Optional execution context for observers and output capture; if `nil`, a default context is created.
+        # @param [ExecutionFacade, nil] execution_context - Optional execution context for observers and output capture; if `nil`, a default context is created.
         def execute_clean(root_task_class, registry:, execution_context: nil)
           new(registry: registry, execution_context: execution_context).execute_clean(root_task_class)
         end
@@ -71,12 +71,12 @@ module Taski
       # @param [Object] registry - Task registry used to look up task definitions and state.
       # @param [Integer, nil] worker_count - Optional number of worker threads to use; when `nil`,
       #   uses Taski.args_worker_count which retrieves the worker count from the runtime args.
-      # @param [Taski::Execution::ExecutionContext, nil] execution_context - Optional execution context for observers and output capture; when `nil` a default context (with progress observer and execution trigger) is created.
+      # @param [Taski::Execution::ExecutionFacade, nil] execution_context - Optional execution context for observers and output capture; when `nil` a default context (with progress observer and execution trigger) is created.
       def initialize(registry:, worker_count: nil, execution_context: nil)
         @registry = registry
         @completion_queue = Queue.new
 
-        # ExecutionContext for observer pattern and output capture
+        # ExecutionFacade for observer pattern and output capture
         @execution_context = execution_context || create_default_execution_context
 
         # Scheduler for dependency management
@@ -314,7 +314,7 @@ module Taski
       # This method respects an abort requested state from the registry (no-op if abort already requested)
       # and triggers a registry abort when a `Taski::TaskAbortException` is raised.
       # It also starts and stops per-task output capture when available and sets the thread-local
-      # `ExecutionContext.current` for the duration of the clean.
+      # `ExecutionFacade.current` for the duration of the clean.
       # @param [Class] task_class - The task class being cleaned.
       # @param [Taski::Execution::TaskWrapper] wrapper - The wrapper instance for the task, used to record clean success or failure.
       def execute_clean_task(task_class, wrapper)
@@ -404,7 +404,7 @@ module Taski
       end
 
       # Execute a block with task-local context set up.
-      # Sets ExecutionContext.current, Taski.current_registry, and output capture.
+      # Sets ExecutionFacade.current, Taski.current_registry, and output capture.
       # Cleans up all context in ensure block.
       #
       # @param task_class [Class] The task class being executed
@@ -413,13 +413,13 @@ module Taski
         output_capture = @execution_context.output_capture
         output_capture&.start_capture(task_class)
 
-        ExecutionContext.current = @execution_context
+        ExecutionFacade.current = @execution_context
         Taski.set_current_registry(@registry)
 
         yield
       ensure
         output_capture&.stop_capture
-        ExecutionContext.current = nil
+        ExecutionFacade.current = nil
         Taski.clear_current_registry
       end
 
@@ -445,7 +445,7 @@ module Taski
       end
 
       def create_default_execution_context
-        context = ExecutionContext.new
+        context = ExecutionFacade.new
         progress = Taski.progress_display
         context.add_observer(progress) if progress
 
