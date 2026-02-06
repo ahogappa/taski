@@ -448,34 +448,36 @@ class TestExecutor < Minitest::Test
 
     log_output = StringIO.new
     original_logger = Taski.logger
-    Taski.logger = Logger.new(log_output, level: Logger::INFO)
+    begin
+      Taski.logger = Logger.new(log_output, level: Logger::INFO)
 
-    registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionContext.new
-    context.add_observer(Taski::Logging::LoggerObserver.new)
-    context.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        registry: reg,
+      registry = Taski::Execution::Registry.new
+      context = Taski::Execution::ExecutionContext.new
+      context.add_observer(Taski::Logging::LoggerObserver.new)
+      context.execution_trigger = ->(tc, reg) do
+        Taski::Execution::Executor.new(
+          registry: reg,
+          execution_context: context,
+          worker_count: 2
+        ).execute(tc)
+      end
+
+      executor = Taski::Execution::Executor.new(
+        registry: registry,
         execution_context: context,
         worker_count: 2
-      ).execute(tc)
+      )
+
+      executor.execute(root_task)
+
+      log_lines = log_output.string.lines.map { |l| l[/\{.*\}/] }.compact.map { |j| JSON.parse(j) }
+      completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
+
+      refute_nil completed_event
+      assert_equal 1, completed_event["data"]["skipped_count"]
+    ensure
+      Taski.logger = original_logger
     end
-
-    executor = Taski::Execution::Executor.new(
-      registry: registry,
-      execution_context: context,
-      worker_count: 2
-    )
-
-    executor.execute(root_task)
-
-    Taski.logger = original_logger
-
-    log_lines = log_output.string.lines.map { |l| l[/\{.*\}/] }.compact.map { |j| JSON.parse(j) }
-    completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
-
-    refute_nil completed_event
-    assert_equal 1, completed_event["data"]["skipped_count"]
   end
 
   private

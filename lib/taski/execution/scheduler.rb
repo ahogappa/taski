@@ -148,8 +148,10 @@ module Taski
       end
 
       # Get task classes that were never executed (remained in STATE_PENDING).
-      # These are tasks that were discovered by static analysis but skipped
-      # during execution (e.g., unselected Section implementation candidates).
+      # These are tasks discovered by the static dependency graph
+      # (via build_dependency_graph) but not reached at runtime — e.g.,
+      # skipped due to conditional logic inside Task#run or because the
+      # root task completed before all statically-discovered tasks were needed.
       #
       # @return [Array<Class>] Array of skipped task classes
       def skipped_task_classes

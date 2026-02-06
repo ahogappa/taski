@@ -199,20 +199,28 @@ module Taski
       end
 
       # Resume a parked Fiber from the thread queue.
+      # Restores fiber context before resuming since teardown_fiber_context
+      # cleared thread-local state when the fiber was parked.
       def resume_fiber(fiber, value, queue)
         context = get_fiber_context(fiber)
         return unless context
 
         task_class, wrapper = context
+        setup_fiber_context
+        start_output_capture(task_class)
         continue_fiber(fiber, value, task_class, wrapper, queue)
       end
 
       # Resume a parked Fiber with an error.
+      # Restores fiber context before resuming since teardown_fiber_context
+      # cleared thread-local state when the fiber was parked.
       def resume_fiber_with_error(fiber, error, queue)
         context = get_fiber_context(fiber)
         return unless context
 
         task_class, wrapper = context
+        setup_fiber_context
+        start_output_capture(task_class)
         continue_fiber_with_error(fiber, error, task_class, wrapper, queue)
       end
 
