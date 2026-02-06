@@ -451,9 +451,8 @@ class TestWorkerPool < Minitest::Test
   def test_concurrent_dependency_requests_do_not_duplicate_start
     # When two fibers on different threads request the same unregistered
     # dependency, the first should get :start and the second should get :wait
-    # (not another :start).  This requires mark_running to be called in
-    # SharedState so the state transitions to RUNNING before another fiber
-    # can observe it.
+    # (not another :start).  This requires the state to transition atomically
+    # so subsequent callers observe :wait instead of :start.
     task_dep = Class.new(Taski::Task) do
       exports :value
       def run
@@ -504,6 +503,127 @@ class TestWorkerPool < Minitest::Test
     dep_events = events.select { |e| e[:task_class] == task_dep }
     assert_equal 1, dep_events.size,
       "Dependency should complete exactly once, got #{dep_events.size}"
+
+    # Verify no extra events remain in the queue (no duplicate completion events)
+    assert completion_queue.empty?,
+      "No extra completion events should remain in the queue"
+  end
+
+  def test_no_duplicate_completion_events_under_contention
+    # Stress test: 4 fibers on 4 threads all request the same unstarted dep.
+    # Exactly 1 completion event for the dep should be produced, not N.
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "dep_result"
+      end
+    end
+
+    tasks = 4.times.map do
+      tc = Class.new(Taski::Task) { exports :result }
+      tc.define_method(:run) do
+        @result = "got:#{Fiber.yield([:need_dep, task_dep, :value])}"
+      end
+      tc
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 4,
+      completion_queue: completion_queue
+    )
+
+    wrappers = tasks.map do |tc|
+      w = create_wrapper(tc)
+      @shared_state.register(tc, w)
+      [tc, w]
+    end
+
+    pool.start
+    wrappers.each { |tc, w| pool.enqueue(tc, w) }
+
+    # 4 task completions + 1 dep completion = 5
+    events = []
+    5.times { events << completion_queue.pop }
+    pool.shutdown
+
+    tasks.each_with_index do |tc, i|
+      w = wrappers[i][1]
+      assert w.completed?, "task #{i} should complete"
+      assert_equal "got:dep_result", w.task.result
+    end
+
+    dep_events = events.select { |e| e[:task_class] == task_dep }
+    assert_equal 1, dep_events.size,
+      "Dependency should have exactly 1 completion event, got #{dep_events.size}"
+
+    assert completion_queue.empty?,
+      "No extra completion events should remain in the queue"
+  end
+
+  def test_drive_fiber_emits_registered_and_started_when_mark_running_fails
+    # When wrapper.mark_running returns false (task already running elsewhere),
+    # drive_fiber should still emit notify_task_registered and
+    # notify_task_started before waiting, so observers see the correct event
+    # ordering (registered → started → completed).
+    observer_events = []
+
+    observer = Object.new
+    observer.define_singleton_method(:register_task) { |tc| observer_events << [:registered, tc] }
+    observer.define_singleton_method(:update_task) { |tc, **kw| observer_events << [:update, tc, kw] }
+    observer.define_singleton_method(:method_missing) { |*| }
+    observer.define_singleton_method(:respond_to_missing?) { |*| true }
+
+    @execution_context.add_observer(observer)
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+
+    # Pre-mark the wrapper as running so that drive_fiber's mark_running fails
+    wrapper.mark_running
+
+    pool.start
+    pool.enqueue(task_class, wrapper)
+
+    # Complete the task from this thread so wait_for_completion unblocks
+    Thread.new do
+      sleep 0.05
+      wrapper.mark_completed("hello")
+      @shared_state.mark_completed(task_class)
+    end
+
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+
+    task_events = observer_events.select { |e| e[1] == task_class }
+    registered = task_events.select { |e| e[0] == :registered }
+    started = task_events.select { |e| e[0] == :update && e[2][:state] == :running }
+
+    assert_operator registered.size, :>=, 1,
+      "Expected at least 1 registered event, got #{registered.size}"
+    assert_operator started.size, :>=, 1,
+      "Expected at least 1 started event, got #{started.size}"
   end
 
   def test_error_in_task_is_captured

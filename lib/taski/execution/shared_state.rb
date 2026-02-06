@@ -110,7 +110,9 @@ module Taski
             @waiters[dep_class] << [thread_queue, fiber, method]
             [:wait]
           else
-            # Not started (pending or unknown) - register waiter and signal to start
+            # Not started (pending or unknown) - atomically transition to RUNNING
+            # to prevent subsequent callers from also receiving :start.
+            @states[dep_class] = STATE_RUNNING
             @waiters[dep_class] ||= []
             @waiters[dep_class] << [thread_queue, fiber, method]
             [:start]

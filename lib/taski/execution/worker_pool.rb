@@ -117,7 +117,10 @@ module Taski
         end
 
         unless wrapper.mark_running
-          # Already running or completed elsewhere
+          # Already running or completed elsewhere — still emit observer events
+          # so progress display sees the full registered → started → completed sequence.
+          @execution_context.notify_task_registered(task_class)
+          @execution_context.notify_task_started(task_class)
           wrapper.wait_for_completion
           @shared_state.mark_completed(task_class)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
@@ -197,10 +200,11 @@ module Taski
       end
 
       # Start a dependency task as a new Fiber on this thread.
+      # SharedState is already RUNNING (set atomically by request_dependency),
+      # so drive_fiber handles the wrapper-level mark_running transition.
       def start_dependency(dep_class, queue)
         dep_wrapper = @registry.create_wrapper(dep_class, execution_context: @execution_context)
         @shared_state.register(dep_class, dep_wrapper)
-        @shared_state.mark_running(dep_class)
         drive_fiber(dep_class, dep_wrapper, queue)
       end
 

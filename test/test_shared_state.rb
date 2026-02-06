@@ -248,4 +248,28 @@ class TestSharedState < Minitest::Test
     result = @shared_state.request_dependency(dep_class, :value, thread_queue, fiber)
     assert_equal :start, result[0]
   end
+
+  def test_second_request_dependency_returns_wait_not_start
+    # After the first request_dependency returns :start, subsequent calls
+    # for the same dep should return :wait (not another :start).
+    dep_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "dep_value"
+      end
+    end
+
+    queue_a = Queue.new
+    queue_b = Queue.new
+    fiber_a = Fiber.new { Fiber.yield }
+    fiber_b = Fiber.new { Fiber.yield }
+
+    result_a = @shared_state.request_dependency(dep_class, :value, queue_a, fiber_a)
+    assert_equal :start, result_a[0]
+
+    # Second call should see :wait, not :start
+    result_b = @shared_state.request_dependency(dep_class, :value, queue_b, fiber_b)
+    assert_equal :wait, result_b[0],
+      "Second request_dependency should return :wait, got #{result_b[0].inspect}"
+  end
 end
