@@ -20,7 +20,6 @@ class TestLayoutBase < Minitest::Test
     assert_respond_to @layout, :set_root_task
     assert_respond_to @layout, :register_task
     assert_respond_to @layout, :update_task
-    assert_respond_to @layout, :register_section_impl
     assert_respond_to @layout, :update_group
     assert_respond_to @layout, :set_output_capture
     assert_respond_to @layout, :start
@@ -119,16 +118,6 @@ class TestLayoutBase < Minitest::Test
     @layout.set_root_task(task1)
     @layout.set_root_task(task2)
     # First set wins - implementation detail checked via on_root_task_set
-  end
-
-  # === Section impl registration ===
-
-  def test_register_section_impl_registers_impl_task
-    section_class = Class.new
-    impl_class = Class.new
-    @layout.register_task(section_class)
-    @layout.register_section_impl(section_class, impl_class)
-    assert @layout.task_registered?(impl_class)
   end
 
   # === Message queue ===

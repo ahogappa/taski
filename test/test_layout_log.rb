@@ -157,17 +157,6 @@ class TestLayoutLog < Minitest::Test
     assert_match(/\[TASKI\] Failed: 1\/2 tasks \(\d+ms\)/, @output.string)
   end
 
-  # === Section impl registration ===
-
-  def test_register_section_impl_registers_impl_task
-    section_class = stub_task_class("MySection")
-    impl_class = stub_task_class("MyImpl")
-    @layout.register_task(section_class)
-    @layout.register_section_impl(section_class, impl_class)
-
-    assert @layout.task_registered?(impl_class)
-  end
-
   # === Duration formatting ===
 
   def test_formats_duration_in_seconds_when_over_1000ms

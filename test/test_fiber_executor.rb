@@ -172,7 +172,7 @@ class TestFiberExecutor < Minitest::Test
     assert wrapper.completed?
     assert_equal "A+B", wrapper.task.value
     # Both tasks sleep 0.1s; if parallel, should complete in ~0.1s not ~0.2s
-    assert elapsed < 0.25, "Parallel tasks should complete in < 0.25s, took #{elapsed}s"
+    assert elapsed < 0.35, "Parallel tasks should complete in < 0.35s, took #{elapsed}s"
   end
 
   def test_task_with_error

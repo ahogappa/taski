@@ -147,11 +147,6 @@ module Taski
         # This must happen first to ensure root task and all static dependencies are included
         @scheduler.build_reverse_dependency_graph(root_task_class)
 
-        # Merge runtime dependencies (e.g., Section's dynamically selected implementations)
-        # This allows clean to include tasks that were selected at runtime during run phase
-        runtime_deps = @execution_context.runtime_dependencies
-        @scheduler.merge_runtime_dependencies(runtime_deps)
-
         with_display_lifecycle(root_task_class) do
           # Create a new worker pool for clean operations
           # Uses the same worker count as the run phase

@@ -135,7 +135,6 @@ class TestArgs < Minitest::Test
     # Note: Static analysis requires actual source files, so we just verify
     # that Args is not a Task subclass (which is how dependencies are filtered)
     refute Taski::Args < Taski::Task
-    refute Taski::Args < Taski::Section
   end
 
   def test_args_thread_safety

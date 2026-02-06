@@ -25,8 +25,6 @@ module Taski
         @method_calls_to_follow = Set.new
         # Store method definitions found in the class for later analysis
         @class_method_defs = {}
-        # Track if we're in an impl call chain (for Section constant detection)
-        @in_impl_chain = false
       end
 
       def visit_class_node(node)
@@ -48,8 +46,6 @@ module Taski
           @analyzed_methods.add(node.name)
           @in_target_method = true
           @current_analyzing_method = node.name
-          # Start impl chain when entering impl method
-          @in_impl_chain = true if node.name == :impl && @target_method == :impl
           super
           @in_target_method = false
           @current_analyzing_method = nil
@@ -66,21 +62,7 @@ module Taski
         super
       end
 
-      def visit_constant_read_node(node)
-        # For Section.impl, detect constants as impl candidates (static dependencies)
-        detect_impl_candidate(node) if in_impl_method?
-        super
-      end
-
-      def visit_constant_path_node(node)
-        # For Section.impl, detect constants as impl candidates (static dependencies)
-        detect_impl_candidate(node) if in_impl_method?
-        super
-      end
-
       # After visiting, follow any method calls that need analysis
-      # @in_impl_chain is preserved because methods called from impl should
-      # also detect constants as impl candidates
       def follow_method_calls
         new_methods = @method_calls_to_follow - @analyzed_methods
         return if new_methods.empty?
@@ -90,8 +72,6 @@ module Taski
         @method_calls_to_follow.clear
 
         # Re-analyze the class methods
-        # Preserve impl chain context: methods called from impl should continue
-        # detecting constants as impl candidates
         # Set namespace path from target class name for constant resolution
         @current_namespace_path = @target_task_class.name.split("::")
 
@@ -140,10 +120,6 @@ module Taski
         @methods_to_analyze.include?(method_name) && !@analyzed_methods.include?(method_name)
       end
 
-      def in_impl_method?
-        @in_target_method && @in_impl_chain
-      end
-
       # Detect method calls that should be followed (calls to methods in the same class)
       def detect_method_call_to_follow(node)
         # Only follow calls without explicit receiver (self.method or just method)
@@ -156,11 +132,6 @@ module Taski
 
       def self_receiver?(receiver)
         receiver.is_a?(Prism::SelfNode)
-      end
-
-      def detect_impl_candidate(node)
-        constant_name = node.slice
-        resolve_and_add_dependency(constant_name)
       end
 
       def detect_task_dependency(node)
@@ -206,16 +177,7 @@ module Taski
       end
 
       def valid_dependency?(klass)
-        klass.is_a?(Class) &&
-          (is_parallel_task?(klass) || is_parallel_section?(klass))
-      end
-
-      def is_parallel_task?(klass)
-        defined?(Taski::Task) && klass < Taski::Task
-      end
-
-      def is_parallel_section?(klass)
-        defined?(Taski::Section) && klass < Taski::Section
+        klass.is_a?(Class) && defined?(Taski::Task) && klass < Taski::Task
       end
     end
   end

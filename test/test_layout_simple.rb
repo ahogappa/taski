@@ -91,27 +91,6 @@ class TestLayoutSimple < Minitest::Test
     assert_equal 10, template.spinner_frames.size
   end
 
-  # === Section impl handling ===
-
-  def test_register_section_impl_registers_impl
-    section_class = stub_task_class("MySection")
-    impl_class = stub_task_class("MyImpl")
-    @layout.register_task(section_class)
-    @layout.register_section_impl(section_class, impl_class)
-
-    assert @layout.task_registered?(impl_class)
-  end
-
-  def test_register_section_impl_marks_section_completed
-    section_class = stub_task_class("MySection")
-    impl_class = stub_task_class("MyImpl")
-    @layout.register_task(section_class)
-    @layout.register_section_impl(section_class, impl_class)
-
-    # Section should be marked as completed (represented by its impl)
-    assert_equal :completed, @layout.task_state(section_class)
-  end
-
   # === Root task tree building ===
 
   def test_builds_tree_structure_on_root_task_set

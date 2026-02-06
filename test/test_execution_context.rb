@@ -106,20 +106,6 @@ class TestExecutionContext < Minitest::Test
     assert_equal test_error, called_with[:error]
   end
 
-  def test_notify_section_impl_selected
-    context = Taski::Execution::ExecutionContext.new
-    called_with = nil
-    observer = Object.new
-    observer.define_singleton_method(:register_section_impl) do |section_class, impl_class|
-      called_with = {section_class: section_class, impl_class: impl_class}
-    end
-
-    context.add_observer(observer)
-    context.notify_section_impl_selected(String, Integer)
-
-    assert_equal({section_class: String, impl_class: Integer}, called_with)
-  end
-
   def test_notify_set_root_task
     context = Taski::Execution::ExecutionContext.new
     called_with = nil
@@ -344,70 +330,5 @@ class TestExecutionContext < Minitest::Test
 
     assert_equal :clean_failed, called_with[:state]
     assert_equal test_error, called_with[:error]
-  end
-
-  # ========================================
-  # Runtime Dependency Tracking Tests
-  # ========================================
-
-  def test_register_runtime_dependency
-    context = Taski::Execution::ExecutionContext.new
-
-    context.register_runtime_dependency(String, Integer)
-
-    deps = context.runtime_dependencies
-    assert_includes deps[String], Integer
-  end
-
-  def test_register_multiple_runtime_dependencies
-    context = Taski::Execution::ExecutionContext.new
-
-    context.register_runtime_dependency(String, Integer)
-    context.register_runtime_dependency(String, Float)
-    context.register_runtime_dependency(Array, Hash)
-
-    deps = context.runtime_dependencies
-    assert_includes deps[String], Integer
-    assert_includes deps[String], Float
-    assert_includes deps[Array], Hash
-    assert_equal 2, deps[String].size
-    assert_equal 1, deps[Array].size
-  end
-
-  def test_runtime_dependencies_returns_copy
-    context = Taski::Execution::ExecutionContext.new
-    context.register_runtime_dependency(String, Integer)
-
-    deps = context.runtime_dependencies
-    deps[String].clear
-    deps[Array] = Set.new
-
-    # Original should be unchanged
-    new_deps = context.runtime_dependencies
-    assert_includes new_deps[String], Integer
-    refute new_deps.key?(Array)
-  end
-
-  def test_runtime_dependencies_thread_safety
-    context = Taski::Execution::ExecutionContext.new
-    threads = []
-    classes = Array.new(10) { Class.new }
-
-    # Spawn multiple threads that register dependencies concurrently
-    10.times do |i|
-      threads << Thread.new do
-        50.times do |j|
-          context.register_runtime_dependency(classes[i], classes[(i + j + 1) % 10])
-        end
-      end
-    end
-
-    threads.each(&:join)
-
-    # All dependencies should be registered
-    deps = context.runtime_dependencies
-    classes.each do |cls|
-      assert deps.key?(cls), "Expected #{cls} to have dependencies registered"
-    end
   end
 end

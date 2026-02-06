@@ -171,10 +171,10 @@ module Taski
     end
 
     # Registers a mock for a task class with specified return values.
-    # @param task_class [Class] A Taski::Task or Taski::Section subclass
+    # @param task_class [Class] A Taski::Task subclass
     # @param values [Hash{Symbol => Object}] Method names mapped to return values
     # @return [MockWrapper] The created mock wrapper
-    # @raise [InvalidTaskError] If task_class is not a Taski::Task/Section subclass
+    # @raise [InvalidTaskError] If task_class is not a Taski::Task subclass
     # @raise [InvalidMethodError] If any method name is not an exported method
     #
     # @example
@@ -241,7 +241,7 @@ module Taski
       return if valid
 
       raise InvalidTaskError,
-        "Cannot mock #{task_class}: not a Taski::Task or Taski::Section subclass"
+        "Cannot mock #{task_class}: not a Taski::Task subclass"
     end
 
     def validate_exported_methods!(task_class, method_names)

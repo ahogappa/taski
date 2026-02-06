@@ -68,51 +68,6 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert @display.task_registered?(FixtureTaskA)
   end
 
-  def test_register_section_impl
-    @display.set_root_task(NestedSection)
-    @display.register_section_impl(NestedSection, NestedSection::LocalDB)
-    # Verify registration was successful (no error raised)
-    assert @display.task_registered?(NestedSection)
-  end
-
-  def test_register_section_impl_marks_section_as_completed
-    @display.set_root_task(NestedSection)
-    # Before registration, section should be pending
-    assert_equal :pending, @display.task_state(NestedSection)
-    @display.register_section_impl(NestedSection, NestedSection::LocalDB)
-    # After registration, section itself should be marked as completed
-    # (because it's represented by its selected impl)
-    assert_equal :completed, @display.task_state(NestedSection)
-  end
-
-  def test_register_section_impl_marks_unselected_candidates_as_completed
-    # Use LazyDependencyTest::MySection which references both OptionA and OptionB in impl
-    @display.set_root_task(LazyDependencyTest::MySection)
-    @display.register_section_impl(
-      LazyDependencyTest::MySection,
-      LazyDependencyTest::MySection::OptionB
-    )
-    # Unselected candidate (OptionA) should be marked as completed (skipped)
-    assert_equal :completed, @display.task_state(LazyDependencyTest::MySection::OptionA)
-    # Selected impl should remain in its current state (pending until actually run)
-    assert_equal :pending, @display.task_state(LazyDependencyTest::MySection::OptionB)
-  end
-
-  def test_register_section_impl_marks_unselected_candidate_descendants_as_completed
-    # Use LazyDependencyTest::MySection which has:
-    # - OptionA (depends on ExpensiveTask)
-    # - OptionB (depends on CheapTask)
-    @display.set_root_task(LazyDependencyTest::MySection)
-    @display.register_section_impl(
-      LazyDependencyTest::MySection,
-      LazyDependencyTest::MySection::OptionB
-    )
-    # OptionA's dependency (ExpensiveTask) should also be marked as completed (skipped)
-    assert_equal :completed, @display.task_state(LazyDependencyTest::ExpensiveTask)
-    # OptionB's dependency (CheapTask) should remain pending (will be executed)
-    assert_equal :pending, @display.task_state(LazyDependencyTest::CheapTask)
-  end
-
   def test_start_and_stop_without_tty
     # When output is not a TTY, start should do nothing
     @display.start
@@ -149,18 +104,6 @@ class TestSimpleProgressDisplay < Minitest::Test
     @display.update_group(FixtureTaskA, "test_group", state: :running)
     # Should not raise error
     assert true
-  end
-
-  def test_section_completed_without_impl_registration
-    @display.set_root_task(NestedSection)
-    # Start section without registering impl
-    @display.update_task(NestedSection, state: :running)
-    @display.update_task(NestedSection, state: :completed)
-
-    # Section should be completed
-    assert_equal :completed, @display.task_state(NestedSection)
-    # Impl candidates should still be pending (never executed)
-    assert_equal :pending, @display.task_state(NestedSection::LocalDB)
   end
 end
 

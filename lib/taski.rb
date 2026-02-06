@@ -340,6 +340,5 @@ module Taski
   end
 end
 
-# Load Task and Section after Taski module is defined (they depend on TaskError)
+# Load Task after Taski module is defined (it depends on TaskError)
 require_relative "taski/task"
-require_relative "taski/section"
