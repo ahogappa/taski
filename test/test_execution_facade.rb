@@ -605,6 +605,9 @@ end
 
 # ========================================
 # Integration test: Execution lifecycle event order
+# Uses file-based fixture classes (not Class.new) to ensure static analysis
+# correctly resolves dependencies via Prism source_location parsing.
+#
 # Verifies the order specified in Issue #147:
 #   ready → start → phase_started(:run) → task_updated... →
 #   phase_completed(:run) → stop
@@ -615,6 +618,7 @@ end
 class TestExecutionLifecycleEventOrder < Minitest::Test
   def setup
     Taski::Task.reset!
+    require_relative "fixtures/lifecycle_event_fixtures"
   end
 
   def teardown
@@ -622,14 +626,6 @@ class TestExecutionLifecycleEventOrder < Minitest::Test
   end
 
   def test_run_phase_event_order
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "done"
-      end
-    end
-
     events = []
     observer = create_lifecycle_recording_observer(events)
 
@@ -637,13 +633,12 @@ class TestExecutionLifecycleEventOrder < Minitest::Test
     context = Taski::Execution::ExecutionFacade.new
     context.add_observer(observer)
 
-    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+    Taski::Execution::Executor.execute(LifecycleParentTask, registry: registry, execution_context: context)
 
     event_types = events.map { |e| e[0] }
 
     # Verify the order specified in Issue #147:
-    # ready → start → phase_started(:run) → task_updated(pending→running) →
-    # task_updated(running→completed) → phase_completed(:run) → stop
+    # ready → start → phase_started(:run) → task_updated... → phase_completed(:run) → stop
     assert_equal :on_ready, event_types[0], "First event should be on_ready"
     assert_equal :start, event_types[1], "Second event should be start"
     assert_equal :on_phase_started, event_types[2], "Third event should be on_phase_started"
@@ -664,21 +659,19 @@ class TestExecutionLifecycleEventOrder < Minitest::Test
     # Verify phase is :run
     phase_event = events.find { |e| e[0] == :on_phase_started }
     assert_equal :run, phase_event[1]
+
+    # Verify both tasks received events (static analysis resolved the dependency)
+    task_classes_notified = events
+      .select { |e| e[0] == :on_task_updated }
+      .map { |e| e[1] }
+      .uniq
+    assert_includes task_classes_notified, LifecycleLeafTask,
+      "LifecycleLeafTask should receive task_updated events"
+    assert_includes task_classes_notified, LifecycleParentTask,
+      "LifecycleParentTask should receive task_updated events"
   end
 
   def test_run_and_clean_full_lifecycle_event_order
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "done"
-      end
-
-      def clean
-        @value = nil
-      end
-    end
-
     events = []
     observer = create_lifecycle_recording_observer(events)
 
@@ -686,8 +679,8 @@ class TestExecutionLifecycleEventOrder < Minitest::Test
     context = Taski::Execution::ExecutionFacade.new
     context.add_observer(observer)
 
-    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
-    Taski::Execution::Executor.execute_clean(task_class, registry: registry, execution_context: context)
+    Taski::Execution::Executor.execute(LifecycleParentTask, registry: registry, execution_context: context)
+    Taski::Execution::Executor.execute_clean(LifecycleParentTask, registry: registry, execution_context: context)
 
     # Find all phase events
     phase_starts = events.each_with_index.select { |e, _| e[0] == :on_phase_started }
@@ -709,17 +702,20 @@ class TestExecutionLifecycleEventOrder < Minitest::Test
     clean_started_idx = phase_starts[1][1]
     assert run_completed_idx < clean_started_idx,
       "run phase_completed (#{run_completed_idx}) should precede clean phase_started (#{clean_started_idx})"
+
+    # Verify clean phase also includes task_updated events for both tasks
+    clean_phase_start_idx = phase_starts[1][1]
+    clean_phase_end_idx = phase_completes[1][1]
+    clean_task_events = events[clean_phase_start_idx..clean_phase_end_idx]
+      .select { |e| e[0] == :on_task_updated }
+    clean_task_classes = clean_task_events.map { |e| e[1] }.uniq
+    assert_includes clean_task_classes, LifecycleLeafTask,
+      "LifecycleLeafTask should receive clean phase task_updated events"
+    assert_includes clean_task_classes, LifecycleParentTask,
+      "LifecycleParentTask should receive clean phase task_updated events"
   end
 
   def test_task_state_transitions_in_run_phase
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "done"
-      end
-    end
-
     events = []
     observer = create_lifecycle_recording_observer(events)
 
@@ -727,21 +723,31 @@ class TestExecutionLifecycleEventOrder < Minitest::Test
     context = Taski::Execution::ExecutionFacade.new
     context.add_observer(observer)
 
-    Taski::Execution::Executor.execute(task_class, registry: registry, execution_context: context)
+    Taski::Execution::Executor.execute(LifecycleParentTask, registry: registry, execution_context: context)
 
-    # Extract task_updated events
-    task_events = events.select { |e| e[0] == :on_task_updated }
+    # Extract task_updated events per task class
+    leaf_events = events.select { |e| e[0] == :on_task_updated && e[1] == LifecycleLeafTask }
+    parent_events = events.select { |e| e[0] == :on_task_updated && e[1] == LifecycleParentTask }
 
-    assert_operator task_events.size, :>=, 2, "Should have at least 2 task_updated events"
+    # Both tasks should have pending→running and running→completed transitions
+    assert_equal 2, leaf_events.size, "LifecycleLeafTask should have 2 state transitions"
+    assert_equal :pending, leaf_events[0][2][:previous_state]
+    assert_equal :running, leaf_events[0][2][:current_state]
+    assert_equal :running, leaf_events[1][2][:previous_state]
+    assert_equal :completed, leaf_events[1][2][:current_state]
 
-    # First task_updated should be pending → running
-    assert_equal :pending, task_events[0][2][:previous_state]
-    assert_equal :running, task_events[0][2][:current_state]
+    assert_equal 2, parent_events.size, "LifecycleParentTask should have 2 state transitions"
+    assert_equal :pending, parent_events[0][2][:previous_state]
+    assert_equal :running, parent_events[0][2][:current_state]
+    assert_equal :running, parent_events[1][2][:previous_state]
+    assert_equal :completed, parent_events[1][2][:current_state]
 
-    # Last task_updated for this task should be running → completed
-    last_event = task_events.last
-    assert_equal :running, last_event[2][:previous_state]
-    assert_equal :completed, last_event[2][:current_state]
+    # Leaf must complete before parent starts (dependency ordering)
+    all_task_events = events.select { |e| e[0] == :on_task_updated }
+    leaf_completed_idx = all_task_events.index(leaf_events[1])
+    parent_started_idx = all_task_events.index(parent_events[0])
+    assert leaf_completed_idx < parent_started_idx,
+      "LifecycleLeafTask must complete before LifecycleParentTask starts"
   end
 
   private
