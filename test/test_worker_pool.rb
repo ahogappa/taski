@@ -448,6 +448,64 @@ class TestWorkerPool < Minitest::Test
     assert_nil ctx, "fiber context should be nil during clean execution"
   end
 
+  def test_concurrent_dependency_requests_do_not_duplicate_start
+    # When two fibers on different threads request the same unregistered
+    # dependency, the first should get :start and the second should get :wait
+    # (not another :start).  This requires mark_running to be called in
+    # SharedState so the state transitions to RUNNING before another fiber
+    # can observe it.
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.05
+        @value = "shared_dep"
+      end
+    end
+
+    task_a = Class.new(Taski::Task) { exports :result }
+    task_b = Class.new(Taski::Task) { exports :result }
+
+    task_a.define_method(:run) do
+      @result = "a:#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    task_b.define_method(:run) do
+      @result = "b:#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 2,
+      completion_queue: completion_queue
+    )
+
+    wrapper_a = create_wrapper(task_a)
+    wrapper_b = create_wrapper(task_b)
+    @shared_state.register(task_a, wrapper_a)
+    @shared_state.register(task_b, wrapper_b)
+
+    pool.start
+    pool.enqueue(task_a, wrapper_a)
+    pool.enqueue(task_b, wrapper_b)
+
+    events = []
+    3.times { events << completion_queue.pop }
+    pool.shutdown
+
+    assert wrapper_a.completed?, "task_a should complete"
+    assert wrapper_b.completed?, "task_b should complete"
+    assert_equal "a:shared_dep", wrapper_a.task.result
+    assert_equal "b:shared_dep", wrapper_b.task.result
+
+    # The dep should only have been started once — verify via completion events
+    dep_events = events.select { |e| e[:task_class] == task_dep }
+    assert_equal 1, dep_events.size,
+      "Dependency should complete exactly once, got #{dep_events.size}"
+  end
+
   def test_error_in_task_is_captured
     task_class = Class.new(Taski::Task) do
       exports :value

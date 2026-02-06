@@ -124,6 +124,7 @@ module Taski
           return
         end
 
+        @shared_state.mark_running(task_class)
         @execution_context.notify_task_registered(task_class)
         @execution_context.notify_task_started(task_class)
 
@@ -199,6 +200,7 @@ module Taski
       def start_dependency(dep_class, queue)
         dep_wrapper = @registry.create_wrapper(dep_class, execution_context: @execution_context)
         @shared_state.register(dep_class, dep_wrapper)
+        @shared_state.mark_running(dep_class)
         drive_fiber(dep_class, dep_wrapper, queue)
       end
 
