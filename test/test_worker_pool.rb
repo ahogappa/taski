@@ -334,6 +334,120 @@ class TestWorkerPool < Minitest::Test
       "Expected main task capture to be started at least twice (initial + restore)"
   end
 
+  def test_single_clean_task_execution
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+
+      def clean
+        "cleaned"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
+    wrapper.mark_completed("hello")
+
+    pool.start
+    pool.enqueue_clean(task_class, wrapper)
+
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+    assert_equal true, event[:clean]
+    assert_nil event[:error]
+  end
+
+  def test_clean_task_error_captured
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+
+      def clean
+        raise StandardError, "clean error"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
+    wrapper.mark_completed("hello")
+
+    pool.start
+    pool.enqueue_clean(task_class, wrapper)
+
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+    assert_equal true, event[:clean]
+    assert_instance_of StandardError, event[:error]
+    assert_equal "clean error", event[:error].message
+  end
+
+  def test_clean_task_does_not_set_fiber_context
+    fiber_context_during_clean = Queue.new
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+    end
+
+    task_class.define_method(:clean) do
+      fiber_context_during_clean.push(Thread.current[:taski_fiber_context])
+      "cleaned"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
+    wrapper.mark_completed("hello")
+
+    pool.start
+    pool.enqueue_clean(task_class, wrapper)
+
+    completion_queue.pop
+    pool.shutdown
+
+    ctx = fiber_context_during_clean.pop
+    assert_nil ctx, "fiber context should be nil during clean execution"
+  end
+
   def test_error_in_task_is_captured
     task_class = Class.new(Taski::Task) do
       exports :value

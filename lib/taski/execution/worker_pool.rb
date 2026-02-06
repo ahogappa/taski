@@ -67,6 +67,16 @@ module Taski
         debug_log("Enqueued #{task_class} on thread #{(@next_thread_index - 1) % @worker_count}")
       end
 
+      # Enqueue a clean task for execution on a worker thread.
+      # Clean tasks run directly without Fiber wrapping.
+      # @param task_class [Class] The task class to clean
+      # @param wrapper [TaskWrapper] The task wrapper
+      def enqueue_clean(task_class, wrapper)
+        queue = @thread_queues[@next_thread_index % @worker_count]
+        @next_thread_index += 1
+        queue.push([:execute_clean, task_class, wrapper])
+      end
+
       # Shutdown all worker threads gracefully.
       def shutdown
         @thread_queues.each { |q| q.push(:shutdown) }
@@ -90,6 +100,9 @@ module Taski
           when :resume_error
             _, fiber, error = cmd
             resume_fiber_with_error(fiber, error, queue)
+          when :execute_clean
+            _, task_class, wrapper = cmd
+            execute_clean_task(task_class, wrapper)
           end
         end
       end
@@ -203,6 +216,34 @@ module Taski
         @shared_state.mark_failed(task_class, error)
         @completion_queue.push({task_class: task_class, wrapper: wrapper, error: error})
         teardown_fiber_context
+      end
+
+      # Execute a clean task directly (no Fiber needed).
+      def execute_clean_task(task_class, wrapper)
+        return if @registry.abort_requested?
+
+        setup_clean_context
+        start_output_capture(task_class)
+
+        result = wrapper.task.clean
+        wrapper.mark_clean_completed(result)
+        @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
+      rescue Taski::TaskAbortException => e
+        @registry.request_abort!
+        wrapper.mark_clean_failed(e)
+        @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
+      rescue => e
+        wrapper.mark_clean_failed(e)
+        @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
+      ensure
+        stop_output_capture
+        teardown_fiber_context
+      end
+
+      # Set up context for clean execution (no Fiber flag).
+      def setup_clean_context
+        ExecutionContext.current = @execution_context
+        Taski.set_current_registry(@registry)
       end
 
       def setup_fiber_context

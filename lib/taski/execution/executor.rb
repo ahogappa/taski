@@ -28,9 +28,9 @@ module Taski
     # 6. Shutdown WorkerPool when root task completes
     # 7. Teardown progress display
     #
-    # == Clean Phase (Thread-based)
+    # == Clean Phase
     #
-    # Uses a simple inline thread pool (no Fibers needed).
+    # Uses WorkerPool (no Fibers needed, direct execution).
     # Runs tasks in reverse dependency order.
     class Executor
       class << self
@@ -106,10 +106,17 @@ module Taski
         @scheduler.build_reverse_dependency_graph(root_task_class)
 
         with_display_lifecycle(root_task_class) do
-          start_clean_workers
+          @worker_pool = WorkerPool.new(
+            shared_state: @shared_state,
+            registry: @registry,
+            execution_context: @execution_context,
+            worker_count: @effective_worker_count,
+            completion_queue: @completion_queue
+          )
+          @worker_pool.start
           enqueue_ready_clean_tasks
           run_clean_main_loop(root_task_class)
-          shutdown_clean_workers
+          @worker_pool.shutdown
         end
 
         raise_if_any_clean_failures
@@ -173,29 +180,8 @@ module Taski
       end
 
       # ========================================
-      # Clean Phase Methods (Thread-based)
+      # Clean Phase Methods
       # ========================================
-
-      def start_clean_workers
-        effective_count = @effective_worker_count || Execution.default_worker_count
-        @clean_queue = Queue.new
-        @clean_threads = effective_count.times.map do
-          thread = Thread.new do
-            loop do
-              item = @clean_queue.pop
-              break if item == :shutdown
-              execute_clean_task(item[:task_class], item[:wrapper])
-            end
-          end
-          @registry.register_thread(thread)
-          thread
-        end
-      end
-
-      def shutdown_clean_workers
-        @clean_threads.size.times { @clean_queue.push(:shutdown) }
-        @clean_threads.each(&:join)
-      end
 
       def enqueue_ready_clean_tasks
         @scheduler.next_ready_clean_tasks.each do |task_class|
@@ -213,24 +199,7 @@ module Taski
 
         @execution_context.notify_clean_started(task_class)
 
-        @clean_queue.push({task_class: task_class, wrapper: wrapper})
-      end
-
-      def execute_clean_task(task_class, wrapper)
-        return if @registry.abort_requested?
-
-        with_task_context(task_class) do
-          result = wrapper.task.clean
-          wrapper.mark_clean_completed(result)
-          @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
-        rescue Taski::TaskAbortException => e
-          @registry.request_abort!
-          wrapper.mark_clean_failed(e)
-          @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
-        rescue => e
-          wrapper.mark_clean_failed(e)
-          @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
-        end
+        @worker_pool.enqueue_clean(task_class, wrapper)
       end
 
       def run_clean_main_loop(root_task_class)
@@ -251,21 +220,6 @@ module Taski
 
       def all_tasks_cleaned?
         @scheduler.next_ready_clean_tasks.empty? && !@scheduler.running_clean_tasks?
-      end
-
-      # Execute a block with task-local context set up (used by clean phase).
-      def with_task_context(task_class)
-        output_capture = @execution_context.output_capture
-        output_capture&.start_capture(task_class)
-
-        ExecutionContext.current = @execution_context
-        Taski.set_current_registry(@registry)
-
-        yield
-      ensure
-        output_capture&.stop_capture
-        ExecutionContext.current = nil
-        Taski.clear_current_registry
       end
 
       # ========================================

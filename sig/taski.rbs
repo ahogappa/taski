@@ -279,6 +279,7 @@ module Taski
       def initialize: (shared_state: SharedState, registry: Registry, execution_context: ExecutionContext, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
       def start: () -> void
       def enqueue: (Class task_class, TaskWrapper wrapper) -> void
+      def enqueue_clean: (Class task_class, TaskWrapper wrapper) -> void
       def shutdown: () -> void
 
       private
@@ -292,6 +293,8 @@ module Taski
       def start_dependency: (Class dep_class, Thread::Queue queue) -> void
       def complete_task: (Class task_class, TaskWrapper wrapper, untyped result) -> void
       def fail_task: (Class task_class, TaskWrapper wrapper, Exception error) -> void
+      def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
+      def setup_clean_context: () -> void
       def setup_fiber_context: () -> void
       def teardown_fiber_context: () -> void
       def start_output_capture: (Class task_class) -> void
@@ -302,7 +305,7 @@ module Taski
     end
 
     # Executor orchestrates both run and clean phases of task execution
-    # Run phase uses Fiber-based WorkerPool; clean phase uses inline thread pool
+    # Both run and clean phases use WorkerPool
     class Executor
       @registry: Registry
       @completion_queue: Thread::Queue
@@ -312,8 +315,6 @@ module Taski
       @shared_state: SharedState
       @enqueued_tasks: Set[Class]
       @worker_pool: WorkerPool?
-      @clean_queue: Thread::Queue?
-      @clean_threads: Array[Thread]?
       @saved_output_capture: TaskOutputRouter?
 
       def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
@@ -330,15 +331,11 @@ module Taski
       def handle_completion: (Hash[Symbol, untyped] event) -> void
       def enqueue_for_execution: (Class task_class) -> void
       def notify_skipped_tasks: () -> void
-      def start_clean_workers: () -> void
-      def shutdown_clean_workers: () -> void
       def enqueue_ready_clean_tasks: () -> void
       def enqueue_clean_task: (Class task_class) -> void
-      def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
       def run_clean_main_loop: (Class root_task_class) -> void
       def handle_clean_completion: (Hash[Symbol, untyped] event) -> void
       def all_tasks_cleaned?: () -> bool
-      def with_task_context: (Class task_class) { () -> void } -> void
       def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
       def setup_progress_display: (Class root_task_class) -> void
       def setup_output_capture_if_needed: () -> bool
