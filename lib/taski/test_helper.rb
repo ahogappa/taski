@@ -84,26 +84,9 @@ module Taski
       end
     end
 
-    # Module prepended to Executor to skip execution of mocked tasks.
+    # Module prepended to WorkerPool to skip execution of mocked tasks.
     # @api private
-    module ExecutorExtension
-      def execute_task(task_class, wrapper)
-        return if @registry.abort_requested?
-
-        # Skip execution if task is mocked
-        if MockRegistry.mock_for(task_class)
-          wrapper.mark_completed(nil)
-          @completion_queue.push({task_class: task_class, wrapper: wrapper})
-          return
-        end
-
-        super
-      end
-    end
-
-    # Module prepended to FiberWorkerPool to skip execution of mocked tasks.
-    # @api private
-    module FiberWorkerPoolExtension
+    module WorkerPoolExtension
       def drive_fiber(task_class, wrapper, queue)
         return if @registry.abort_requested?
 
@@ -271,5 +254,4 @@ end
 # Prepend extensions when test helper is loaded
 Taski::Task.singleton_class.prepend(Taski::TestHelper::TaskExtension)
 Taski::Execution::Scheduler.prepend(Taski::TestHelper::SchedulerExtension)
-Taski::Execution::Executor.prepend(Taski::TestHelper::ExecutorExtension)
-Taski::Execution::FiberWorkerPool.prepend(Taski::TestHelper::FiberWorkerPoolExtension)
+Taski::Execution::WorkerPool.prepend(Taski::TestHelper::WorkerPoolExtension)

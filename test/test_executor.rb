@@ -4,7 +4,7 @@ require "test_helper"
 require "logger"
 require "json"
 
-class TestFiberExecutor < Minitest::Test
+class TestExecutor < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
   end
@@ -20,7 +20,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -63,7 +63,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -115,7 +115,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -160,7 +160,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context,
       worker_count: 2
@@ -188,7 +188,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -226,7 +226,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -266,7 +266,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -301,7 +301,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -339,7 +339,7 @@ class TestFiberExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: execution_context
     )
@@ -397,14 +397,14 @@ class TestFiberExecutor < Minitest::Test
     context = Taski::Execution::ExecutionContext.new
     context.add_observer(observer)
     context.execution_trigger = ->(tc, reg) do
-      Taski::Execution::FiberExecutor.new(
+      Taski::Execution::Executor.new(
         registry: reg,
         execution_context: context,
         worker_count: 2
       ).execute(tc)
     end
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: context,
       worker_count: 2
@@ -454,14 +454,14 @@ class TestFiberExecutor < Minitest::Test
     context = Taski::Execution::ExecutionContext.new
     context.add_observer(Taski::Logging::LoggerObserver.new)
     context.execution_trigger = ->(tc, reg) do
-      Taski::Execution::FiberExecutor.new(
+      Taski::Execution::Executor.new(
         registry: reg,
         execution_context: context,
         worker_count: 2
       ).execute(tc)
     end
 
-    executor = Taski::Execution::FiberExecutor.new(
+    executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_context: context,
       worker_count: 2
@@ -483,7 +483,7 @@ class TestFiberExecutor < Minitest::Test
   def create_execution_context(registry)
     context = Taski::Execution::ExecutionContext.new
     context.execution_trigger = ->(task_class, reg) do
-      Taski::Execution::FiberExecutor.new(
+      Taski::Execution::Executor.new(
         registry: reg,
         execution_context: context
       ).execute(task_class)

@@ -262,125 +262,9 @@ module Taski
       def ready_to_clean?: (Class task_class) -> bool
     end
 
-    # WorkerPool manages a pool of worker threads that execute tasks
-    class WorkerPool
-      attr_reader execution_queue: Thread::Queue
-      attr_reader worker_count: Integer
-
-      @worker_count: Integer
-      @registry: Registry
-      @on_execute: ^(Class, TaskWrapper) -> void
-      @execution_queue: Thread::Queue
-      @workers: Array[Thread]
-
-      def initialize: (registry: Registry, ?worker_count: Integer?) { (Class, TaskWrapper) -> void } -> void
-      def start: () -> void
-      def enqueue: (Class task_class, TaskWrapper wrapper) -> void
-      def shutdown: () -> void
-      def enqueue_shutdown_signals: () -> void
-
-      private
-
-      def default_worker_count: () -> Integer
-      def worker_loop: () -> void
-      def debug_log: (String message) -> void
-    end
-
-    # Executor class for parallel task execution (Producer-Consumer pattern)
-    # Run phase delegates to FiberExecutor; clean phase uses WorkerPool threads
-    class Executor
-      @registry: Registry
-      @completion_queue: Thread::Queue
-      @execution_context: ExecutionContext
-      @scheduler: Scheduler
-      @effective_worker_count: Integer?
-      @worker_pool: WorkerPool
-      @clean_worker_pool: WorkerPool?
-      @saved_output_capture: TaskOutputRouter?
-
-      def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
-      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
-      def initialize: (registry: Registry, ?worker_count: Integer?, ?execution_context: ExecutionContext?) -> void
-      def execute: (Class root_task_class) -> void
-      def execute_clean: (Class root_task_class) -> void
-
-      private
-
-      def enqueue_ready_tasks: () -> void
-      def enqueue_task: (Class task_class) -> void
-      def get_or_create_wrapper: (Class task_class) -> TaskWrapper
-      def execute_task: (Class task_class, TaskWrapper wrapper) -> void
-      def run_main_loop: (Class root_task_class) -> void
-      def handle_completion: (Hash[Symbol, untyped] event) -> void
-      def enqueue_ready_clean_tasks: () -> void
-      def enqueue_clean_task: (Class task_class) -> void
-      def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
-      def run_clean_main_loop: (Class root_task_class) -> void
-      def handle_clean_completion: (Hash[Symbol, untyped] event) -> void
-      def all_tasks_cleaned?: () -> bool
-      def setup_progress_display: (Class root_task_class) -> void
-      def setup_output_capture_if_needed: () -> bool
-      def teardown_output_capture: () -> void
-      def start_progress_display: () -> void
-      def stop_progress_display: () -> void
-      def with_task_context: (Class task_class) { () -> void } -> void
-      def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
-      def create_default_execution_context: () -> ExecutionContext
-      def debug_log: (String message) -> void
-      def log_execution_started: (Class root_task_class) -> void
-      def log_execution_completed: (Class root_task_class, Time start_time) -> void
-      def raise_if_any_failures: () -> void
-      def raise_if_any_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> void
-      def flatten_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> Array[TaskFailure]
-      def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
-      def raise_if_any_clean_failures: () -> void
-      def error_identity: (Exception error) -> Integer
-    end
-
-    # FiberExecutor orchestrates the Fiber-based run phase
-    # Uses Scheduler for static dependency analysis and FiberWorkerPool
-    # for Fiber-based task execution with lazy dependency resolution
-    class FiberExecutor
-      @registry: Registry
-      @execution_context: ExecutionContext
-      @scheduler: Scheduler
-      @effective_worker_count: Integer?
-      @shared_state: SharedState
-      @completion_queue: Thread::Queue
-      @enqueued_tasks: Set[Class]
-      @fiber_pool: FiberWorkerPool?
-      @saved_output_capture: TaskOutputRouter?
-
-      def initialize: (registry: Registry, ?execution_context: ExecutionContext?, ?worker_count: Integer?) -> void
-      def execute: (Class root_task_class) -> void
-
-      private
-
-      def pre_start_leaf_tasks: () -> void
-      def enqueue_root_if_needed: (Class root_task_class) -> void
-      def run_main_loop: (Class root_task_class) -> void
-      def handle_completion: (Hash[Symbol, untyped] event) -> void
-      def notify_skipped_tasks: () -> void
-      def get_or_create_wrapper: (Class task_class) -> TaskWrapper
-      def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
-      def setup_progress_display: (Class root_task_class) -> void
-      def setup_output_capture_if_needed: () -> bool
-      def teardown_output_capture: () -> void
-      def start_progress_display: () -> void
-      def stop_progress_display: () -> void
-      def raise_if_any_failures: () -> void
-      def flatten_failures: (Array[TaskWrapper] failed_wrappers) -> Array[TaskFailure]
-      def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
-      def error_identity: (Exception error) -> Integer
-      def create_default_execution_context: () -> ExecutionContext
-      def log_execution_started: (Class root_task_class) -> void
-      def log_execution_completed: (Class root_task_class, Time start_time) -> void
-      def debug_log: (String message) -> void
-    end
-
-    # FiberWorkerPool manages N threads, each with its own command Queue
+    # WorkerPool manages N threads, each with its own command Queue
     # Tasks are executed within Fibers on worker threads
-    class FiberWorkerPool
+    class WorkerPool
       attr_reader worker_count: Integer
 
       @shared_state: SharedState
@@ -420,6 +304,63 @@ module Taski
       def store_fiber_context: (Fiber fiber, Class task_class, TaskWrapper wrapper) -> void
       def get_fiber_context: (Fiber fiber) -> Array[untyped]?
       def get_or_create_wrapper: (Class task_class) -> TaskWrapper
+      def debug_log: (String message) -> void
+    end
+
+    # Executor orchestrates both run and clean phases of task execution
+    # Run phase uses Fiber-based WorkerPool; clean phase uses inline thread pool
+    class Executor
+      @registry: Registry
+      @completion_queue: Thread::Queue
+      @execution_context: ExecutionContext
+      @scheduler: Scheduler
+      @effective_worker_count: Integer?
+      @shared_state: SharedState
+      @enqueued_tasks: Set[Class]
+      @worker_pool: WorkerPool?
+      @clean_queue: Thread::Queue?
+      @clean_threads: Array[Thread]?
+      @saved_output_capture: TaskOutputRouter?
+
+      def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
+      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
+      def initialize: (registry: Registry, ?worker_count: Integer?, ?execution_context: ExecutionContext?) -> void
+      def execute: (Class root_task_class) -> void
+      def execute_clean: (Class root_task_class) -> void
+
+      private
+
+      def pre_start_leaf_tasks: () -> void
+      def enqueue_root_if_needed: (Class root_task_class) -> void
+      def run_main_loop: (Class root_task_class) -> void
+      def handle_completion: (Hash[Symbol, untyped] event) -> void
+      def notify_skipped_tasks: () -> void
+      def start_clean_workers: () -> void
+      def shutdown_clean_workers: () -> void
+      def enqueue_ready_clean_tasks: () -> void
+      def enqueue_clean_task: (Class task_class) -> void
+      def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
+      def run_clean_main_loop: (Class root_task_class) -> void
+      def handle_clean_completion: (Hash[Symbol, untyped] event) -> void
+      def all_tasks_cleaned?: () -> bool
+      def get_or_create_wrapper: (Class task_class) -> TaskWrapper
+      def with_task_context: (Class task_class) { () -> void } -> void
+      def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
+      def setup_progress_display: (Class root_task_class) -> void
+      def setup_output_capture_if_needed: () -> bool
+      def teardown_output_capture: () -> void
+      def start_progress_display: () -> void
+      def stop_progress_display: () -> void
+      def raise_if_any_failures: () -> void
+      def raise_if_any_clean_failures: () -> void
+      def raise_if_any_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> void
+      def flatten_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> Array[TaskFailure]
+      def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
+      def error_identity: (Exception error) -> Integer
+      def create_default_execution_context: () -> ExecutionContext
+      def log_execution_started: (Class root_task_class) -> void
+      def log_execution_completed: (Class root_task_class, Time start_time) -> void
+      def default_worker_count: () -> Integer
       def debug_log: (String message) -> void
     end
 
