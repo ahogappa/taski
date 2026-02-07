@@ -23,6 +23,10 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: false
 
+    - name: Fix gem directory permissions (Ruby 4.0+)
+      if: matrix.ruby-version == '4.0'
+      run: chmod -R o-w "$(ruby -e 'puts Gem.dir')"
+
     - name: Add platform and install dependencies
       run: |
         bundle lock --add-platform x86_64-linux
