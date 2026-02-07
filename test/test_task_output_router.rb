@@ -38,9 +38,20 @@ class TestTaskOutputRouter < Minitest::Test
 
     @router.start_capture(task_class)
 
-    # Close all pipes from another thread while stop_capture is draining
+    # Write data so drain_pipe has work to do
+    @router.write("test output\n")
+
+    # Wrap drain_pipe to signal when it has actually started,
+    # so the closer thread can time close_all precisely.
+    drain_entered = Queue.new
+    original_drain = @router.method(:drain_pipe)
+    @router.define_singleton_method(:drain_pipe) do |pipe|
+      drain_entered.push(true)
+      original_drain.call(pipe)
+    end
+
     closer = Thread.new do
-      sleep 0.01
+      drain_entered.pop # wait until drain_pipe has actually started
       @router.close_all
     end
 

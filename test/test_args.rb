@@ -319,20 +319,25 @@ class TestArgs < Minitest::Test
   end
 
   def test_args_options_are_immutable
-    captured_value = nil
+    captured_args = nil
 
     task_class = Class.new(Taski::Task) do
       exports :result
 
       define_method(:run) do
-        # Verify args cannot be modified via public API
-        captured_value = Taski.args[:env]
-        @result = captured_value
+        captured_args = Taski.args
+        @result = Taski.args[:env]
       end
     end
 
-    task_class.run(args: {env: "production"})
-    assert_equal "production", captured_value
+    result = task_class.run(args: {env: "production"})
+    assert_equal "production", result
+
+    # Args exposes only read methods — no mutation methods exist
+    refute_respond_to captured_args, :[]=
+    refute_respond_to captured_args, :delete
+    refute_respond_to captured_args, :merge!
+    refute_respond_to captured_args, :store
   end
 
   def test_args_options_shared_across_dependent_tasks
