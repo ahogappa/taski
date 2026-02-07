@@ -94,7 +94,6 @@ module Taski
 
           tree = build_tree_node(@root_task_class)
           register_tasks_from_tree(tree)
-          collect_section_candidates(tree)
         end
 
         def register_tasks_from_tree(node)

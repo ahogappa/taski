@@ -245,78 +245,79 @@ class TestScheduler < Minitest::Test
   end
 
   # ========================================
-  # Runtime Dependency Merging Tests
+  # Skipped Task Classes Tests
   # ========================================
 
-  def test_merge_runtime_dependencies_recursively_adds_transitive_deps
-    # Create task classes with explicit cached_dependencies
-    # GrandchildTask - no dependencies
-    grandchild_task = Class.new(Taski::Task) do
+  def test_skipped_task_classes_returns_pending_tasks_after_execution
+    # 3 tasks in graph, only 1 completed -> 2 are skipped
+    task_a = Class.new(Taski::Task) do
       exports :value
-      def run
-        @value = "grandchild"
-      end
+      def run = @value = "a"
     end
-    grandchild_task.define_singleton_method(:cached_dependencies) { Set.new }
+    task_a.define_singleton_method(:cached_dependencies) { Set.new }
 
-    # ChildTask depends on GrandchildTask
-    child_task = Class.new(Taski::Task) do
-      exports :result
-      def run
-        @result = "child"
-      end
+    task_b = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "b"
     end
-    # ChildTask depends on GrandchildTask (explicit)
-    child_task.define_singleton_method(:cached_dependencies) { Set[grandchild_task] }
+    task_b.define_singleton_method(:cached_dependencies) { Set.new }
 
-    # RuntimeSection - Section always returns empty cached_dependencies
-    runtime_section = Class.new(Taski::Section) do
-      interfaces :result
+    task_c = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "c"
     end
-
-    # RootTask depends on RuntimeSection (explicit)
-    root_task = Class.new(Taski::Task) do
-      exports :output
-      def run
-        @output = "root"
-      end
-    end
-    root_task.define_singleton_method(:cached_dependencies) { Set[runtime_section] }
+    task_c.define_singleton_method(:cached_dependencies) { Set[task_a, task_b] }
 
     scheduler = Taski::Execution::Scheduler.new
-    scheduler.build_dependency_graph(root_task)
-    scheduler.build_reverse_dependency_graph(root_task)
+    scheduler.build_dependency_graph(task_c)
 
-    # At this point: RootTask and RuntimeSection are in graph
-    # ChildTask and GrandchildTask are NOT (Section has no static deps)
-    task_states = scheduler.instance_variable_get(:@task_states)
-    assert task_states.key?(root_task), "RootTask should be in task_states"
-    assert task_states.key?(runtime_section), "RuntimeSection should be in task_states"
-    refute task_states.key?(child_task), "ChildTask should NOT be in task_states before merge"
-    refute task_states.key?(grandchild_task), "GrandchildTask should NOT be in task_states before merge"
+    # Only complete task_a
+    scheduler.mark_enqueued(task_a)
+    scheduler.mark_completed(task_a)
 
-    # Simulate runtime dependency: RuntimeSection → ChildTask
-    runtime_deps = {runtime_section => Set[child_task]}
-    scheduler.merge_runtime_dependencies(runtime_deps)
+    skipped = scheduler.skipped_task_classes
+    assert_includes skipped, task_b
+    assert_includes skipped, task_c
+    refute_includes skipped, task_a
+    assert_equal 2, skipped.size
+  end
 
-    # Re-fetch task_states after merge
-    task_states = scheduler.instance_variable_get(:@task_states)
+  def test_skipped_task_classes_returns_empty_when_all_completed
+    task = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "test"
+    end
 
-    # Verify ChildTask is in the graph
-    assert task_states.key?(child_task), "ChildTask should be in task_states after merge"
+    scheduler = Taski::Execution::Scheduler.new
+    scheduler.build_dependency_graph(task)
 
-    # Verify GrandchildTask (transitive dependency) is also in the graph
-    assert task_states.key?(grandchild_task),
-      "GrandchildTask (transitive dep) should be in task_states after merge"
+    scheduler.mark_enqueued(task)
+    scheduler.mark_completed(task)
 
-    # Verify reverse dependencies for clean
-    reverse_deps = scheduler.instance_variable_get(:@reverse_dependencies)
-    assert reverse_deps.key?(grandchild_task),
-      "GrandchildTask should have reverse_dependencies entry for clean"
+    assert_empty scheduler.skipped_task_classes
+  end
 
-    # Verify clean states
-    clean_states = scheduler.instance_variable_get(:@clean_task_states)
-    assert clean_states.key?(grandchild_task),
-      "GrandchildTask should have clean_task_state for clean"
+  def test_skipped_task_classes_does_not_include_enqueued_tasks
+    task_a = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "a"
+    end
+    task_a.define_singleton_method(:cached_dependencies) { Set.new }
+
+    task_b = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "b"
+    end
+    task_b.define_singleton_method(:cached_dependencies) { Set[task_a] }
+
+    scheduler = Taski::Execution::Scheduler.new
+    scheduler.build_dependency_graph(task_b)
+
+    scheduler.mark_enqueued(task_a)
+
+    skipped = scheduler.skipped_task_classes
+    # task_a is enqueued (not pending), task_b is pending
+    refute_includes skipped, task_a
+    assert_includes skipped, task_b
   end
 end

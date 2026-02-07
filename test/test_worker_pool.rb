@@ -5,87 +5,669 @@ require "test_helper"
 class TestWorkerPool < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
+    @registry = Taski::Execution::Registry.new
+    @execution_context = Taski::Execution::ExecutionContext.new
+    @shared_state = Taski::Execution::SharedState.new
   end
 
-  def test_worker_pool_initialization
-    registry = Taski::Execution::Registry.new
-    pool = Taski::Execution::WorkerPool.new(registry: registry, worker_count: 2) { |_task, _wrapper| }
-
-    assert_kind_of Queue, pool.execution_queue
-  end
-
-  def test_worker_pool_enqueue_and_execute
-    registry = Taski::Execution::Registry.new
-    executed_tasks = []
-    mutex = Mutex.new
-
-    pool = Taski::Execution::WorkerPool.new(registry: registry, worker_count: 2) do |task_class, _wrapper|
-      mutex.synchronize { executed_tasks << task_class }
+  def test_single_task_execution_no_deps
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
     end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+
+    pool.start
+    pool.enqueue(task_class, wrapper)
+
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+    assert_nil event[:error]
+    assert wrapper.completed?
+    assert_equal "hello", wrapper.task.value
+  end
+
+  def test_two_independent_tasks_run_in_parallel
+    task_a = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.1
+        @value = "A"
+      end
+    end
+
+    task_b = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.1
+        @value = "B"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 2,
+      completion_queue: completion_queue
+    )
+
+    wrapper_a = create_wrapper(task_a)
+    wrapper_b = create_wrapper(task_b)
+    @shared_state.register(task_a, wrapper_a)
+    @shared_state.register(task_b, wrapper_b)
+
+    pool.start
+
+    start_time = Time.now
+    pool.enqueue(task_a, wrapper_a)
+    pool.enqueue(task_b, wrapper_b)
+
+    # Wait for both completions
+    2.times { completion_queue.pop }
+    elapsed = Time.now - start_time
+    pool.shutdown
+
+    assert wrapper_a.completed?
+    assert wrapper_b.completed?
+    # Should complete in ~0.1s (parallel), not ~0.2s (sequential)
+    assert elapsed < 0.35, "Parallel execution should complete in < 0.35s, took #{elapsed}s"
+  end
+
+  def test_task_with_dependency_resolved_locally
+    # TaskDep has no deps, TaskMain depends on TaskDep.value
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "dep_result"
+      end
+    end
+
+    task_main = Class.new(Taski::Task) do
+      exports :result
+    end
+
+    # We need to define run with access to task_dep
+    task_main.define_method(:run) do
+      # Simulate Fiber.yield for dependency
+      @result = "main_got_#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper_main = create_wrapper(task_main)
+    wrapper_dep = create_wrapper(task_dep)
+    @shared_state.register(task_main, wrapper_main)
+    @shared_state.register(task_dep, wrapper_dep)
+
+    pool.start
+    pool.enqueue(task_main, wrapper_main)
+
+    # Should complete both tasks (dep started locally)
+    events = []
+    2.times { events << completion_queue.pop }
+    pool.shutdown
+
+    completed_classes = events.map { |e| e[:task_class] }
+    assert_includes completed_classes, task_dep
+    assert_includes completed_classes, task_main
+
+    assert wrapper_dep.completed?
+    assert wrapper_main.completed?
+    assert_equal "dep_result", wrapper_dep.task.value
+    assert_equal "main_got_dep_result", wrapper_main.task.result
+  end
+
+  def test_task_with_dependency_resolved_cross_thread
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.05
+        @value = "cross_thread_result"
+      end
+    end
+
+    task_main = Class.new(Taski::Task) do
+      exports :result
+    end
+
+    task_main.define_method(:run) do
+      @result = "got_#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 2,
+      completion_queue: completion_queue
+    )
+
+    wrapper_dep = create_wrapper(task_dep)
+    wrapper_main = create_wrapper(task_main)
+    @shared_state.register(task_dep, wrapper_dep)
+    @shared_state.register(task_main, wrapper_main)
+
+    pool.start
+
+    # Start dep on one thread and main on another
+    # Main will yield for dep, dep will run on another thread
+    pool.enqueue(task_dep, wrapper_dep)
+    pool.enqueue(task_main, wrapper_main)
+
+    events = []
+    2.times { events << completion_queue.pop }
+    pool.shutdown
+
+    assert wrapper_dep.completed?
+    assert wrapper_main.completed?
+    assert_equal "got_cross_thread_result", wrapper_main.task.result
+  end
+
+  def test_shutdown_stops_all_threads
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 3,
+      completion_queue: completion_queue
+    )
+
+    pool.start
+    pool.shutdown
+
+    # All threads should have terminated
+    # No errors, no hanging
+  end
+
+  def test_fiber_context_restored_on_cross_thread_resume
+    # When a fiber is parked (waiting for a dependency on another thread),
+    # the thread-local fiber context is cleared by teardown_fiber_context.
+    # When the fiber is resumed via :resume command, the context must be
+    # restored so the fiber sees the correct registry and execution context.
+    context_seen_after_resume = Queue.new
+
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.05
+        @value = "dep_value"
+      end
+    end
+
+    task_main = Class.new(Taski::Task) do
+      exports :result
+    end
+
+    task_main.define_method(:run) do
+      # This Fiber.yield will park the fiber if dep is not yet complete
+      v = Fiber.yield([:need_dep, task_dep, :value])
+      # After resume, check that fiber context is properly set
+      context_seen_after_resume.push({
+        fiber_context: Thread.current[:taski_fiber_context],
+        has_registry: !Taski.current_registry.nil?
+      })
+      @result = "got:#{v}"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 2,
+      completion_queue: completion_queue
+    )
+
+    wrapper_dep = create_wrapper(task_dep)
+    wrapper_main = create_wrapper(task_main)
+    @shared_state.register(task_dep, wrapper_dep)
+    @shared_state.register(task_main, wrapper_main)
+
+    pool.start
+
+    # Enqueue dep and main on separate threads (round-robin)
+    pool.enqueue(task_dep, wrapper_dep)
+    pool.enqueue(task_main, wrapper_main)
+
+    events = []
+    2.times { events << completion_queue.pop }
+    pool.shutdown
+
+    assert wrapper_main.completed?, "main task should complete"
+    assert_equal "got:dep_value", wrapper_main.task.result
+
+    # Verify fiber context was properly restored after cross-thread resume
+    ctx = context_seen_after_resume.pop
+    assert ctx[:fiber_context], "fiber context flag should be true after resume"
+    assert ctx[:has_registry], "registry should be set after resume"
+  end
+
+  def test_output_capture_scoped_per_fiber
+    # When a dependency runs on the same thread (start_dependency),
+    # the output capture should be saved/restored so the parent fiber's
+    # capture is reinstated when it resumes.
+    captured_tasks = []
+    stopped_tasks = []
+
+    # Create a mock output capture to track start/stop calls
+    mock_capture = Object.new
+    mock_capture.define_singleton_method(:start_capture) { |tc| captured_tasks << tc }
+    mock_capture.define_singleton_method(:stop_capture) { stopped_tasks << :stop }
+    mock_capture.define_singleton_method(:recent_lines_for) { |_| [] }
+
+    # Inject mock capture into execution context
+    @execution_context.instance_variable_set(:@output_capture, mock_capture)
+
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "dep"
+      end
+    end
+
+    task_main = Class.new(Taski::Task) do
+      exports :result
+    end
+    task_main.define_method(:run) do
+      @result = "main:#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper_main = create_wrapper(task_main)
+    wrapper_dep = create_wrapper(task_dep)
+    @shared_state.register(task_main, wrapper_main)
+    @shared_state.register(task_dep, wrapper_dep)
+
+    pool.start
+    pool.enqueue(task_main, wrapper_main)
+
+    events = []
+    2.times { events << completion_queue.pop }
+    pool.shutdown
+
+    assert wrapper_main.completed?
+    assert_equal "main:dep", wrapper_main.task.result
+
+    # Output capture should have been started for main_task, then dep_task,
+    # and then re-started for main_task after dep completes
+    assert_operator captured_tasks.size, :>=, 3,
+      "Expected capture to start for main, dep, and main again (got #{captured_tasks.inspect})"
+
+    # The last start_capture before main completes should be for main_task
+    # (i.e., capture was restored after dep completed)
+    main_starts = captured_tasks.select { |tc| tc == task_main }
+    assert_operator main_starts.size, :>=, 2,
+      "Expected main task capture to be started at least twice (initial + restore)"
+  end
+
+  def test_single_clean_task_execution
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+
+      def clean
+        "cleaned"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
+    wrapper.mark_completed("hello")
+
+    pool.start
+    pool.enqueue_clean(task_class, wrapper)
+
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+    assert_equal true, event[:clean]
+    assert_nil event[:error]
+  end
+
+  def test_clean_task_error_captured
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+
+      def clean
+        raise StandardError, "clean error"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
+    wrapper.mark_completed("hello")
+
+    pool.start
+    pool.enqueue_clean(task_class, wrapper)
+
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+    assert_equal true, event[:clean]
+    assert_instance_of StandardError, event[:error]
+    assert_equal "clean error", event[:error].message
+  end
+
+  def test_clean_task_does_not_set_fiber_context
+    fiber_context_during_clean = Queue.new
 
     task_class = Class.new(Taski::Task) do
       exports :value
       def run
-        @value = "test"
+        @value = "hello"
       end
     end
 
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    task_class.define_method(:clean) do
+      fiber_context_during_clean.push(Thread.current[:taski_fiber_context])
+      "cleaned"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
+    wrapper.mark_completed("hello")
+
+    pool.start
+    pool.enqueue_clean(task_class, wrapper)
+
+    completion_queue.pop
+    pool.shutdown
+
+    ctx = fiber_context_during_clean.pop
+    assert_nil ctx, "fiber context should be nil during clean execution"
+  end
+
+  def test_concurrent_dependency_requests_do_not_duplicate_start
+    # When two fibers on different threads request the same unregistered
+    # dependency, the first should get :start and the second should get :wait
+    # (not another :start).  This requires the state to transition atomically
+    # so subsequent callers observe :wait instead of :start.
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        sleep 0.05
+        @value = "shared_dep"
+      end
+    end
+
+    task_a = Class.new(Taski::Task) { exports :result }
+    task_b = Class.new(Taski::Task) { exports :result }
+
+    task_a.define_method(:run) do
+      @result = "a:#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    task_b.define_method(:run) do
+      @result = "b:#{Fiber.yield([:need_dep, task_dep, :value])}"
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 2,
+      completion_queue: completion_queue
+    )
+
+    wrapper_a = create_wrapper(task_a)
+    wrapper_b = create_wrapper(task_b)
+    @shared_state.register(task_a, wrapper_a)
+    @shared_state.register(task_b, wrapper_b)
+
+    pool.start
+    pool.enqueue(task_a, wrapper_a)
+    pool.enqueue(task_b, wrapper_b)
+
+    events = []
+    3.times { events << completion_queue.pop }
+    pool.shutdown
+
+    assert wrapper_a.completed?, "task_a should complete"
+    assert wrapper_b.completed?, "task_b should complete"
+    assert_equal "a:shared_dep", wrapper_a.task.result
+    assert_equal "b:shared_dep", wrapper_b.task.result
+
+    # The dep should only have been started once — verify via completion events
+    dep_events = events.select { |e| e[:task_class] == task_dep }
+    assert_equal 1, dep_events.size,
+      "Dependency should complete exactly once, got #{dep_events.size}"
+
+    # Verify no extra events remain in the queue (no duplicate completion events)
+    assert completion_queue.empty?,
+      "No extra completion events should remain in the queue"
+  end
+
+  def test_no_duplicate_completion_events_under_contention
+    # Stress test: 4 fibers on 4 threads all request the same unstarted dep.
+    # Exactly 1 completion event for the dep should be produced, not N.
+    task_dep = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "dep_result"
+      end
+    end
+
+    tasks = 4.times.map do
+      tc = Class.new(Taski::Task) { exports :result }
+      tc.define_method(:run) do
+        @result = "got:#{Fiber.yield([:need_dep, task_dep, :value])}"
+      end
+      tc
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 4,
+      completion_queue: completion_queue
+    )
+
+    wrappers = tasks.map do |tc|
+      w = create_wrapper(tc)
+      @shared_state.register(tc, w)
+      [tc, w]
+    end
+
+    pool.start
+    wrappers.each { |tc, w| pool.enqueue(tc, w) }
+
+    # 4 task completions + 1 dep completion = 5
+    events = []
+    5.times { events << completion_queue.pop }
+    pool.shutdown
+
+    tasks.each_with_index do |tc, i|
+      w = wrappers[i][1]
+      assert w.completed?, "task #{i} should complete"
+      assert_equal "got:dep_result", w.task.result
+    end
+
+    dep_events = events.select { |e| e[:task_class] == task_dep }
+    assert_equal 1, dep_events.size,
+      "Dependency should have exactly 1 completion event, got #{dep_events.size}"
+
+    assert completion_queue.empty?,
+      "No extra completion events should remain in the queue"
+  end
+
+  def test_drive_fiber_emits_registered_and_started_when_mark_running_fails
+    # When wrapper.mark_running returns false (task already running elsewhere),
+    # drive_fiber should still emit notify_task_registered and
+    # notify_task_started before waiting, so observers see the correct event
+    # ordering (registered → started → completed).
+    observer_events = []
+
+    observer = Object.new
+    observer.define_singleton_method(:register_task) { |tc| observer_events << [:registered, tc] }
+    observer.define_singleton_method(:update_task) { |tc, **kw| observer_events << [:update, tc, kw] }
+    observer.define_singleton_method(:method_missing) { |*| }
+    observer.define_singleton_method(:respond_to_missing?) { |*| true }
+
+    @execution_context.add_observer(observer)
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "hello"
+      end
+    end
+
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
+
+    # Pre-mark the wrapper as running so that drive_fiber's mark_running fails
     wrapper.mark_running
 
     pool.start
     pool.enqueue(task_class, wrapper)
 
-    # Wait for execution
-    sleep 0.1
-
-    pool.shutdown
-
-    assert_includes executed_tasks, task_class
-  end
-
-  def test_worker_pool_handles_callback_exception
-    registry = Taski::Execution::Registry.new
-
-    pool = Taski::Execution::WorkerPool.new(registry: registry, worker_count: 1) do |_task_class, _wrapper|
-      raise "Callback error"
+    # Complete the task from this thread so wait_for_completion unblocks
+    Thread.new do
+      sleep 0.05
+      wrapper.mark_completed("hello")
+      @shared_state.mark_completed(task_class)
     end
 
+    event = completion_queue.pop
+    pool.shutdown
+
+    assert_equal task_class, event[:task_class]
+
+    task_events = observer_events.select { |e| e[1] == task_class }
+    registered = task_events.select { |e| e[0] == :registered }
+    started = task_events.select { |e| e[0] == :update && e[2][:state] == :running }
+
+    assert_operator registered.size, :>=, 1,
+      "Expected at least 1 registered event, got #{registered.size}"
+    assert_operator started.size, :>=, 1,
+      "Expected at least 1 started event, got #{started.size}"
+  end
+
+  def test_error_in_task_is_captured
     task_class = Class.new(Taski::Task) do
       exports :value
       def run
-        @value = "test"
+        raise StandardError, "task error"
       end
     end
 
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
-    wrapper.mark_running
+    completion_queue = Queue.new
+    pool = Taski::Execution::WorkerPool.new(
+      shared_state: @shared_state,
+      registry: @registry,
+      execution_context: @execution_context,
+      worker_count: 1,
+      completion_queue: completion_queue
+    )
+
+    wrapper = create_wrapper(task_class)
+    @shared_state.register(task_class, wrapper)
 
     pool.start
+    pool.enqueue(task_class, wrapper)
 
-    _out, err = capture_io do
-      pool.enqueue(task_class, wrapper)
-      sleep 0.1
-    end
-
+    event = completion_queue.pop
     pool.shutdown
 
-    # Worker should have logged the error
-    assert_match(/Unexpected error executing/, err)
+    assert_equal task_class, event[:task_class]
+    assert_instance_of StandardError, event[:error]
+    assert_equal "task error", event[:error].message
   end
 
-  def test_worker_pool_shutdown
-    registry = Taski::Execution::Registry.new
-    pool = Taski::Execution::WorkerPool.new(registry: registry, worker_count: 2) { |_task, _wrapper| }
+  private
 
-    pool.start
-    pool.shutdown
-
-    # Should not hang - workers should have stopped
-    assert true
+  def create_wrapper(task_class)
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(
+      task_instance,
+      registry: @registry,
+      execution_context: @execution_context
+    )
+    @registry.register(task_class, wrapper)
+    wrapper
   end
 end

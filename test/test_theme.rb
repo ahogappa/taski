@@ -222,6 +222,28 @@ class TestTheme < Minitest::Test
     assert_equal "○", result
   end
 
+  def test_icon_skip_returns_string
+    result = @theme.icon_skip
+    assert_kind_of String, result
+  end
+
+  def test_icon_skip_default
+    result = @theme.icon_skip
+    assert_equal "⊘", result
+  end
+
+  def test_task_skip_returns_liquid_template_string
+    result = @theme.task_skip
+    assert_includes result, "{{ task.name | short_name }}"
+  end
+
+  def test_task_skip_renders_correctly
+    template_string = @theme.task_skip
+    rendered = render_template(template_string, "task_name" => "SkippedTask")
+    assert_includes rendered, "[SKIP]"
+    assert_includes rendered, "SkippedTask"
+  end
+
   # === Color configuration (ANSI codes) ===
 
   def test_color_green_returns_ansi_code

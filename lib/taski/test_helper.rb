@@ -19,37 +19,18 @@ module Taski
   #   end
   module TestHelper
     # Module prepended to Task's singleton class to intercept define_class_accessor.
+    # Wraps the original accessor with a mock check.
     # @api private
     module TaskExtension
       def define_class_accessor(method)
-        singleton_class.undef_method(method) if singleton_class.method_defined?(method)
+        super
+        original_method = self.method(method)
 
         define_singleton_method(method) do
-          # Check for mock first
           mock = MockRegistry.mock_for(self)
           return mock.get_exported_value(method) if mock
 
-          # No mock - call original implementation via registry lookup
-          registry = Taski.current_registry
-          if registry
-            wrapper = registry.get_or_create(self) do
-              task_instance = allocate
-              task_instance.__send__(:initialize)
-              Execution::TaskWrapper.new(
-                task_instance,
-                registry: registry,
-                execution_context: Execution::ExecutionContext.current
-              )
-            end
-            wrapper.get_exported_value(method)
-          else
-            Taski.send(:with_env, root_task: self) do
-              Taski.send(:with_args, options: {}) do
-                validate_no_circular_dependencies!
-                fresh_wrapper.get_exported_value(method)
-              end
-            end
-          end
+          original_method.call
         end
       end
     end
@@ -74,15 +55,16 @@ module Taski
       end
     end
 
-    # Module prepended to Executor to skip execution of mocked tasks.
+    # Module prepended to WorkerPool to skip execution of mocked tasks.
     # @api private
-    module ExecutorExtension
-      def execute_task(task_class, wrapper)
+    module WorkerPoolExtension
+      def drive_fiber(task_class, wrapper, queue)
         return if @registry.abort_requested?
 
-        # Skip execution if task is mocked
         if MockRegistry.mock_for(task_class)
-          wrapper.mark_completed(nil)
+          wrapper.mark_running unless wrapper.completed?
+          wrapper.mark_completed(nil) unless wrapper.completed?
+          @shared_state.mark_completed(task_class)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
           return
         end
@@ -143,10 +125,10 @@ module Taski
     end
 
     # Registers a mock for a task class with specified return values.
-    # @param task_class [Class] A Taski::Task or Taski::Section subclass
+    # @param task_class [Class] A Taski::Task subclass
     # @param values [Hash{Symbol => Object}] Method names mapped to return values
     # @return [MockWrapper] The created mock wrapper
-    # @raise [InvalidTaskError] If task_class is not a Taski::Task/Section subclass
+    # @raise [InvalidTaskError] If task_class is not a Taski::Task subclass
     # @raise [InvalidMethodError] If any method name is not an exported method
     #
     # @example
@@ -213,7 +195,7 @@ module Taski
       return if valid
 
       raise InvalidTaskError,
-        "Cannot mock #{task_class}: not a Taski::Task or Taski::Section subclass"
+        "Cannot mock #{task_class}: not a Taski::Task subclass"
     end
 
     def validate_exported_methods!(task_class, method_names)
@@ -243,4 +225,4 @@ end
 # Prepend extensions when test helper is loaded
 Taski::Task.singleton_class.prepend(Taski::TestHelper::TaskExtension)
 Taski::Execution::Scheduler.prepend(Taski::TestHelper::SchedulerExtension)
-Taski::Execution::Executor.prepend(Taski::TestHelper::ExecutorExtension)
+Taski::Execution::WorkerPool.prepend(Taski::TestHelper::WorkerPoolExtension)

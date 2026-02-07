@@ -28,7 +28,6 @@ module Taski
     # - update_task(task_class, state:, duration:, error:) - Called on state changes
     #   State values for run: :pending, :running, :completed, :failed
     #   State values for clean: :cleaning, :clean_completed, :clean_failed
-    # - register_section_impl(section_class, impl_class) - Called on section impl selection
     # - set_root_task(task_class) - Called when root task is set
     # - set_output_capture(output_capture) - Called when output capture is configured
     # - start - Called when execution starts
@@ -80,7 +79,6 @@ module Taski
         @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
-        @runtime_dependencies = {}
       end
 
       # Check if output capture is already active.
@@ -195,39 +193,10 @@ module Taski
         end
       end
 
-      # ========================================
-      # Runtime Dependency Tracking
-      # ========================================
-
-      # Register a runtime dependency between task classes.
-      # Used by Section to track dynamically selected implementations.
-      # Thread-safe for access from worker threads.
-      #
-      # @param from_class [Class] The task class that depends on to_class
-      # @param to_class [Class] The dependency task class
-      def register_runtime_dependency(from_class, to_class)
-        @monitor.synchronize do
-          @runtime_dependencies[from_class] ||= Set.new
-          @runtime_dependencies[from_class].add(to_class)
-        end
-      end
-
-      # Get a copy of the runtime dependencies.
-      # Returns a hash mapping from_class to Set of to_classes.
-      # Thread-safe accessor.
-      #
-      # @return [Hash{Class => Set<Class>}] Copy of runtime dependencies
-      def runtime_dependencies
-        @monitor.synchronize do
-          @runtime_dependencies.transform_values(&:dup)
-        end
-      end
-
       # Add an observer to receive execution notifications.
       # Observers should implement the following methods (all optional):
       # - register_task(task_class)
       # - update_task(task_class, state:, duration:, error:)
-      # - register_section_impl(section_class, impl_class)
       # - set_root_task(task_class)
       # - set_output_capture(output_capture)
       # - start
@@ -276,12 +245,11 @@ module Taski
         dispatch(:update_task, task_class, state: state, duration: duration, error: error)
       end
 
-      # Notify observers that a section implementation has been selected.
+      # Notify observers that a task was skipped (never executed).
       #
-      # @param section_class [Class] The section class
-      # @param impl_class [Class] The selected implementation class
-      def notify_section_impl_selected(section_class, impl_class)
-        dispatch(:register_section_impl, section_class, impl_class)
+      # @param task_class [Class] The task class that was skipped
+      def notify_task_skipped(task_class)
+        dispatch(:update_task, task_class, state: :skipped)
       end
 
       # Notify observers to set the root task.

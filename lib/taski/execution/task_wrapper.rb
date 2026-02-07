@@ -23,8 +23,8 @@ module Taski
     end
 
     # TaskWrapper manages the state and synchronization for a single task.
-    # In the Producer-Consumer pattern, TaskWrapper does NOT start threads.
-    # The Executor controls all scheduling and execution.
+    # TaskWrapper does NOT start threads or fibers — the Executor and
+    # WorkerPool control all scheduling and execution.
     class TaskWrapper
       attr_reader :task, :result, :error, :timing, :clean_error
 

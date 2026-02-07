@@ -36,9 +36,11 @@ module Taski
           icon_success: "✓",
           icon_failure: "✗",
           icon_pending: "○",
+          icon_skip: "⊘",
           color_green: ColorFilter::DEFAULT_COLORS[:green],
           color_red: ColorFilter::DEFAULT_COLORS[:red],
           color_yellow: ColorFilter::DEFAULT_COLORS[:yellow],
+          color_dim: ColorFilter::DEFAULT_COLORS[:dim],
           color_reset: ColorFilter::DEFAULT_COLORS[:reset]
         }.freeze
 
@@ -48,7 +50,8 @@ module Taski
           "failed" => {icon: :icon_failure, color: :color_red},
           "clean_failed" => {icon: :icon_failure, color: :color_red},
           "running" => {icon: :icon_pending, color: :color_yellow},
-          "cleaning" => {icon: :icon_pending, color: :color_yellow}
+          "cleaning" => {icon: :icon_pending, color: :color_yellow},
+          "skipped" => {icon: :icon_skip, color: :color_dim}
         }.freeze
 
         def render(context)

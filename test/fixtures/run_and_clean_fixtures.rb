@@ -47,8 +47,8 @@ module RunAndCleanFixtures
     exports :base_value
 
     def run
-      RunOrder.add(:base)
       @base_value = "base"
+      RunOrder.add(:base)
     end
 
     def clean
@@ -60,8 +60,9 @@ module RunAndCleanFixtures
     exports :child_value
 
     def run
+      base = BaseTask.base_value
       RunOrder.add(:child)
-      @child_value = BaseTask.base_value + "_child"
+      @child_value = base + "_child"
     end
 
     def clean

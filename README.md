@@ -12,9 +12,9 @@
 
 - **Automatic Dependency Resolution**: Dependencies detected via static analysis
 - **Parallel Execution**: Independent tasks run concurrently for maximum performance
-- **Two Simple APIs**: Exports (value sharing) and Section (runtime selection)
+- **Exports API**: Simple value sharing between tasks
 - **Real-time Progress**: Visual feedback with parallel task progress display
-- **Thread-Safe**: Built on Monitor-based synchronization for reliable concurrent execution
+- **Fiber-Based Execution**: Lightweight Fiber-based dependency resolution for efficient parallel execution
 
 ## Quick Start
 
@@ -77,41 +77,31 @@ class Server < Taski::Task
 end
 ```
 
-### Section - Runtime Implementation Selection
+### Conditional Logic - Runtime Selection
 
-Switch implementations based on environment:
+Use `if` statements to switch behavior based on environment:
 
 ```ruby
-class DatabaseSection < Taski::Section
-  interfaces :host, :port
+class DatabaseConfig < Taski::Task
+  exports :host, :port
 
-  class Production < Taski::Task
-    def run
+  def run
+    if ENV['RAILS_ENV'] == 'production'
       @host = "prod.example.com"
       @port = 5432
-    end
-  end
-
-  class Development < Taski::Task
-    def run
+    else
       @host = "localhost"
       @port = 5432
     end
-  end
-
-  def impl
-    ENV['RAILS_ENV'] == 'production' ? Production : Development
   end
 end
 
 class App < Taski::Task
   def run
-    puts "Connecting to #{DatabaseSection.host}:#{DatabaseSection.port}"
+    puts "Connecting to #{DatabaseConfig.host}:#{DatabaseConfig.port}"
   end
 end
 ```
-
-> **Note**: Nested implementation classes automatically inherit Section's `interfaces` as `exports`.
 
 ## Best Practices
 
@@ -245,6 +235,43 @@ instance.value      # => 42
 # Dependencies within same execution share results
 DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 ```
+
+### Error Handling
+
+When a task fails, Taski wraps the error with task-specific context. Each task class automatically gets a `::Error` subclass for targeted rescue:
+
+```ruby
+class FetchData < Taski::Task
+  exports :data
+  def run
+    @data = API.fetch  # may raise
+  end
+end
+
+class ProcessData < Taski::Task
+  def run
+    FetchData.data
+  end
+end
+
+# Rescue a specific task's error
+begin
+  ProcessData.run
+rescue FetchData::Error => e
+  puts "FetchData failed: #{e.cause.message}"
+end
+
+# Rescue all task failures with AggregateError
+begin
+  ProcessData.run
+rescue Taski::AggregateError => e
+  e.errors.each do |failure|
+    puts "#{failure.task_class}: #{failure.error.message}"
+  end
+end
+```
+
+`AggregateError` collects all failures from parallel execution. Task-specific `::Error` classes work transparently with `rescue` — even when errors are wrapped inside an `AggregateError`.
 
 ### Aborting Execution
 

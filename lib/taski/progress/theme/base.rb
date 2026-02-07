@@ -41,6 +41,10 @@ module Taski
           "[FAIL] {{ task.name | short_name }}{% if task.error_message %}: {{ task.error_message }}{% endif %}"
         end
 
+        def task_skip
+          "[SKIP] {{ task.name | short_name }}"
+        end
+
         # === Clean lifecycle templates ===
 
         def clean_start
@@ -125,6 +129,12 @@ module Taski
         # @return [String] Pending icon
         def icon_pending
           "○"
+        end
+
+        # Icon for skipped state
+        # @return [String] Skipped icon
+        def icon_skip
+          "⊘"
         end
 
         # === Color configuration (ANSI codes) ===

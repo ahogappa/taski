@@ -140,48 +140,6 @@ class TestParallelExecution < Minitest::Test
     assert_equal "test_value", task.value
   end
 
-  def test_section_implementation_selection
-    # Define implementations
-    unless Object.const_defined?(:SectionImplOne)
-      Object.const_set(:SectionImplOne, Class.new(Taski::Task) do
-        exports :section_value
-
-        def run
-          @section_value = "Implementation 1"
-        end
-      end)
-    end
-
-    unless Object.const_defined?(:SectionImplTwo)
-      Object.const_set(:SectionImplTwo, Class.new(Taski::Task) do
-        exports :section_value
-
-        def run
-          @section_value = "Implementation 2"
-        end
-      end)
-    end
-
-    # Define section
-    unless Object.const_defined?(:TestSectionClass)
-      Object.const_set(:TestSectionClass, Class.new(Taski::Section) do
-        interfaces :section_value
-
-        def impl
-          SectionImplTwo
-        end
-      end)
-    end
-
-    result = TestSectionClass.section_value
-    assert_equal "Implementation 2", result
-  ensure
-    # Clean up
-    Object.send(:remove_const, :SectionImplOne) if Object.const_defined?(:SectionImplOne)
-    Object.send(:remove_const, :SectionImplTwo) if Object.const_defined?(:SectionImplTwo)
-    Object.send(:remove_const, :TestSectionClass) if Object.const_defined?(:TestSectionClass)
-  end
-
   def test_reset_clears_cached_values
     unless Object.const_defined?(:ResetTaskTest)
       Object.const_set(:ResetTaskTest, Class.new(Taski::Task) do
@@ -233,17 +191,6 @@ class TestParallelExecution < Minitest::Test
     assert_includes result, "TaskB"
   end
 
-  def test_section_with_dependencies
-    require_relative "fixtures/parallel_tasks"
-
-    Taski::Task.reset!
-
-    # ParallelSection uses ParallelSectionImpl2 which has sleep
-    result = ParallelSection.section_value
-
-    assert_equal "Section Implementation 2", result
-  end
-
   def test_deep_dependency_chain
     require_relative "fixtures/parallel_tasks"
 
@@ -270,7 +217,6 @@ class TestParallelExecution < Minitest::Test
     result = DeepDependency::TaskF.task_f_value
 
     assert_includes result, "TaskA value"
-    assert_includes result, "Section Implementation"
   end
 
   def test_complex_dependency_graph_with_timing
@@ -286,9 +232,8 @@ class TestParallelExecution < Minitest::Test
     elapsed = end_time - start_time
 
     assert_includes result, "TaskH"
-    # TaskB has 0.5s sleep, ParallelSection has 0.3s sleep
-    # If parallel, max should be around max(0.5, 0.3) + overhead
-    # Sequential would be 0.5 + 0.3 = 0.8s+
+    # TaskB has 0.5s sleep
+    # If parallel, should complete in roughly max sleep time + overhead
     # Debug build (e.g. ruby 4.0.0dev) is slower, so allow more time
     time_limit = RUBY_DESCRIPTION.include?("dev") ? 3.0 : 1.5
     assert elapsed < time_limit, "Complex parallel execution should complete in < #{time_limit}s, took #{elapsed}s"

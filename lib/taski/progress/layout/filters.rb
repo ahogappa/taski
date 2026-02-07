@@ -24,7 +24,7 @@ module Taski
         def yellow(input) = colorize(input, :yellow)
         def dim(input) = colorize(input, :dim)
 
-        # Format a count value using Template's format_count method.
+        # Format a count value using Theme's format_count method.
         # Falls back to to_s if no template is provided.
         #
         # @example
@@ -34,7 +34,7 @@ module Taski
           template&.format_count(input) || input.to_s
         end
 
-        # Format a duration value using Template's format_duration method.
+        # Format a duration value using Theme's format_duration method.
         # Falls back to default formatting if no template is provided.
         #
         # @example
@@ -48,7 +48,7 @@ module Taski
         end
 
         # Truncate a list to a maximum number of items, joining with separator.
-        # Uses Template's truncate_list_separator and truncate_list_suffix if available.
+        # Uses Theme's truncate_list_separator and truncate_list_suffix if available.
         #
         # @example
         #   {{ execution.task_names | truncate_list: 3 }}
@@ -81,7 +81,7 @@ module Taski
         end
 
         # Truncate text to a maximum length, adding suffix if truncated.
-        # Uses Template's truncate_text_suffix if available.
+        # Uses Theme's truncate_text_suffix if available.
         #
         # @example
         #   {{ task.stdout | truncate_text: 40 }}

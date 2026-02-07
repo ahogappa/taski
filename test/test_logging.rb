@@ -9,7 +9,7 @@ class TestLogging < Minitest::Test
     @log_output = StringIO.new
     @original_logger = Taski.logger
     Taski.reset_progress_display!
-    Taski.progress_mode = :plain
+    Taski.progress_mode = :log
     Taski::Task.reset!
   end
 
@@ -192,6 +192,22 @@ class TestLogging < Minitest::Test
       assert parsed.key?("event"), "Log entry should have event"
       assert parsed.key?("thread_id"), "Log entry should have thread_id"
     end
+  end
+
+  def test_task_skipped_event_is_logged
+    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+
+    observer = Taski::Logging::LoggerObserver.new
+    task_class = Class.new(Taski::Task)
+    task_class.define_singleton_method(:name) { "SkippedTask" }
+
+    observer.update_task(task_class, state: :skipped)
+
+    log_lines = parse_log_lines(@log_output.string)
+    skipped_event = log_lines.find { |e| e["event"] == "task.skipped" }
+
+    refute_nil skipped_event, "task.skipped event should be logged"
+    assert_equal "SkippedTask", skipped_event["task"]
   end
 
   def test_thread_safety_of_logger_access

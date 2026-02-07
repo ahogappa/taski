@@ -52,27 +52,6 @@ module TestHelperFixtures
       @combined = LeafTask.value + "_" + MultiExportTask.first
     end
   end
-
-  # A Section for testing Section API mocking
-  class DataSourceSection < Taski::Section
-    interfaces :data
-  end
-
-  class FileDataSource < Taski::Task
-    exports :data
-
-    def run
-      @data = "file_data"
-    end
-  end
-
-  class SectionConsumer < Taski::Task
-    exports :processed
-
-    def run
-      @processed = "processed_" + DataSourceSection.data
-    end
-  end
 end
 
 class TestTestHelper < Minitest::Test
@@ -409,30 +388,6 @@ class TestCleanupOnFailure < Minitest::Test
     # Create a mock
     mock_task(TestHelperFixtures::LeafTask, value: "test")
     assert Taski::TestHelper.mocks_active?
-  end
-end
-
-# === T035: Test Section API mocking ===
-class TestSectionMocking < Minitest::Test
-  include Taski::TestHelper
-
-  def setup
-    Taski::TestHelper.reset_mocks!
-    Taski::Task.reset!
-  end
-
-  def teardown
-    Taski::TestHelper.reset_mocks!
-  end
-
-  def test_section_can_be_mocked
-    # Mock the Section directly
-    mock_task(TestHelperFixtures::DataSourceSection, data: "mocked_section_data")
-
-    result = TestHelperFixtures::SectionConsumer.processed
-
-    # Section returns mocked value, implementation never runs
-    assert_equal "processed_mocked_section_data", result
   end
 end
 

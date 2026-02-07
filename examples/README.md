@@ -19,22 +19,7 @@ ruby examples/quick_start.rb
 
 ---
 
-### 2. section_demo.rb - Runtime Implementation Selection
-
-Switch implementations based on environment using the Section API.
-
-```bash
-ruby examples/section_demo.rb
-```
-
-**Covers:**
-- `interfaces` for defining contracts
-- Environment-specific implementations
-- Dependency tree visualization with `.tree`
-
----
-
-### 3. args_demo.rb - Runtime Args and Options
+### 2. args_demo.rb - Runtime Args and Options
 
 Access execution args and pass custom options to tasks.
 
@@ -52,7 +37,7 @@ ruby examples/args_demo.rb
 
 ---
 
-### 4. reexecution_demo.rb - Scope-Based Execution
+### 3. reexecution_demo.rb - Scope-Based Execution
 
 Understand scope-based execution and caching behavior.
 
@@ -67,7 +52,7 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
 
 ---
 
-### 5. clean_demo.rb - Lifecycle Management
+### 4. clean_demo.rb - Lifecycle Management
 
 Demonstrates resource cleanup with clean methods.
 
@@ -82,7 +67,7 @@ ruby examples/clean_demo.rb
 
 ---
 
-### 6. group_demo.rb - Task Output Grouping
+### 5. group_demo.rb - Task Output Grouping
 
 Organize task output into logical phases with groups.
 
@@ -97,7 +82,7 @@ ruby examples/group_demo.rb
 
 ---
 
-### 7. message_demo.rb - User-Facing Messages
+### 6. message_demo.rb - User-Facing Messages
 
 Output messages that bypass the progress display capture.
 
@@ -112,7 +97,7 @@ ruby examples/message_demo.rb
 
 ---
 
-### 8. progress_demo.rb - Progress Display Modes
+### 7. progress_demo.rb - Progress Display Modes
 
 Real-time progress visualization during parallel execution.
 
@@ -136,7 +121,6 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb     # Disabled
 | Example | Feature | Complexity |
 |---------|---------|------------|
 | quick_start | Exports API | Basic |
-| section_demo | Section API | Intermediate |
 | args_demo | Args/Env API | Intermediate |
 | reexecution_demo | Scope-Based Execution | Intermediate |
 | clean_demo | Lifecycle Management | Intermediate |

@@ -177,7 +177,6 @@ class TestUserAbort < Minitest::Test
     progress_spy.define_singleton_method(:register_task) { |_| }
     progress_spy.define_singleton_method(:task_registered?) { |_| false }
     progress_spy.define_singleton_method(:update_task) { |_, **_| }
-    progress_spy.define_singleton_method(:register_section_impl) { |_, _| }
     progress_spy.define_singleton_method(:start) {}
     progress_spy.define_singleton_method(:stop) { stop_called = true }
 

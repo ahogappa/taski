@@ -15,9 +15,9 @@ module Taski
       #
       # Output format (live updating):
       #   BuildApplication
-      #   ├── ⠹ DatabaseSection
-      #   │   ├── ✓ ProductionDB (50ms)
-      #   │   └── ⠹ DevelopmentDB
+      #   ├── ⠹ SetupDatabase
+      #   │   ├── ✓ CreateSchema (50ms)
+      #   │   └── ⠹ SeedData
       #   ├── ○ ExtractLayers
       #   │   ├── ✓ DownloadLayer1 (100ms)
       #   │   └── ○ DownloadLayer2
@@ -161,7 +161,6 @@ module Taski
 
           tree = build_tree_node(@root_task_class)
           register_tree_nodes(tree, depth: 0, is_last: true, ancestors_last: [])
-          collect_section_candidates(tree)
         end
 
         def register_tree_nodes(node, depth:, is_last:, ancestors_last:)

@@ -18,9 +18,9 @@ module Taski
       # - Rendering templates using Liquid
       # - Handling screen output
       #
-      # === Event to Template Mapping ===
+      # === Event to Theme Mapping ===
       #
-      # ExecutionContext Event              | Layout Method              | Template Method
+      # ExecutionContext Event              | Layout Method              | Theme Method
       # ------------------------------------|----------------------------|---------------------------
       # notify_set_root_task                | set_root_task              | execution_start
       # notify_start                        | start                      | (internal setup)
@@ -31,7 +31,6 @@ module Taski
       # notify_task_completed (:failed)     | update_task                | task_fail
       # notify_clean_started (:cleaning)    | update_task                | clean_start
       # notify_clean_completed (:clean_*)   | update_task                | clean_success/fail
-      # notify_section_impl_selected        | register_section_impl      | (skip handling)
       # notify_group_started                | update_group               | group_start
       # notify_group_completed              | update_group               | group_success/fail
       class Base
@@ -66,8 +65,6 @@ module Taski
           @root_task_class = nil
           @output_capture = nil
           @message_queue = []
-          @section_candidates = {}
-          @section_candidate_subtrees = {}
           @spinner_index = 0
           @spinner_timer = nil
           @spinner_running = false
@@ -159,23 +156,6 @@ module Taski
           end
         end
 
-        # Register which impl was selected for a section
-        # @param section_class [Class] The section class
-        # @param impl_class [Class] The selected implementation class
-        def register_section_impl(section_class, impl_class)
-          @monitor.synchronize do
-            @tasks[impl_class] ||= TaskState.new
-
-            # Mark section itself as completed
-            if @tasks[section_class]
-              @tasks[section_class].run_state = :completed
-            end
-
-            mark_unselected_candidates_completed(section_class, impl_class)
-            on_section_impl_registered(section_class, impl_class)
-          end
-        end
-
         # Update group state for a task
         # @param task_class [Class] The task class containing the group
         # @param group_name [String] The name of the group
@@ -264,11 +244,6 @@ module Taski
           output_line(text) if text
         end
 
-        # Called when a section impl is registered.
-        def on_section_impl_registered(section_class, impl_class)
-          # Default: no-op
-        end
-
         # Called when a group state is updated.
         # Default: render and output the event.
         def on_group_updated(task_class, group_name, state, duration, error)
@@ -298,9 +273,9 @@ module Taski
         # Render execution summary based on current state (success or failure)
         def render_execution_summary
           if failed_count > 0
-            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration)
+            render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
           else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration)
+            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
           end
         end
 
@@ -356,6 +331,12 @@ module Taski
           render_task_template(:task_fail, task:, execution: execution_drop)
         end
 
+        # Render task skipped event
+        def render_task_skipped(task_class)
+          task = TaskDrop.new(name: task_class_name(task_class), state: :skipped)
+          render_task_template(:task_skip, task:, execution: execution_drop)
+        end
+
         # Render clean start event
         def render_clean_started(task_class)
           task = TaskDrop.new(name: task_class_name(task_class), state: :cleaning)
@@ -399,14 +380,14 @@ module Taski
         end
 
         # Render execution complete event
-        def render_execution_completed(completed_count:, total_count:, total_duration:)
-          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:)
+        def render_execution_completed(completed_count:, total_count:, total_duration:, skipped_count: 0)
+          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:, skipped_count:)
           render_execution_template(:execution_complete, execution:)
         end
 
         # Render execution failure event
-        def render_execution_failed(failed_count:, total_count:, total_duration:)
-          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:)
+        def render_execution_failed(failed_count:, total_count:, total_duration:, skipped_count: 0)
+          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:, skipped_count:)
           render_execution_template(:execution_fail, execution:)
         end
 
@@ -425,6 +406,7 @@ module Taski
             done_count: done_count,
             completed_count: completed_count,
             failed_count: failed_count,
+            skipped_count: skipped_count,
             total_count: total_count,
             total_duration: total_duration,
             root_task_name: task_class_name(@root_task_class)
@@ -460,6 +442,8 @@ module Taski
             render_task_succeeded(task_class, task_duration: task_duration)
           when :failed
             render_task_failed(task_class, error: error)
+          when :skipped
+            render_task_skipped(task_class)
           when :cleaning
             render_clean_started(task_class)
           when :clean_completed
@@ -516,7 +500,11 @@ module Taski
         end
 
         def done_count
-          @tasks.values.count { |p| p.run_state == :completed || p.run_state == :failed }
+          @tasks.values.count { |p| [:completed, :failed, :skipped].include?(p.run_state) }
+        end
+
+        def skipped_count
+          @tasks.values.count { |p| p.run_state == :skipped }
         end
 
         def completed_count
@@ -614,6 +602,9 @@ module Taski
           when :failed
             progress.run_state = :failed
             progress.run_error = error if error
+          when :skipped
+            return if run_state_finalized?(progress)
+            progress.run_state = :skipped
           when :cleaning
             progress.clean_state = :cleaning
           when :clean_completed
@@ -626,7 +617,7 @@ module Taski
         end
 
         def run_state_finalized?(progress)
-          progress.run_state == :completed || progress.run_state == :failed
+          [:completed, :failed, :skipped].include?(progress.run_state)
         end
 
         def collect_dependencies_recursive(task_class, collected)
@@ -639,56 +630,7 @@ module Taski
           end
         end
 
-        # Mark unselected candidates and their exclusive subtrees as completed (skipped)
-        def mark_unselected_candidates_completed(section_class, impl_class)
-          selected_deps = collect_all_dependencies(impl_class)
-          candidates = @section_candidates[section_class] || []
-          subtrees = @section_candidate_subtrees[section_class] || {}
-
-          candidates.each do |candidate|
-            next if candidate == impl_class
-            mark_subtree_completed(subtrees[candidate], exclude: selected_deps)
-          end
-        end
-
-        # Recursively mark all pending tasks in a subtree as completed (skipped)
-        def mark_subtree_completed(node, exclude: Set.new)
-          return unless node
-
-          task_class = node[:task_class]
-          mark_task_as_skipped(task_class) unless exclude.include?(task_class)
-          node[:children].each { |child| mark_subtree_completed(child, exclude: exclude) }
-        end
-
-        def mark_task_as_skipped(task_class)
-          progress = @tasks[task_class]
-          progress.run_state = :completed if progress&.run_state == :pending
-        end
-
         # === Tree building helpers ===
-        # TODO: Move to ExecutionContext (see #149)
-        # These methods are here temporarily. Layout should not analyze task dependencies.
-
-        # Collect section candidates from a tree structure.
-        # Populates @section_candidates and @section_candidate_subtrees.
-        # @param node [Hash] Tree node
-        def collect_section_candidates(node)
-          return unless node
-
-          task_class = node[:task_class]
-
-          if node[:is_section]
-            candidate_nodes = node[:children].select { |c| c[:is_impl_candidate] }
-            candidates = candidate_nodes.map { |c| c[:task_class] }
-            @section_candidates[task_class] = candidates unless candidates.empty?
-
-            subtrees = {}
-            candidate_nodes.each { |c| subtrees[c[:task_class]] = c }
-            @section_candidate_subtrees[task_class] = subtrees unless subtrees.empty?
-          end
-
-          node[:children].each { |child| collect_section_candidates(child) }
-        end
 
         # Build a tree structure from a root task class.
         # @param task_class [Class] The root task class
@@ -699,9 +641,7 @@ module Taski
 
           node = {
             task_class: task_class,
-            is_section: section_class?(task_class),
             is_circular: is_circular,
-            is_impl_candidate: false,
             children: []
           }
 
@@ -709,11 +649,9 @@ module Taski
 
           new_ancestors = ancestors + [task_class]
           dependencies = get_task_dependencies(task_class)
-          is_section = section_class?(task_class)
 
           dependencies.each do |dep|
             child_node = build_tree_node(dep, new_ancestors)
-            child_node[:is_impl_candidate] = is_section && nested_class?(dep, task_class)
             node[:children] << child_node
           end
 
@@ -734,11 +672,6 @@ module Taski
           else
             []
           end
-        end
-
-        # Check if a class is a Taski::Section subclass.
-        def section_class?(klass)
-          defined?(Taski::Section) && klass < Taski::Section
         end
 
         # Check if a class is nested within another class by name prefix.

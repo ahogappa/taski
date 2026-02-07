@@ -65,6 +65,11 @@ class TestThemeDrop < Minitest::Test
     assert_equal "○", @drop.icon_pending
   end
 
+  def test_icon_skip_delegation
+    assert_equal @theme.icon_skip, @drop.icon_skip
+    assert_equal "⊘", @drop.icon_skip
+  end
+
   def test_drop_works_with_custom_theme
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def color_red
@@ -249,6 +254,11 @@ class TestExecutionDrop < Minitest::Test
     assert_equal ["TaskA", "TaskB"], drop.invoke_drop("task_names")
   end
 
+  def test_exposes_skipped_count
+    drop = Taski::Progress::Layout::ExecutionDrop.new(skipped_count: 2)
+    assert_equal 2, drop.invoke_drop("skipped_count")
+  end
+
   def test_nil_values_for_unset_attributes
     drop = Taski::Progress::Layout::ExecutionDrop.new
     assert_nil drop.invoke_drop("state")
@@ -256,6 +266,7 @@ class TestExecutionDrop < Minitest::Test
     assert_nil drop.invoke_drop("done_count")
     assert_nil drop.invoke_drop("completed_count")
     assert_nil drop.invoke_drop("failed_count")
+    assert_nil drop.invoke_drop("skipped_count")
     assert_nil drop.invoke_drop("total_count")
     assert_nil drop.invoke_drop("total_duration")
     assert_nil drop.invoke_drop("root_task_name")

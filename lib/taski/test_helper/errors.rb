@@ -2,7 +2,7 @@
 
 module Taski
   module TestHelper
-    # Raised when attempting to mock a class that is not a Taski::Task or Taski::Section subclass.
+    # Raised when attempting to mock a class that is not a Taski::Task subclass.
     class InvalidTaskError < ArgumentError
     end
 

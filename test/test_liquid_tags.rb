@@ -178,4 +178,14 @@ class TestLiquidTags < Minitest::Test
 
     assert_equal "\e[32m✓\e[0m", result
   end
+
+  def test_icon_tag_renders_skip_icon_for_skipped_state
+    theme_obj = Taski::Progress::Theme::Base.new
+    drop = Taski::Progress::Layout::ThemeDrop.new(theme_obj)
+
+    liquid_template = Liquid::Template.parse("{% icon %}", environment: @environment)
+    result = liquid_template.render("template" => drop, "state" => "skipped")
+
+    assert_equal "\e[2m⊘\e[0m", result
+  end
 end

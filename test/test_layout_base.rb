@@ -20,7 +20,6 @@ class TestLayoutBase < Minitest::Test
     assert_respond_to @layout, :set_root_task
     assert_respond_to @layout, :register_task
     assert_respond_to @layout, :update_task
-    assert_respond_to @layout, :register_section_impl
     assert_respond_to @layout, :update_group
     assert_respond_to @layout, :set_output_capture
     assert_respond_to @layout, :start
@@ -119,16 +118,6 @@ class TestLayoutBase < Minitest::Test
     @layout.set_root_task(task1)
     @layout.set_root_task(task2)
     # First set wins - implementation detail checked via on_root_task_set
-  end
-
-  # === Section impl registration ===
-
-  def test_register_section_impl_registers_impl_task
-    section_class = Class.new
-    impl_class = Class.new
-    @layout.register_task(section_class)
-    @layout.register_section_impl(section_class, impl_class)
-    assert @layout.task_registered?(impl_class)
   end
 
   # === Message queue ===
@@ -328,6 +317,37 @@ class TestLayoutBaseTaskStateTransitions < Minitest::Test
     # Should remain failed
     assert_equal :failed, @layout.task_state(@task_class)
   end
+
+  def test_skipped_state_transition
+    @layout.update_task(@task_class, state: :skipped)
+    assert_equal :skipped, @layout.task_state(@task_class)
+  end
+
+  def test_skipped_to_running_blocked
+    @layout.update_task(@task_class, state: :skipped)
+    @layout.update_task(@task_class, state: :running)
+    # Should remain skipped (finalized state)
+    assert_equal :skipped, @layout.task_state(@task_class)
+  end
+
+  def test_skipped_included_in_done_count
+    task2 = Class.new
+    @layout.register_task(task2)
+    @layout.update_task(@task_class, state: :completed, duration: 100)
+    @layout.update_task(task2, state: :skipped)
+
+    output = StringIO.new
+    layout = Taski::Progress::Layout::Base.new(output: output)
+    layout.register_task(@task_class)
+    layout.register_task(task2)
+    layout.update_task(@task_class, state: :completed, duration: 100)
+    layout.update_task(task2, state: :skipped)
+
+    ctx = layout.send(:execution_context)
+    assert_equal 2, ctx[:done_count], "done_count should include skipped tasks"
+    assert_equal 1, ctx[:skipped_count], "skipped_count should be 1"
+    assert_equal 1, ctx[:completed_count], "completed_count should not include skipped"
+  end
 end
 
 class TestLayoutBaseCommonVariables < Minitest::Test
@@ -468,6 +488,45 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     result = layout.send(:render_execution_failed, failed_count: 2, total_count: 5, total_duration: 1000)
 
     assert_equal "2/5 failed (failed)", result
+  end
+
+  def test_render_task_skipped
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_skip
+        "[SKIP] {{ task.name }}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_skipped, stub_task_class("SkippedTask"))
+
+    assert_equal "[SKIP] SkippedTask", result
+  end
+
+  def test_render_execution_completed_with_skipped_count
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def execution_complete
+        "{{ execution.completed_count }}/{{ execution.total_count }}{% if execution.skipped_count > 0 %} ({{ execution.skipped_count }} skipped){% endif %}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_execution_completed, completed_count: 3, total_count: 5, total_duration: 1000, skipped_count: 2)
+
+    assert_equal "3/5 (2 skipped)", result
+  end
+
+  def test_render_for_task_event_dispatches_skipped
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_skip
+        "[SKIP] {{ task.name }}"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_for_task_event, stub_task_class("MyTask"), :skipped, nil, nil)
+
+    assert_equal "[SKIP] MyTask", result
   end
 
   def test_task_template_can_access_execution_context

@@ -77,6 +77,19 @@ module Taski
         end
       end
 
+      # Create or retrieve a TaskWrapper for the given task class.
+      # Encapsulates the standard wrapper creation pattern used by Executor and WorkerPool.
+      # @param task_class [Class] The task class
+      # @param execution_context [ExecutionContext] The execution context
+      # @return [TaskWrapper] The wrapper instance
+      def create_wrapper(task_class, execution_context:)
+        get_or_create(task_class) do
+          task_instance = task_class.allocate
+          task_instance.send(:initialize)
+          TaskWrapper.new(task_instance, registry: self, execution_context: execution_context)
+        end
+      end
+
       # @param task_class [Class] The task class to run
       # @param exported_methods [Array<Symbol>] Methods to call to trigger execution
       # @return [Object] The result of the task execution

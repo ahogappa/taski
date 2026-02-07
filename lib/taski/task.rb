@@ -218,21 +218,28 @@ module Taski
         singleton_class.undef_method(method) if singleton_class.method_defined?(method)
 
         define_singleton_method(method) do
-          # Check if running inside an execution with a registry
           registry = Taski.current_registry
           if registry
-            # Inside execution - get or create wrapper in current registry
-            # This handles both pre-registered dependencies and dynamic ones (like Section impl)
-            wrapper = registry.get_or_create(self) do
-              task_instance = allocate
-              task_instance.__send__(:initialize)
-              Execution::TaskWrapper.new(
-                task_instance,
-                registry: registry,
-                execution_context: Execution::ExecutionContext.current
-              )
+            if Thread.current[:taski_fiber_context]
+              # Fiber-based lazy resolution - yield to the worker loop
+              result = Fiber.yield([:need_dep, self, method])
+              if result.is_a?(Array) && result[0] == :_taski_error
+                raise result[1]
+              end
+              result
+            else
+              # Synchronous resolution (clean phase, outside Fiber)
+              wrapper = registry.get_or_create(self) do
+                task_instance = allocate
+                task_instance.__send__(:initialize)
+                Execution::TaskWrapper.new(
+                  task_instance,
+                  registry: registry,
+                  execution_context: Execution::ExecutionContext.current
+                )
+              end
+              wrapper.get_exported_value(method)
             end
-            wrapper.get_exported_value(method)
           else
             # Outside execution - fresh execution (top-level call)
             Taski.send(:with_env, root_task: self) do

@@ -75,14 +75,6 @@ module Taski
       # Build dependency graph by traversing from root task.
       # Populates internal state with all tasks and their dependencies.
       #
-      # NOTE: This uses cached_dependencies which is overridden by Section to return
-      # an empty set. This is intentional because Scheduler tracks only tasks that
-      # will actually execute, not all possible dependencies.
-      #
-      # For static analysis of ALL possible dependencies (including Section impl
-      # candidates), see StaticAnalysis::DependencyGraph which uses Analyzer.analyze()
-      # directly.
-      #
       # @param root_task_class [Class] The root task class to start from
       def build_dependency_graph(root_task_class)
         # @type var queue: Array[singleton(Taski::Task)]
@@ -155,72 +147,15 @@ module Taski
         @task_states.size
       end
 
-      # ========================================
-      # Runtime Dependency Merging
-      # ========================================
-
-      # Merge runtime dependencies into the dependency graph.
-      # Used to incorporate dynamically selected dependencies (e.g., Section implementations)
-      # that were determined during the run phase.
+      # Get task classes that were never executed (remained in STATE_PENDING).
+      # These are tasks discovered by the static dependency graph
+      # (via build_dependency_graph) but not reached at runtime — e.g.,
+      # skipped due to conditional logic inside Task#run or because the
+      # root task completed before all statically-discovered tasks were needed.
       #
-      # Section.impl is resolved at runtime, so its implementation task (and
-      # transitive dependencies) must be added dynamically via this method.
-      # This is the key difference from StaticAnalysis::DependencyGraph which
-      # includes all impl candidates statically.
-      #
-      # This method recursively processes transitive dependencies using BFS,
-      # similar to build_dependency_graph. This ensures that all dependencies
-      # of runtime-selected tasks are also added to the graph.
-      #
-      # This method also updates reverse dependencies if they exist (for clean operations).
-      # This method is idempotent - calling it multiple times with the same data is safe.
-      #
-      # @param runtime_deps [Hash{Class => Set<Class>}] Runtime dependencies from ExecutionContext
-      def merge_runtime_dependencies(runtime_deps)
-        queue = []
-
-        runtime_deps.each do |from_class, to_classes|
-          # Ensure the from_class exists in the graph
-          @dependencies[from_class] ||= Set.new
-          @task_states[from_class] ||= STATE_PENDING
-
-          to_classes.each do |to_class|
-            # Add the dependency relationship
-            @dependencies[from_class].add(to_class)
-            log_dependency_resolved(from_class, to_class)
-
-            # Queue the to_class for BFS processing
-            queue << to_class
-          end
-        end
-
-        # BFS: Recursively process all transitive dependencies
-        while (task_class = queue.shift)
-          next if @task_states.key?(task_class)
-
-          deps = task_class.cached_dependencies
-          @dependencies[task_class] = deps.dup
-          @task_states[task_class] = STATE_PENDING
-
-          deps.each { |dep| queue << dep }
-        end
-
-        # Update reverse dependencies if they exist (for clean operations)
-        return unless @reverse_dependencies.any?
-
-        # Initialize all newly added tasks with reverse dependency tracking
-        @task_states.each_key do |task_class|
-          @reverse_dependencies[task_class] ||= Set.new
-          @clean_task_states[task_class] ||= CLEAN_STATE_PENDING
-        end
-
-        # Rebuild reverse mappings for all dependencies
-        @dependencies.each do |task_class, deps|
-          deps.each do |dep_class|
-            @reverse_dependencies[dep_class] ||= Set.new
-            @reverse_dependencies[dep_class].add(task_class)
-          end
-        end
+      # @return [Array<Class>] Array of skipped task classes
+      def skipped_task_classes
+        @task_states.select { |_, state| state == STATE_PENDING }.keys
       end
 
       # ========================================

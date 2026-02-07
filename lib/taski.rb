@@ -10,6 +10,7 @@ require_relative "taski/execution/task_wrapper"
 require_relative "taski/execution/scheduler"
 require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
+require_relative "taski/execution/shared_state"
 require_relative "taski/progress/layout/log"
 require_relative "taski/progress/layout/simple"
 require_relative "taski/progress/layout/tree"
@@ -291,7 +292,7 @@ module Taski
     case progress_mode
     when :simple
       Progress::Layout::Simple.new
-    when :log
+    when :log, :plain
       Progress::Layout::Log.new
     else
       Progress::Layout::Tree.new
@@ -303,7 +304,7 @@ module Taski
     case ENV["TASKI_PROGRESS_MODE"]
     when "simple"
       :simple
-    when "log"
+    when "log", "plain"
       :log
     else
       :tree
@@ -337,6 +338,5 @@ module Taski
   end
 end
 
-# Load Task and Section after Taski module is defined (they depend on TaskError)
+# Load Task after Taski module is defined (it depends on TaskError)
 require_relative "taski/task"
-require_relative "taski/section"

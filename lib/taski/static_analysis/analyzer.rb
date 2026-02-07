@@ -7,39 +7,27 @@ module Taski
   module StaticAnalysis
     class Analyzer
       # Analyzes a task class and returns its static dependencies.
-      # For Task: dependencies detected from run method and called methods (SomeTask.method calls)
-      # For Section: impl candidates detected from impl method and called methods (constants returned)
+      # Dependencies are detected from the run method and called methods (SomeTask.method calls).
       #
       # Static dependencies are used for:
       # - Tree display visualization
       # - Circular dependency detection
-      # - Task execution (for Task only; Section resolves impl at runtime)
+      # - Task execution ordering
       #
       # @param task_class [Class] The task class to analyze
       # @return [Set<Class>] Set of task classes that are static dependencies
       def self.analyze(task_class)
-        target_method = target_method_for(task_class)
-        source_location = extract_method_location(task_class, target_method)
+        source_location = extract_method_location(task_class, :run)
         return Set.new unless source_location
 
         file_path, _line_number = source_location
         parse_result = Prism.parse_file(file_path)
 
-        visitor = Visitor.new(task_class, target_method)
+        visitor = Visitor.new(task_class, :run)
         visitor.visit(parse_result.value)
         # Follow method calls to analyze dependencies in called methods
         visitor.follow_method_calls
         visitor.dependencies
-      end
-
-      # @param task_class [Class] The task class
-      # @return [Symbol] The method name to analyze (:run for Task, :impl for Section)
-      def self.target_method_for(task_class)
-        if defined?(Taski::Section) && task_class < Taski::Section
-          :impl
-        else
-          :run
-        end
       end
 
       # @param task_class [Class] The task class
@@ -51,7 +39,7 @@ module Taski
         nil
       end
 
-      private_class_method :target_method_for, :extract_method_location
+      private_class_method :extract_method_location
     end
   end
 end
