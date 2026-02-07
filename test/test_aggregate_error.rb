@@ -213,6 +213,7 @@ class TestAggregateError < Minitest::Test
     end
 
     assert rescued, "Should have been rescued by ErrorFixtures::FailingTask::Error"
+    # The actual exception is AggregateError; rescue matches via AggregateAware#===
     assert_instance_of Taski::AggregateError, rescued_exception
   end
 
