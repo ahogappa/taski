@@ -57,23 +57,13 @@ class TestParallelExecution < Minitest::Test
   end
 
   def test_reset_clears_cached_values
-    unless Object.const_defined?(:ResetTaskTest)
-      Object.const_set(:ResetTaskTest, Class.new(Taski::Task) do
-        exports :value
+    require_relative "fixtures/parallel_tasks"
 
-        def run
-          @value = rand(10000)
-        end
-      end)
-    end
-
-    value1 = ResetTaskTest.value
-    ResetTaskTest.reset!
-    value2 = ResetTaskTest.value
+    value1 = ParallelTaskA.task_a_value
+    ParallelTaskA.reset!
+    value2 = ParallelTaskA.task_a_value
 
     assert value1 != value2, "Values should be different after reset"
-  ensure
-    Object.send(:remove_const, :ResetTaskTest) if Object.const_defined?(:ResetTaskTest)
   end
 
   def test_parallel_execution_with_timing

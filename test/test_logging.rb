@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
+require_relative "fixtures/logging_tasks"
 require "logger"
 require "json"
 
@@ -11,6 +12,8 @@ class TestLogging < Minitest::Test
     Taski.reset_progress_display!
     Taski.progress_display = Taski::Progress::Layout::Log.new
     Taski::Task.reset!
+    # Clear stale execution context from previous tests
+    Taski::Execution::ExecutionContext.current = nil
   end
 
   def teardown
@@ -32,26 +35,14 @@ class TestLogging < Minitest::Test
   def test_logging_is_noop_when_logger_is_nil
     Taski.logger = nil
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    LoggingFixtures::SimpleTask.run
     assert_equal "", @log_output.string
   end
 
   def test_execution_started_event_is_logged
     Taski.logger = Logger.new(@log_output, level: Logger::INFO)
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    LoggingFixtures::SimpleTask.run
 
     log_lines = parse_log_lines(@log_output.string)
     started_event = log_lines.find { |e| e["event"] == "execution.started" }
@@ -63,13 +54,7 @@ class TestLogging < Minitest::Test
   def test_execution_completed_event_is_logged
     Taski.logger = Logger.new(@log_output, level: Logger::INFO)
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    LoggingFixtures::SimpleTask.run
 
     log_lines = parse_log_lines(@log_output.string)
     completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
@@ -82,13 +67,7 @@ class TestLogging < Minitest::Test
   def test_task_started_event_is_logged
     Taski.logger = Logger.new(@log_output, level: Logger::INFO)
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    LoggingFixtures::SimpleTask.run
 
     log_lines = parse_log_lines(@log_output.string)
     started_event = log_lines.find { |e| e["event"] == "task.started" }
@@ -100,13 +79,7 @@ class TestLogging < Minitest::Test
   def test_task_completed_event_is_logged
     Taski.logger = Logger.new(@log_output, level: Logger::INFO)
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    LoggingFixtures::SimpleTask.run
 
     log_lines = parse_log_lines(@log_output.string)
     completed_event = log_lines.find { |e| e["event"] == "task.completed" }
@@ -118,14 +91,8 @@ class TestLogging < Minitest::Test
   def test_task_failed_event_is_logged
     Taski.logger = Logger.new(@log_output, level: Logger::ERROR)
 
-    failing_task = Class.new(Taski::Task) do
-      def run
-        raise "intentional error"
-      end
-    end
-
     assert_raises(Taski::AggregateError) do
-      failing_task.run
+      LoggingFixtures::FailingTask.run
     end
 
     log_lines = parse_log_lines(@log_output.string)
@@ -137,31 +104,33 @@ class TestLogging < Minitest::Test
   end
 
   def test_dependency_resolved_event_is_logged_at_debug_level
-    # Skip: Dynamic task classes don't get detected by static analysis
-    # This test can be verified manually with named Task classes
-    skip "dependency.resolved logging works but cannot be tested with dynamic classes"
+    Taski.logger = Logger.new(@log_output, level: Logger::DEBUG)
+
+    LoggingFixtures::RootWithDep.run
+
+    log_lines = parse_log_lines(@log_output.string)
+    resolved_event = log_lines.find { |e| e["event"] == "dependency.resolved" }
+
+    refute_nil resolved_event, "dependency.resolved event should be logged at debug level"
+    assert_equal "LoggingFixtures::RootWithDep", resolved_event["data"]["from_task"]
+    assert_equal "LoggingFixtures::DepTask", resolved_event["data"]["to_task"]
   end
 
   def test_dependency_resolved_is_not_logged_at_info_level
-    # Skip: Dynamic task classes don't get detected by static analysis
-    # This test can be verified manually with named Task classes
-    skip "dependency.resolved logging works but cannot be tested with dynamic classes"
+    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+
+    LoggingFixtures::RootWithDep.run
+
+    log_lines = parse_log_lines(@log_output.string)
+    resolved_event = log_lines.find { |e| e["event"] == "dependency.resolved" }
+
+    assert_nil resolved_event, "dependency.resolved should not be logged at info level"
   end
 
   def test_clean_events_are_logged_at_debug_level
     Taski.logger = Logger.new(@log_output, level: Logger::DEBUG)
 
-    task_with_clean = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-
-      def clean
-        "cleaned"
-      end
-    end
-
-    task_with_clean.run_and_clean
+    LoggingFixtures::CleanableTask.run_and_clean
 
     log_lines = parse_log_lines(@log_output.string)
     clean_started = log_lines.find { |e| e["event"] == "task.clean_started" }
@@ -174,13 +143,7 @@ class TestLogging < Minitest::Test
   def test_log_entry_format_is_json
     Taski.logger = Logger.new(@log_output, level: Logger::INFO)
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    LoggingFixtures::SimpleTask.run
 
     log_lines = @log_output.string.lines.map(&:strip).reject(&:empty?)
     log_lines.each do |line|

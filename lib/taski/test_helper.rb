@@ -50,7 +50,10 @@ module Taski
           @dependencies[task_class] = deps.dup
           @task_states[task_class] = Taski::Execution::Scheduler::STATE_PENDING
 
-          deps.each { |dep| queue << dep }
+          deps.each do |dep|
+            log_dependency_resolved(task_class, dep)
+            queue << dep
+          end
         end
       end
     end

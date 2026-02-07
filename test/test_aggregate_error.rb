@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
+require_relative "fixtures/error_tasks"
 
 class TestAggregateError < Minitest::Test
   include TaskiTestHelper
@@ -201,43 +202,27 @@ class TestAggregateError < Minitest::Test
 
   # Test rescuing by TaskClass::Error
   def test_rescue_by_task_error_class
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        raise "Task failed"
-      end
-    end
-
     rescued = false
     rescued_exception = nil
 
     begin
-      task_class.value
-    rescue task_class::Error => e
+      ErrorFixtures::FailingTask.value
+    rescue ErrorFixtures::FailingTask::Error => e
       rescued = true
       rescued_exception = e
     end
 
-    assert rescued, "Should have been rescued by task_class::Error"
+    assert rescued, "Should have been rescued by ErrorFixtures::FailingTask::Error"
     assert_instance_of Taski::AggregateError, rescued_exception
   end
 
   # Test includes? works with TaskClass::Error
   def test_aggregate_error_includes_task_error
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        raise "Task failed"
-      end
-    end
-
     error = assert_raises(Taski::AggregateError) do
-      task_class.value
+      ErrorFixtures::FailingTask.value
     end
 
-    assert error.includes?(task_class::Error)
+    assert error.includes?(ErrorFixtures::FailingTask::Error)
     assert error.includes?(Taski::TaskError)
   end
 
@@ -247,16 +232,8 @@ class TestAggregateError < Minitest::Test
 
   # Test that single task failure also raises AggregateError for consistency
   def test_single_failure_raises_aggregate_error
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        raise "Single task failed"
-      end
-    end
-
     error = assert_raises(Taski::AggregateError) do
-      task_class.value
+      ErrorFixtures::FailingTask.value
     end
 
     assert_equal 1, error.errors.size
@@ -266,42 +243,16 @@ class TestAggregateError < Minitest::Test
 
   # Test that TaskAbortException takes priority
   def test_task_abort_exception_takes_priority
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        raise Taski::TaskAbortException, "Aborted"
-      end
-    end
-
     assert_raises(Taski::TaskAbortException) do
-      task_class.value
+      ErrorFixtures::AbortTask.value
     end
   end
 
   # Test error propagation is deduplicated
   def test_propagated_errors_are_deduplicated
-    # Task A fails
-    task_a = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        raise "Task A failed"
-      end
-    end
-
-    # Root task depends on A and will receive A's error
-    root_task = Class.new(Taski::Task) do
-      exports :result
-
-      define_method(:run) do
-        @result = task_a.value
-      end
-    end
-
     # Should raise AggregateError with only 1 error (deduplicated)
     error = assert_raises(Taski::AggregateError) do
-      root_task.result
+      ErrorFixtures::RootDependingOnFailingDep.result
     end
 
     # Only 1 error because the same error object is deduplicated
@@ -333,19 +284,8 @@ class TestAggregateError < Minitest::Test
     # Skip if progress display is disabled (output capture requires it)
     skip "Output capture requires progress display" unless Taski.progress_display
 
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        puts "Step 1: Starting"
-        puts "Step 2: Processing"
-        puts "Step 3: About to fail"
-        raise "Task failed after output"
-      end
-    end
-
     error = assert_raises(Taski::AggregateError) do
-      task_class.value
+      ErrorFixtures::OutputThenFailTask.value
     end
 
     # Verify output lines are captured
@@ -360,28 +300,10 @@ class TestAggregateError < Minitest::Test
   # Test that execution terminates when dependency fails (deadlock detection)
   # Previously this would hang indefinitely because the root task could never complete
   def test_dependency_failure_terminates_execution
-    # Task A fails
-    dep_task = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        raise "Dependency task failed"
-      end
-    end
-
-    # Root task depends on A
-    root_task = Class.new(Taski::Task) do
-      exports :result
-
-      define_method(:run) do
-        @result = dep_task.value
-      end
-    end
-
     # Should raise AggregateError, not hang forever
     error = assert_raises(Taski::AggregateError) do
       Timeout.timeout(5) do
-        root_task.result
+        ErrorFixtures::RootWaitingOnDepFailure.result
       end
     end
 
@@ -392,54 +314,16 @@ class TestAggregateError < Minitest::Test
 
   # Test parallel task failure where one fails and prevents others from completing
   def test_parallel_dependency_failure_terminates
-    # Both A and B are independent tasks
-    task_a = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        sleep 0.1
-        raise "Task A failed"
-      end
-    end
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        # B depends on the result from a third task that depends on A
-        sleep 0.2
-        "B completed"
-      end
-    end
-
-    # Task C depends on A
-    task_c = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        task_a.value
-      end
-    end
-
-    # Root depends on B and C
-    root_task = Class.new(Taski::Task) do
-      exports :result
-
-      define_method(:run) do
-        @result = [task_b.value, task_c.value]
-      end
-    end
-
     # Should raise AggregateError, not hang
     error = assert_raises(Taski::AggregateError) do
       Timeout.timeout(10) do
-        root_task.result
+        ErrorFixtures::ParallelFailureRoot.result
       end
     end
 
     # At least one error should be present
     refute_empty error.errors
-    # The error should be from task A (the one that actually failed)
+    # The error should be from the failing task
     error_messages = error.errors.map { |e| e.error.message }
     assert error_messages.any? { |m| m.include?("Task A failed") }
   end
