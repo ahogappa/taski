@@ -9,16 +9,11 @@ class TestMessage < Minitest::Test
     Taski.reset_progress_display!
     # Clear any thread-local context
     Taski::Execution::ExecutionContext.current = nil
-    # Ensure progress is not disabled from other tests
-    ENV.delete("TASKI_PROGRESS_DISABLE")
-    ENV.delete("TASKI_PROGRESS_MODE")
   end
 
   def teardown
     Taski.reset_progress_display!
     Taski::Execution::ExecutionContext.current = nil
-    ENV.delete("TASKI_PROGRESS_DISABLE")
-    ENV.delete("TASKI_PROGRESS_MODE")
   end
 
   # ========================================
@@ -62,8 +57,7 @@ class TestMessage < Minitest::Test
   # ========================================
 
   def test_message_without_progress_display_outputs_immediately
-    ENV["TASKI_PROGRESS_DISABLE"] = "1"
-    Taski.reset_progress_display!
+    Taski.progress_display = nil
 
     output = StringIO.new
     original_stdout = $stdout
@@ -82,11 +76,8 @@ class TestMessage < Minitest::Test
   # Integration tests with actual task execution
   # ========================================
 
-  def test_message_in_task_execution_with_plain_mode
+  def test_message_in_task_execution_with_log_mode
     original_stdout = $stdout
-
-    ENV["TASKI_PROGRESS_MODE"] = "plain"
-    Taski.reset_progress_display!
 
     task_class = Class.new(Taski::Task) do
       exports :result
@@ -103,6 +94,7 @@ class TestMessage < Minitest::Test
       $stdout = output
       $stderr = output
 
+      Taski.progress_display = Taski::Progress::Layout::Log.new(output: output)
       task_class.run
     ensure
       $stdout = original_stdout

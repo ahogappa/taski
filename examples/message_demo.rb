@@ -8,7 +8,6 @@
 #
 # Usage:
 #   ruby examples/message_demo.rb
-#   TASKI_FORCE_PROGRESS=1 ruby examples/message_demo.rb  # Force progress display
 
 require_relative "../lib/taski"
 

@@ -248,66 +248,34 @@ module Taski
     reset_args! if created_args
   end
 
-  # Progress display is enabled by default (tree-style).
-  # Environment variables:
-  # - TASKI_PROGRESS_DISABLE=1: Disable progress display entirely
-  # - TASKI_PROGRESS_MODE=simple|tree: Set display mode (default: tree)
+  NOT_CONFIGURED = Object.new.freeze
+  PROGRESS_MONITOR = Monitor.new
+  @progress_display = NOT_CONFIGURED
+
   def self.progress_display
-    return nil if progress_disabled?
-    @progress_display ||= create_progress_display
-  end
-
-  def self.progress_disabled?
-    ENV["TASKI_PROGRESS_DISABLE"] == "1"
-  end
-
-  # Get the current progress mode (:tree or :simple)
-  # Environment variable TASKI_PROGRESS_MODE takes precedence over code settings.
-  # @return [Symbol] The current progress mode
-  def self.progress_mode
-    if ENV["TASKI_PROGRESS_MODE"]
-      progress_mode_from_env
-    else
-      @progress_mode || :tree
+    PROGRESS_MONITOR.synchronize do
+      if @progress_display.equal?(NOT_CONFIGURED)
+        @progress_display = Progress::Layout::Simple.new
+      end
+      @progress_display
     end
   end
 
-  # Set the progress mode (:tree or :simple)
-  # @param mode [Symbol] The mode to use (:tree or :simple)
-  def self.progress_mode=(mode)
-    @progress_mode = mode.to_sym
-    # Reset display so it will be recreated with new mode
-    @progress_display&.stop
-    @progress_display = nil
+  def self.progress_display=(display)
+    PROGRESS_MONITOR.synchronize do
+      unless @progress_display.equal?(NOT_CONFIGURED)
+        @progress_display.stop if @progress_display.respond_to?(:stop)
+      end
+      @progress_display = display
+    end
   end
 
   def self.reset_progress_display!
-    @progress_display&.stop
-    @progress_display = nil
-    @progress_mode = nil
-  end
-
-  # @api private
-  def self.create_progress_display
-    case progress_mode
-    when :simple
-      Progress::Layout::Simple.new
-    when :log, :plain
-      Progress::Layout::Log.new
-    else
-      Progress::Layout::Tree.new
-    end
-  end
-
-  # @api private
-  def self.progress_mode_from_env
-    case ENV["TASKI_PROGRESS_MODE"]
-    when "simple"
-      :simple
-    when "log", "plain"
-      :log
-    else
-      :tree
+    PROGRESS_MONITOR.synchronize do
+      unless @progress_display.equal?(NOT_CONFIGURED)
+        @progress_display.stop if @progress_display.respond_to?(:stop)
+      end
+      @progress_display = NOT_CONFIGURED
     end
   end
 

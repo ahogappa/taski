@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 # Demo: Large tree to test rendering performance
-# Run with: TASKI_FORCE_PROGRESS=1 ruby examples/large_tree_demo.rb
+# Run with: ruby examples/large_tree_demo.rb
 
 require_relative "../lib/taski"
 
@@ -348,6 +348,7 @@ puts
 puts "Running with progress display..."
 puts
 
+Taski.progress_display = Taski::Progress::Layout::Tree.new
 LargeTreeRoot.reset!
 result = LargeTreeRoot.result
 

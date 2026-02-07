@@ -8,7 +8,7 @@
 # - Task.new.run: Instance-level caching
 # - Dependencies within same execution scope share results
 #
-# Run: TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
+# Run: ruby examples/reexecution_demo.rb
 
 require_relative "../lib/taski"
 
