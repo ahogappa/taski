@@ -2,6 +2,7 @@
 
 require "test_helper"
 require_relative "fixtures/parallel_tasks"
+require_relative "fixtures/executor_tasks"
 
 class TestScheduler < Minitest::Test
   def setup
@@ -249,75 +250,44 @@ class TestScheduler < Minitest::Test
   # ========================================
 
   def test_skipped_task_classes_returns_pending_tasks_after_execution
-    # 3 tasks in graph, only 1 completed -> 2 are skipped
-    task_a = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "a"
-    end
-    task_a.define_singleton_method(:cached_dependencies) { Set.new }
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "b"
-    end
-    task_b.define_singleton_method(:cached_dependencies) { Set.new }
-
-    task_c = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "c"
-    end
-    task_c.define_singleton_method(:cached_dependencies) { Set[task_a, task_b] }
-
+    # DiamondRoot -> [DiamondLeft, DiamondRight] -> DiamondLeaf
+    # Build graph, only complete DiamondLeaf
     scheduler = Taski::Execution::Scheduler.new
-    scheduler.build_dependency_graph(task_c)
+    scheduler.build_dependency_graph(ExecutorFixtures::DiamondRoot)
 
-    # Only complete task_a
-    scheduler.mark_enqueued(task_a)
-    scheduler.mark_completed(task_a)
+    # Only complete DiamondLeaf
+    scheduler.mark_enqueued(ExecutorFixtures::DiamondLeaf)
+    scheduler.mark_completed(ExecutorFixtures::DiamondLeaf)
 
     skipped = scheduler.skipped_task_classes
-    assert_includes skipped, task_b
-    assert_includes skipped, task_c
-    refute_includes skipped, task_a
-    assert_equal 2, skipped.size
+    assert_includes skipped, ExecutorFixtures::DiamondLeft
+    assert_includes skipped, ExecutorFixtures::DiamondRight
+    assert_includes skipped, ExecutorFixtures::DiamondRoot
+    refute_includes skipped, ExecutorFixtures::DiamondLeaf
+    assert_equal 3, skipped.size
   end
 
   def test_skipped_task_classes_returns_empty_when_all_completed
-    task = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "test"
-    end
-
     scheduler = Taski::Execution::Scheduler.new
-    scheduler.build_dependency_graph(task)
+    scheduler.build_dependency_graph(ExecutorFixtures::SingleTask)
 
-    scheduler.mark_enqueued(task)
-    scheduler.mark_completed(task)
+    scheduler.mark_enqueued(ExecutorFixtures::SingleTask)
+    scheduler.mark_completed(ExecutorFixtures::SingleTask)
 
     assert_empty scheduler.skipped_task_classes
   end
 
   def test_skipped_task_classes_does_not_include_enqueued_tasks
-    task_a = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "a"
-    end
-    task_a.define_singleton_method(:cached_dependencies) { Set.new }
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "b"
-    end
-    task_b.define_singleton_method(:cached_dependencies) { Set[task_a] }
-
+    # ChainRoot -> ChainMiddle -> ChainLeaf
     scheduler = Taski::Execution::Scheduler.new
-    scheduler.build_dependency_graph(task_b)
+    scheduler.build_dependency_graph(ExecutorFixtures::ChainRoot)
 
-    scheduler.mark_enqueued(task_a)
+    scheduler.mark_enqueued(ExecutorFixtures::ChainLeaf)
 
     skipped = scheduler.skipped_task_classes
-    # task_a is enqueued (not pending), task_b is pending
-    refute_includes skipped, task_a
-    assert_includes skipped, task_b
+    # ChainLeaf is enqueued (not pending), others are pending
+    refute_includes skipped, ExecutorFixtures::ChainLeaf
+    assert_includes skipped, ExecutorFixtures::ChainMiddle
+    assert_includes skipped, ExecutorFixtures::ChainRoot
   end
 end

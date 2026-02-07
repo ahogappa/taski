@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require_relative "fixtures/args_tasks"
 
 class TestArgs < Minitest::Test
   def setup
     # Reset the task system before each test
     Taski::Task.reset! if defined?(Taski::Task)
+    ArgsFixtures::CapturedValues.clear
   end
 
   def test_working_directory_returns_current_directory
@@ -65,38 +67,16 @@ class TestArgs < Minitest::Test
   end
 
   def test_root_task_is_consistent_during_dependency_execution
-    captured_roots = []
+    ArgsFixtures::RootConsistencyTask.run
 
-    dep_task = Class.new(Taski::Task) do
-      exports :value
+    root_before = ArgsFixtures::CapturedValues.get(:root_before)
+    dep_root = ArgsFixtures::CapturedValues.get(:dep_root)
+    root_after = ArgsFixtures::CapturedValues.get(:root_after)
 
-      define_method(:run) do
-        captured_roots << Taski.env.root_task
-        @value = "dep"
-      end
-    end
-
-    # Use Object.const_set to make dep_task accessible
-    Object.const_set(:TempDepTask, dep_task) unless Object.const_defined?(:TempDepTask)
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        captured_roots << Taski.env.root_task
-        TempDepTask.value
-        captured_roots << Taski.env.root_task
-        @value = "root"
-      end
-    end
-
-    root_task.run
-
-    # All captured root_tasks should be the same (root_task, not dep_task)
-    assert_equal 3, captured_roots.size
-    assert(captured_roots.all? { |r| r == root_task }, "root_task should be consistent during execution")
-  ensure
-    Object.send(:remove_const, :TempDepTask) if Object.const_defined?(:TempDepTask)
+    # All captured root_tasks should be the same (RootConsistencyTask, not DepTask)
+    assert_equal ArgsFixtures::RootConsistencyTask, root_before
+    assert_equal ArgsFixtures::RootConsistencyTask, dep_root
+    assert_equal ArgsFixtures::RootConsistencyTask, root_after
   end
 
   def test_args_and_env_cleared_after_execution
@@ -173,47 +153,17 @@ class TestArgs < Minitest::Test
   end
 
   def test_env_values_are_consistent_during_execution
-    # Test that env values are consistent within a single execution
-    captured_values = []
+    ArgsFixtures::EnvCaptureRoot.run
 
-    dep_task = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        captured_values << {
-          root: Taski.env.root_task,
-          dir: Taski.env.working_directory,
-          time: Taski.env.started_at
-        }
-        @value = "dep"
-      end
-    end
-
-    Object.const_set(:TempConsistencyDepTask, dep_task) unless Object.const_defined?(:TempConsistencyDepTask)
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        captured_values << {
-          root: Taski.env.root_task,
-          dir: Taski.env.working_directory,
-          time: Taski.env.started_at
-        }
-        TempConsistencyDepTask.value
-        @value = "root"
-      end
-    end
-
-    root_task.run
+    root_env = ArgsFixtures::CapturedValues.get(:root_env)
+    dep_env = ArgsFixtures::CapturedValues.get(:dep_env)
 
     # Both tasks should see consistent env values within the same execution
-    assert_equal 2, captured_values.size
-    assert_equal captured_values[0][:dir], captured_values[1][:dir]
-    assert_equal captured_values[0][:time], captured_values[1][:time]
-    assert_equal captured_values[0][:root], captured_values[1][:root]
-  ensure
-    Object.send(:remove_const, :TempConsistencyDepTask) if Object.const_defined?(:TempConsistencyDepTask)
+    refute_nil root_env
+    refute_nil dep_env
+    assert_equal root_env[:dir], dep_env[:dir]
+    assert_equal root_env[:time], dep_env[:time]
+    assert_equal root_env[:root], dep_env[:root]
   end
 
   # Tests for user-defined options
@@ -341,30 +291,9 @@ class TestArgs < Minitest::Test
   end
 
   def test_args_options_shared_across_dependent_tasks
-    Taski::Task.reset!
+    ArgsFixtures::ArgsMainTask.run(args: {env: "staging"})
 
-    dependency_env = nil
-
-    dep_task = Class.new(Taski::Task) do
-      exports :dep_value
-
-      define_method(:run) do
-        dependency_env = Taski.args[:env]
-        @dep_value = "from_dep"
-      end
-    end
-
-    main_task_class = Class.new(Taski::Task) do
-      exports :main_value
-
-      define_singleton_method(:dep_task) { dep_task }
-
-      define_method(:run) do
-        @main_value = self.class.dep_task.dep_value
-      end
-    end
-
-    main_task_class.run(args: {env: "staging"})
-    assert_equal "staging", dependency_env
+    dep_env = ArgsFixtures::CapturedValues.get(:dep_env_arg)
+    assert_equal "staging", dep_env
   end
 end
