@@ -104,7 +104,7 @@ module Taski
           # Check if there's more data with a very short timeout
           ready, = IO.select([pipe.read_io], nil, nil, 0.001)
           break unless ready
-        rescue IOError
+        rescue IOError, Errno::EBADF
           # All data has been read (EOFError) or pipe was closed by another thread
           synchronize { pipe.close_read }
           break
@@ -129,7 +129,7 @@ module Taski
 
           read_from_pipe(pipe)
         end
-      rescue IOError
+      rescue IOError, Errno::EBADF
         # Pipe was closed by another thread (drain_pipe), ignore
       end
 
@@ -256,7 +256,7 @@ module Taski
         store_output_lines(pipe.task_class, data)
       rescue IO::WaitReadable
         # No data available yet
-      rescue IOError
+      rescue IOError, Errno::EBADF
         # Pipe closed by writer (EOFError) or by another thread, close read end
         synchronize { pipe.close_read }
       end
