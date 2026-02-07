@@ -348,6 +348,7 @@ puts
 puts "Running with progress display..."
 puts
 
+Taski.progress_display = Taski::Progress::Layout::Tree.new
 LargeTreeRoot.reset!
 result = LargeTreeRoot.result
 

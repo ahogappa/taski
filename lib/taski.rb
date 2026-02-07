@@ -249,27 +249,34 @@ module Taski
   end
 
   NOT_CONFIGURED = Object.new.freeze
+  PROGRESS_MONITOR = Monitor.new
   @progress_display = NOT_CONFIGURED
 
   def self.progress_display
-    if @progress_display.equal?(NOT_CONFIGURED)
-      @progress_display = Progress::Layout::Simple.new
+    PROGRESS_MONITOR.synchronize do
+      if @progress_display.equal?(NOT_CONFIGURED)
+        @progress_display = Progress::Layout::Simple.new
+      end
+      @progress_display
     end
-    @progress_display
   end
 
   def self.progress_display=(display)
-    unless @progress_display.equal?(NOT_CONFIGURED)
-      @progress_display.stop if @progress_display.respond_to?(:stop)
+    PROGRESS_MONITOR.synchronize do
+      unless @progress_display.equal?(NOT_CONFIGURED)
+        @progress_display.stop if @progress_display.respond_to?(:stop)
+      end
+      @progress_display = display
     end
-    @progress_display = display
   end
 
   def self.reset_progress_display!
-    unless @progress_display.equal?(NOT_CONFIGURED)
-      @progress_display.stop if @progress_display.respond_to?(:stop)
+    PROGRESS_MONITOR.synchronize do
+      unless @progress_display.equal?(NOT_CONFIGURED)
+        @progress_display.stop if @progress_display.respond_to?(:stop)
+      end
+      @progress_display = NOT_CONFIGURED
     end
-    @progress_display = NOT_CONFIGURED
   end
 
   # Get the worker count from the current args (set via Task.run(workers: n))

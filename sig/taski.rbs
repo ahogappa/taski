@@ -13,7 +13,7 @@ module Taski
   def self.progress_display=: (untyped display) -> void
   def self.reset_progress_display!: () -> void
   def self.args: () -> Args?
-  def self.start_args: (options: Hash[Symbol, untyped], root_task: Class) -> void
+  def self.start_args: (options: Hash[Symbol, untyped]) -> void
   def self.reset_args!: () -> void
   def self.args_worker_count: () -> Integer?
 
@@ -76,15 +76,8 @@ module Taski
   # Args class for execution arguments management
   class Args
     @options: Hash[Symbol | String, untyped]
-    @root_task: Class
-    @started_at: Time
-    @working_directory: String
 
-    attr_reader started_at: Time
-    attr_reader working_directory: String
-    attr_reader root_task: Class
-
-    def initialize: (options: Hash[Symbol | String, untyped], root_task: Class) -> void
+    def initialize: (options: Hash[Symbol | String, untyped]) -> void
     def []: (Symbol | String key) -> untyped
     def fetch: (Symbol | String key, ?untyped default) ?{ () -> untyped } -> untyped
     def key?: (Symbol | String key) -> bool
