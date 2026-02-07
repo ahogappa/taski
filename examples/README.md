@@ -47,7 +47,6 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
 
 **Covers:**
 - Fresh execution for each class method call
-- Instance-level caching with `Task.new`
 - Scope-based dependency caching
 
 ---
@@ -64,6 +63,7 @@ ruby examples/clean_demo.rb
 - Defining `clean` methods for resource cleanup
 - Reverse dependency order execution
 - `run_and_clean` combined operation
+- `run_and_clean` with block support
 
 ---
 

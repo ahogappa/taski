@@ -33,12 +33,6 @@ class TestWorkerCountConfiguration < Minitest::Test
     assert_equal "done", SimpleTask.result
   end
 
-  def test_clean_accepts_workers_parameter
-    SimpleTask.reset!
-    SimpleTask.run
-    SimpleTask.clean(workers: 2)
-  end
-
   def test_run_and_clean_accepts_workers_parameter
     SimpleTask.reset!
     SimpleTask.run_and_clean(workers: 2)
@@ -142,12 +136,6 @@ class TestWorkerCountConfiguration < Minitest::Test
   def test_run_raises_error_for_non_integer_workers
     SimpleTask.reset!
     error = assert_raises(ArgumentError) { SimpleTask.run(workers: "4") }
-    assert_match(/workers must be a positive integer or nil/, error.message)
-  end
-
-  def test_clean_raises_error_for_invalid_workers
-    SimpleTask.reset!
-    error = assert_raises(ArgumentError) { SimpleTask.clean(workers: 0) }
     assert_match(/workers must be a positive integer or nil/, error.message)
   end
 

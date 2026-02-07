@@ -226,12 +226,6 @@ Env API (execution environment):
 RandomTask.value  # => 42
 RandomTask.value  # => 99 (different value - fresh execution)
 
-# Instance-level caching
-instance = RandomTask.new
-instance.run        # => 42
-instance.run        # => 42 (cached within instance)
-instance.value      # => 42
-
 # Dependencies within same execution share results
 DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 ```
@@ -309,10 +303,10 @@ end
 # Run then clean in one call
 DatabaseSetup.run_and_clean
 
-# Or separately
-DatabaseSetup.run
-# ... do work ...
-DatabaseSetup.clean
+# Run, do something with exported values, then clean
+DatabaseSetup.run_and_clean do
+  deploy(DatabaseSetup.connection)
+end
 ```
 
 See [docs/guide.md](docs/guide.md#lifecycle-management) for details.
