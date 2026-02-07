@@ -147,13 +147,6 @@ module Taski
         synchronize { (@recent_lines[task_class] || []).dup }
       end
 
-      # Get the pipe for a specific task class
-      # @param task_class [Class] The task class
-      # @return [TaskOutputPipe, nil] The pipe or nil if not registered
-      def pipe_for(task_class)
-        synchronize { @pipes[task_class] }
-      end
-
       # Close all pipes and clean up
       def close_all
         synchronize do

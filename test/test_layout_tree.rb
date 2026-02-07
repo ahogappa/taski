@@ -4,6 +4,7 @@ require "test_helper"
 require "stringio"
 require "taski/progress/layout/tree"
 require "taski/progress/theme/default"
+require "taski/progress/theme/detail"
 require "taski/progress/layout/theme_drop"
 
 class TestLayoutTree < Minitest::Test
@@ -269,9 +270,10 @@ class TestLayoutTreeTaskContent < Minitest::Test
   end
 
   def test_build_task_content_uses_icon_for_pending_state
+    theme = Taski::Progress::Theme::Detail.new
     # Use render_template_string with theme's task_pending template
     result = @layout.render_template_string(
-      @layout.theme.task_pending,
+      theme.task_pending,
       state: :pending,
       task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :pending),
       execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
@@ -282,9 +284,10 @@ class TestLayoutTreeTaskContent < Minitest::Test
   end
 
   def test_build_task_content_uses_spinner_for_running_state
+    theme = Taski::Progress::Theme::Detail.new
     # Use render_template_string with theme's task_start template
     result = @layout.render_template_string(
-      @layout.theme.task_start,
+      theme.task_start,
       state: :running,
       task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :running),
       execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
@@ -295,9 +298,10 @@ class TestLayoutTreeTaskContent < Minitest::Test
   end
 
   def test_build_task_content_uses_icon_for_completed_state
+    theme = Taski::Progress::Theme::Detail.new
     # Use render_template_string with theme's task_success template
     result = @layout.render_template_string(
-      @layout.theme.task_success,
+      theme.task_success,
       state: :completed,
       task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :completed, duration: 100),
       execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
@@ -309,9 +313,10 @@ class TestLayoutTreeTaskContent < Minitest::Test
   end
 
   def test_build_task_content_uses_icon_for_failed_state
+    theme = Taski::Progress::Theme::Detail.new
     # Use render_template_string with theme's task_fail template
     result = @layout.render_template_string(
-      @layout.theme.task_fail,
+      theme.task_fail,
       state: :failed,
       task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :failed, error_message: "Something went wrong"),
       execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)

@@ -223,8 +223,6 @@ module Taski
           @spinner_timer = nil
         end
 
-        attr_reader :theme
-
         protected
 
         # === Template methods - Override in subclasses ===
