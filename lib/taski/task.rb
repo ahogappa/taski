@@ -50,26 +50,7 @@ module Taski
         @exported_methods ||= []
       end
 
-      ##
-      # Creates a task instance for manual execution control.
-      # Use class methods (e.g., MyTask.run) for simple execution.
-      # @param args [Hash] User-defined arguments accessible via Taski.args.
-      # @param workers [Integer, nil] Number of worker threads for parallel execution.
-      # @return [Execution::TaskWrapper] A new wrapper for this task.
-      def new(args: {}, workers: nil)
-        validate_workers!(workers)
-        fresh_registry = Execution::Registry.new
-        task_instance = allocate
-        task_instance.__send__(:initialize)
-        wrapper = Execution::TaskWrapper.new(
-          task_instance,
-          registry: fresh_registry,
-          execution_context: Execution::ExecutionContext.current,
-          args: args.merge(_workers: workers)
-        )
-        fresh_registry.register(self, wrapper)
-        wrapper
-      end
+      private :new
 
       ##
       # Returns cached static dependencies for this task class.
@@ -100,29 +81,19 @@ module Taski
       end
 
       ##
-      # Executes the clean phase for the task and all its dependencies.
-      # Clean is executed in reverse dependency order.
-      # Creates a fresh registry each time for independent execution.
-      # @param args [Hash] User-defined arguments accessible via Taski.args.
-      # @param workers [Integer, nil] Number of worker threads for parallel execution.
-      #   Must be a positive integer or nil.
-      # @raise [ArgumentError] If workers is not a positive integer or nil.
-      def clean(args: {}, workers: nil)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.clean }
-      end
-
-      ##
       # Execute run followed by clean in a single operation.
       # If run fails, clean is still executed for resource release.
       # Creates a fresh registry for both operations to share.
+      # An optional block is executed between run and clean phases.
       #
       # @param args [Hash] User-defined arguments accessible via Taski.args.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
       #   Must be a positive integer or nil.
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution
-      def run_and_clean(args: {}, workers: nil)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean }
+      # @yield Optional block executed between run and clean phases
+      def run_and_clean(args: {}, workers: nil, &block)
+        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(&block) }
       end
 
       ##

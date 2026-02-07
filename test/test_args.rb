@@ -10,39 +10,40 @@ class TestArgs < Minitest::Test
 
   def test_working_directory_returns_current_directory
     expected_dir = Dir.pwd
+    captured_dir = nil
 
     task_class = Class.new(Taski::Task) do
       exports :captured_dir
 
-      def run
-        @captured_dir = Taski.env.working_directory
+      define_method(:run) do
+        captured_dir = Taski.env.working_directory
+        @captured_dir = captured_dir
       end
     end
 
-    # Use Task.new to cache the result within the instance
-    task = task_class.new
-    task.run
-    assert_equal expected_dir, task.captured_dir
+    task_class.run
+    assert_equal expected_dir, captured_dir
   end
 
   def test_started_at_returns_time
+    captured_time = nil
+
     task_class = Class.new(Taski::Task) do
       exports :captured_time
 
-      def run
-        @captured_time = Taski.env.started_at
+      define_method(:run) do
+        captured_time = Taski.env.started_at
+        @captured_time = captured_time
       end
     end
 
     before_run = Time.now
-    # Use instance to get cached value
-    task = task_class.new
-    task.run
+    task_class.run
     after_run = Time.now
 
-    assert_kind_of Time, task.captured_time
-    assert task.captured_time >= before_run
-    assert task.captured_time <= after_run
+    assert_kind_of Time, captured_time
+    assert captured_time >= before_run
+    assert captured_time <= after_run
   end
 
   def test_root_task_returns_first_called_task
@@ -360,123 +361,5 @@ class TestArgs < Minitest::Test
 
     main_task_class.run(args: {env: "staging"})
     assert_equal "staging", dependency_env
-  end
-
-  # Tests for Task.new(args:) pattern
-
-  def test_task_new_accepts_args_parameter
-    captured_env = nil
-
-    task_class = Class.new(Taski::Task) do
-      exports :env_value
-
-      define_method(:run) do
-        captured_env = Taski.args[:env]
-        @env_value = captured_env
-      end
-    end
-
-    task = task_class.new(args: {env: "test"})
-    task.run
-    assert_equal "test", captured_env
-    assert_equal "test", task.env_value
-  end
-
-  def test_task_new_accepts_workers_parameter
-    captured_workers = nil
-
-    task_class = Class.new(Taski::Task) do
-      exports :workers_value
-
-      define_method(:run) do
-        captured_workers = Taski.args_worker_count
-        @workers_value = captured_workers
-      end
-    end
-
-    task = task_class.new(workers: 4)
-    task.run
-    assert_equal 4, captured_workers
-    assert_equal 4, task.workers_value
-  end
-
-  def test_task_new_accepts_args_and_workers_together
-    captured_env = nil
-    captured_workers = nil
-
-    task_class = Class.new(Taski::Task) do
-      exports :env_value, :workers_value
-
-      define_method(:run) do
-        captured_env = Taski.args[:env]
-        captured_workers = Taski.args_worker_count
-        @env_value = captured_env
-        @workers_value = captured_workers
-      end
-    end
-
-    task = task_class.new(args: {env: "production"}, workers: 8)
-    task.run
-    assert_equal "production", captured_env
-    assert_equal 8, captured_workers
-  end
-
-  def test_task_new_validates_workers_parameter
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "done"
-      end
-    end
-
-    # Zero workers should raise
-    error = assert_raises(ArgumentError) { task_class.new(workers: 0) }
-    assert_match(/workers must be a positive integer/, error.message)
-
-    # Negative workers should raise
-    error = assert_raises(ArgumentError) { task_class.new(workers: -1) }
-    assert_match(/workers must be a positive integer/, error.message)
-
-    # Non-integer should raise
-    error = assert_raises(ArgumentError) { task_class.new(workers: "2") }
-    assert_match(/workers must be a positive integer/, error.message)
-  end
-
-  def test_task_new_run_then_clean_with_instance_variables
-    cleanup_called = false
-    created_file = nil
-
-    task_class = Class.new(Taski::Task) do
-      exports :file_path
-
-      define_method(:run) do
-        @file_path = "/tmp/test_file_#{object_id}"
-        created_file = @file_path
-      end
-
-      define_method(:clean) do
-        cleanup_called = true
-        # In real usage, would delete the file using @file_path
-      end
-    end
-
-    task = task_class.new
-    task.run
-    assert_equal created_file, task.file_path
-
-    task.clean
-    assert cleanup_called
-  end
-
-  def test_task_new_returns_task_wrapper
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "done"
-      end
-    end
-
-    task = task_class.new
-    assert_instance_of Taski::Execution::TaskWrapper, task
   end
 end

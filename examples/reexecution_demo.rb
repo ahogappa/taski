@@ -5,7 +5,6 @@
 #
 # This example demonstrates the execution model:
 # - Task.run / Task.value: Fresh execution every time
-# - Task.new.run: Instance-level caching
 # - Dependencies within same execution scope share results
 #
 # Run: ruby examples/reexecution_demo.rb
@@ -65,37 +64,7 @@ puts "  => #{value2}"
 puts "\nValues are different: #{value1 != value2}"
 
 puts "\n" + "=" * 50
-puts "\n2. Task.new: Instance-Level Caching"
-puts "-" * 50
-puts "Same instance caches the result:"
-
-instance = RandomGenerator.new
-puts "\nFirst run on instance:"
-result1 = instance.run
-puts "  instance.value = #{instance.value}"
-
-puts "\nSecond run on same instance (returns cached):"
-result2 = instance.run
-puts "  instance.value = #{instance.value}"
-
-puts "\nSame result: #{result1 == result2}"
-
-puts "\n" + "=" * 50
-puts "\n3. Different Instances: Independent Executions"
-puts "-" * 50
-
-instance1 = RandomGenerator.new
-instance1.run
-puts "instance1.value = #{instance1.value}"
-
-instance2 = RandomGenerator.new
-instance2.run
-puts "instance2.value = #{instance2.value}"
-
-puts "\nDifferent values: #{instance1.value != instance2.value}"
-
-puts "\n" + "=" * 50
-puts "\n4. Scope-Based Caching for Dependencies"
+puts "\n2. Scope-Based Caching for Dependencies"
 puts "-" * 50
 puts "Within ONE execution, dependencies are cached:"
 
@@ -106,7 +75,7 @@ puts "\nNote: Both accesses return the SAME value!"
 puts "(Because they're in the same execution scope)"
 
 puts "\n" + "=" * 50
-puts "\n5. Dependency Chain with Fresh Execution"
+puts "\n3. Dependency Chain with Fresh Execution"
 puts "-" * 50
 
 puts "Each Consumer.run creates fresh RandomGenerator:"
@@ -117,7 +86,7 @@ puts "\nSecond Consumer.run (different RandomGenerator value):"
 Consumer.run
 
 puts "\n" + "=" * 50
-puts "\n6. Use Cases Summary"
+puts "\n4. Use Cases Summary"
 puts "-" * 50
 puts <<~SUMMARY
   TaskClass.run / TaskClass.value
@@ -125,15 +94,10 @@ puts <<~SUMMARY
     => Dependencies within same execution are cached
     => Use for: Independent executions, scripts
 
-  TaskClass.new.run
-    => Instance caches results
-    => Multiple .run calls return cached value
-    => Use for: Re-execution control, testing
-
-  instance.reset!
-    => Clears instance cache
-    => Next .run will execute fresh
-    => Use for: Re-running same instance
+  TaskClass.reset!
+    => Clears task state
+    => Next execution starts fresh
+    => Use for: Re-running tasks in tests
 SUMMARY
 
 puts "\n" + "=" * 50

@@ -140,7 +140,7 @@ end
 
 ## Lifecycle Management
 
-Taski supports resource cleanup with `run`, `clean`, and `run_and_clean` methods.
+Taski supports resource cleanup with `run_and_clean`, which executes the run phase followed by the clean phase in a single operation.
 
 ### Basic Lifecycle
 
@@ -168,27 +168,24 @@ class WebServer < Taski::Task
   end
 end
 
-# Start
-WebServer.run
-# => Database connected
-# => Server started with postgresql://localhost:5432/myapp
-
-# Clean (reverse dependency order)
-WebServer.clean
-# => Server stopped
-# => Database disconnected
-```
-
-### run_and_clean
-
-Execute run followed by clean in a single operation:
-
-```ruby
+# Run then clean in one call
 WebServer.run_and_clean
 # => Database connected
 # => Server started
 # => Server stopped
 # => Database disconnected
+```
+
+### run_and_clean with Block
+
+Use a block to execute code between run and clean phases. This is useful when you need to use exported values before cleanup:
+
+```ruby
+DatabaseSetup.run_and_clean do
+  # Exported values are accessible here
+  deploy(DatabaseSetup.connection)
+end
+# Clean runs automatically after the block
 ```
 
 ### Idempotent Clean Methods

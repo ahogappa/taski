@@ -64,22 +64,6 @@ class TestSubprocessOutput < Minitest::Test
     assert_equal true, result
   end
 
-  # Test that system works with fresh TaskWrapper instances
-
-  def test_system_with_new_instance
-    task_class = Class.new(Taski::Task) do
-      exports :result
-
-      def run
-        @result = system("echo from_new_instance")
-      end
-    end
-
-    task = task_class.new
-    task.run
-    assert_equal true, task.result
-  end
-
   # Tests for option handling
 
   def test_system_with_environment_variables

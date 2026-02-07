@@ -112,12 +112,16 @@ module Taski
 
       # Called by user code to run and clean. Runs execution followed by cleanup.
       # If run fails, clean is still executed for resource release.
+      # An optional block is executed between run and clean phases.
       # Pre-increments progress display nest_level to prevent double rendering.
+      # @param block [Proc, nil] Optional block executed between run and clean
       # @return [Object] The result of task execution
-      def run_and_clean
+      def run_and_clean(&block)
         context = ensure_execution_context
         context.notify_start # Pre-increment nest_level to prevent double rendering
-        run
+        result = run
+        block&.call
+        result
       ensure
         clean
         context&.notify_stop # Final decrement and render

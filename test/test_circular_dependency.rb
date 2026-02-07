@@ -101,14 +101,6 @@ class TestCircularDependency < Minitest::Test
     end
   end
 
-  def test_circular_dependency_detected_on_clean
-    require_relative "fixtures/circular_tasks"
-
-    assert_raises(Taski::CircularDependencyError) do
-      CircularTaskA.clean
-    end
-  end
-
   def test_deep_dependency_chain_without_cycle
     # DeepDependency::Nested::TaskH has a deep dependency chain
     graph = Taski::StaticAnalysis::DependencyGraph.new.build_from(DeepDependency::Nested::TaskH)

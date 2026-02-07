@@ -21,11 +21,6 @@ class TestParallelExecution < Minitest::Test
     # Test run's return value
     result = task_class.run
     assert_equal "run_return_value", result
-
-    # Test exported value via instance (cached)
-    task = task_class.new
-    task.run
-    assert_equal "exported_value", task.value
   end
 
   def test_task_with_exported_method_override
@@ -59,85 +54,6 @@ class TestParallelExecution < Minitest::Test
     value2 = task_class.value
 
     refute_equal value1, value2, "Class method calls should execute fresh each time"
-  end
-
-  def test_instance_caching
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "value_#{rand(10000)}"
-      end
-    end
-
-    # Instance should cache the value
-    task = task_class.new
-    value1 = task.value
-    value2 = task.value
-
-    assert_equal value1, value2, "Instance should cache the value"
-  end
-
-  def test_new_creates_fresh_instance_for_re_execution
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "value_#{rand(10000)}"
-      end
-    end
-
-    # TaskClass.new.run creates a fresh instance each time (re-execution)
-    task1 = task_class.new
-    result1 = task1.run
-    task2 = task_class.new
-    result2 = task2.run
-
-    refute_equal result1, result2, "Each new instance should execute independently"
-  end
-
-  def test_new_instance_is_cached_within_itself
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "value_#{rand(10000)}"
-      end
-    end
-
-    # Same instance should be cached
-    task = task_class.new
-    result1 = task.run
-    result2 = task.run
-
-    assert_equal result1, result2, "Same instance should return cached value"
-  end
-
-  def test_new_returns_task_wrapper
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "test"
-      end
-    end
-
-    instance = task_class.new
-    assert_kind_of Taski::Execution::TaskWrapper, instance
-  end
-
-  def test_new_instance_can_access_exported_values
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "test_value"
-      end
-    end
-
-    task = task_class.new
-    task.run
-    assert_equal "test_value", task.value
   end
 
   def test_reset_clears_cached_values
@@ -297,30 +213,21 @@ class TestParallelExecution < Minitest::Test
   def test_clean_execution_order
     require_relative "fixtures/parallel_tasks"
 
-    # Test that clean executes in reverse dependency order
+    # Test that clean executes in reverse dependency order via run_and_clean
     Taski::Task.reset!
-
-    # First run to build the chain
-    result = CleanTaskD.run
-    assert_equal "D->C->B->A", result
 
     # Verify dependencies
     assert_equal ["CleanTaskC"], CleanTaskD.cached_dependencies.map(&:name)
     assert_equal ["CleanTaskB"], CleanTaskC.cached_dependencies.map(&:name)
     assert_equal ["CleanTaskA"], CleanTaskB.cached_dependencies.map(&:name)
 
-    # Clean should execute D -> C -> B -> A (reverse of run)
-    # Note: clean method is now synchronous and waits for completion
-    clean_result = CleanTaskD.clean
-
-    # Verify clean was called (values should be nil now)
-    # Note: We can't directly verify execution order in the test without instrumentation
-    # but we can verify clean was executed
-    assert_equal "cleaned_D", clean_result
+    # run_and_clean runs the task then cleans in reverse dependency order
+    result = CleanTaskD.run_and_clean
+    assert_equal "D->C->B->A", result
   end
 
   def test_clean_with_no_implementation
-    # Test default clean (no-op) doesn't break
+    # Test default clean (no-op) doesn't break with run_and_clean
     task_class = Class.new(Taski::Task) do
       exports :value
 
@@ -330,9 +237,8 @@ class TestParallelExecution < Minitest::Test
       # No clean method defined - should use default no-op
     end
 
-    task_class.run
-    result = task_class.clean # Should not raise, returns nil (default)
-    assert_nil result
+    result = task_class.run_and_clean # Should not raise
+    assert_equal "test", result
   end
 
   # Test that Task instance run raises NotImplementedError when not overridden
@@ -346,28 +252,6 @@ class TestParallelExecution < Minitest::Test
       task_instance.run
     end
     assert_match(/Subclasses must implement the run method/, error.message)
-  end
-
-  # Test that Task.new instance reset! clears exported values and allows re-execution
-  def test_task_instance_reset_clears_exported_values
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "value_#{rand(10000)}"
-      end
-    end
-
-    # Create instance and run
-    task = task_class.new
-    value1 = task.run
-    assert_equal value1, task.value
-
-    # Reset and run again - should get new value
-    task.reset!
-    value2 = task.run
-
-    refute_equal value1, value2, "After reset!, re-execution should produce new value"
   end
 
   # Test Registry#get_task raises error for unregistered task
@@ -623,5 +507,130 @@ class TestParallelExecution < Minitest::Test
 
     result = task_class.run_and_clean
     assert_equal 84, result
+  end
+
+  # ========================================
+  # run_and_clean with block Tests
+  # ========================================
+
+  def test_run_and_clean_with_block
+    execution_order = []
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        execution_order << :run
+        @value = "test_value"
+      end
+
+      define_method(:clean) do
+        execution_order << :clean
+      end
+    end
+
+    task_class.run_and_clean do
+      execution_order << :block
+    end
+
+    assert_equal [:run, :block, :clean], execution_order
+  end
+
+  def test_run_and_clean_block_can_access_exported_values
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "exported_data"
+      end
+
+      def clean
+      end
+    end
+
+    captured_value = nil
+    task_class.run_and_clean do
+      captured_value = task_class.value
+    end
+
+    assert_equal "exported_data", captured_value
+  end
+
+  def test_run_and_clean_block_can_use_stdout
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+
+      def clean
+      end
+    end
+
+    # Verify block can write to stdout (capture is released)
+    output = StringIO.new
+    original_stdout = $stdout
+    begin
+      $stdout = output
+
+      task_class.run_and_clean do
+        puts "block output"
+      end
+    ensure
+      $stdout = original_stdout
+    end
+
+    assert_includes output.string, "block output"
+  end
+
+  def test_run_and_clean_block_error_still_cleans
+    clean_executed = false
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        @value = "test"
+      end
+
+      define_method(:clean) do
+        clean_executed = true
+      end
+    end
+
+    assert_raises(RuntimeError) do
+      task_class.run_and_clean do
+        raise "block error"
+      end
+    end
+
+    assert clean_executed, "Clean should still execute after block raises"
+  end
+
+  # ========================================
+  # API Removal Tests
+  # ========================================
+
+  def test_task_clean_is_not_public
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "test"
+      end
+    end
+
+    refute task_class.respond_to?(:clean), "Task.clean should not be a public class method"
+  end
+
+  def test_task_new_is_not_public
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run
+        @value = "test"
+      end
+    end
+
+    refute task_class.respond_to?(:new), "Task.new should not be a public class method"
   end
 end
