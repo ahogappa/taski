@@ -16,8 +16,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(task_class, wrapper)
@@ -33,8 +32,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(task_class, wrapper)
@@ -64,8 +62,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = dep_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(dep_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(dep_class, wrapper)
@@ -90,8 +87,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = dep_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(dep_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(dep_class, wrapper)
@@ -128,8 +124,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = dep_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(dep_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(dep_class, wrapper)
@@ -162,8 +157,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = dep_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(dep_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(dep_class, wrapper)
@@ -195,8 +189,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = dep_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(dep_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     @shared_state.register(dep_class, wrapper)
@@ -234,8 +227,7 @@ class TestSharedState < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = dep_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(dep_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     # Register but don't mark running

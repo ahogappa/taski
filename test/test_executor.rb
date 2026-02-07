@@ -56,9 +56,9 @@ class TestExecutor < Minitest::Test
     end
 
     # Set up static dependencies for the scheduler
-    task_c.instance_variable_set(:@dependencies_cache, Set.new)
-    task_b.instance_variable_set(:@dependencies_cache, Set[task_c])
-    task_a.instance_variable_set(:@dependencies_cache, Set[task_b])
+    task_c.define_singleton_method(:cached_dependencies) { Set.new }
+    task_b.define_singleton_method(:cached_dependencies) { Set[task_c] }
+    task_a.define_singleton_method(:cached_dependencies) { Set[task_b] }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -107,10 +107,10 @@ class TestExecutor < Minitest::Test
       @value = "Root(#{a}, #{b})"
     end
 
-    task_c.instance_variable_set(:@dependencies_cache, Set.new)
-    task_a.instance_variable_set(:@dependencies_cache, Set[task_c])
-    task_b.instance_variable_set(:@dependencies_cache, Set[task_c])
-    root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
+    task_c.define_singleton_method(:cached_dependencies) { Set.new }
+    task_a.define_singleton_method(:cached_dependencies) { Set[task_c] }
+    task_b.define_singleton_method(:cached_dependencies) { Set[task_c] }
+    root_task.define_singleton_method(:cached_dependencies) { Set[task_a, task_b] }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -153,9 +153,9 @@ class TestExecutor < Minitest::Test
       @value = "#{a}+#{b}"
     end
 
-    task_a.instance_variable_set(:@dependencies_cache, Set.new)
-    task_b.instance_variable_set(:@dependencies_cache, Set.new)
-    root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
+    task_a.define_singleton_method(:cached_dependencies) { Set.new }
+    task_b.define_singleton_method(:cached_dependencies) { Set.new }
+    root_task.define_singleton_method(:cached_dependencies) { Set[task_a, task_b] }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -221,7 +221,7 @@ class TestExecutor < Minitest::Test
       @value = "no_dep"
     end
 
-    main_task.instance_variable_set(:@dependencies_cache, Set.new)
+    main_task.define_singleton_method(:cached_dependencies) { Set.new }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -260,8 +260,8 @@ class TestExecutor < Minitest::Test
       @value = "#{n}:#{a}"
     end
 
-    dep_task.instance_variable_set(:@dependencies_cache, Set.new)
-    main_task.instance_variable_set(:@dependencies_cache, Set[dep_task])
+    dep_task.define_singleton_method(:cached_dependencies) { Set.new }
+    main_task.define_singleton_method(:cached_dependencies) { Set[dep_task] }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -295,8 +295,8 @@ class TestExecutor < Minitest::Test
       @value = "should not reach"
     end
 
-    failing_dep.instance_variable_set(:@dependencies_cache, Set.new)
-    main_task.instance_variable_set(:@dependencies_cache, Set[failing_dep])
+    failing_dep.define_singleton_method(:cached_dependencies) { Set.new }
+    main_task.define_singleton_method(:cached_dependencies) { Set[failing_dep] }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -333,8 +333,8 @@ class TestExecutor < Minitest::Test
     end
 
     # dynamic_dep is NOT in main_task's static dependencies
-    dynamic_dep.instance_variable_set(:@dependencies_cache, Set.new)
-    main_task.instance_variable_set(:@dependencies_cache, Set.new)
+    dynamic_dep.define_singleton_method(:cached_dependencies) { Set.new }
+    main_task.define_singleton_method(:cached_dependencies) { Set.new }
 
     registry = Taski::Execution::Registry.new
     execution_context = create_execution_context(registry)
@@ -377,9 +377,9 @@ class TestExecutor < Minitest::Test
       @value = "root_done"
     end
 
-    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    middle_task.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
-    root_task.instance_variable_set(:@dependencies_cache, Set[middle_task])
+    slow_leaf.define_singleton_method(:cached_dependencies) { Set.new }
+    middle_task.define_singleton_method(:cached_dependencies) { Set[slow_leaf] }
+    root_task.define_singleton_method(:cached_dependencies) { Set[middle_task] }
 
     # Track observer notifications
     skipped_tasks = []
@@ -442,9 +442,9 @@ class TestExecutor < Minitest::Test
     end
     root_task.define_method(:run) { @value = "root" }
 
-    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    middle_task.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
-    root_task.instance_variable_set(:@dependencies_cache, Set[middle_task])
+    slow_leaf.define_singleton_method(:cached_dependencies) { Set.new }
+    middle_task.define_singleton_method(:cached_dependencies) { Set[slow_leaf] }
+    root_task.define_singleton_method(:cached_dependencies) { Set[middle_task] }
 
     log_output = StringIO.new
     original_logger = Taski.logger

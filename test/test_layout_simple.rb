@@ -87,7 +87,7 @@ class TestLayoutSimple < Minitest::Test
 
   def test_spinner_frames_loaded_from_template
     # Spinner frames are accessed via template
-    template = @layout.instance_variable_get(:@theme)
+    template = @layout.theme
     assert_equal 10, template.spinner_frames.size
   end
 
@@ -105,14 +105,14 @@ class TestLayoutSimple < Minitest::Test
   # === Icon and color configuration from Theme ===
 
   def test_icons_available_via_template
-    template = @layout.instance_variable_get(:@theme)
+    template = @layout.theme
     assert_equal "✓", template.icon_success
     assert_equal "✗", template.icon_failure
     assert_equal "○", template.icon_pending
   end
 
   def test_colors_available_via_template
-    template = @layout.instance_variable_get(:@theme)
+    template = @layout.theme
     assert_equal "\e[32m", template.color_green
     assert_equal "\e[31m", template.color_red
     assert_equal "\e[33m", template.color_yellow
@@ -147,7 +147,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
 
     # Verify the layout accesses the custom spinner frames via template
-    template = layout.instance_variable_get(:@theme)
+    template = layout.theme
     assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], template.spinner_frames
   end
 
@@ -163,7 +163,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
 
     # Verify the layout accesses render interval via template
-    template = layout.instance_variable_get(:@theme)
+    template = layout.theme
     assert_in_delta 0.2, template.render_interval, 0.001
   end
 

@@ -245,8 +245,7 @@ class TestParallelExecution < Minitest::Test
   def test_task_instance_run_raises_not_implemented_error
     task_class = Class.new(Taski::Task)
     # Directly instantiate and call run to test the error
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
 
     error = assert_raises(NotImplementedError) do
       task_instance.run
@@ -284,8 +283,7 @@ class TestParallelExecution < Minitest::Test
 
     # Create a fresh registry and wrapper
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     # Initially pending
@@ -317,8 +315,7 @@ class TestParallelExecution < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     # Should respond to exported method
@@ -339,8 +336,7 @@ class TestParallelExecution < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     # Should raise NoMethodError for unknown method
@@ -378,8 +374,7 @@ class TestParallelExecution < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     # No timing before execution
@@ -407,8 +402,7 @@ class TestParallelExecution < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
     wrapper.mark_running

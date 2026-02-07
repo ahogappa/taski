@@ -282,7 +282,7 @@ class TestWorkerPool < Minitest::Test
     mock_capture.define_singleton_method(:recent_lines_for) { |_| [] }
 
     # Inject mock capture into execution context
-    @execution_context.instance_variable_set(:@output_capture, mock_capture)
+    @execution_context.define_singleton_method(:output_capture) { mock_capture }
 
     task_dep = Class.new(Taski::Task) do
       exports :value
@@ -660,8 +660,7 @@ class TestWorkerPool < Minitest::Test
   private
 
   def create_wrapper(task_class)
-    task_instance = task_class.allocate
-    task_instance.send(:initialize)
+    task_instance = TaskiTestHelper.build_task_instance(task_class)
     wrapper = Taski::Execution::TaskWrapper.new(
       task_instance,
       registry: @registry,
