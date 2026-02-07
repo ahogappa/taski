@@ -9,7 +9,7 @@ class TestLogging < Minitest::Test
     @log_output = StringIO.new
     @original_logger = Taski.logger
     Taski.reset_progress_display!
-    Taski.progress_mode = :log
+    Taski.progress_display = Taski::Progress::Layout::Log.new
     Taski::Task.reset!
   end
 

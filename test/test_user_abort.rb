@@ -164,10 +164,6 @@ class TestUserAbort < Minitest::Test
 
   # Test that progress display is cleaned up even when task raises an exception
   def test_progress_display_cleanup_on_exception
-    # Temporarily enable progress display for this test
-    original_env = ENV["TASKI_PROGRESS_DISABLE"]
-    ENV.delete("TASKI_PROGRESS_DISABLE")
-
     stop_called = false
 
     # Create a spy progress display
@@ -200,7 +196,6 @@ class TestUserAbort < Minitest::Test
     # Verify stop was called despite the exception
     assert stop_called, "Progress display stop should be called even on exception"
   ensure
-    ENV["TASKI_PROGRESS_DISABLE"] = original_env if original_env
     Taski.reset_progress_display!
   end
 end

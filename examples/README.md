@@ -42,7 +42,7 @@ ruby examples/args_demo.rb
 Understand scope-based execution and caching behavior.
 
 ```bash
-TASKI_PROGRESS_DISABLE=1 ruby examples/reexecution_demo.rb
+ruby examples/reexecution_demo.rb
 ```
 
 **Covers:**
@@ -102,9 +102,7 @@ ruby examples/message_demo.rb
 Real-time progress visualization during parallel execution.
 
 ```bash
-ruby examples/progress_demo.rb                              # Tree mode
-TASKI_PROGRESS_MODE=simple ruby examples/progress_demo.rb   # Simple mode
-TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb     # Disabled
+ruby examples/progress_demo.rb   # Simple mode (default)
 ```
 
 **Covers:**
@@ -134,8 +132,7 @@ TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb     # Disabled
 # Run each example
 for f in examples/*.rb; do echo "=== $f ===" && ruby "$f" && echo; done
 
-# Disable progress display if needed
-TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb
+# Disable progress display if needed (add Taski.progress_display = nil in script)
 ```
 
 ## Next Steps

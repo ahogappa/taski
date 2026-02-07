@@ -259,76 +259,66 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 end
 
-class TestProgressModeConfiguration < Minitest::Test
+class TestProgressDisplayConfiguration < Minitest::Test
   def setup
     Taski.reset_progress_display!
-    @original_env = ENV["TASKI_PROGRESS_MODE"]
   end
 
   def teardown
     Taski.reset_progress_display!
-    if @original_env
-      ENV["TASKI_PROGRESS_MODE"] = @original_env
-    else
-      ENV.delete("TASKI_PROGRESS_MODE")
-    end
   end
 
-  def test_default_progress_mode_is_tree
-    ENV.delete("TASKI_PROGRESS_MODE")
-    Taski.reset_progress_display!
-    assert_equal :tree, Taski.progress_mode
-  end
-
-  def test_progress_mode_can_be_set_to_simple
-    Taski.progress_mode = :simple
-    assert_equal :simple, Taski.progress_mode
-  end
-
-  def test_progress_mode_can_be_set_to_tree
-    Taski.progress_mode = :simple
-    Taski.progress_mode = :tree
-    assert_equal :tree, Taski.progress_mode
-  end
-
-  def test_progress_mode_from_environment_variable
-    ENV["TASKI_PROGRESS_MODE"] = "simple"
-    Taski.reset_progress_display!
-    assert_equal :simple, Taski.progress_mode
-  end
-
-  def test_progress_mode_from_environment_variable_tree
-    ENV["TASKI_PROGRESS_MODE"] = "tree"
-    Taski.reset_progress_display!
-    assert_equal :tree, Taski.progress_mode
-  end
-
-  def test_environment_overrides_api_setting
-    ENV["TASKI_PROGRESS_MODE"] = "simple"
-    Taski.reset_progress_display!
-    Taski.progress_mode = :tree
-    # Environment variable takes precedence over code settings
-    assert_equal :simple, Taski.progress_mode
-  end
-
-  def test_progress_display_returns_tree_display_by_default
-    ENV.delete("TASKI_PROGRESS_MODE")
-    ENV.delete("TASKI_PROGRESS_DISABLE")
-    Taski.reset_progress_display!
-    display = Taski.progress_display
-    assert_instance_of Taski::Progress::Layout::Tree, display
-  end
-
-  def test_progress_display_returns_simple_display_when_mode_is_simple
-    ENV.delete("TASKI_PROGRESS_DISABLE")
-    Taski.progress_mode = :simple
+  def test_default_progress_display_is_simple
     display = Taski.progress_display
     assert_instance_of Taski::Progress::Layout::Simple, display
   end
 
-  def test_progress_display_returns_nil_when_disabled
-    ENV["TASKI_PROGRESS_DISABLE"] = "1"
-    Taski.reset_progress_display!
+  def test_progress_display_can_be_set_to_nil
+    Taski.progress_display = nil
     assert_nil Taski.progress_display
+  end
+
+  def test_progress_display_can_be_set_to_tree
+    tree = Taski::Progress::Layout::Tree.new
+    Taski.progress_display = tree
+    assert_same tree, Taski.progress_display
+  end
+
+  def test_progress_display_can_be_set_to_log
+    log = Taski::Progress::Layout::Log.new
+    Taski.progress_display = log
+    assert_same log, Taski.progress_display
+  end
+
+  def test_progress_display_can_be_set_to_custom_object
+    custom = Object.new
+    Taski.progress_display = custom
+    assert_same custom, Taski.progress_display
+  end
+
+  def test_reset_progress_display_restores_default
+    Taski.progress_display = nil
+    Taski.reset_progress_display!
+    display = Taski.progress_display
+    assert_instance_of Taski::Progress::Layout::Simple, display
+  end
+
+  def test_setting_progress_display_stops_previous
+    stop_called = false
+    old_display = Object.new
+    old_display.define_singleton_method(:stop) { stop_called = true }
+    Taski.progress_display = old_display
+
+    Taski.progress_display = Taski::Progress::Layout::Simple.new
+    assert stop_called, "Previous display should be stopped when setting a new one"
+  end
+
+  def test_progress_mode_is_removed
+    refute_respond_to Taski, :progress_mode
+    refute_respond_to Taski, :progress_mode=
+  end
+
+  def test_progress_disabled_is_removed
+    refute_respond_to Taski, :progress_disabled?
   end
 end

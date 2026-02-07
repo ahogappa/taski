@@ -336,28 +336,13 @@ Plain text output without escape codes, designed for CI/logs:
 [TASKI] Completed: 2/2 tasks (165ms)
 ```
 
-### Configuring Progress Mode
-
-**Via API:**
+### Configuring Progress Display
 
 ```ruby
-Taski.progress_mode = :tree    # Tree display (default)
-Taski.progress_mode = :simple  # Single-line display
-Taski.progress_mode = :plain   # Plain text (CI/logs)
-```
-
-**Via environment variable:**
-
-```bash
-TASKI_PROGRESS_MODE=tree ruby your_script.rb
-TASKI_PROGRESS_MODE=simple ruby your_script.rb
-TASKI_PROGRESS_MODE=plain ruby your_script.rb
-```
-
-### Disabling Progress Display
-
-```bash
-TASKI_PROGRESS_DISABLE=1 ruby your_script.rb
+Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
+Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
+Taski.progress_display = Taski::Progress::Layout::Log.new      # Plain text (CI/logs)
+Taski.progress_display = nil                                    # Disable
 ```
 
 ### File Output Mode
@@ -376,8 +361,6 @@ ruby build.rb > build.log 2>&1
 
 | Variable | Purpose |
 |----------|---------|
-| `TASKI_PROGRESS_DISABLE=1` | Disable progress display |
-| `TASKI_PROGRESS_MODE=tree\|simple\|plain` | Set progress display mode (default: tree) |
 | `TASKI_DEBUG=1` | Enable debug output |
 
 ### Dependency Tree Visualization

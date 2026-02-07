@@ -349,17 +349,11 @@ WebServer (Task)
 **Configuration:**
 
 ```ruby
-# Via API
-Taski.progress_mode = :tree    # Tree display (default)
-Taski.progress_mode = :simple  # Single-line display
-Taski.progress_mode = :plain   # Plain text (CI/logs)
-
-# Via environment variable
-TASKI_PROGRESS_MODE=simple ruby your_script.rb
-TASKI_PROGRESS_MODE=plain ruby your_script.rb
+Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
+Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
+Taski.progress_display = Taski::Progress::Layout::Log.new      # Plain text (CI/logs)
+Taski.progress_display = nil                                    # Disable
 ```
-
-To disable: `TASKI_PROGRESS_DISABLE=1 ruby your_script.rb`
 
 ### Tree Visualization
 

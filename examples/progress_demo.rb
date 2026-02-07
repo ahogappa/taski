@@ -4,13 +4,11 @@
 # Taski Progress Display Demo
 #
 # This example demonstrates the progress display modes:
-# - Tree mode (default): Shows task hierarchy with real-time updates
-# - Simple mode: One-line spinner with current task name
+# - Simple mode (default): One-line spinner with current task name
+# - Tree mode: Shows task hierarchy with real-time updates
 #
 # Run:
-#   ruby examples/progress_demo.rb              # Tree mode (default)
-#   TASKI_PROGRESS_MODE=simple ruby examples/progress_demo.rb  # Simple mode
-#   TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb    # No progress
+#   ruby examples/progress_demo.rb              # Simple mode (default)
 #
 # Covers:
 # - Parallel task execution with progress display
@@ -121,7 +119,7 @@ end
 # Main execution
 puts "Taski Progress Display Demo"
 puts "=" * 50
-puts "Progress mode: #{Taski.progress_mode || "tree (default)"}"
+puts "Progress display: #{Taski.progress_display.class}"
 puts
 
 puts "Task Tree Structure:"
@@ -141,6 +139,5 @@ puts "=" * 50
 puts "Execution completed!"
 puts "Result: #{result.inspect}"
 puts
-puts "Try different modes:"
-puts "  TASKI_PROGRESS_MODE=simple ruby examples/progress_demo.rb"
-puts "  TASKI_PROGRESS_DISABLE=1 ruby examples/progress_demo.rb"
+puts "To use tree mode, add before execution:"
+puts "  Taski.progress_display = Taski::Progress::Layout::Tree.new"

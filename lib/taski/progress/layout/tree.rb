@@ -119,7 +119,7 @@ module Taski
         end
 
         def should_activate?
-          force_progress? || tty?
+          tty?
         end
 
         def on_start

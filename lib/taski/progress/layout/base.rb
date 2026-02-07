@@ -536,11 +536,6 @@ module Taski
           @output.tty?
         end
 
-        # Check if progress display should be forced regardless of TTY
-        def force_progress?
-          ENV["TASKI_FORCE_PROGRESS"] == "1"
-        end
-
         # Collect all dependencies of a task class recursively
         # @param task_class [Class] The task class
         # @return [Set<Class>] Set of all dependency task classes

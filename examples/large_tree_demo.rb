@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 # Demo: Large tree to test rendering performance
-# Run with: TASKI_FORCE_PROGRESS=1 ruby examples/large_tree_demo.rb
+# Run with: ruby examples/large_tree_demo.rb
 
 require_relative "../lib/taski"
 

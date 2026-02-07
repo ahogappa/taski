@@ -1,15 +1,16 @@
 module Taski
   VERSION: String
 
-  self.@progress_display: Progress::Layout::Base?
+  NOT_CONFIGURED: Object
+  self.@progress_display: Progress::Layout::Base | Object | nil
   self.@args: Args?
   self.@args_monitor: Monitor
 
   # Type alias for Task class (singleton type with class methods)
   # This represents a Class that inherits from Taski::Task
   type task_class = singleton(Task)
-  def self.progress_display: () -> Progress::Layout::Base?
-  def self.progress_disabled?: () -> bool
+  def self.progress_display: () -> (Progress::Layout::Base | untyped)?
+  def self.progress_display=: (untyped display) -> void
   def self.reset_progress_display!: () -> void
   def self.args: () -> Args?
   def self.start_args: (options: Hash[Symbol, untyped], root_task: Class) -> void
