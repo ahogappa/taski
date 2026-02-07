@@ -177,7 +177,7 @@ class TestUserAbort < Minitest::Test
     progress_spy.define_singleton_method(:stop) { stop_called = true }
 
     # Set the spy as the progress display
-    Taski.instance_variable_set(:@progress_display, progress_spy)
+    Taski.progress_display = progress_spy
 
     # Task that raises an exception
     task_class = Class.new(Taski::Task) do

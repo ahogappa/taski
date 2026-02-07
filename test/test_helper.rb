@@ -35,4 +35,12 @@ module TaskiTestHelper
     # Reset the parallel execution system
     Taski::Task.reset! if defined?(Taski::Task)
   end
+
+  # Build a task instance bypassing private Task.new
+  # This mirrors the pattern used by production code (fresh_wrapper).
+  def self.build_task_instance(task_class)
+    instance = task_class.allocate
+    instance.__send__(:initialize)
+    instance
+  end
 end

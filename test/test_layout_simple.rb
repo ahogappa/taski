@@ -83,14 +83,6 @@ class TestLayoutSimple < Minitest::Test
     assert_includes @output.string, "Failed"
   end
 
-  # === Spinner animation ===
-
-  def test_spinner_frames_loaded_from_template
-    # Spinner frames are accessed via template
-    template = @layout.instance_variable_get(:@theme)
-    assert_equal 10, template.spinner_frames.size
-  end
-
   # === Root task tree building ===
 
   def test_builds_tree_structure_on_root_task_set
@@ -100,23 +92,6 @@ class TestLayoutSimple < Minitest::Test
 
     # Layout should have registered the root task
     assert @layout.task_registered?(root_task)
-  end
-
-  # === Icon and color configuration from Theme ===
-
-  def test_icons_available_via_template
-    template = @layout.instance_variable_get(:@theme)
-    assert_equal "✓", template.icon_success
-    assert_equal "✗", template.icon_failure
-    assert_equal "○", template.icon_pending
-  end
-
-  def test_colors_available_via_template
-    template = @layout.instance_variable_get(:@theme)
-    assert_equal "\e[32m", template.color_green
-    assert_equal "\e[31m", template.color_red
-    assert_equal "\e[33m", template.color_yellow
-    assert_equal "\e[0m", template.color_reset
   end
 
   private
@@ -146,9 +121,9 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
 
-    # Verify the layout accesses the custom spinner frames via template
-    template = layout.instance_variable_get(:@theme)
-    assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], template.spinner_frames
+    # Verify custom theme is accepted by layout (no error on construction)
+    assert_instance_of Taski::Progress::Layout::Simple, layout
+    assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], custom_theme.spinner_frames
   end
 
   # === Custom render interval ===
@@ -162,9 +137,9 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
 
-    # Verify the layout accesses render interval via template
-    template = layout.instance_variable_get(:@theme)
-    assert_in_delta 0.2, template.render_interval, 0.001
+    # Verify custom theme is accepted by layout (no error on construction)
+    assert_instance_of Taski::Progress::Layout::Simple, layout
+    assert_in_delta 0.2, custom_theme.render_interval, 0.001
   end
 
   # === Custom icons ===

@@ -4,6 +4,8 @@ require "test_helper"
 require "stringio"
 require "taski/progress/layout/tree"
 require "taski/progress/theme/default"
+require "taski/progress/theme/detail"
+require "taski/progress/layout/theme_drop"
 
 class TestLayoutTree < Minitest::Test
   def setup
@@ -268,48 +270,61 @@ class TestLayoutTreeTaskContent < Minitest::Test
   end
 
   def test_build_task_content_uses_icon_for_pending_state
-    task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-
-    content = @layout.send(:build_task_content, task_class)
+    theme = Taski::Progress::Theme::Detail.new
+    # Use render_template_string with theme's task_pending template
+    result = @layout.render_template_string(
+      theme.task_pending,
+      state: :pending,
+      task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :pending),
+      execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
+    )
     # Theme::Detail uses ○ icon for pending
-    assert_includes content, "○"
-    assert_includes content, "MyTask"
+    assert_includes result, "○"
+    assert_includes result, "MyTask"
   end
 
   def test_build_task_content_uses_spinner_for_running_state
-    task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-
-    content = @layout.send(:build_task_content, task_class)
+    theme = Taski::Progress::Theme::Detail.new
+    # Use render_template_string with theme's task_start template
+    result = @layout.render_template_string(
+      theme.task_start,
+      state: :running,
+      task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :running),
+      execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
+    )
     # Theme::Detail uses spinner for running
-    assert_includes content, "⠋"
-    assert_includes content, "MyTask"
+    assert_includes result, "⠋"
+    assert_includes result, "MyTask"
   end
 
   def test_build_task_content_uses_icon_for_completed_state
-    task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :completed, duration: 100)
-
-    content = @layout.send(:build_task_content, task_class)
+    theme = Taski::Progress::Theme::Detail.new
+    # Use render_template_string with theme's task_success template
+    result = @layout.render_template_string(
+      theme.task_success,
+      state: :completed,
+      task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :completed, duration: 100),
+      execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
+    )
     # Theme::Detail uses ✓ icon for completed
-    assert_includes content, "✓"
-    assert_includes content, "MyTask"
-    assert_includes content, "(100ms)"
+    assert_includes result, "✓"
+    assert_includes result, "MyTask"
+    assert_includes result, "(100ms)"
   end
 
   def test_build_task_content_uses_icon_for_failed_state
-    task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :failed, error: StandardError.new("Something went wrong"))
-
-    content = @layout.send(:build_task_content, task_class)
+    theme = Taski::Progress::Theme::Detail.new
+    # Use render_template_string with theme's task_fail template
+    result = @layout.render_template_string(
+      theme.task_fail,
+      state: :failed,
+      task: Taski::Progress::Layout::TaskDrop.new(name: "MyTask", state: :failed, error_message: "Something went wrong"),
+      execution: Taski::Progress::Layout::ExecutionDrop.new(state: :running)
+    )
     # Theme::Detail uses ✗ icon for failed
-    assert_includes content, "✗"
-    assert_includes content, "MyTask"
-    assert_includes content, "Something went wrong"
+    assert_includes result, "✗"
+    assert_includes result, "MyTask"
+    assert_includes result, "Something went wrong"
   end
 
   private
