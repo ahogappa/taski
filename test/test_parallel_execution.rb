@@ -571,13 +571,16 @@ class TestParallelExecution < Minitest::Test
     # Verify block can write to stdout (capture is released)
     output = StringIO.new
     original_stdout = $stdout
-    $stdout = output
+    begin
+      $stdout = output
 
-    task_class.run_and_clean do
-      puts "block output"
+      task_class.run_and_clean do
+        puts "block output"
+      end
+    ensure
+      $stdout = original_stdout
     end
 
-    $stdout = original_stdout
     assert_includes output.string, "block output"
   end
 
