@@ -175,6 +175,7 @@ module Taski
       @original_stdout: IO?
       @original_stderr: IO?
 
+      def self.build_default: (root_task_class: Class) -> ExecutionFacade
       def self.current: () -> ExecutionFacade?
       def self.current=: (ExecutionFacade? context) -> void
 
@@ -239,7 +240,7 @@ module Taski
       def completed?: (Class task_class) -> bool
       def running_tasks?: () -> bool
       def task_count: () -> Integer
-      def skipped_task_classes: () -> Array[Class]
+      def never_started_task_classes: () -> Array[Class]
       def mark_skipped: (Class task_class) -> bool
       def skipped_count: () -> Integer
       def was_executed?: (Class task_class) -> bool
@@ -324,7 +325,6 @@ module Taski
 
       private
 
-      def resolve_dependency_graph: (Class root_task_class) -> StaticAnalysis::DependencyGraph
       def pre_start_leaf_tasks: () -> void
       def enqueue_root_if_needed: (Class root_task_class) -> void
       def run_main_loop: (Class root_task_class) -> void

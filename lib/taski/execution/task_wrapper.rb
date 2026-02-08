@@ -272,18 +272,7 @@ module Taski
       end
 
       def create_shared_facade
-        facade = ExecutionFacade.new(root_task_class: @task.class)
-        progress = Taski.progress_display
-        facade.add_observer(progress) if progress
-
-        facade.execution_trigger = ->(task_class, registry) do
-          Executor.execute(task_class, registry: registry, execution_facade: facade)
-        end
-        facade.clean_trigger = ->(task_class, registry) do
-          Executor.execute_clean(task_class, registry: registry, execution_facade: facade)
-        end
-
-        facade
+        ExecutionFacade.build_default(root_task_class: @task.class)
       end
 
       def notify_skipped

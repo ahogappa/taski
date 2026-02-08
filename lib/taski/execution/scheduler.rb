@@ -163,7 +163,7 @@ module Taski
       # root task completed before all statically-discovered tasks were needed.
       #
       # @return [Array<Class>] Array of task classes still pending
-      def skipped_task_classes
+      def never_started_task_classes
         @task_states.select { |_, state| state == STATE_PENDING }.keys
       end
 

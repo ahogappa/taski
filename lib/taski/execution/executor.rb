@@ -33,8 +33,7 @@ module Taski
 
         log_execution_started(root_task_class)
 
-        graph = resolve_dependency_graph(root_task_class)
-        @scheduler.load_graph(graph, root_task_class)
+        @scheduler.load_graph(@execution_facade.dependency_graph, root_task_class)
 
         with_display_lifecycle(root_task_class) do
           @worker_pool = WorkerPool.new(
@@ -63,8 +62,7 @@ module Taski
       end
 
       def execute_clean(root_task_class)
-        graph = resolve_dependency_graph(root_task_class)
-        @scheduler.load_graph(graph, root_task_class)
+        @scheduler.load_graph(@execution_facade.dependency_graph, root_task_class)
         @scheduler.build_reverse_dependency_graph
 
         with_display_lifecycle(root_task_class) do
@@ -84,10 +82,6 @@ module Taski
       end
 
       private
-
-      def resolve_dependency_graph(root_task_class)
-        @execution_facade.dependency_graph
-      end
 
       # Run phase
 
@@ -158,7 +152,7 @@ module Taski
       # Transition remaining pending tasks to skipped state.
       def notify_skipped_tasks
         now = Time.now
-        @scheduler.skipped_task_classes.each do |task_class|
+        @scheduler.never_started_task_classes.each do |task_class|
           @scheduler.mark_skipped(task_class)
           Taski::Logging.info(Taski::Logging::Events::TASK_SKIPPED, task: task_class.name)
           @execution_facade.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
@@ -302,15 +296,7 @@ module Taski
       # Context and logging
 
       def create_default_facade
-        facade = ExecutionFacade.new(root_task_class: @root_task_class)
-        progress = Taski.progress_display
-        facade.add_observer(progress) if progress
-
-        facade.execution_trigger = ->(task_class, registry) do
-          Executor.execute(task_class, registry: registry, execution_facade: facade)
-        end
-
-        facade
+        ExecutionFacade.build_default(root_task_class: @root_task_class)
       end
 
       def log_execution_started(root_task_class)

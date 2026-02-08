@@ -30,6 +30,23 @@ module Taski
         @original_stdout = nil
       end
 
+      # Build a facade with default observer and triggers.
+      # Used by both Executor and TaskWrapper to avoid duplication.
+      def self.build_default(root_task_class:)
+        facade = new(root_task_class: root_task_class)
+        progress = Taski.progress_display
+        facade.add_observer(progress) if progress
+
+        facade.execution_trigger = ->(task_class, registry) do
+          Executor.execute(task_class, registry: registry, execution_facade: facade)
+        end
+        facade.clean_trigger = ->(task_class, registry) do
+          Executor.execute_clean(task_class, registry: registry, execution_facade: facade)
+        end
+
+        facade
+      end
+
       def self.current
         Thread.current[THREAD_LOCAL_KEY]
       end

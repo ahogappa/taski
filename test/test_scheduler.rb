@@ -291,7 +291,7 @@ class TestScheduler < Minitest::Test
   # Skipped Task Classes Tests
   # ========================================
 
-  def test_skipped_task_classes_returns_pending_tasks_after_execution
+  def test_never_started_task_classes_returns_pending_tasks_after_execution
     # 3 tasks in graph, only 1 completed -> 2 are skipped
     task_a = Class.new(Taski::Task) do
       exports :value
@@ -319,14 +319,14 @@ class TestScheduler < Minitest::Test
     scheduler.mark_running(task_a)
     scheduler.mark_completed(task_a)
 
-    skipped = scheduler.skipped_task_classes
+    skipped = scheduler.never_started_task_classes
     assert_includes skipped, task_b
     assert_includes skipped, task_c
     refute_includes skipped, task_a
     assert_equal 2, skipped.size
   end
 
-  def test_skipped_task_classes_returns_empty_when_all_completed
+  def test_never_started_task_classes_returns_empty_when_all_completed
     task = Class.new(Taski::Task) do
       exports :value
       def run = @value = "test"
@@ -339,7 +339,7 @@ class TestScheduler < Minitest::Test
     scheduler.mark_running(task)
     scheduler.mark_completed(task)
 
-    assert_empty scheduler.skipped_task_classes
+    assert_empty scheduler.never_started_task_classes
   end
 
   # ========================================
@@ -359,7 +359,7 @@ class TestScheduler < Minitest::Test
     assert scheduler.mark_skipped(task)
     assert_equal 1, scheduler.skipped_count
     # No longer pending
-    refute_includes scheduler.skipped_task_classes, task
+    refute_includes scheduler.never_started_task_classes, task
     # Not ready for execution
     assert_empty scheduler.next_ready_tasks
   end
@@ -669,7 +669,7 @@ class TestScheduler < Minitest::Test
     refute scheduler.was_executed?(task_b)
   end
 
-  def test_skipped_task_classes_does_not_include_running_tasks
+  def test_never_started_task_classes_does_not_include_running_tasks
     task_a = Class.new(Taski::Task) do
       exports :value
       def run = @value = "a"
@@ -688,7 +688,7 @@ class TestScheduler < Minitest::Test
 
     scheduler.mark_running(task_a)
 
-    skipped = scheduler.skipped_task_classes
+    skipped = scheduler.never_started_task_classes
     # task_a is running (not pending), task_b is pending
     refute_includes skipped, task_a
     assert_includes skipped, task_b
