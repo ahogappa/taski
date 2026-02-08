@@ -10,7 +10,7 @@ class TestWorkerPool < Minitest::Test
       exports :value
       def run = @value = nil
     end
-    @execution_context = Taski::Execution::ExecutionFacade.new(root_task_class: dummy_task)
+    @execution_facade = Taski::Execution::ExecutionFacade.new(root_task_class: dummy_task)
   end
 
   def test_single_task_execution_no_deps
@@ -24,7 +24,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -64,7 +64,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
@@ -113,7 +113,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -160,7 +160,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
@@ -190,7 +190,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 3,
       completion_queue: completion_queue
     )
@@ -235,7 +235,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
@@ -278,7 +278,7 @@ class TestWorkerPool < Minitest::Test
     mock_capture.define_singleton_method(:read) { |_, **| [] }
 
     # Inject mock capture into execution context
-    @execution_context.instance_variable_set(:@output_capture, mock_capture)
+    @execution_facade.instance_variable_set(:@output_capture, mock_capture)
 
     task_dep = Class.new(Taski::Task) do
       exports :value
@@ -297,7 +297,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -343,7 +343,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -378,7 +378,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -417,7 +417,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -463,7 +463,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
@@ -517,7 +517,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 4,
       completion_queue: completion_queue
     )
@@ -561,7 +561,7 @@ class TestWorkerPool < Minitest::Test
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
@@ -588,7 +588,7 @@ class TestWorkerPool < Minitest::Test
     wrapper = Taski::Execution::TaskWrapper.new(
       task_instance,
       registry: @registry,
-      execution_context: @execution_context
+      execution_facade: @execution_facade
     )
     @registry.register(task_class, wrapper)
     wrapper

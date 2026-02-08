@@ -145,7 +145,7 @@ module Taski
 
       def initialize: () -> void
       def get_or_create: (Class task_class) { () -> TaskWrapper } -> TaskWrapper
-      def create_wrapper: (Class task_class, execution_context: ExecutionFacade) -> TaskWrapper
+      def create_wrapper: (Class task_class, execution_facade: ExecutionFacade) -> TaskWrapper
       def register: (Class task_class, TaskWrapper wrapper) -> void
       def register_thread: (Thread thread) -> void
       def wait_all: () -> void
@@ -207,7 +207,7 @@ module Taski
 
     # TaskOutputRouter for routing task output
     class TaskOutputRouter
-      def initialize: (IO original_io, ?ExecutionFacade? execution_context) -> void
+      def initialize: (IO original_io, ?ExecutionFacade? execution_facade) -> void
       def current_write_io: () -> IO?
       def start_capture: (Class task_class) -> void
       def stop_capture: () -> void
@@ -266,7 +266,7 @@ module Taski
       attr_reader worker_count: Integer
 
       @registry: Registry
-      @execution_context: ExecutionFacade
+      @execution_facade: ExecutionFacade
       @worker_count: Integer
       @completion_queue: Thread::Queue
       @threads: Array[Thread]
@@ -276,7 +276,7 @@ module Taski
       @fiber_contexts: Hash[Integer, Array[untyped]]
       @task_start_times: Hash[Class, Time]
 
-      def initialize: (registry: Registry, execution_context: ExecutionFacade, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
+      def initialize: (registry: Registry, execution_facade: ExecutionFacade, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
       def start: () -> void
       def enqueue: (Class task_class, TaskWrapper wrapper) -> void
       def enqueue_clean: (Class task_class, TaskWrapper wrapper) -> void
@@ -309,16 +309,16 @@ module Taski
     class Executor
       @registry: Registry
       @completion_queue: Thread::Queue
-      @execution_context: ExecutionFacade
+      @execution_facade: ExecutionFacade
       @scheduler: Scheduler
       @effective_worker_count: Integer?
       @enqueued_tasks: Set[Class]
       @worker_pool: WorkerPool?
       @saved_output_capture: TaskOutputRouter?
 
-      def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionFacade?) -> void
-      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionFacade?) -> void
-      def initialize: (?root_task_class: Class?, registry: Registry, ?worker_count: Integer?, ?execution_context: ExecutionFacade?) -> void
+      def self.execute: (Class root_task_class, registry: Registry, ?execution_facade: ExecutionFacade?) -> void
+      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_facade: ExecutionFacade?) -> void
+      def initialize: (?root_task_class: Class?, registry: Registry, ?worker_count: Integer?, ?execution_facade: ExecutionFacade?) -> void
       def execute: (Class root_task_class) -> void
       def execute_clean: (Class root_task_class) -> void
 
@@ -345,7 +345,7 @@ module Taski
       def flatten_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> Array[TaskFailure]
       def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
       def error_identity: (Exception error) -> Integer
-      def create_default_execution_context: () -> ExecutionFacade
+      def create_default_facade: () -> ExecutionFacade
       def log_execution_started: (Class root_task_class) -> void
       def log_execution_completed: (Class root_task_class, Time start_time) -> void
       def log_error_detail: (Class task_class, Exception error) -> void
@@ -360,7 +360,7 @@ module Taski
 
       @task: Task
       @registry: Registry
-      @execution_context: ExecutionFacade?
+      @execution_facade: ExecutionFacade?
       @args: Hash[Symbol, untyped]?
       @result: untyped
       @clean_result: untyped
@@ -379,7 +379,7 @@ module Taski
       STATE_FAILED: Symbol
       STATE_SKIPPED: Symbol
 
-      def initialize: (Task task, registry: Registry, ?execution_context: ExecutionFacade?, ?args: Hash[Symbol, untyped]?) -> void
+      def initialize: (Task task, registry: Registry, ?execution_facade: ExecutionFacade?, ?args: Hash[Symbol, untyped]?) -> void
       def state: () -> Symbol
       def pending?: () -> bool
       def completed?: () -> bool
@@ -410,7 +410,7 @@ module Taski
       def trigger_clean_and_wait: () -> void
       def trigger_and_wait: (state_accessor: ^() -> Symbol, condition: MonitorMixin::ConditionVariable, trigger: ^(ExecutionFacade) -> void) -> void
       def check_abort!: () -> void
-      def ensure_execution_context: () -> ExecutionFacade
+      def ensure_execution_facade: () -> ExecutionFacade
       def create_shared_context: () -> ExecutionFacade
       def notify_skipped: () -> void
       def update_progress: (Symbol state, ?error: Exception?) -> void

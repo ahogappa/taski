@@ -353,7 +353,7 @@ class TestExecutionFacade < Minitest::Test
     registry = Taski::Execution::Registry.new
     facade.trigger_execution(task_class, registry: registry)
 
-    wrapper = registry.create_wrapper(task_class, execution_context: facade)
+    wrapper = registry.create_wrapper(task_class, execution_facade: facade)
     assert wrapper.completed?
   end
 

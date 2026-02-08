@@ -117,7 +117,7 @@ class TestLayoutLog < Minitest::Test
 
   def test_outputs_execution_start
     task_class = stub_task_class("BuildTask")
-    @layout.context = mock_execution_context(root_task_class: task_class)
+    @layout.context = mock_execution_facade(root_task_class: task_class)
     @layout.on_ready
     @layout.on_start
 
@@ -190,7 +190,7 @@ class TestLayoutLog < Minitest::Test
     klass
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     ctx = Object.new
     ctx.define_singleton_method(:root_task_class) { root_task_class }
     ctx.define_singleton_method(:output_capture) { output_capture }

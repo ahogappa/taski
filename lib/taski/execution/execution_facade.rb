@@ -94,7 +94,7 @@ module Taski
         if trigger
           trigger.call(task_class, registry)
         else
-          Executor.execute(task_class, registry: registry, execution_context: self)
+          Executor.execute(task_class, registry: registry, execution_facade: self)
         end
       end
 
@@ -103,7 +103,7 @@ module Taski
         if trigger
           trigger.call(task_class, registry)
         else
-          Executor.execute_clean(task_class, registry: registry, execution_context: self)
+          Executor.execute_clean(task_class, registry: registry, execution_facade: self)
         end
       end
 

@@ -100,7 +100,7 @@ class TestLayoutSimple < Minitest::Test
   def test_builds_tree_structure_on_root_task_set
     # This is a basic test to ensure tree building doesn't crash
     root_task = stub_task_class("RootTask")
-    ctx = mock_execution_context(root_task_class: root_task)
+    ctx = mock_execution_facade(root_task_class: root_task)
     @layout.context = ctx
     @layout.on_ready
 
@@ -134,7 +134,7 @@ class TestLayoutSimple < Minitest::Test
     klass
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 
@@ -334,7 +334,7 @@ class TestLayoutSimpleWithTreeProgressDisplay < Minitest::Test
     if defined?(Taski::Execution::TreeProgressDisplay)
       root = Taski::Task
       # Just verify it doesn't crash when TreeProgressDisplay is available
-      ctx = mock_execution_context(root_task_class: root)
+      ctx = mock_execution_facade(root_task_class: root)
       @layout.context = ctx
       @layout.on_ready
     end
@@ -342,7 +342,7 @@ class TestLayoutSimpleWithTreeProgressDisplay < Minitest::Test
 
   private
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 

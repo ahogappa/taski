@@ -165,7 +165,7 @@ module Taski
         wrapper = Execution::TaskWrapper.new(
           task_instance,
           registry: fresh_registry,
-          execution_context: Execution::ExecutionFacade.current
+          execution_facade: Execution::ExecutionFacade.current
         )
         fresh_registry.register(self, wrapper)
         wrapper
@@ -209,7 +209,7 @@ module Taski
                 Execution::TaskWrapper.new(
                   task_instance,
                   registry: registry,
-                  execution_context: Execution::ExecutionFacade.current
+                  execution_facade: Execution::ExecutionFacade.current
                 )
               end
               wrapper.get_exported_value(method)

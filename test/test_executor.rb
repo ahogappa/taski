@@ -18,16 +18,16 @@ class TestExecutor < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, task_class)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     executor.execute(task_class)
 
-    wrapper = registry.create_wrapper(task_class, execution_context: execution_context)
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "result_value", wrapper.task.value
   end
@@ -61,16 +61,16 @@ class TestExecutor < Minitest::Test
     task_a.instance_variable_set(:@dependencies_cache, Set[task_b])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, task_a)
+    execution_facade = create_execution_facade(registry, task_a)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     executor.execute(task_a)
 
-    wrapper_a = registry.create_wrapper(task_a, execution_context: execution_context)
+    wrapper_a = registry.create_wrapper(task_a, execution_facade: execution_facade)
     assert wrapper_a.completed?
     assert_equal "A->B->C", wrapper_a.task.value
   end
@@ -113,16 +113,16 @@ class TestExecutor < Minitest::Test
     root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, root_task)
+    execution_facade = create_execution_facade(registry, root_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     executor.execute(root_task)
 
-    wrapper = registry.create_wrapper(root_task, execution_context: execution_context)
+    wrapper = registry.create_wrapper(root_task, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "Root(A(C), B(C))", wrapper.task.value
   end
@@ -158,11 +158,11 @@ class TestExecutor < Minitest::Test
     root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, root_task)
+    execution_facade = create_execution_facade(registry, root_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context,
+      execution_facade: execution_facade,
       worker_count: 2
     )
 
@@ -170,7 +170,7 @@ class TestExecutor < Minitest::Test
     executor.execute(root_task)
     elapsed = Time.now - start_time
 
-    wrapper = registry.create_wrapper(root_task, execution_context: execution_context)
+    wrapper = registry.create_wrapper(root_task, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "A+B", wrapper.task.value
     # Both tasks sleep 0.1s; if parallel, should complete in ~0.1s not ~0.2s
@@ -186,11 +186,11 @@ class TestExecutor < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, task_class)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     error = assert_raises(Taski::AggregateError) do
@@ -224,16 +224,16 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set.new)
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, main_task)
+    execution_facade = create_execution_facade(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     executor.execute(main_task)
 
-    wrapper = registry.create_wrapper(main_task, execution_context: execution_context)
+    wrapper = registry.create_wrapper(main_task, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "no_dep", wrapper.task.value
 
@@ -264,16 +264,16 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set[dep_task])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, main_task)
+    execution_facade = create_execution_facade(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     executor.execute(main_task)
 
-    wrapper = registry.create_wrapper(main_task, execution_context: execution_context)
+    wrapper = registry.create_wrapper(main_task, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "Alice:30", wrapper.task.value
   end
@@ -299,11 +299,11 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set[failing_dep])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, main_task)
+    execution_facade = create_execution_facade(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     error = assert_raises(Taski::AggregateError) do
@@ -337,16 +337,16 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set.new)
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry, main_task)
+    execution_facade = create_execution_facade(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
-      execution_context: execution_context
+      execution_facade: execution_facade
     )
 
     executor.execute(main_task)
 
-    wrapper = registry.create_wrapper(main_task, execution_context: execution_context)
+    wrapper = registry.create_wrapper(main_task, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "got:dynamic", wrapper.task.value
   end
@@ -394,13 +394,13 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
-    context.add_observer(observer)
-    context.execution_trigger = ->(tc, reg) do
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
+    facade.add_observer(observer)
+    facade.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: root_task,
         registry: reg,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       ).execute(tc)
     end
@@ -408,7 +408,7 @@ class TestExecutor < Minitest::Test
     executor = Taski::Execution::Executor.new(
       root_task_class: root_task,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     )
 
@@ -486,13 +486,13 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
-    context.add_observer(observer)
-    context.execution_trigger = ->(tc, reg) do
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
+    facade.add_observer(observer)
+    facade.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: root_task,
         registry: reg,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       ).execute(tc)
     end
@@ -500,7 +500,7 @@ class TestExecutor < Minitest::Test
     executor = Taski::Execution::Executor.new(
       root_task_class: root_task,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     )
 
@@ -547,12 +547,12 @@ class TestExecutor < Minitest::Test
       Taski.logger = Logger.new(log_output, level: Logger::INFO)
 
       registry = Taski::Execution::Registry.new
-      context = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
-      context.execution_trigger = ->(tc, reg) do
+      facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
+      facade.execution_trigger = ->(tc, reg) do
         Taski::Execution::Executor.new(
           root_task_class: root_task,
           registry: reg,
-          execution_context: context,
+          execution_facade: facade,
           worker_count: 2
         ).execute(tc)
       end
@@ -560,7 +560,7 @@ class TestExecutor < Minitest::Test
       executor = Taski::Execution::Executor.new(
         root_task_class: root_task,
         registry: registry,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       )
 
@@ -629,13 +629,13 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root)
-    context.add_observer(observer)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
       root_task_class: root,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     )
     executor.execute(root)
@@ -701,13 +701,13 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root)
-    context.add_observer(observer)
-    context.execution_trigger = ->(tc, reg) do
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade.add_observer(observer)
+    facade.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: root,
         registry: reg,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       ).execute(tc)
     end
@@ -715,7 +715,7 @@ class TestExecutor < Minitest::Test
     executor = Taski::Execution::Executor.new(
       root_task_class: root,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     )
 
@@ -783,13 +783,13 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root)
-    context.add_observer(observer)
-    context.execution_trigger = ->(tc, reg) do
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade.add_observer(observer)
+    facade.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: root,
         registry: reg,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       ).execute(tc)
     end
@@ -797,7 +797,7 @@ class TestExecutor < Minitest::Test
     executor = Taski::Execution::Executor.new(
       root_task_class: root,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     )
 
@@ -853,15 +853,15 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root)
-    context.add_observer(observer)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade.add_observer(observer)
 
     # Run phase — failing_dep will fail, cascade-skipping skipped_dep
     begin
       Taski::Execution::Executor.new(
         root_task_class: root,
         registry: registry,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       ).execute(root)
     rescue Taski::TaskError
@@ -872,7 +872,7 @@ class TestExecutor < Minitest::Test
     Taski::Execution::Executor.new(
       root_task_class: root,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     ).execute_clean(root)
 
@@ -912,15 +912,15 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: root)
-    context.add_observer(observer)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade.add_observer(observer)
 
     # Run phase — failing_dep will fail
     begin
       Taski::Execution::Executor.new(
         root_task_class: root,
         registry: registry,
-        execution_context: context,
+        execution_facade: facade,
         worker_count: 2
       ).execute(root)
     rescue Taski::AggregateError
@@ -931,7 +931,7 @@ class TestExecutor < Minitest::Test
     Taski::Execution::Executor.new(
       root_task_class: root,
       registry: registry,
-      execution_context: context,
+      execution_facade: facade,
       worker_count: 2
     ).execute_clean(root)
 
@@ -966,28 +966,28 @@ class TestExecutor < Minitest::Test
       def run = @value = "hello"
     end
 
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: task)
-    context.execution_trigger = ->(tc, reg) do
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task)
+    facade.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: tc,
         registry: reg,
-        execution_context: context
+        execution_facade: facade
       ).execute(tc)
     end
 
     # Capture the graph built at facade initialization
-    graph_before = context.dependency_graph
+    graph_before = facade.dependency_graph
 
     registry = Taski::Execution::Registry.new
     executor = Taski::Execution::Executor.new(
       root_task_class: task,
       registry: registry,
-      execution_context: context
+      execution_facade: facade
     )
     executor.execute(task)
 
     # The facade's graph should still be the same object (not rebuilt by Executor)
-    assert_same graph_before, context.dependency_graph,
+    assert_same graph_before, facade.dependency_graph,
       "Executor should reuse facade's existing dependency_graph"
   end
 
@@ -1001,8 +1001,8 @@ class TestExecutor < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: task)
-    wrapper = registry.create_wrapper(task, execution_context: context)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task)
+    wrapper = registry.create_wrapper(task, execution_facade: facade)
 
     # Simulate clean lifecycle: pending → running → failed
     assert wrapper.mark_clean_running
@@ -1015,15 +1015,15 @@ class TestExecutor < Minitest::Test
 
   private
 
-  def create_execution_context(registry, task_class)
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
-    context.execution_trigger = ->(tc, reg) do
+  def create_execution_facade(registry, task_class)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    facade.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: tc,
         registry: reg,
-        execution_context: context
+        execution_facade: facade
       ).execute(tc)
     end
-    context
+    facade
   end
 end

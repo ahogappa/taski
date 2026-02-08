@@ -22,10 +22,10 @@ module Taski
       READ_BUFFER_SIZE = 4096
       MAX_RECENT_LINES = 30 # Maximum number of recent lines to keep per task
 
-      def initialize(original_stdout, execution_context = nil)
+      def initialize(original_stdout, execution_facade = nil)
         super()
         @original = original_stdout
-        @execution_context = execution_context
+        @execution_facade = execution_facade
         @pipes = {}         # task_class => TaskOutputPipe
         @thread_map = {}    # Thread => task_class
         @recent_lines = {}  # task_class => Array<String>

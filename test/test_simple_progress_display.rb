@@ -14,7 +14,7 @@ class TestSimpleProgressDisplay < Minitest::Test
     Taski.reset_progress_display!
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 
@@ -67,7 +67,7 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_set_root_task
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     # After setting root task via on_ready, the root and its dependencies should be registered
@@ -76,11 +76,11 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_set_root_task_is_idempotent
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
 
-    ctx2 = mock_execution_context(root_task_class: FixtureTaskA)
+    ctx2 = mock_execution_facade(root_task_class: FixtureTaskA)
     @display.context = ctx2
     @display.on_ready # Should be ignored (root already set)
 
@@ -142,7 +142,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
     Taski.reset_progress_display!
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 
@@ -154,7 +154,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_start_with_tty_starts_renderer_thread
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -168,7 +168,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_task_count
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -181,7 +181,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_running_task_name
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -194,7 +194,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
 
   def test_render_shows_checkmark_for_completed_task
     started_at = Time.now
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -209,7 +209,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
 
   def test_render_shows_x_for_failed_task
     started_at = Time.now
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -223,7 +223,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_multiple_running_tasks
-    ctx = mock_execution_context(root_task_class: FixtureNamespace::TaskD)
+    ctx = mock_execution_facade(root_task_class: FixtureNamespace::TaskD)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -239,7 +239,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
 
   def test_final_render_shows_completion
     started_at = Time.now
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -255,7 +255,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_simple_mode_uses_single_line
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -270,7 +270,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_live_overwrites_same_line
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start
@@ -291,7 +291,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_live_respects_terminal_width
-    ctx = mock_execution_context(root_task_class: FixtureTaskB)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
     @display.on_start

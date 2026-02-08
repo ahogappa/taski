@@ -122,17 +122,17 @@ class TestLayoutBase < Minitest::Test
   # === Root task via on_ready ===
 
   def test_on_ready_sets_root_task_from_context
-    @layout.context = mock_execution_context(root_task_class: String)
+    @layout.context = mock_execution_facade(root_task_class: String)
     @layout.on_ready
     @layout.on_start
     assert_includes @output.string, "String"
   end
 
   def test_on_ready_only_sets_root_task_once
-    @layout.context = mock_execution_context(root_task_class: String)
+    @layout.context = mock_execution_facade(root_task_class: String)
     @layout.on_ready
 
-    @layout.context = mock_execution_context(root_task_class: Integer)
+    @layout.context = mock_execution_facade(root_task_class: Integer)
     @layout.on_ready
 
     @layout.on_start
@@ -199,7 +199,7 @@ class TestLayoutBase < Minitest::Test
 
   private
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 

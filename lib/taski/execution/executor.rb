@@ -9,20 +9,20 @@ module Taski
     # and ExecutionFacade (observer notifications).
     class Executor
       class << self
-        def execute(root_task_class, registry:, execution_context: nil)
-          new(root_task_class: root_task_class, registry: registry, execution_context: execution_context).execute(root_task_class)
+        def execute(root_task_class, registry:, execution_facade: nil)
+          new(root_task_class: root_task_class, registry: registry, execution_facade: execution_facade).execute(root_task_class)
         end
 
-        def execute_clean(root_task_class, registry:, execution_context: nil)
-          new(root_task_class: root_task_class, registry: registry, execution_context: execution_context).execute_clean(root_task_class)
+        def execute_clean(root_task_class, registry:, execution_facade: nil)
+          new(root_task_class: root_task_class, registry: registry, execution_facade: execution_facade).execute_clean(root_task_class)
         end
       end
 
-      def initialize(registry:, root_task_class: nil, worker_count: nil, execution_context: nil)
+      def initialize(registry:, root_task_class: nil, worker_count: nil, execution_facade: nil)
         @root_task_class = root_task_class
         @registry = registry
         @completion_queue = Queue.new
-        @execution_context = execution_context || create_default_execution_context
+        @execution_facade = execution_facade || create_default_facade
         @scheduler = Scheduler.new
         @effective_worker_count = worker_count || Taski.args_worker_count
         @enqueued_tasks = Set.new
@@ -39,7 +39,7 @@ module Taski
         with_display_lifecycle(root_task_class) do
           @worker_pool = WorkerPool.new(
             registry: @registry,
-            execution_context: @execution_context,
+            execution_facade: @execution_facade,
             worker_count: @effective_worker_count,
             completion_queue: @completion_queue
           )
@@ -70,7 +70,7 @@ module Taski
         with_display_lifecycle(root_task_class) do
           @worker_pool = WorkerPool.new(
             registry: @registry,
-            execution_context: @execution_context,
+            execution_facade: @execution_facade,
             worker_count: @effective_worker_count,
             completion_queue: @completion_queue
           )
@@ -86,7 +86,7 @@ module Taski
       private
 
       def resolve_dependency_graph(root_task_class)
-        @execution_context.dependency_graph
+        @execution_facade.dependency_graph
       end
 
       # Run phase
@@ -134,7 +134,7 @@ module Taski
 
       def enqueue_for_execution(task_class)
         @enqueued_tasks.add(task_class)
-        wrapper = @registry.create_wrapper(task_class, execution_context: @execution_context)
+        wrapper = @registry.create_wrapper(task_class, execution_facade: @execution_facade)
         @scheduler.mark_running(task_class)
         if wrapper.mark_running
           @worker_pool.enqueue(task_class, wrapper)
@@ -151,7 +151,7 @@ module Taski
 
           @scheduler.mark_skipped(dep_class)
           Taski::Logging.info(Taski::Logging::Events::TASK_SKIPPED, task: dep_class.name)
-          @execution_context.notify_task_updated(dep_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now)
+          @execution_facade.notify_task_updated(dep_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now)
         end
       end
 
@@ -161,8 +161,8 @@ module Taski
         @scheduler.skipped_task_classes.each do |task_class|
           @scheduler.mark_skipped(task_class)
           Taski::Logging.info(Taski::Logging::Events::TASK_SKIPPED, task: task_class.name)
-          @execution_context.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
-          @execution_context.notify_task_updated(task_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now)
+          @execution_facade.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+          @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now)
         end
       end
 
@@ -191,10 +191,10 @@ module Taski
 
         @scheduler.mark_clean_running(task_class)
 
-        wrapper = @registry.create_wrapper(task_class, execution_context: @execution_context)
+        wrapper = @registry.create_wrapper(task_class, execution_facade: @execution_facade)
         return unless wrapper.mark_clean_running
 
-        @execution_context.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: Time.now)
+        @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: Time.now)
 
         @worker_pool.enqueue_clean(task_class, wrapper)
       end
@@ -227,21 +227,21 @@ module Taski
 
       def with_display_lifecycle(root_task_class)
         should_teardown_capture = setup_output_capture_if_needed
-        @execution_context.notify_ready
-        @execution_context.notify_start
+        @execution_facade.notify_ready
+        @execution_facade.notify_start
 
         yield
       ensure
-        @execution_context.notify_stop
-        @saved_output_capture = @execution_context.output_capture
-        @execution_context.teardown_output_capture if should_teardown_capture
+        @execution_facade.notify_stop
+        @saved_output_capture = @execution_facade.output_capture
+        @execution_facade.teardown_output_capture if should_teardown_capture
       end
 
       def setup_output_capture_if_needed
         return false unless Taski.progress_display
-        return false if @execution_context.output_capture_active?
+        return false if @execution_facade.output_capture_active?
 
-        @execution_context.setup_output_capture($stdout)
+        @execution_facade.setup_output_capture($stdout)
         true
       end
 
@@ -301,16 +301,16 @@ module Taski
 
       # Context and logging
 
-      def create_default_execution_context
-        context = ExecutionFacade.new(root_task_class: @root_task_class)
+      def create_default_facade
+        facade = ExecutionFacade.new(root_task_class: @root_task_class)
         progress = Taski.progress_display
-        context.add_observer(progress) if progress
+        facade.add_observer(progress) if progress
 
-        context.execution_trigger = ->(task_class, registry) do
-          Executor.execute(task_class, registry: registry, execution_context: context)
+        facade.execution_trigger = ->(task_class, registry) do
+          Executor.execute(task_class, registry: registry, execution_facade: facade)
         end
 
-        context
+        facade
       end
 
       def log_execution_started(root_task_class)

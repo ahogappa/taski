@@ -19,10 +19,10 @@ module Taski
       STATE_FAILED = :failed
       STATE_SKIPPED = :skipped
 
-      def initialize(task, registry:, execution_context: nil, args: nil)
+      def initialize(task, registry:, execution_facade: nil, args: nil)
         @task = task
         @registry = registry
-        @execution_context = execution_context
+        @execution_facade = execution_facade
         @args = args
         @result = nil
         @clean_result = nil
@@ -75,14 +75,14 @@ module Taski
 
       # Runs execution followed by cleanup. Block is called between phases.
       def run_and_clean(&block)
-        context = ensure_execution_context
-        context.notify_start # Pre-increment nest_level to prevent double rendering
+        facade = ensure_facade
+        facade.notify_start # Pre-increment nest_level to prevent double rendering
         result = run
         block&.call
         result
       ensure
         clean
-        context&.notify_stop # Final decrement and render
+        facade&.notify_stop # Final decrement and render
       end
 
       def get_exported_value(method_name)
@@ -256,8 +256,8 @@ module Taski
         end
 
         if should_execute
-          context = ensure_execution_context
-          trigger.call(context)
+          facade = ensure_facade
+          trigger.call(facade)
         end
       end
 
@@ -267,23 +267,23 @@ module Taski
         end
       end
 
-      def ensure_execution_context
-        @execution_context ||= create_shared_context
+      def ensure_facade
+        @execution_facade ||= create_shared_facade
       end
 
-      def create_shared_context
-        context = ExecutionFacade.new(root_task_class: @task.class)
+      def create_shared_facade
+        facade = ExecutionFacade.new(root_task_class: @task.class)
         progress = Taski.progress_display
-        context.add_observer(progress) if progress
+        facade.add_observer(progress) if progress
 
-        context.execution_trigger = ->(task_class, registry) do
-          Executor.execute(task_class, registry: registry, execution_context: context)
+        facade.execution_trigger = ->(task_class, registry) do
+          Executor.execute(task_class, registry: registry, execution_facade: facade)
         end
-        context.clean_trigger = ->(task_class, registry) do
-          Executor.execute_clean(task_class, registry: registry, execution_context: context)
+        facade.clean_trigger = ->(task_class, registry) do
+          Executor.execute_clean(task_class, registry: registry, execution_facade: facade)
         end
 
-        context
+        facade
       end
 
       def notify_skipped
@@ -299,10 +299,10 @@ module Taski
       end
 
       def notify_state_change(previous_state:, current_state:, phase:)
-        @execution_context ||= ExecutionFacade.current
-        return unless @execution_context
+        @execution_facade ||= ExecutionFacade.current
+        return unless @execution_facade
 
-        @execution_context.notify_task_updated(
+        @execution_facade.notify_task_updated(
           @task.class,
           previous_state: previous_state,
           current_state: current_state,

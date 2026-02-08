@@ -28,7 +28,7 @@ class TestLayoutTree < Minitest::Test
 
   def test_registers_root_task_on_set_root_task
     root_task = stub_task_class("RootTask")
-    ctx = mock_execution_context(root_task_class: root_task)
+    ctx = mock_execution_facade(root_task_class: root_task)
     @layout.context = ctx
     @layout.on_ready
     assert @layout.task_registered?(root_task)
@@ -59,7 +59,7 @@ class TestLayoutTree < Minitest::Test
     klass
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 
@@ -121,7 +121,7 @@ class TestLayoutTreeRendering < Minitest::Test
 
   def test_outputs_execution_start
     task_class = stub_task_class("RootTask")
-    ctx = mock_execution_context(root_task_class: task_class)
+    ctx = mock_execution_facade(root_task_class: task_class)
     @layout.context = ctx
     @layout.on_ready
     @layout.on_start
@@ -132,7 +132,7 @@ class TestLayoutTreeRendering < Minitest::Test
 
   def test_outputs_execution_complete
     task_class = stub_task_class("RootTask")
-    ctx = mock_execution_context(root_task_class: task_class)
+    ctx = mock_execution_facade(root_task_class: task_class)
     @layout.context = ctx
     @layout.on_ready
     started_at = Time.now
@@ -147,7 +147,7 @@ class TestLayoutTreeRendering < Minitest::Test
 
   def test_outputs_execution_fail
     task_class = stub_task_class("RootTask")
-    ctx = mock_execution_context(root_task_class: task_class)
+    ctx = mock_execution_facade(root_task_class: task_class)
     @layout.context = ctx
     @layout.on_ready
     started_at = Time.now
@@ -169,7 +169,7 @@ class TestLayoutTreeRendering < Minitest::Test
     klass
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 
@@ -192,7 +192,7 @@ class TestLayoutTreePrefix < Minitest::Test
     child = stub_task_class("ChildTask")
     parent = stub_task_class_with_deps("ParentTask", [child])
 
-    ctx = mock_execution_context(root_task_class: parent)
+    ctx = mock_execution_facade(root_task_class: parent)
     @layout.context = ctx
     @layout.on_ready
     @layout.on_start
@@ -210,7 +210,7 @@ class TestLayoutTreePrefix < Minitest::Test
     child2 = stub_task_class("Child2")
     parent = stub_task_class_with_deps("ParentTask", [child1, child2])
 
-    ctx = mock_execution_context(root_task_class: parent)
+    ctx = mock_execution_facade(root_task_class: parent)
     @layout.context = ctx
     @layout.on_ready
     @layout.on_start
@@ -231,7 +231,7 @@ class TestLayoutTreePrefix < Minitest::Test
     child = stub_task_class_with_deps("ChildTask", [grandchild])
     parent = stub_task_class_with_deps("ParentTask", [child])
 
-    ctx = mock_execution_context(root_task_class: parent)
+    ctx = mock_execution_facade(root_task_class: parent)
     @layout.context = ctx
     @layout.on_ready
     @layout.on_start
@@ -253,7 +253,7 @@ class TestLayoutTreePrefix < Minitest::Test
     child2 = stub_task_class("Child2")
     parent = stub_task_class_with_deps("ParentTask", [child1, child2])
 
-    ctx = mock_execution_context(root_task_class: parent)
+    ctx = mock_execution_facade(root_task_class: parent)
     @layout.context = ctx
     @layout.on_ready
     @layout.on_start
@@ -273,7 +273,7 @@ class TestLayoutTreePrefix < Minitest::Test
 
   def test_root_task_has_no_prefix
     root = stub_task_class("RootTask")
-    ctx = mock_execution_context(root_task_class: root)
+    ctx = mock_execution_facade(root_task_class: root)
     @layout.context = ctx
     @layout.on_ready
     @layout.on_start
@@ -304,7 +304,7 @@ class TestLayoutTreePrefix < Minitest::Test
     klass
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 
@@ -433,7 +433,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     child = stub_task_class("ChildTask")
     parent = stub_task_class_with_deps("ParentTask", [child])
 
-    ctx = mock_execution_context(root_task_class: parent)
+    ctx = mock_execution_facade(root_task_class: parent)
     layout.context = ctx
     layout.on_ready
     layout.on_start
@@ -460,7 +460,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     klass
   end
 
-  def mock_execution_context(root_task_class:, output_capture: nil)
+  def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
 

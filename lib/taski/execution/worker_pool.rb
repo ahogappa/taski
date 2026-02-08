@@ -26,9 +26,9 @@ module Taski
     class WorkerPool
       attr_reader :worker_count
 
-      def initialize(registry:, execution_context:, completion_queue:, worker_count: nil)
+      def initialize(registry:, execution_facade:, completion_queue:, worker_count: nil)
         @registry = registry
-        @execution_context = execution_context
+        @execution_facade = execution_facade
         @worker_count = worker_count || Execution.default_worker_count
         @completion_queue = completion_queue
         @threads = []
@@ -107,8 +107,8 @@ module Taski
         now = Time.now
         @task_start_times_mutex.synchronize { @task_start_times[task_class] = now }
         Taski::Logging.info(Taski::Logging::Events::TASK_STARTED, task: task_class.name)
-        @execution_context.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
-        @execution_context.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+        @execution_facade.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+        @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
 
         start_output_capture(task_class)
         drive_fiber_loop(fiber, task_class, wrapper, queue)
@@ -136,7 +136,7 @@ module Taski
       end
 
       def handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
-        dep_wrapper = @registry.create_wrapper(dep_class, execution_context: @execution_context)
+        dep_wrapper = @registry.create_wrapper(dep_class, execution_facade: @execution_facade)
         status = dep_wrapper.request_value(method, queue, fiber)
 
         case status[0]
@@ -227,14 +227,14 @@ module Taski
       # Set up context for clean execution (no Fiber flag).
       def setup_clean_thread_locals
         Thread.current[:taski_current_phase] = :clean
-        ExecutionFacade.current = @execution_context
+        ExecutionFacade.current = @execution_facade
         Taski.set_current_registry(@registry)
       end
 
       def setup_run_thread_locals
         Thread.current[:taski_fiber_context] = true
         Thread.current[:taski_current_phase] = :run
-        ExecutionFacade.current = @execution_context
+        ExecutionFacade.current = @execution_facade
         Taski.set_current_registry(@registry)
       end
 
@@ -252,12 +252,12 @@ module Taski
       end
 
       def start_output_capture(task_class)
-        output_capture = @execution_context.output_capture
+        output_capture = @execution_facade.output_capture
         output_capture&.start_capture(task_class)
       end
 
       def stop_output_capture
-        output_capture = @execution_context.output_capture
+        output_capture = @execution_facade.output_capture
         output_capture&.stop_capture
       end
 
