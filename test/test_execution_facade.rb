@@ -322,42 +322,6 @@ class TestExecutionFacade < Minitest::Test
   end
 
   # ========================================
-  # Execution and Clean Triggers
-  # ========================================
-
-  def test_execution_trigger_with_custom_trigger
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
-    triggered_with = nil
-
-    facade.execution_trigger = ->(task_class, registry) do
-      triggered_with = {task_class: task_class, registry: registry}
-    end
-
-    registry = Taski::Execution::Registry.new
-    facade.trigger_execution(String, registry: registry)
-
-    assert_equal String, triggered_with[:task_class]
-    assert_equal registry, triggered_with[:registry]
-  end
-
-  def test_execution_trigger_fallback
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
-
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "fallback_test"
-      end
-    end
-
-    registry = Taski::Execution::Registry.new
-    facade.trigger_execution(task_class, registry: registry)
-
-    wrapper = registry.create_wrapper(task_class, execution_facade: facade)
-    assert wrapper.completed?
-  end
-
-  # ========================================
   # Output Capture
   # ========================================
 

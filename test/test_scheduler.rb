@@ -638,37 +638,6 @@ class TestScheduler < Minitest::Test
     assert_equal Taski::Execution::Scheduler::STATE_COMPLETED, :completed
   end
 
-  def test_was_executed_returns_false_for_pending_and_skipped
-    task_a = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "a"
-    end
-    task_a.define_singleton_method(:cached_dependencies) { Set.new }
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "b"
-    end
-    task_b.define_singleton_method(:cached_dependencies) { Set[task_a] }
-
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task_b)
-    scheduler = Taski::Execution::Scheduler.new
-    scheduler.load_graph(graph, task_b)
-
-    # Pending tasks are not "executed"
-    refute scheduler.was_executed?(task_a)
-    refute scheduler.was_executed?(task_b)
-
-    # Mark task_a as completed — now it counts as executed
-    scheduler.mark_running(task_a)
-    scheduler.mark_completed(task_a)
-    assert scheduler.was_executed?(task_a)
-
-    # Mark task_b as skipped — still not executed
-    scheduler.mark_skipped(task_b)
-    refute scheduler.was_executed?(task_b)
-  end
-
   def test_never_started_task_classes_does_not_include_running_tasks
     task_a = Class.new(Taski::Task) do
       exports :value

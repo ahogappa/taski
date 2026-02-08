@@ -184,16 +184,6 @@ module Taski
         @task_states.count { |_, state| state == STATE_SKIPPED }
       end
 
-      # Check if a task was actually executed during the run phase.
-      # Returns false for tasks that remained pending or were skipped.
-      #
-      # @param task_class [Class] The task class to check
-      # @return [Boolean] true if the task was executed (completed or running)
-      def was_executed?(task_class)
-        state = @task_states[task_class]
-        state != STATE_PENDING && state != STATE_SKIPPED
-      end
-
       # Find all pending tasks that transitively depend on the given task.
       # Traverses the reverse dependency graph (run phase) using BFS.
       # Only returns tasks in STATE_PENDING; running/completed tasks are

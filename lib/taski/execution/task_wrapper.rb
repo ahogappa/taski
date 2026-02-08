@@ -202,7 +202,7 @@ module Taski
       end
 
       def method_missing(method_name, *args, &block)
-        if @task.class.method_defined?(method_name)
+        if @task.class.exported_methods.include?(method_name)
           get_exported_value(method_name)
         else
           super
@@ -210,7 +210,7 @@ module Taski
       end
 
       def respond_to_missing?(method_name, include_private = false)
-        @task.class.method_defined?(method_name) || super
+        @task.class.exported_methods.include?(method_name) || super
       end
 
       private
@@ -226,22 +226,18 @@ module Taski
       end
 
       def trigger_execution_and_wait
-        trigger_and_wait(
-          state_accessor: -> { @state },
-          condition: @condition,
-          trigger: ->(ctx) { ctx.trigger_execution(@task.class, registry: @registry) }
-        )
+        trigger_and_wait(state_accessor: -> { @state }, condition: @condition) do |facade|
+          facade.trigger_execution(@task.class, registry: @registry)
+        end
       end
 
       def trigger_clean_and_wait
-        trigger_and_wait(
-          state_accessor: -> { @clean_state },
-          condition: @clean_condition,
-          trigger: ->(ctx) { ctx.trigger_clean(@task.class, registry: @registry) }
-        )
+        trigger_and_wait(state_accessor: -> { @clean_state }, condition: @clean_condition) do |facade|
+          facade.trigger_clean(@task.class, registry: @registry)
+        end
       end
 
-      def trigger_and_wait(state_accessor:, condition:, trigger:)
+      def trigger_and_wait(state_accessor:, condition:)
         should_execute = false
         @monitor.synchronize do
           case state_accessor.call
@@ -255,10 +251,7 @@ module Taski
           end
         end
 
-        if should_execute
-          facade = ensure_facade
-          trigger.call(facade)
-        end
+        yield ensure_facade if should_execute
       end
 
       def check_abort!
@@ -288,9 +281,6 @@ module Taski
       end
 
       def notify_state_change(previous_state:, current_state:, phase:)
-        @execution_facade ||= ExecutionFacade.current
-        return unless @execution_facade
-
         @execution_facade.notify_task_updated(
           @task.class,
           previous_state: previous_state,

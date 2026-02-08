@@ -283,7 +283,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     # Initially pending
     assert_equal :pending, wrapper.state
@@ -316,7 +317,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     # Should respond to exported method
     assert wrapper.respond_to?(:value)
@@ -338,7 +340,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     # Should raise NoMethodError for unknown method
     assert_raises(NoMethodError) do
@@ -376,7 +379,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     # Starts as pending
     assert wrapper.pending?
@@ -408,7 +412,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     wrapper.mark_running
     test_error = StandardError.new("Test error")
@@ -429,7 +434,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     wrapper.mark_running
 
@@ -458,7 +464,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     # Initially pending
     assert wrapper.pending?
@@ -487,7 +494,8 @@ class TestParallelExecution < Minitest::Test
     registry = Taski::Execution::Registry.new
     task_instance = task_class.allocate
     task_instance.send(:initialize)
-    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry, execution_facade: facade)
 
     # Transition to running first
     assert wrapper.mark_running

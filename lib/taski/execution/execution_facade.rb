@@ -7,7 +7,7 @@ module Taski
   module Execution
     # Central hub for execution events — provides both Pull (query) and Push
     # (observer notification) interfaces. Holds only construction-time config
-    # plus observer/trigger/capture plumbing; no mutable domain state.
+    # plus observer/capture plumbing; no mutable domain state.
     #
     # Events (in order): ready, start, task_updated,
     # group_started, group_completed, stop.
@@ -24,26 +24,15 @@ module Taski
         @output_stream = output_stream
         @monitor = Monitor.new
         @observers = []
-        @execution_trigger = nil
-        @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
       end
 
-      # Build a facade with default observer and triggers.
-      # Used by both Executor and TaskWrapper to avoid duplication.
+      # Build a facade with the global progress observer attached.
       def self.build_default(root_task_class:)
         facade = new(root_task_class: root_task_class)
         progress = Taski.progress_display
         facade.add_observer(progress) if progress
-
-        facade.execution_trigger = ->(task_class, registry) do
-          Executor.execute(task_class, registry: registry, execution_facade: facade)
-        end
-        facade.clean_trigger = ->(task_class, registry) do
-          Executor.execute_clean(task_class, registry: registry, execution_facade: facade)
-        end
-
         facade
       end
 
@@ -98,30 +87,14 @@ module Taski
         @monitor.synchronize { @output_capture }
       end
 
-      def execution_trigger=(trigger)
-        @monitor.synchronize { @execution_trigger = trigger }
-      end
-
-      def clean_trigger=(trigger)
-        @monitor.synchronize { @clean_trigger = trigger }
-      end
+      # Delegation to Executor — isolates TaskWrapper from direct Executor dependency.
 
       def trigger_execution(task_class, registry:)
-        trigger = @monitor.synchronize { @execution_trigger }
-        if trigger
-          trigger.call(task_class, registry)
-        else
-          Executor.execute(task_class, registry: registry, execution_facade: self)
-        end
+        Executor.execute(task_class, registry: registry, execution_facade: self)
       end
 
       def trigger_clean(task_class, registry:)
-        trigger = @monitor.synchronize { @clean_trigger }
-        if trigger
-          trigger.call(task_class, registry)
-        else
-          Executor.execute_clean(task_class, registry: registry, execution_facade: self)
-        end
+        Executor.execute_clean(task_class, registry: registry, execution_facade: self)
       end
 
       def add_observer(observer)

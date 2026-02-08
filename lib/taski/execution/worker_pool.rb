@@ -192,6 +192,7 @@ module Taski
 
       def fail_task(task_class, wrapper, error)
         stop_output_capture
+        @registry.request_abort! if error.is_a?(Taski::TaskAbortException)
         duration = task_duration_ms(task_class)
         Taski::Logging.error(Taski::Logging::Events::TASK_FAILED, task: task_class.name, duration_ms: duration)
         wrapper.mark_failed(error)

@@ -396,14 +396,6 @@ class TestExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
     facade.add_observer(observer)
-    facade.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        root_task_class: root_task,
-        registry: reg,
-        execution_facade: facade,
-        worker_count: 2
-      ).execute(tc)
-    end
 
     executor = Taski::Execution::Executor.new(
       root_task_class: root_task,
@@ -488,14 +480,6 @@ class TestExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
     facade.add_observer(observer)
-    facade.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        root_task_class: root_task,
-        registry: reg,
-        execution_facade: facade,
-        worker_count: 2
-      ).execute(tc)
-    end
 
     executor = Taski::Execution::Executor.new(
       root_task_class: root_task,
@@ -548,14 +532,6 @@ class TestExecutor < Minitest::Test
 
       registry = Taski::Execution::Registry.new
       facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
-      facade.execution_trigger = ->(tc, reg) do
-        Taski::Execution::Executor.new(
-          root_task_class: root_task,
-          registry: reg,
-          execution_facade: facade,
-          worker_count: 2
-        ).execute(tc)
-      end
 
       executor = Taski::Execution::Executor.new(
         root_task_class: root_task,
@@ -703,14 +679,6 @@ class TestExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
     facade.add_observer(observer)
-    facade.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        root_task_class: root,
-        registry: reg,
-        execution_facade: facade,
-        worker_count: 2
-      ).execute(tc)
-    end
 
     executor = Taski::Execution::Executor.new(
       root_task_class: root,
@@ -785,14 +753,6 @@ class TestExecutor < Minitest::Test
     registry = Taski::Execution::Registry.new
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
     facade.add_observer(observer)
-    facade.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        root_task_class: root,
-        registry: reg,
-        execution_facade: facade,
-        worker_count: 2
-      ).execute(tc)
-    end
 
     executor = Taski::Execution::Executor.new(
       root_task_class: root,
@@ -967,13 +927,6 @@ class TestExecutor < Minitest::Test
     end
 
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: task)
-    facade.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        root_task_class: tc,
-        registry: reg,
-        execution_facade: facade
-      ).execute(tc)
-    end
 
     # Capture the graph built at facade initialization
     graph_before = facade.dependency_graph
@@ -1016,14 +969,6 @@ class TestExecutor < Minitest::Test
   private
 
   def create_execution_facade(registry, task_class)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
-    facade.execution_trigger = ->(tc, reg) do
-      Taski::Execution::Executor.new(
-        root_task_class: tc,
-        registry: reg,
-        execution_facade: facade
-      ).execute(tc)
-    end
-    facade
+    Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
   end
 end
