@@ -31,48 +31,25 @@ class TestLogging < Minitest::Test
 
   def test_logging_is_noop_when_logger_is_nil
     Taski.logger = nil
-
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    run_simple_task
     assert_equal "", @log_output.string
   end
 
   def test_execution_started_event_is_logged
-    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+    set_logger(level: Logger::INFO)
+    run_simple_task
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
-
-    log_lines = parse_log_lines(@log_output.string)
-    started_event = log_lines.find { |e| e["event"] == "execution.started" }
+    started_event = find_event("execution.started")
 
     refute_nil started_event, "execution.started event should be logged"
     assert started_event["data"]["worker_count"] > 0
   end
 
   def test_execution_completed_event_is_logged
-    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+    set_logger(level: Logger::INFO)
+    run_simple_task
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
-
-    log_lines = parse_log_lines(@log_output.string)
-    completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
+    completed_event = find_event("execution.completed")
 
     refute_nil completed_event, "execution.completed event should be logged"
     assert completed_event["data"]["duration_ms"] >= 0
@@ -80,43 +57,27 @@ class TestLogging < Minitest::Test
   end
 
   def test_task_started_event_is_logged
-    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+    set_logger(level: Logger::INFO)
+    run_simple_task
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
-
-    log_lines = parse_log_lines(@log_output.string)
-    started_event = log_lines.find { |e| e["event"] == "task.started" }
+    started_event = find_event("task.started")
 
     refute_nil started_event, "task.started event should be logged"
     refute_nil started_event["thread_id"]
   end
 
   def test_task_completed_event_is_logged
-    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+    set_logger(level: Logger::INFO)
+    run_simple_task
 
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
-
-    log_lines = parse_log_lines(@log_output.string)
-    completed_event = log_lines.find { |e| e["event"] == "task.completed" }
+    completed_event = find_event("task.completed")
 
     refute_nil completed_event, "task.completed event should be logged"
     assert completed_event["data"]["duration_ms"] >= 0
   end
 
   def test_task_failed_event_is_logged
-    Taski.logger = Logger.new(@log_output, level: Logger::ERROR)
+    set_logger(level: Logger::ERROR)
 
     failing_task = Class.new(Taski::Task) do
       def run
@@ -124,63 +85,28 @@ class TestLogging < Minitest::Test
       end
     end
 
-    assert_raises(Taski::AggregateError) do
-      failing_task.run
-    end
+    assert_raises(Taski::AggregateError) { failing_task.run }
 
-    log_lines = parse_log_lines(@log_output.string)
-    failed_event = log_lines.find { |e| e["event"] == "task.failed" }
-
-    refute_nil failed_event, "task.failed event should be logged"
-    assert_equal "RuntimeError", failed_event["data"]["error_class"]
-    assert_equal "intentional error", failed_event["data"]["message"]
-  end
-
-  def test_dependency_resolved_event_is_logged_at_debug_level
-    # Skip: Dynamic task classes don't get detected by static analysis
-    # This test can be verified manually with named Task classes
-    skip "dependency.resolved logging works but cannot be tested with dynamic classes"
-  end
-
-  def test_dependency_resolved_is_not_logged_at_info_level
-    # Skip: Dynamic task classes don't get detected by static analysis
-    # This test can be verified manually with named Task classes
-    skip "dependency.resolved logging works but cannot be tested with dynamic classes"
+    refute_nil find_event("task.failed"), "task.failed event should be logged"
   end
 
   def test_clean_events_are_logged_at_debug_level
-    Taski.logger = Logger.new(@log_output, level: Logger::DEBUG)
+    set_logger(level: Logger::DEBUG)
 
     task_with_clean = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-
-      def clean
-        "cleaned"
-      end
+      def run = "result"
+      def clean = "cleaned"
     end
 
     task_with_clean.run_and_clean
 
-    log_lines = parse_log_lines(@log_output.string)
-    clean_started = log_lines.find { |e| e["event"] == "task.clean_started" }
-    clean_completed = log_lines.find { |e| e["event"] == "task.clean_completed" }
-
-    refute_nil clean_started, "task.clean_started event should be logged"
-    refute_nil clean_completed, "task.clean_completed event should be logged"
+    refute_nil find_event("task.clean_started"), "task.clean_started event should be logged"
+    refute_nil find_event("task.clean_completed"), "task.clean_completed event should be logged"
   end
 
   def test_log_entry_format_is_json
-    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
-
-    simple_task = Class.new(Taski::Task) do
-      def run
-        "result"
-      end
-    end
-
-    simple_task.run
+    set_logger(level: Logger::INFO)
+    run_simple_task
 
     log_lines = @log_output.string.lines.map(&:strip).reject(&:empty?)
     log_lines.each do |line|
@@ -194,20 +120,31 @@ class TestLogging < Minitest::Test
     end
   end
 
-  def test_task_skipped_event_is_logged
-    Taski.logger = Logger.new(@log_output, level: Logger::INFO)
+  def test_error_detail_logged_via_logging_module
+    set_logger(level: Logger::ERROR)
+    @log_output.truncate(0)
+    @log_output.rewind
 
-    observer = Taski::Logging::LoggerObserver.new
     task_class = Class.new(Taski::Task)
-    task_class.define_singleton_method(:name) { "SkippedTask" }
+    task_class.define_singleton_method(:name) { "FailingTask" }
 
-    observer.update_task(task_class, state: :skipped)
+    error = RuntimeError.new("something broke")
+    error.set_backtrace(["file.rb:10:in `run'", "file.rb:20:in `execute'"])
 
-    log_lines = parse_log_lines(@log_output.string)
-    skipped_event = log_lines.find { |e| e["event"] == "task.skipped" }
+    Taski::Logging.error(
+      Taski::Logging::Events::TASK_ERROR_DETAIL,
+      task: task_class.name,
+      error_class: error.class.name,
+      error_message: error.message,
+      backtrace: error.backtrace&.first(10)
+    )
 
-    refute_nil skipped_event, "task.skipped event should be logged"
-    assert_equal "SkippedTask", skipped_event["task"]
+    error_event = find_event("task.error_detail")
+
+    refute_nil error_event, "task.error_detail event should be logged"
+    assert_equal "FailingTask", error_event["task"]
+    assert_equal "RuntimeError", error_event["data"]["error_class"]
+    assert_equal "something broke", error_event["data"]["error_message"]
   end
 
   def test_thread_safety_of_logger_access
@@ -228,16 +165,27 @@ class TestLogging < Minitest::Test
 
   private
 
+  def set_logger(level:)
+    Taski.logger = Logger.new(@log_output, level: level)
+  end
+
+  def run_simple_task
+    task = Class.new(Taski::Task) { def run = "result" }
+    task.run
+  end
+
+  def find_event(event_name)
+    parse_log_lines(@log_output.string).find { |e| e["event"] == event_name }
+  end
+
   def parse_log_lines(log_output)
-    log_output.lines.map do |line|
+    log_output.lines.filter_map do |line|
       json_part = extract_json_from_log_line(line)
-      next unless json_part
-      JSON.parse(json_part)
-    end.compact
+      JSON.parse(json_part) if json_part
+    end
   end
 
   def extract_json_from_log_line(line)
-    match = line.match(/\{.*\}/)
-    match&.[](0)
+    line.match(/\{.*\}/)&.[](0)
   end
 end

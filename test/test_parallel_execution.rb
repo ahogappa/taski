@@ -366,13 +366,12 @@ class TestParallelExecution < Minitest::Test
     assert_equal "Test error", error.errors.first.error.message
   end
 
-  # Test that wrapper timing is recorded
-  def test_task_wrapper_timing
+  # Test that wrapper state transitions work correctly
+  def test_task_wrapper_state_transitions
     task_class = Class.new(Taski::Task) do
       exports :value
 
       def run
-        sleep 0.01
         @value = "test"
       end
     end
@@ -382,21 +381,24 @@ class TestParallelExecution < Minitest::Test
     task_instance.send(:initialize)
     wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
 
-    # No timing before execution
-    assert_nil wrapper.timing
+    # Starts as pending
+    assert wrapper.pending?
+    refute wrapper.completed?
 
-    wrapper.mark_running
-    refute_nil wrapper.timing
-    assert_nil wrapper.timing.end_time
+    # mark_running transitions to running
+    assert wrapper.mark_running
+    refute wrapper.pending?
+    refute wrapper.completed?
 
+    # mark_completed transitions to completed
     result = task_instance.run
     wrapper.mark_completed(result)
 
-    refute_nil wrapper.timing.end_time
-    assert wrapper.timing.duration_ms >= 0
+    assert wrapper.completed?
+    assert_equal "test", wrapper.result
   end
 
-  # Test that mark_failed records error
+  # Test that mark_failed records error and sets STATE_FAILED
   def test_task_wrapper_mark_failed
     task_class = Class.new(Taski::Task) do
       exports :value
@@ -415,8 +417,87 @@ class TestParallelExecution < Minitest::Test
     test_error = StandardError.new("Test error")
     wrapper.mark_failed(test_error)
 
-    assert wrapper.completed?
+    assert wrapper.failed?
+    refute wrapper.completed?
     assert_equal test_error, wrapper.error
+  end
+
+  # Test that wait_for_completion unblocks for failed tasks
+  def test_task_wrapper_wait_for_completion_unblocks_on_failure
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "test"
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    wrapper.mark_running
+
+    waiter = Thread.new { wrapper.wait_for_completion }
+    sleep 0.05
+    wrapper.mark_failed(StandardError.new("fail"))
+    waiter.join(2)
+
+    refute waiter.alive?, "wait_for_completion should unblock when task fails"
+    assert wrapper.failed?
+  end
+
+  # ========================================
+  # TaskWrapper mark_skipped Tests
+  # ========================================
+
+  def test_task_wrapper_mark_skipped
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    # Initially pending
+    assert wrapper.pending?
+
+    # mark_skipped returns true on first call
+    assert wrapper.mark_skipped
+
+    # Now skipped
+    assert wrapper.skipped?
+    refute wrapper.completed?
+    refute wrapper.pending?
+
+    # mark_skipped returns false when already skipped
+    refute wrapper.mark_skipped
+  end
+
+  def test_task_wrapper_mark_skipped_only_from_pending
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      def run
+        @value = "test"
+      end
+    end
+
+    registry = Taski::Execution::Registry.new
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
+    wrapper = Taski::Execution::TaskWrapper.new(task_instance, registry: registry)
+
+    # Transition to running first
+    assert wrapper.mark_running
+
+    # Cannot skip from running state
+    refute wrapper.mark_skipped
+    refute wrapper.skipped?
   end
 
   # ========================================

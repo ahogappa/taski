@@ -33,11 +33,13 @@ module Taski
   class TaskFailure
     @task_class: Class
     @error: Exception
+    @output_lines: Array[String]
 
     attr_reader task_class: Class
     attr_reader error: Exception
+    attr_reader output_lines: Array[String]
 
-    def initialize: (task_class: Class, error: Exception) -> void
+    def initialize: (task_class: Class, error: Exception, ?output_lines: Array[String]) -> void
   end
 
   # Mixin for exception classes to enable transparent rescue matching with AggregateError
@@ -106,6 +108,7 @@ module Taski
     # Instance methods
     def run: () -> void
     def clean: () -> void
+    def group: (String name) { () -> untyped } -> untyped
     def system: (*untyped args, **untyped opts) -> bool?
     def reset!: () -> void
 
@@ -121,22 +124,16 @@ module Taski
 
   # Execution module
   module Execution
-    # TaskTiming struct (Data.define)
-    class TaskTiming
-      attr_reader start_time: Time
-      attr_reader end_time: Time?
+    # Base class for observers of the execution lifecycle
+    class TaskObserver
+      attr_accessor context: ExecutionFacade?
 
-      # Data.define provides both positional and keyword argument constructors
-      def initialize: (Time start_time, Time? end_time) -> void
-                    | (start_time: Time, end_time: Time?) -> void
-
-      def self.new: (Time start_time, Time? end_time) -> TaskTiming
-                  | (start_time: Time, end_time: Time?) -> TaskTiming
-
-      def self.start_now: () -> TaskTiming
-      def duration_ms: () -> (Integer | Float)?
-      def with_end_now: () -> TaskTiming
-      def with: (?start_time: Time, ?end_time: Time?) -> TaskTiming
+      def on_ready: () -> void
+      def on_start: () -> void
+      def on_stop: () -> void
+      def on_task_updated: (Class task_class, previous_state: Symbol?, current_state: Symbol, phase: Symbol, timestamp: Time) -> void
+      def on_group_started: (Class task_class, String group_name, phase: Symbol, timestamp: Time) -> void
+      def on_group_completed: (Class task_class, String group_name, phase: Symbol, timestamp: Time) -> void
     end
 
     # Registry class for task instance management
@@ -148,7 +145,7 @@ module Taski
 
       def initialize: () -> void
       def get_or_create: (Class task_class) { () -> TaskWrapper } -> TaskWrapper
-      def create_wrapper: (Class task_class, execution_context: ExecutionContext) -> TaskWrapper
+      def create_wrapper: (Class task_class, execution_context: ExecutionFacade) -> TaskWrapper
       def get_task: (Class task_class) -> TaskWrapper?
       def register: (Class task_class, TaskWrapper wrapper) -> void
       def register_thread: (Thread thread) -> void
@@ -157,27 +154,38 @@ module Taski
       def request_abort!: () -> void
       def abort_requested?: () -> bool
       def run: (Class task_class, Array[Symbol] exported_methods) -> untyped
+      def registered?: (Class task_class) -> bool
       def failed_wrappers: () -> Array[TaskWrapper]
       def failed_clean_wrappers: () -> Array[TaskWrapper]
     end
 
-    # ExecutionContext manages execution state and notifies observers about execution events
-    class ExecutionContext
+    # ExecutionFacade is the central hub for execution events with both Push and Pull APIs
+    class ExecutionFacade
       THREAD_LOCAL_KEY: Symbol
 
+      attr_reader root_task_class: Class?
+      attr_reader dependency_graph: StaticAnalysis::DependencyGraph?
+
+      @root_task_class: Class?
+      @dependency_graph: StaticAnalysis::DependencyGraph?
+      @output_hub: untyped
       @monitor: Monitor
       @observers: Array[untyped]
       @execution_trigger: (^(Class, Registry) -> void)?
       @clean_trigger: (^(Class, Registry) -> void)?
       @output_capture: TaskOutputRouter?
       @original_stdout: IO?
+      @original_stderr: IO?
 
-      def self.current: () -> ExecutionContext?
-      def self.current=: (ExecutionContext? context) -> void
+      def self.current: () -> ExecutionFacade?
+      def self.current=: (ExecutionFacade? context) -> void
 
-      def initialize: () -> void
+      def initialize: (root_task_class: Class?, ?analysis_result: StaticAnalysis::DependencyGraph?, ?output_hub: untyped) -> void
+      def update_dependency_graph: (StaticAnalysis::DependencyGraph graph) -> void
+      def output_stream: () -> untyped
       def output_capture_active?: () -> bool
       def original_stdout: () -> IO?
+      def original_stderr: () -> IO?
       def setup_output_capture: (IO output_io) -> void
       def teardown_output_capture: () -> void
       def output_capture: () -> TaskOutputRouter?
@@ -188,18 +196,12 @@ module Taski
       def add_observer: (untyped observer) -> void
       def remove_observer: (untyped observer) -> void
       def observers: () -> Array[untyped]
-      def notify_task_registered: (Class task_class) -> void
-      def notify_task_started: (Class task_class) -> void
-      def notify_task_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
-      def notify_task_skipped: (Class task_class) -> void
-      def notify_set_root_task: (Class task_class) -> void
-      def notify_set_output_capture: (TaskOutputRouter output_capture) -> void
+      def notify_ready: () -> void
       def notify_start: () -> void
       def notify_stop: () -> void
-      def notify_clean_started: (Class task_class) -> void
-      def notify_clean_completed: (Class task_class, ?duration: Float?, ?error: Exception?) -> void
-      def notify_group_started: (Class task_class, String group_name) -> void
-      def notify_group_completed: (Class task_class, String group_name, ?duration: Float?, ?error: Exception?) -> void
+      def notify_task_updated: (Class task_class, previous_state: Symbol?, current_state: Symbol, phase: Symbol, timestamp: Time) -> void
+      def notify_group_started: (Class task_class, String group_name, phase: Symbol, timestamp: Time) -> void
+      def notify_group_completed: (Class task_class, String group_name, phase: Symbol, timestamp: Time) -> void
 
       private
 
@@ -208,40 +210,46 @@ module Taski
 
     # TaskOutputRouter for routing task output
     class TaskOutputRouter
-      def initialize: (IO original_io, ?ExecutionContext? execution_context) -> void
+      def initialize: (IO original_io, ?ExecutionFacade? execution_context) -> void
       def current_write_io: () -> IO?
       def start_capture: (Class task_class) -> void
       def stop_capture: () -> void
+      def read: (Class task_class, ?limit: Integer?) -> Array[String]
     end
 
     # Scheduler manages task dependency state and determines execution order
     class Scheduler
       STATE_PENDING: Symbol
-      STATE_ENQUEUED: Symbol
+      STATE_RUNNING: Symbol
       STATE_COMPLETED: Symbol
-      CLEAN_STATE_PENDING: Symbol
-      CLEAN_STATE_ENQUEUED: Symbol
-      CLEAN_STATE_COMPLETED: Symbol
+      STATE_FAILED: Symbol
+      STATE_SKIPPED: Symbol
 
       @dependencies: Hash[Class, Array[Class]]
       @task_states: Hash[Class, Symbol]
       @completed_tasks: Set[Class]
+      @run_reverse_deps: Hash[Class, Set[Class]]
       @reverse_dependencies: Hash[Class, Set[Class]]
       @clean_task_states: Hash[Class, Symbol]
       @clean_completed_tasks: Set[Class]
 
       def initialize: () -> void
-      def build_dependency_graph: (Class root_task_class) -> void
+      def load_graph: (StaticAnalysis::DependencyGraph dependency_graph, Class root_task_class) -> void
       def next_ready_tasks: () -> Array[Class]
-      def mark_enqueued: (Class task_class) -> void
+      def mark_running: (Class task_class) -> void
       def mark_completed: (Class task_class) -> void
+      def mark_failed: (Class task_class) -> void
       def completed?: (Class task_class) -> bool
       def running_tasks?: () -> bool
       def task_count: () -> Integer
       def skipped_task_classes: () -> Array[Class]
-      def build_reverse_dependency_graph: (Class root_task_class) -> void
+      def mark_skipped: (Class task_class) -> bool
+      def skipped_count: () -> Integer
+      def was_executed?: (Class task_class) -> bool
+      def pending_dependents_of: (Class task_class) -> Array[Class]
+      def build_reverse_dependency_graph: () -> void
       def next_ready_clean_tasks: () -> Array[Class]
-      def mark_clean_enqueued: (Class task_class) -> void
+      def mark_clean_running: (Class task_class) -> void
       def mark_clean_completed: (Class task_class) -> void
       def clean_completed?: (Class task_class) -> bool
       def running_clean_tasks?: () -> bool
@@ -261,7 +269,7 @@ module Taski
 
       @shared_state: SharedState
       @registry: Registry
-      @execution_context: ExecutionContext
+      @execution_context: ExecutionFacade
       @worker_count: Integer
       @completion_queue: Thread::Queue
       @threads: Array[Thread]
@@ -269,8 +277,9 @@ module Taski
       @next_thread_index: Integer
       @fiber_contexts_mutex: Mutex
       @fiber_contexts: Hash[Integer, Array[untyped]]
+      @task_start_times: Hash[Class, Time]
 
-      def initialize: (shared_state: SharedState, registry: Registry, execution_context: ExecutionContext, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
+      def initialize: (shared_state: SharedState, registry: Registry, execution_context: ExecutionFacade, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
       def start: () -> void
       def enqueue: (Class task_class, TaskWrapper wrapper) -> void
       def enqueue_clean: (Class task_class, TaskWrapper wrapper) -> void
@@ -295,7 +304,7 @@ module Taski
       def stop_output_capture: () -> void
       def store_fiber_context: (Fiber fiber, Class task_class, TaskWrapper wrapper) -> void
       def get_fiber_context: (Fiber fiber) -> Array[untyped]?
-      def debug_log: (String message) -> void
+      def task_duration_ms: (Class task_class) -> Float?
     end
 
     # Executor orchestrates both run and clean phases of task execution
@@ -303,7 +312,7 @@ module Taski
     class Executor
       @registry: Registry
       @completion_queue: Thread::Queue
-      @execution_context: ExecutionContext
+      @execution_context: ExecutionFacade
       @scheduler: Scheduler
       @effective_worker_count: Integer?
       @shared_state: SharedState
@@ -311,19 +320,21 @@ module Taski
       @worker_pool: WorkerPool?
       @saved_output_capture: TaskOutputRouter?
 
-      def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
-      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionContext?) -> void
-      def initialize: (registry: Registry, ?worker_count: Integer?, ?execution_context: ExecutionContext?) -> void
+      def self.execute: (Class root_task_class, registry: Registry, ?execution_context: ExecutionFacade?) -> void
+      def self.execute_clean: (Class root_task_class, registry: Registry, ?execution_context: ExecutionFacade?) -> void
+      def initialize: (?root_task_class: Class?, registry: Registry, ?worker_count: Integer?, ?execution_context: ExecutionFacade?) -> void
       def execute: (Class root_task_class) -> void
       def execute_clean: (Class root_task_class) -> void
 
       private
 
+      def resolve_dependency_graph: (Class root_task_class) -> StaticAnalysis::DependencyGraph
       def pre_start_leaf_tasks: () -> void
       def enqueue_root_if_needed: (Class root_task_class) -> void
       def run_main_loop: (Class root_task_class) -> void
       def handle_completion: (Hash[Symbol, untyped] event) -> void
       def enqueue_for_execution: (Class task_class) -> void
+      def skip_pending_dependents: (Class failed_task_class) -> void
       def notify_skipped_tasks: () -> void
       def enqueue_ready_clean_tasks: () -> void
       def enqueue_clean_task: (Class task_class) -> void
@@ -331,21 +342,17 @@ module Taski
       def handle_clean_completion: (Hash[Symbol, untyped] event) -> void
       def all_tasks_cleaned?: () -> bool
       def with_display_lifecycle: (Class root_task_class) { () -> void } -> void
-      def setup_progress_display: (Class root_task_class) -> void
       def setup_output_capture_if_needed: () -> bool
-      def teardown_output_capture: () -> void
-      def start_progress_display: () -> void
-      def stop_progress_display: () -> void
       def raise_if_any_failures: () -> void
       def raise_if_any_clean_failures: () -> void
       def raise_if_any_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> void
       def flatten_failures_from: (Array[TaskWrapper] failed_wrappers, error_accessor: ^(TaskWrapper) -> StandardError?) -> Array[TaskFailure]
       def wrap_with_task_error: (Class task_class, Exception error) -> TaskError
       def error_identity: (Exception error) -> Integer
-      def create_default_execution_context: () -> ExecutionContext
+      def create_default_execution_context: () -> ExecutionFacade
       def log_execution_started: (Class root_task_class) -> void
       def log_execution_completed: (Class root_task_class, Time start_time) -> void
-      def debug_log: (String message) -> void
+      def log_error_detail: (Class task_class, Exception error) -> void
     end
 
     # SharedState provides centralized, thread-safe state management
@@ -382,11 +389,11 @@ module Taski
       attr_reader result: untyped
       attr_reader error: StandardError?
       attr_reader clean_error: StandardError?
-      attr_reader timing: TaskTiming?
 
       @task: Task
       @registry: Registry
-      @execution_context: ExecutionContext?
+      @execution_context: ExecutionFacade?
+      @args: Hash[Symbol, untyped]?
       @result: untyped
       @clean_result: untyped
       @error: StandardError?
@@ -396,26 +403,28 @@ module Taski
       @clean_condition: MonitorMixin::ConditionVariable
       @state: Symbol
       @clean_state: Symbol
-      @timing: TaskTiming?
 
       STATE_PENDING: Symbol
       STATE_RUNNING: Symbol
       STATE_COMPLETED: Symbol
       STATE_FAILED: Symbol
+      STATE_SKIPPED: Symbol
 
-      def initialize: (Task task, registry: Registry, ?execution_context: ExecutionContext?) -> void
+      def initialize: (Task task, registry: Registry, ?execution_context: ExecutionFacade?, ?args: Hash[Symbol, untyped]?) -> void
       def state: () -> Symbol
       def pending?: () -> bool
       def completed?: () -> bool
       def failed?: () -> bool
-      def clean_failed?: () -> bool
+      def skipped?: () -> bool
       def run: () -> untyped
       def clean: () -> untyped
-      def run_and_clean: () -> untyped
+      def reset!: () -> void
+      def run_and_clean: () ?{ () -> void } -> untyped
       def get_exported_value: (Symbol method_name) -> untyped
       def mark_running: () -> bool
       def mark_completed: (untyped result) -> void
       def mark_failed: (StandardError error) -> void
+      def mark_skipped: () -> bool
       def mark_clean_running: () -> bool
       def mark_clean_completed: (untyped result) -> void
       def mark_clean_failed: (StandardError error) -> void
@@ -426,13 +435,17 @@ module Taski
 
       private
 
+      def with_args_lifecycle: [T] () { () -> T } -> T
       def trigger_execution_and_wait: () -> void
       def trigger_clean_and_wait: () -> void
-      def execute_clean: () -> void
-      def wait_for_clean_dependencies: () -> void
+      def trigger_and_wait: (state_accessor: ^() -> Symbol, condition: MonitorMixin::ConditionVariable, trigger: ^(ExecutionFacade) -> void) -> void
       def check_abort!: () -> void
-      def update_progress: (Symbol state, ?duration: Numeric?, ?error: Exception?) -> void
-      def debug_log: (String message) -> void
+      def ensure_execution_context: () -> ExecutionFacade
+      def create_shared_context: () -> ExecutionFacade
+      def notify_skipped: () -> void
+      def update_progress: (Symbol state, ?error: Exception?) -> void
+      def update_clean_progress: (Symbol state, ?error: Exception?) -> void
+      def notify_state_change: (previous_state: Symbol?, current_state: Symbol, phase: Symbol) -> void
     end
   end
 
@@ -440,7 +453,7 @@ module Taski
   module Progress
     module Layout
       # Base class for progress display layouts
-      class Base
+      class Base < Execution::TaskObserver
       end
     end
   end
@@ -498,6 +511,7 @@ module Taski
 
       def initialize: () -> void
       def build_from: (Class root_task_class) -> self
+      def build_from_cached: (Class root_task_class) -> self
       def sorted: () -> Array[Class]
       def cyclic?: () -> bool
       def strongly_connected_components: () -> Array[Array[Class]]
@@ -512,6 +526,34 @@ module Taski
       private
 
       def collect_dependencies: (Class task_class) -> void
+      def collect_cached_dependencies: (Class task_class) -> void
     end
+  end
+
+  # Logging module
+  module Logging
+    module Events
+      EXECUTION_STARTED: String
+      EXECUTION_COMPLETED: String
+      TASK_STARTED: String
+      TASK_COMPLETED: String
+      TASK_FAILED: String
+      TASK_CLEAN_STARTED: String
+      TASK_CLEAN_COMPLETED: String
+      TASK_CLEAN_FAILED: String
+      TASK_SKIPPED: String
+      DEPENDENCY_RESOLVED: String
+      TASK_ERROR_DETAIL: String
+      TASK_OUTPUT: String
+      WORKER_POOL_ENQUEUED: String
+      EXECUTOR_TASK_COMPLETED: String
+      EXECUTOR_CLEAN_COMPLETED: String
+      OUTPUT_ROUTER_START_CAPTURE: String
+      OUTPUT_ROUTER_STOP_CAPTURE: String
+      OUTPUT_ROUTER_STOP_CAPTURE_UNREGISTERED: String
+      OUTPUT_ROUTER_DRAIN_PIPE: String
+      OUTPUT_ROUTER_STORE_LINES: String
+    end
+
   end
 end

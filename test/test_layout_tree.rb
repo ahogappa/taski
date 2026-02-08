@@ -28,22 +28,25 @@ class TestLayoutTree < Minitest::Test
 
   def test_registers_root_task_on_set_root_task
     root_task = stub_task_class("RootTask")
-    @layout.set_root_task(root_task)
+    ctx = mock_execution_context(root_task_class: root_task)
+    @layout.context = ctx
+    @layout.on_ready
     assert @layout.task_registered?(root_task)
   end
 
   def test_tracks_task_state
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     assert_equal :running, @layout.task_state(task_class)
   end
 
   def test_tracks_completed_task
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
     assert_equal :completed, @layout.task_state(task_class)
   end
 
@@ -54,6 +57,17 @@ class TestLayoutTree < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
+  end
+
+  def mock_execution_context(root_task_class:, output_capture: nil)
+    graph = Taski::StaticAnalysis::DependencyGraph.new
+    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
+
+    ctx = Object.new
+    ctx.define_singleton_method(:root_task_class) { root_task_class }
+    ctx.define_singleton_method(:output_capture) { output_capture }
+    ctx.define_singleton_method(:dependency_graph) { graph }
+    ctx
   end
 end
 
@@ -67,10 +81,10 @@ class TestLayoutTreeRendering < Minitest::Test
 
   def test_outputs_task_start_with_spinner
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.stop
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
 
     # Theme::Detail uses spinner for running tasks
     assert_includes @output.string, "⠋ MyTask"
@@ -78,61 +92,70 @@ class TestLayoutTreeRendering < Minitest::Test
 
   def test_outputs_task_success_with_icon_and_duration
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 123)
-    @layout.stop
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.123)
+    @layout.on_stop
 
     # Theme::Detail uses ✓ icon for completed tasks
     assert_includes @output.string, "✓"
     assert_includes @output.string, "MyTask"
-    assert_includes @output.string, "(123ms)"
+    assert_includes @output.string, "(123"
   end
 
-  def test_outputs_task_fail_with_icon_and_error
+  def test_outputs_task_fail_with_icon
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: StandardError.new("Something went wrong"))
-    @layout.stop
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
+    @layout.on_stop
 
     # Theme::Detail uses ✗ icon for failed tasks
     assert_includes @output.string, "✗"
     assert_includes @output.string, "MyTask"
-    assert_includes @output.string, "Something went wrong"
   end
 
   def test_outputs_execution_start
     task_class = stub_task_class("RootTask")
-    @layout.set_root_task(task_class)
-    @layout.start
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: task_class)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_stop
 
     assert_includes @output.string, "[TASKI] Starting RootTask"
   end
 
   def test_outputs_execution_complete
     task_class = stub_task_class("RootTask")
-    @layout.set_root_task(task_class)
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: task_class)
+    @layout.context = ctx
+    @layout.on_ready
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
+    @layout.on_stop
 
     assert_includes @output.string, "[TASKI] Completed: 1/1 tasks"
   end
 
   def test_outputs_execution_fail
     task_class = stub_task_class("RootTask")
-    @layout.set_root_task(task_class)
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: task_class)
+    @layout.context = ctx
+    @layout.on_ready
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
+    @layout.on_stop
 
     assert_includes @output.string, "[TASKI] Failed: 1/1 tasks"
   end
@@ -144,6 +167,17 @@ class TestLayoutTreeRendering < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
+  end
+
+  def mock_execution_context(root_task_class:, output_capture: nil)
+    graph = Taski::StaticAnalysis::DependencyGraph.new
+    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
+
+    ctx = Object.new
+    ctx.define_singleton_method(:root_task_class) { root_task_class }
+    ctx.define_singleton_method(:output_capture) { output_capture }
+    ctx.define_singleton_method(:dependency_graph) { graph }
+    ctx
   end
 end
 
@@ -158,10 +192,12 @@ class TestLayoutTreePrefix < Minitest::Test
     child = stub_task_class("ChildTask")
     parent = stub_task_class_with_deps("ParentTask", [child])
 
-    @layout.set_root_task(parent)
-    @layout.start
-    @layout.update_task(child, state: :running)
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: parent)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_task_updated(child, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
 
     # Child should have tree prefix with spinner
     output = @output.string
@@ -174,11 +210,13 @@ class TestLayoutTreePrefix < Minitest::Test
     child2 = stub_task_class("Child2")
     parent = stub_task_class_with_deps("ParentTask", [child1, child2])
 
-    @layout.set_root_task(parent)
-    @layout.start
-    @layout.update_task(child1, state: :running)
-    @layout.update_task(child2, state: :running)
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: parent)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_task_updated(child1, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(child2, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
 
     output = @output.string
     # First child should use branch with spinner
@@ -193,11 +231,13 @@ class TestLayoutTreePrefix < Minitest::Test
     child = stub_task_class_with_deps("ChildTask", [grandchild])
     parent = stub_task_class_with_deps("ParentTask", [child])
 
-    @layout.set_root_task(parent)
-    @layout.start
-    @layout.update_task(child, state: :running)
-    @layout.update_task(grandchild, state: :running)
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: parent)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_task_updated(child, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(grandchild, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
 
     output = @output.string
     # Child at depth 1 with spinner
@@ -213,12 +253,14 @@ class TestLayoutTreePrefix < Minitest::Test
     child2 = stub_task_class("Child2")
     parent = stub_task_class_with_deps("ParentTask", [child1, child2])
 
-    @layout.set_root_task(parent)
-    @layout.start
-    @layout.update_task(child1, state: :running)
-    @layout.update_task(grandchild, state: :running)
-    @layout.update_task(child2, state: :running)
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: parent)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_task_updated(child1, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(grandchild, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(child2, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
 
     output = @output.string
     # Child1 is not last (has sibling child2) with spinner
@@ -231,10 +273,12 @@ class TestLayoutTreePrefix < Minitest::Test
 
   def test_root_task_has_no_prefix
     root = stub_task_class("RootTask")
-    @layout.set_root_task(root)
-    @layout.start
-    @layout.update_task(root, state: :running)
-    @layout.stop
+    ctx = mock_execution_context(root_task_class: root)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_task_updated(root, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
 
     output = @output.string
     # Root task should NOT have tree prefix, but should have spinner
@@ -259,6 +303,17 @@ class TestLayoutTreePrefix < Minitest::Test
     klass.define_singleton_method(:cached_dependencies) { deps }
     klass
   end
+
+  def mock_execution_context(root_task_class:, output_capture: nil)
+    graph = Taski::StaticAnalysis::DependencyGraph.new
+    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
+
+    ctx = Object.new
+    ctx.define_singleton_method(:root_task_class) { root_task_class }
+    ctx.define_singleton_method(:output_capture) { output_capture }
+    ctx.define_singleton_method(:dependency_graph) { graph }
+    ctx
+  end
 end
 
 class TestLayoutTreeTaskContent < Minitest::Test
@@ -269,7 +324,7 @@ class TestLayoutTreeTaskContent < Minitest::Test
 
   def test_build_task_content_uses_icon_for_pending_state
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
 
     content = @layout.send(:build_task_content, task_class)
     # Theme::Detail uses ○ icon for pending
@@ -279,8 +334,8 @@ class TestLayoutTreeTaskContent < Minitest::Test
 
   def test_build_task_content_uses_spinner_for_running_state
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
 
     content = @layout.send(:build_task_content, task_class)
     # Theme::Detail uses spinner for running
@@ -290,26 +345,29 @@ class TestLayoutTreeTaskContent < Minitest::Test
 
   def test_build_task_content_uses_icon_for_completed_state
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
 
     content = @layout.send(:build_task_content, task_class)
     # Theme::Detail uses ✓ icon for completed
     assert_includes content, "✓"
     assert_includes content, "MyTask"
-    assert_includes content, "(100ms)"
+    assert_includes content, "(100"
   end
 
   def test_build_task_content_uses_icon_for_failed_state
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :failed, error: StandardError.new("Something went wrong"))
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
 
     content = @layout.send(:build_task_content, task_class)
     # Theme::Detail uses ✗ icon for failed
     assert_includes content, "✗"
     assert_includes content, "MyTask"
-    assert_includes content, "Something went wrong"
   end
 
   private
@@ -336,10 +394,10 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Tree.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
-    layout.register_task(task_class)
-    layout.start
-    layout.update_task(task_class, state: :running)
-    layout.stop
+    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    layout.on_stop
 
     assert_includes @output.string, "[BEGIN] MyTask"
   end
@@ -353,10 +411,12 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Tree.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
-    layout.register_task(task_class)
-    layout.start
-    layout.update_task(task_class, state: :completed, duration: 100)
-    layout.stop
+    started_at = Time.now
+    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
+    layout.on_stop
 
     assert_includes @output.string, "[OK] MyTask"
   end
@@ -373,10 +433,12 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     child = stub_task_class("ChildTask")
     parent = stub_task_class_with_deps("ParentTask", [child])
 
-    layout.set_root_task(parent)
-    layout.start
-    layout.update_task(child, state: :running)
-    layout.stop
+    ctx = mock_execution_context(root_task_class: parent)
+    layout.context = ctx
+    layout.on_ready
+    layout.on_start
+    layout.on_task_updated(child, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    layout.on_stop
 
     # Tree prefix should combine with custom template
     assert_includes @output.string, "└── => ChildTask"
@@ -396,5 +458,16 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { deps }
     klass
+  end
+
+  def mock_execution_context(root_task_class:, output_capture: nil)
+    graph = Taski::StaticAnalysis::DependencyGraph.new
+    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
+
+    ctx = Object.new
+    ctx.define_singleton_method(:root_task_class) { root_task_class }
+    ctx.define_singleton_method(:output_capture) { output_capture }
+    ctx.define_singleton_method(:dependency_graph) { graph }
+    ctx
   end
 end

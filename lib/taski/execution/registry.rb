@@ -27,6 +27,13 @@ module Taski
         @tasks[task_class] = wrapper
       end
 
+      # Check if a task wrapper has been registered (created during run phase).
+      # @param task_class [Class] The task class
+      # @return [Boolean] true if a wrapper exists for this task
+      def registered?(task_class)
+        @monitor.synchronize { @tasks.key?(task_class) }
+      end
+
       # @param task_class [Class] The task class
       # @return [Object] The task instance
       # @raise [RuntimeError] If the task is not registered
@@ -80,7 +87,7 @@ module Taski
       # Create or retrieve a TaskWrapper for the given task class.
       # Encapsulates the standard wrapper creation pattern used by Executor and WorkerPool.
       # @param task_class [Class] The task class
-      # @param execution_context [ExecutionContext] The execution context
+      # @param execution_context [ExecutionFacade] The execution context
       # @return [TaskWrapper] The wrapper instance
       def create_wrapper(task_class, execution_context:)
         get_or_create(task_class) do

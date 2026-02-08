@@ -111,7 +111,10 @@ module Taski
       def tree
         output = StringIO.new
         layout = Progress::Layout::Tree.new(output: output)
-        layout.set_root_task(self)
+        # Set root_task_class directly and trigger ready to build tree structure
+        context = Execution::ExecutionFacade.new(root_task_class: self)
+        layout.context = context
+        layout.on_ready
 
         render_tree_node(layout, self, output)
         output.string
@@ -162,7 +165,7 @@ module Taski
         wrapper = Execution::TaskWrapper.new(
           task_instance,
           registry: fresh_registry,
-          execution_context: Execution::ExecutionContext.current
+          execution_context: Execution::ExecutionFacade.current
         )
         fresh_registry.register(self, wrapper)
         wrapper
@@ -206,7 +209,7 @@ module Taski
                 Execution::TaskWrapper.new(
                   task_instance,
                   registry: registry,
-                  execution_context: Execution::ExecutionContext.current
+                  execution_context: Execution::ExecutionFacade.current
                 )
               end
               wrapper.get_exported_value(method)
@@ -304,18 +307,16 @@ module Taski
     #     end
     #   end
     def group(name)
-      context = Execution::ExecutionContext.current
-      context&.notify_group_started(self.class, name)
-      start_time = Time.now
+      context = Execution::ExecutionFacade.current
+      phase = Thread.current[:taski_current_phase] || :run
+      context&.notify_group_started(self.class, name, phase: phase, timestamp: Time.now)
 
       begin
         result = yield
-        duration_ms = ((Time.now - start_time) * 1000).round(0)
-        context&.notify_group_completed(self.class, name, duration: duration_ms)
+        context&.notify_group_completed(self.class, name, phase: phase, timestamp: Time.now)
         result
-      rescue => e
-        duration_ms = ((Time.now - start_time) * 1000).round(0)
-        context&.notify_group_completed(self.class, name, duration: duration_ms, error: e)
+      rescue
+        context&.notify_group_completed(self.class, name, phase: phase, timestamp: Time.now)
         raise
       end
     end

@@ -4,7 +4,7 @@ module Taski
   module Progress
     module Layout
       # Liquid filter module for colorizing text output.
-      # Uses TemplateDrop from context to get color codes, falls back to defaults.
+      # Uses ThemeDrop from context to get color codes, falls back to defaults.
       #
       # @example Usage in Liquid template
       #   {{ task.name | green }}

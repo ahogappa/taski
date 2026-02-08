@@ -13,11 +13,19 @@ module Taski
         @graph = {}
       end
 
-      # Build dependency graph starting from root task class
+      # Build dependency graph starting from root task class using static analysis
       # @param root_task_class [Class] The root task class to analyze
       # @return [DependencyGraph] self for method chaining
       def build_from(root_task_class)
         collect_dependencies(root_task_class)
+        self
+      end
+
+      # Build dependency graph using cached_dependencies (runtime) instead of AST analysis
+      # @param root_task_class [Class] The root task class
+      # @return [DependencyGraph] self for method chaining
+      def build_from_cached(root_task_class)
+        collect_cached_dependencies(root_task_class)
         self
       end
 
@@ -84,6 +92,16 @@ module Taski
         dependencies.each do |dep_class|
           collect_dependencies(dep_class)
         end
+      end
+
+      # Recursively collect dependencies using cached_dependencies
+      def collect_cached_dependencies(task_class)
+        return if @graph.key?(task_class)
+
+        deps = task_class.cached_dependencies
+        @graph[task_class] = deps.to_set
+
+        deps.each { |dep| collect_cached_dependencies(dep) }
       end
     end
   end

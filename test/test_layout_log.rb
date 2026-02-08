@@ -14,129 +14,124 @@ class TestLayoutLog < Minitest::Test
 
   def test_outputs_task_start
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
 
     assert_includes @output.string, "[START] MyTask"
   end
 
   def test_outputs_task_success_with_duration
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 123.4)
+    started = Time.now
+    completed = started + 0.1234
+
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: completed)
 
     assert_includes @output.string, "[DONE] MyTask (123.4ms)"
   end
 
-  def test_outputs_task_success_without_duration
+  def test_outputs_task_success_without_started_at
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed)
+    @layout.on_start
+    # Skip :running (no started_at), go directly to :completed
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: Time.now)
 
     assert_includes @output.string, "[DONE] MyTask"
     refute_includes @output.string, "()"
   end
 
-  def test_outputs_task_fail_with_error
+  def test_outputs_task_fail
     task_class = stub_task_class("MyTask")
-    error = StandardError.new("Something went wrong")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: error)
-
-    assert_includes @output.string, "[FAIL] MyTask: Something went wrong"
-  end
-
-  def test_outputs_task_fail_without_error
-    task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed)
+    now = Time.now
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: now + 1)
 
     assert_includes @output.string, "[FAIL] MyTask"
-    refute_includes @output.string, "[FAIL] MyTask:"
   end
 
   # === Clean lifecycle output ===
 
   def test_outputs_clean_start
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
+    now = Time.now
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: now + 0.2)
 
     assert_includes @output.string, "[CLEAN] MyTask"
   end
 
   def test_outputs_clean_success_with_duration
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    @layout.update_task(task_class, state: :clean_completed, duration: 50)
+    now = Time.now
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: now + 0.2)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :clean, timestamp: now + 0.25)
 
-    assert_includes @output.string, "[CLEAN DONE] MyTask (50ms)"
+    assert_includes @output.string, "[CLEAN DONE] MyTask (50.0ms)"
   end
 
-  def test_outputs_clean_fail_with_error
+  def test_outputs_clean_fail
     task_class = stub_task_class("MyTask")
-    error = StandardError.new("Cleanup failed")
-    @layout.start
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    @layout.update_task(task_class, state: :clean_failed, error: error)
+    now = Time.now
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: now + 0.2)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :clean, timestamp: now + 0.3)
 
-    assert_includes @output.string, "[CLEAN FAIL] MyTask: Cleanup failed"
+    assert_includes @output.string, "[CLEAN FAIL] MyTask"
   end
 
   # === Group lifecycle output ===
 
   def test_outputs_group_start
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_group(task_class, "build", state: :running)
+    @layout.on_start
+    @layout.on_group_started(task_class, "build", phase: :run, timestamp: Time.now)
 
     assert_includes @output.string, "[GROUP] MyTask#build"
   end
 
-  def test_outputs_group_success_with_duration
+  def test_outputs_group_completed
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_group(task_class, "build", state: :running)
-    @layout.update_group(task_class, "build", state: :completed, duration: 200)
+    now = Time.now
+    @layout.on_start
+    @layout.on_group_started(task_class, "build", phase: :run, timestamp: now)
+    @layout.on_group_completed(task_class, "build", phase: :run, timestamp: now + 0.2)
 
-    assert_includes @output.string, "[GROUP DONE] MyTask#build (200ms)"
-  end
-
-  def test_outputs_group_fail_with_error
-    task_class = stub_task_class("MyTask")
-    error = StandardError.new("Build failed")
-    @layout.start
-    @layout.update_group(task_class, "build", state: :running)
-    @layout.update_group(task_class, "build", state: :failed, error: error)
-
-    assert_includes @output.string, "[GROUP FAIL] MyTask#build: Build failed"
+    assert_includes @output.string, "[GROUP DONE] MyTask#build"
   end
 
   # === Execution lifecycle output ===
 
   def test_outputs_execution_start
     task_class = stub_task_class("BuildTask")
-    @layout.set_root_task(task_class)
-    @layout.start
+    @layout.context = mock_execution_context(root_task_class: task_class)
+    @layout.on_ready
+    @layout.on_start
 
     assert_includes @output.string, "[TASKI] Starting BuildTask"
   end
 
   def test_outputs_execution_complete
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.stop
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    @layout.on_stop
 
     # Check for completion message
     assert_match(/\[TASKI\] Completed: 1\/1 tasks \(\d+ms\)/, @output.string)
@@ -145,14 +140,15 @@ class TestLayoutLog < Minitest::Test
   def test_outputs_execution_fail_when_tasks_failed
     task1 = stub_task_class("Task1")
     task2 = stub_task_class("Task2")
-    @layout.register_task(task1)
-    @layout.register_task(task2)
-    @layout.start
-    @layout.update_task(task1, state: :running)
-    @layout.update_task(task1, state: :completed, duration: 100)
-    @layout.update_task(task2, state: :running)
-    @layout.update_task(task2, state: :failed, error: StandardError.new("oops"))
-    @layout.stop
+    now = Time.now
+    @layout.on_task_updated(task1, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task2, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_start
+    @layout.on_task_updated(task1, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_task_updated(task1, previous_state: :running, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    @layout.on_task_updated(task2, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_task_updated(task2, previous_state: :running, current_state: :failed, phase: :run, timestamp: now + 0.1)
+    @layout.on_stop
 
     assert_match(/\[TASKI\] Failed: 1\/2 tasks \(\d+ms\)/, @output.string)
   end
@@ -161,9 +157,13 @@ class TestLayoutLog < Minitest::Test
 
   def test_formats_duration_in_seconds_when_over_1000ms
     task_class = stub_task_class("MyTask")
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 1500)
+    started = Time.now
+    completed = started + 1.5  # 1500ms
+
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: completed)
 
     assert_includes @output.string, "[DONE] MyTask (1.5s)"
   end
@@ -175,8 +175,8 @@ class TestLayoutLog < Minitest::Test
     layout = Taski::Progress::Layout::Log.new(output: @output, theme: custom_theme)
 
     task_class = stub_task_class("MyTask")
-    layout.start
-    layout.update_task(task_class, state: :running)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
 
     assert_includes @output.string, "CUSTOM START MyTask"
   end
@@ -188,6 +188,13 @@ class TestLayoutLog < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
+  end
+
+  def mock_execution_context(root_task_class:, output_capture: nil)
+    ctx = Object.new
+    ctx.define_singleton_method(:root_task_class) { root_task_class }
+    ctx.define_singleton_method(:output_capture) { output_capture }
+    ctx
   end
 
   class CustomTestTheme < Taski::Progress::Theme::Base

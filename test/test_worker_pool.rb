@@ -6,7 +6,7 @@ class TestWorkerPool < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
     @registry = Taski::Execution::Registry.new
-    @execution_context = Taski::Execution::ExecutionContext.new
+    @execution_context = Taski::Execution::ExecutionFacade.new(root_task_class: nil)
     @shared_state = Taski::Execution::SharedState.new
   end
 
@@ -564,16 +564,16 @@ class TestWorkerPool < Minitest::Test
       "No extra completion events should remain in the queue"
   end
 
-  def test_drive_fiber_emits_registered_and_started_when_mark_running_fails
+  def test_drive_fiber_emits_pending_and_running_when_mark_running_fails
     # When wrapper.mark_running returns false (task already running elsewhere),
-    # drive_fiber should still emit notify_task_registered and
-    # notify_task_started before waiting, so observers see the correct event
-    # ordering (registered → started → completed).
+    # drive_fiber should still emit notify_task_updated with pending and running
+    # transitions before waiting, so observers see the correct event ordering.
     observer_events = []
 
     observer = Object.new
-    observer.define_singleton_method(:register_task) { |tc| observer_events << [:registered, tc] }
-    observer.define_singleton_method(:update_task) { |tc, **kw| observer_events << [:update, tc, kw] }
+    observer.define_singleton_method(:on_task_updated) do |tc, previous_state:, current_state:, **kw|
+      observer_events << [tc, previous_state, current_state]
+    end
     observer.define_singleton_method(:method_missing) { |*| }
     observer.define_singleton_method(:respond_to_missing?) { |*| true }
 
@@ -616,14 +616,14 @@ class TestWorkerPool < Minitest::Test
 
     assert_equal task_class, event[:task_class]
 
-    task_events = observer_events.select { |e| e[1] == task_class }
-    registered = task_events.select { |e| e[0] == :registered }
-    started = task_events.select { |e| e[0] == :update && e[2][:state] == :running }
+    task_events = observer_events.select { |e| e[0] == task_class }
+    pending_events = task_events.select { |e| e[2] == :pending }
+    running_events = task_events.select { |e| e[2] == :running }
 
-    assert_operator registered.size, :>=, 1,
-      "Expected at least 1 registered event, got #{registered.size}"
-    assert_operator started.size, :>=, 1,
-      "Expected at least 1 started event, got #{started.size}"
+    assert_operator pending_events.size, :>=, 1,
+      "Expected at least 1 pending event, got #{pending_events.size}"
+    assert_operator running_events.size, :>=, 1,
+      "Expected at least 1 running event, got #{running_events.size}"
   end
 
   def test_error_in_task_is_captured
