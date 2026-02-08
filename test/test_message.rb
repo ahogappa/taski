@@ -8,12 +8,12 @@ class TestMessage < Minitest::Test
     Taski::Task.reset! if defined?(Taski::Task)
     Taski.reset_progress_display!
     # Clear any thread-local context
-    Taski::Execution::ExecutionContext.current = nil
+    Taski::Execution::ExecutionFacade.current = nil
   end
 
   def teardown
     Taski.reset_progress_display!
-    Taski::Execution::ExecutionContext.current = nil
+    Taski::Execution::ExecutionFacade.current = nil
   end
 
   # ========================================
@@ -29,8 +29,8 @@ class TestMessage < Minitest::Test
     display.queue_message("Message 2")
 
     # Start and stop to trigger flush
-    display.start
-    display.stop
+    display.on_start
+    display.on_stop
 
     assert_includes output.string, "Message 1"
     assert_includes output.string, "Message 2"
@@ -40,13 +40,13 @@ class TestMessage < Minitest::Test
     output = StringIO.new
     display = Taski::Progress::Layout::Simple.new(output: output)
 
-    display.start
+    display.on_start
     display.queue_message("Test message")
 
     # Before stop, message should not be in output
     refute_includes output.string, "Test message"
 
-    display.stop
+    display.on_stop
 
     # After stop, message should be flushed
     assert_includes output.string, "Test message"
@@ -110,11 +110,11 @@ class TestMessage < Minitest::Test
     output = StringIO.new
     display = Taski::Progress::Layout::Simple.new(output: output)
 
-    display.start
+    display.on_start
     display.queue_message("First")
     display.queue_message("Second")
     display.queue_message("Third")
-    display.stop
+    display.on_stop
 
     lines = output.string.lines.select { |l| l.match?(/^(First|Second|Third)$/) }.map(&:chomp)
     assert_equal %w[First Second Third], lines
@@ -124,7 +124,7 @@ class TestMessage < Minitest::Test
     output = StringIO.new
     display = Taski::Progress::Layout::Simple.new(output: output)
 
-    display.start
+    display.on_start
 
     threads = 10.times.map do |i|
       Thread.new do
@@ -136,7 +136,7 @@ class TestMessage < Minitest::Test
 
     threads.each(&:join)
 
-    display.stop
+    display.on_stop
 
     lines = output.string.lines.select { |l| l.include?("Thread") }
     assert_equal 100, lines.size, "Should have 100 messages"
@@ -151,18 +151,18 @@ class TestMessage < Minitest::Test
     display = Taski::Progress::Layout::Simple.new(output: output)
 
     # Simulate outer executor start
-    display.start
+    display.on_start
     # Simulate inner executor start
-    display.start
+    display.on_start
 
     display.queue_message("Nested message")
 
     # Inner executor stop - message should NOT be flushed yet (nest_level still > 0)
-    display.stop
+    display.on_stop
     refute_includes output.string, "Nested message", "Message should not be flushed when inner executor stops"
 
     # Outer executor stop - message SHOULD be flushed now (nest_level = 0)
-    display.stop
+    display.on_stop
     assert_includes output.string, "Nested message", "Message should be flushed when outer executor stops"
   end
 end

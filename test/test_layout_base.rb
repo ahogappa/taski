@@ -9,132 +9,154 @@ require "taski/progress/layout/base"
 require "taski/progress/layout/theme_drop"
 
 class TestLayoutBase < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
   end
 
+  # === Inheritance tests ===
+
+  def test_inherits_from_task_observer
+    assert_kind_of Taski::Execution::TaskObserver, @layout
+  end
+
   # === Observer interface tests ===
 
   def test_responds_to_observer_interface
-    assert_respond_to @layout, :set_root_task
-    assert_respond_to @layout, :register_task
-    assert_respond_to @layout, :update_task
-    assert_respond_to @layout, :update_group
-    assert_respond_to @layout, :set_output_capture
-    assert_respond_to @layout, :start
-    assert_respond_to @layout, :stop
+    assert_respond_to @layout, :on_ready
+    assert_respond_to @layout, :on_start
+    assert_respond_to @layout, :on_stop
+    assert_respond_to @layout, :on_task_updated
+    assert_respond_to @layout, :on_group_started
+    assert_respond_to @layout, :on_group_completed
     assert_respond_to @layout, :queue_message
   end
 
-  # === Task registration ===
+  # === Task registration via on_task_updated ===
 
-  def test_register_task_tracks_new_task
+  def test_on_task_updated_registers_task
     task_class = Class.new
-    @layout.register_task(task_class)
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
     assert @layout.task_registered?(task_class)
   end
 
-  def test_register_task_is_idempotent
+  def test_on_task_updated_pending_is_idempotent
     task_class = Class.new
-    @layout.register_task(task_class)
-    @layout.register_task(task_class)
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
     # No error raised
   end
 
   # === Task state management ===
 
-  def test_update_task_running_changes_state
+  def test_on_task_updated_running_changes_state
     task_class = Class.new
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
     assert_equal :running, @layout.task_state(task_class)
   end
 
-  def test_update_task_completed_changes_state
+  def test_on_task_updated_completed_changes_state
     task_class = Class.new
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 123.4)
+    started = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started + 0.1234)
     assert_equal :completed, @layout.task_state(task_class)
   end
 
-  def test_update_task_failed_changes_state
+  def test_on_task_updated_failed_changes_state
     task_class = Class.new
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-    error = StandardError.new("test error")
-    @layout.update_task(task_class, state: :failed, error: error)
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: now + 1)
     assert_equal :failed, @layout.task_state(task_class)
   end
 
-  def test_update_task_registers_if_not_registered
+  def test_on_task_updated_auto_registers
     task_class = Class.new
-    @layout.update_task(task_class, state: :running)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     assert @layout.task_registered?(task_class)
   end
 
   # === Clean state management ===
 
-  def test_update_task_cleaning_state
+  def test_on_task_updated_clean_running_state
     task_class = Class.new
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    # Clean state should be tracked
-    assert_equal :cleaning, @layout.task_state(task_class)
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: now + 1)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: now + 2)
+    assert_equal :running, @layout.task_state(task_class)
   end
 
-  def test_update_task_clean_completed_state
+  def test_on_task_updated_clean_completed_state
     task_class = Class.new
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.update_task(task_class, state: :cleaning)
-    @layout.update_task(task_class, state: :clean_completed, duration: 50)
-    assert_equal :clean_completed, @layout.task_state(task_class)
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: now + 1)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: now + 2)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :clean, timestamp: now + 3)
+    assert_equal :completed, @layout.task_state(task_class)
   end
 
   # === Nest level management ===
 
-  def test_start_and_stop_manage_nest_level
-    @layout.start
-    @layout.start  # Nested call
-    @layout.stop
+  def test_on_start_and_on_stop_manage_nest_level
+    @layout.on_start
+    @layout.on_start  # Nested call
+    @layout.on_stop
     # First stop shouldn't finalize
-    @layout.stop
+    @layout.on_stop
     # Second stop finalizes
   end
 
-  def test_stop_without_start_does_not_crash
-    @layout.stop
+  def test_on_stop_without_on_start_does_not_crash
+    @layout.on_stop
     # No error raised
   end
 
-  # === Root task ===
+  # === Root task via on_ready ===
 
-  def test_set_root_task_only_sets_once
-    task1 = Class.new
-    task2 = Class.new
-    @layout.set_root_task(task1)
-    @layout.set_root_task(task2)
-    # First set wins - implementation detail checked via on_root_task_set
+  def test_on_ready_sets_root_task_from_context
+    @layout.context = mock_execution_facade(root_task_class: String)
+    @layout.on_ready
+    @layout.on_start
+    assert_includes @output.string, "String"
+  end
+
+  def test_on_ready_only_sets_root_task_once
+    @layout.context = mock_execution_facade(root_task_class: String)
+    @layout.on_ready
+
+    @layout.context = mock_execution_facade(root_task_class: Integer)
+    @layout.on_ready
+
+    @layout.on_start
+    assert_includes @output.string, "String"
+    refute_includes @output.string, "Integer"
   end
 
   # === Message queue ===
 
   def test_queue_message_stores_message
-    @layout.start
+    @layout.on_start
     @layout.queue_message("Hello World")
-    @layout.stop
+    @layout.on_stop
 
     assert_includes @output.string, "Hello World"
   end
 
   def test_queue_message_multiple_messages
-    @layout.start
+    @layout.on_start
     @layout.queue_message("Message 1")
     @layout.queue_message("Message 2")
-    @layout.stop
+    @layout.on_stop
 
     assert_includes @output.string, "Message 1"
     assert_includes @output.string, "Message 2"
@@ -150,10 +172,12 @@ class TestLayoutBase < Minitest::Test
 
   # === Thread safety ===
 
-  def test_concurrent_register_task_is_safe
+  def test_concurrent_on_task_updated_is_safe
     task_classes = 10.times.map { Class.new }
     threads = task_classes.map do |tc|
-      Thread.new { @layout.register_task(tc) }
+      Thread.new do
+        @layout.on_task_updated(tc, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+      end
     end
     threads.each(&:join)
 
@@ -162,12 +186,14 @@ class TestLayoutBase < Minitest::Test
     end
   end
 
-  def test_concurrent_update_task_is_safe
+  def test_concurrent_on_task_updated_state_change_is_safe
     task_class = Class.new
-    @layout.register_task(task_class)
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
 
     threads = 10.times.map do
-      Thread.new { @layout.update_task(task_class, state: :running) }
+      Thread.new do
+        @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+      end
     end
     threads.each(&:join)
     # No error raised
@@ -182,6 +208,15 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
 
   def teardown
     @layout.stop_spinner_timer
+  end
+
+  def test_initialize_creates_liquid_environment
+    assert @layout.instance_variable_get(:@liquid_environment)
+  end
+
+  def test_initialize_creates_theme_drop
+    drop = @layout.instance_variable_get(:@theme_drop)
+    assert_instance_of Taski::Progress::Layout::ThemeDrop, drop
   end
 
   def test_render_template_string_with_color_filter
@@ -265,98 +300,88 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
 
   def test_spinner_timer_does_not_start_twice
     @layout.start_spinner_timer
+    first_thread = @layout.instance_variable_get(:@spinner_timer)
     @layout.start_spinner_timer
-
-    # Verify spinner still works (single timer running)
-    initial_index = @layout.spinner_index
-    timeout = 1.0
-    start_time = Time.now
-    new_index = initial_index
-    while new_index == initial_index && (Time.now - start_time) < timeout
-      sleep 0.02
-      new_index = @layout.spinner_index
-    end
-
+    second_thread = @layout.instance_variable_get(:@spinner_timer)
     @layout.stop_spinner_timer
-    assert new_index != initial_index, "Spinner should still increment after double start"
+
+    assert_equal first_thread, second_thread
   end
 end
 
-class TestLayoutBaseTaskStateTransitions < Minitest::Test
+class TestLayoutBaseStateTransitions < Minitest::Test
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
     @task_class = Class.new
-    @layout.register_task(@task_class)
+    @now = Time.now
+    @layout.on_task_updated(@task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: @now)
   end
 
   def test_pending_to_running_allowed
-    @layout.update_task(@task_class, state: :running)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: @now)
     assert_equal :running, @layout.task_state(@task_class)
   end
 
   def test_running_to_completed_allowed
-    @layout.update_task(@task_class, state: :running)
-    @layout.update_task(@task_class, state: :completed, duration: 100)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: @now)
+    @layout.on_task_updated(@task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: @now + 0.1)
     assert_equal :completed, @layout.task_state(@task_class)
   end
 
   def test_completed_to_running_blocked
-    @layout.update_task(@task_class, state: :running)
-    @layout.update_task(@task_class, state: :completed, duration: 100)
-    @layout.update_task(@task_class, state: :running)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: @now)
+    @layout.on_task_updated(@task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: @now + 0.1)
+    @layout.on_task_updated(@task_class, previous_state: :completed, current_state: :running, phase: :run, timestamp: @now + 0.2)
     # Should remain completed (nested executor re-execution guard)
     assert_equal :completed, @layout.task_state(@task_class)
   end
 
   def test_failed_to_running_blocked
-    @layout.update_task(@task_class, state: :running)
-    @layout.update_task(@task_class, state: :failed, error: StandardError.new)
-    @layout.update_task(@task_class, state: :running)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: @now)
+    @layout.on_task_updated(@task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: @now + 0.1)
+    @layout.on_task_updated(@task_class, previous_state: :failed, current_state: :running, phase: :run, timestamp: @now + 0.2)
     # Should remain failed
     assert_equal :failed, @layout.task_state(@task_class)
   end
 
   def test_skipped_state_transition
-    @layout.update_task(@task_class, state: :skipped)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: @now)
     assert_equal :skipped, @layout.task_state(@task_class)
   end
 
   def test_skipped_to_running_blocked
-    @layout.update_task(@task_class, state: :skipped)
-    @layout.update_task(@task_class, state: :running)
+    @layout.on_task_updated(@task_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: @now)
+    @layout.on_task_updated(@task_class, previous_state: :skipped, current_state: :running, phase: :run, timestamp: @now + 0.1)
     # Should remain skipped (finalized state)
     assert_equal :skipped, @layout.task_state(@task_class)
   end
 
   def test_skipped_included_in_done_count
     task2 = Class.new
-
-    # Verify counts via render_template_string which uses execution_drop from current state
-    custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def execution_complete
-        "total:{{ execution.total_count }} skipped:{{ execution.skipped_count }} completed:{{ execution.completed_count }}"
-      end
-    end.new
+    now = Time.now
 
     output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    layout.register_task(@task_class)
-    layout.register_task(task2)
-    layout.set_root_task(@task_class)
-    layout.start
-    layout.update_task(@task_class, state: :completed, duration: 100)
-    layout.update_task(task2, state: :skipped)
-    layout.stop
+    layout = Taski::Progress::Layout::Base.new(output: output)
+    layout.on_task_updated(@task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    layout.on_task_updated(task2, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    layout.on_task_updated(@task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    layout.on_task_updated(@task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    layout.on_task_updated(task2, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now)
 
-    # total_count = 2 (both registered), skipped = 1, completed = 1
-    assert_includes output.string, "total:2", "total_count should include all tasks"
-    assert_includes output.string, "skipped:1", "skipped_count should be 1"
-    assert_includes output.string, "completed:1", "completed_count should not include skipped"
+    ctx = layout.send(:execution_context)
+    assert_equal 2, ctx[:done_count], "done_count should include skipped tasks"
+    assert_equal 1, ctx[:skipped_count], "skipped_count should be 1"
+    assert_equal 1, ctx[:completed_count], "completed_count should not include skipped"
   end
 end
 
 class TestLayoutBaseCommonVariables < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
+  end
+
   # All templates should have access to the same common variables
   # even if the value is nil when not applicable
 
@@ -368,15 +393,11 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("MyTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :running)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
     # duration is nil for task_start, so the if block should not render
-    assert_includes output.string, "MyTask"
-    refute_includes output.string, "took"
+    assert_equal "MyTask", result
   end
 
   def test_task_success_can_use_task_error_message_variable
@@ -387,15 +408,11 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("MyTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :completed, duration: 100)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_succeeded, stub_task_class("MyTask"), task_duration: 100)
 
     # error_message is nil for success, so the if block should not render
-    assert_includes output.string, "MyTask done"
-    refute_includes output.string, "had error"
+    assert_equal "MyTask done", result
   end
 
   def test_execution_complete_can_use_task_name_variable
@@ -406,19 +423,11 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    5.times do |i|
-      task = stub_task_class("Task#{i}")
-      layout.register_task(task)
-      layout.update_task(task, state: :completed, duration: 200)
-    end
-    layout.set_root_task(stub_task_class("Root"))
-    layout.start
-    layout.stop
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 5, total_duration: 1000)
 
     # task.name is nil for execution_complete, so the if block should not render
-    assert_includes output.string, "Done: 5/5"
+    assert_equal "Done: 5/5", result
   end
 
   def test_task_and_execution_drops_available_in_any_template
@@ -441,19 +450,16 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("MyTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :running)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
     # Task drop should have name and state
-    assert_includes output.string, "task.name:MyTask"
-    assert_includes output.string, "task.state:running"
+    assert_includes result, "task.name:MyTask"
+    assert_includes result, "task.state:running"
     # Others should be empty but the variable names should still render (not cause errors)
-    assert_includes output.string, "task.duration:"
-    assert_includes output.string, "task.error_message:"
-    assert_includes output.string, "execution.state:running"
+    assert_includes result, "task.duration:"
+    assert_includes result, "task.error_message:"
+    assert_includes result, "execution.state:running"
   end
 
   def test_task_drop_is_available_in_template
@@ -464,13 +470,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("MyTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :running)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
-    assert_includes output.string, "MyTask (running)"
+    assert_equal "MyTask (running)", result
   end
 
   def test_execution_drop_is_available_in_template
@@ -481,18 +484,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    5.times do |i|
-      task = stub_task_class("Task#{i}")
-      layout.register_task(task)
-      layout.update_task(task, state: :completed, duration: 300)
-    end
-    layout.set_root_task(stub_task_class("Root"))
-    layout.start
-    layout.stop
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 10, total_duration: 1500)
 
-    assert_includes output.string, "[5/5]"
+    assert_equal "[5/10] (1500ms)", result
   end
 
   def test_task_drop_has_all_task_specific_fields
@@ -502,13 +497,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("FailTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :failed, error: StandardError.new("oops"))
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_failed, stub_task_class("FailTask"), error: StandardError.new("oops"))
 
-    assert_includes output.string, "FailTask|failed|oops"
+    assert_equal "FailTask|failed|oops", result
   end
 
   def test_execution_drop_has_all_execution_fields
@@ -518,19 +510,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task1 = stub_task_class("Task1")
-    task2 = stub_task_class("Task2")
-    layout.register_task(task1)
-    layout.register_task(task2)
-    layout.update_task(task1, state: :failed, error: StandardError.new("err"))
-    layout.update_task(task2, state: :failed, error: StandardError.new("err"))
-    layout.set_root_task(stub_task_class("Root"))
-    layout.start
-    layout.stop
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_execution_failed, failed_count: 2, total_count: 5, total_duration: 1000)
 
-    assert_includes output.string, "2/2 failed (failed)"
+    assert_equal "2/5 failed (failed)", result
   end
 
   def test_render_task_skipped
@@ -540,13 +523,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("SkippedTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :skipped)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_task_skipped, stub_task_class("SkippedTask"))
 
-    assert_includes output.string, "[SKIP] SkippedTask"
+    assert_equal "[SKIP] SkippedTask", result
   end
 
   def test_render_execution_completed_with_skipped_count
@@ -556,30 +536,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task1 = stub_task_class("Task1")
-    task2 = stub_task_class("Task2")
-    task3 = stub_task_class("Task3")
-    layout.register_task(task1)
-    layout.register_task(task2)
-    layout.register_task(task3)
-    layout.update_task(task1, state: :completed, duration: 100)
-    layout.update_task(task2, state: :completed, duration: 100)
-    layout.update_task(task3, state: :completed, duration: 100)
-    # Mark 2 as skipped to test skipped_count in summary
-    task4 = stub_task_class("Task4")
-    task5 = stub_task_class("Task5")
-    layout.register_task(task4)
-    layout.register_task(task5)
-    layout.update_task(task4, state: :skipped)
-    layout.update_task(task5, state: :skipped)
-    layout.set_root_task(stub_task_class("Root"))
-    layout.start
-    layout.stop
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_execution_completed, completed_count: 3, total_count: 5, total_duration: 1000, skipped_count: 2)
 
-    assert_includes output.string, "3/5"
-    assert_includes output.string, "(2 skipped)"
+    assert_equal "3/5 (2 skipped)", result
   end
 
   def test_render_for_task_event_dispatches_skipped
@@ -589,13 +549,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
-    task = stub_task_class("MyTask")
-    layout.register_task(task)
-    layout.update_task(task, state: :skipped)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+    result = layout.send(:render_for_task_event, stub_task_class("MyTask"), :skipped, nil, nil)
 
-    assert_includes output.string, "[SKIP] MyTask"
+    assert_equal "[SKIP] MyTask", result
   end
 
   def test_task_template_can_access_execution_context
@@ -606,22 +563,61 @@ class TestLayoutBaseCommonVariables < Minitest::Test
       end
     end.new
 
-    output = StringIO.new
-    layout = Taski::Progress::Layout::Base.new(output: output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
 
-    # Register some tasks to have counts
+    # Set up tasks via on_task_updated
     task1 = stub_task_class("Task1")
     task2 = stub_task_class("Task2")
     task3 = stub_task_class("FailedTask")
-    layout.register_task(task1)
-    layout.register_task(task2)
-    layout.register_task(task3)
-    layout.update_task(task1, state: :completed, duration: 100)
-    layout.update_task(task2, state: :completed, duration: 100)
-    layout.update_task(task3, state: :failed, error: StandardError.new("connection refused"))
+    now = Time.now
+    [task1, task2, task3].each do |tc|
+      layout.on_task_updated(tc, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    end
+    [task1, task2].each do |tc|
+      layout.on_task_updated(tc, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+      layout.on_task_updated(tc, previous_state: :running, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    end
 
-    # done_count = 3 (2 completed + 1 failed), total_count = 3 (registered tasks)
-    assert_includes output.string, "[3/3] FailedTask: connection refused"
+    result = layout.send(:render_task_failed, task3, error: StandardError.new("connection refused"))
+
+    # done_count = 2 (completed tasks), total_count = 3 (registered tasks)
+    assert_equal "[2/3] FailedTask: connection refused", result
+  end
+
+  # Clean render methods should use unified state names (:running, :completed, :failed)
+  # NOT the old separate names (:cleaning, :clean_completed, :clean_failed)
+
+  def test_render_clean_started_uses_running_state
+    task = stub_task_class("CleanTask")
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def clean_start = "state={{ task.state }}"
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+
+    result = layout.send(:render_clean_started, task)
+    assert_equal "state=running", result
+  end
+
+  def test_render_clean_succeeded_uses_completed_state
+    task = stub_task_class("CleanTask")
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def clean_success = "state={{ task.state }}"
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+
+    result = layout.send(:render_clean_succeeded, task, task_duration: nil)
+    assert_equal "state=completed", result
+  end
+
+  def test_render_clean_failed_uses_failed_state
+    task = stub_task_class("CleanTask")
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def clean_fail = "state={{ task.state }}"
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+
+    result = layout.send(:render_clean_failed, task, error: nil)
+    assert_equal "state=failed", result
   end
 
   private

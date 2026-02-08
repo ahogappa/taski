@@ -87,7 +87,9 @@ rescue DatabaseTask::Error => e
 end
 ```
 
-This works transparently with `AggregateError` - when you rescue `DatabaseTask::Error`, it matches an `AggregateError` that contains a `DatabaseTask::Error`.
+This works transparently with `AggregateError` — when you rescue `DatabaseTask::Error`, it matches an `AggregateError` that contains a `DatabaseTask::Error`.
+
+**How this works:** Ruby's `rescue` uses the `===` operator to match exceptions. Taski's `AggregateAware` module (extended by `TaskError` and all `TaskClass::Error` classes) overrides `===` to check whether an `AggregateError` *contains* an error of that type. This means `rescue Taski::TaskError` will match an `AggregateError` wrapping TaskError instances, even though `AggregateError` does not inherit from `TaskError`.
 
 ### TaskAbortException
 
@@ -286,21 +288,9 @@ After completion:
 
 ### Display Modes
 
-Taski supports two progress display modes:
+Taski supports three progress display modes:
 
-#### Tree Mode (Default)
-
-Full dependency tree visualization with status for each task:
-
-```
-WebServer (Task)
-├── ⠋ Config (Task) | Reading config.yml...
-│   ├── ✅ Database (Task) 45.2ms
-│   └── ⠙ Cache (Task) | Connecting...
-└── ◻ Server (Task)
-```
-
-#### Simple Mode
+#### Simple Mode (Default)
 
 Compact single-line display showing current progress:
 
@@ -321,7 +311,19 @@ On failure:
 ✗ [3/5] DeployTask failed: Connection refused
 ```
 
-#### Plain Mode
+#### Tree Mode
+
+Full dependency tree visualization with status for each task:
+
+```
+WebServer (Task)
+├── ⠋ Config (Task) | Reading config.yml...
+│   ├── ✅ Database (Task) 45.2ms
+│   └── ⠙ Cache (Task) | Connecting...
+└── ◻ Server (Task)
+```
+
+#### Log Mode
 
 Plain text output without escape codes, designed for CI/logs:
 
@@ -338,7 +340,7 @@ Plain text output without escape codes, designed for CI/logs:
 ```ruby
 Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
 Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
-Taski.progress_display = Taski::Progress::Layout::Log.new      # Plain text (CI/logs)
+Taski.progress_display = Taski::Progress::Layout::Log.new      # Log output (CI/logs)
 Taski.progress_display = nil                                    # Disable
 ```
 
@@ -354,11 +356,14 @@ ruby build.rb > build.log 2>&1
 
 ## Debugging
 
-### Environment Variables
+### Structured Logging
 
-| Variable | Purpose |
-|----------|---------|
-| `TASKI_DEBUG=1` | Enable debug output |
+```ruby
+require "logger"
+Taski.logger = Logger.new($stdout, level: Logger::DEBUG)
+```
+
+Set `Taski.logger` to a Ruby `Logger` instance to enable structured logging of execution events.
 
 ### Dependency Tree Visualization
 

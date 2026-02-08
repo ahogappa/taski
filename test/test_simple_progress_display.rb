@@ -4,6 +4,8 @@ require "test_helper"
 require_relative "fixtures/parallel_tasks"
 
 class TestSimpleProgressDisplay < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     Taski.reset_progress_display!
     @output = StringIO.new
@@ -15,7 +17,7 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_register_task
-    @display.register_task(FixtureTaskA)
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
     assert @display.task_registered?(FixtureTaskA)
   end
 
@@ -24,28 +26,30 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_register_task_is_idempotent
-    @display.register_task(FixtureTaskA)
-    @display.register_task(FixtureTaskA)
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
     assert @display.task_registered?(FixtureTaskA)
   end
 
   def test_update_task_state
-    @display.register_task(FixtureTaskA)
-    @display.update_task(FixtureTaskA, state: :running)
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     assert_equal :running, @display.task_state(FixtureTaskA)
   end
 
   def test_update_task_state_to_completed
-    @display.register_task(FixtureTaskA)
-    @display.update_task(FixtureTaskA, state: :running)
-    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    started_at = Time.now
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
     assert_equal :completed, @display.task_state(FixtureTaskA)
   end
 
   def test_update_task_state_to_failed
-    @display.register_task(FixtureTaskA)
-    @display.update_task(FixtureTaskA, state: :running)
-    @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
+    started_at = Time.now
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
     assert_equal :failed, @display.task_state(FixtureTaskA)
   end
 
@@ -54,60 +58,57 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_set_root_task
-    @display.set_root_task(FixtureTaskB)
-    # After setting root task, the root and its dependencies should be registered
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    # After setting root task via on_ready, the root and its dependencies should be registered
     assert @display.task_registered?(FixtureTaskB)
     assert @display.task_registered?(FixtureTaskA)
   end
 
   def test_set_root_task_is_idempotent
-    @display.set_root_task(FixtureTaskB)
-    @display.set_root_task(FixtureTaskA) # Should be ignored
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+
+    ctx2 = mock_execution_facade(root_task_class: FixtureTaskA)
+    @display.context = ctx2
+    @display.on_ready # Should be ignored (root already set)
+
     # Only the first root task's dependencies should be registered
     assert @display.task_registered?(FixtureTaskB)
     assert @display.task_registered?(FixtureTaskA)
   end
 
   def test_start_and_stop_without_tty
-    # When output is not a TTY, start should do nothing
-    @display.start
-    @display.stop
+    # When output is not a TTY, on_start should do nothing
+    @display.on_start
+    @display.on_stop
     # No error should be raised
     assert true
   end
 
   def test_nested_start_stop_calls
-    @display.start
-    @display.start
-    @display.stop
+    @display.on_start
+    @display.on_start
+    @display.on_stop
     # Should still be in started state (nest_level > 0)
-    @display.stop
+    @display.on_stop
     # Now fully stopped
     assert true
   end
 
-  def test_set_output_capture
-    mock_capture = Object.new
-    @display.set_output_capture(mock_capture)
-    # Verify no error raised
-    assert true
-  end
-
-  def test_set_output_capture_with_nil
-    @display.set_output_capture(nil)
-    # Verify no error raised
-    assert true
-  end
-
   def test_update_group
-    @display.register_task(FixtureTaskA)
-    @display.update_group(FixtureTaskA, "test_group", state: :running)
+    @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    @display.on_group_started(FixtureTaskA, "test_group", phase: :run, timestamp: Time.now)
     # Should not raise error
     assert true
   end
 end
 
 class TestSimpleProgressDisplayWithTTY < Minitest::Test
+  include TaskiTestHelper
+
   # Create a StringIO that reports itself as a TTY
   class TTYStringIO < StringIO
     def tty?
@@ -130,15 +131,17 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def teardown
-    @display&.stop
+    @display&.on_stop
     Taski.reset_progress_display!
   end
 
   def test_start_with_tty_starts_renderer_thread
-    @display.set_root_task(FixtureTaskB)
-    @display.start
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
     sleep 0.05
-    @display.stop
+    @display.on_stop
 
     output = @output.string
     # Should include cursor hide/show sequences
@@ -147,9 +150,11 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_task_count
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     sleep 0.05
 
     output = @output.string
@@ -158,9 +163,11 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_running_task_name
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     sleep 0.05
 
     output = @output.string
@@ -168,9 +175,13 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_checkmark_for_completed_task
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :completed, duration: 100)
+    started_at = Time.now
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
     sleep 0.05
 
     output = @output.string
@@ -179,10 +190,14 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_x_for_failed_task
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :failed, error: StandardError.new("test error"))
-    @display.stop
+    started_at = Time.now
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
+    @display.on_stop
 
     output = @output.string
     # X mark should appear in final render after stop
@@ -190,10 +205,12 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_shows_multiple_running_tasks
-    @display.set_root_task(FixtureNamespace::TaskD)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :running)
-    @display.update_task(FixtureNamespace::TaskC, state: :running)
+    ctx = mock_execution_facade(root_task_class: FixtureNamespace::TaskD)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @display.on_task_updated(FixtureNamespace::TaskC, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     sleep 0.05
 
     output = @output.string
@@ -203,11 +220,16 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_final_render_shows_completion
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :completed, duration: 50)
-    @display.update_task(FixtureTaskB, state: :completed, duration: 100)
-    @display.stop
+    started_at = Time.now
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @display.on_task_updated(FixtureTaskA, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.05)
+    @display.on_task_updated(FixtureTaskB, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at + 0.05)
+    @display.on_task_updated(FixtureTaskB, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
+    @display.on_stop
 
     output = @output.string
     # Should show checkmark and completion message
@@ -215,9 +237,11 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_simple_mode_uses_single_line
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     sleep 0.05
 
     output = @output.string
@@ -228,16 +252,18 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_live_overwrites_same_line
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     sleep 0.15  # Wait for at least one render cycle
 
     output = @output.string
     # Count occurrences of \r\e[K - should have multiple (from render cycles)
     carriage_returns = output.scan("\r\e[K").count
 
-    @display.stop
+    @display.on_stop
 
     final_output = @output.string
     # Live rendering should not add newlines
@@ -247,11 +273,13 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   end
 
   def test_render_live_respects_terminal_width
-    @display.set_root_task(FixtureTaskB)
-    @display.start
-    @display.update_task(FixtureTaskA, state: :running)
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    @display.on_task_updated(FixtureTaskA, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     sleep 0.15 # Wait for at least one render cycle
-    @display.stop
+    @display.on_stop
 
     # Extract live render lines and verify none exceed terminal width (80)
     live_lines = @output.string.scan(/\r\e\[K([^\r\n]*)/).flatten

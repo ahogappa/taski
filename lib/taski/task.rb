@@ -4,6 +4,8 @@ require "stringio"
 require_relative "static_analysis/analyzer"
 require_relative "execution/registry"
 require_relative "execution/task_wrapper"
+require_relative "progress/layout/tree"
+require_relative "progress/theme/plain"
 
 module Taski
   # Base class for all tasks in the Taski framework.
@@ -110,27 +112,13 @@ module Taski
       # @return [String] The rendered tree string.
       def tree
         output = StringIO.new
-        layout = Progress::Layout::Tree.new(output: output)
-        layout.set_root_task(self)
-
-        render_tree_node(layout, self, output)
-        output.string
+        theme = Progress::Theme::Plain.new
+        layout = Progress::Layout::Tree.new(output: output, theme: theme)
+        context = Execution::ExecutionFacade.new(root_task_class: self)
+        layout.context = context
+        layout.on_ready
+        layout.render_tree
       end
-
-      def render_tree_node(layout, task_class, output)
-        prefix = layout.send(:build_tree_prefix, task_class)
-        name = task_class.name || task_class.to_s
-
-        output.puts "#{prefix}#{name}"
-
-        node = layout.instance_variable_get(:@tree_nodes)[task_class]
-        return unless node
-
-        node[:children].each do |child|
-          render_tree_node(layout, child[:task_class], output)
-        end
-      end
-      private :render_tree_node
 
       private
 
@@ -162,7 +150,7 @@ module Taski
         wrapper = Execution::TaskWrapper.new(
           task_instance,
           registry: fresh_registry,
-          execution_context: Execution::ExecutionContext.current
+          execution_facade: Execution::ExecutionFacade.current
         )
         fresh_registry.register(self, wrapper)
         wrapper
@@ -206,7 +194,7 @@ module Taski
                 Execution::TaskWrapper.new(
                   task_instance,
                   registry: registry,
-                  execution_context: Execution::ExecutionContext.current
+                  execution_facade: Execution::ExecutionFacade.current
                 )
               end
               wrapper.get_exported_value(method)
@@ -304,18 +292,16 @@ module Taski
     #     end
     #   end
     def group(name)
-      context = Execution::ExecutionContext.current
-      context&.notify_group_started(self.class, name)
-      start_time = Time.now
+      context = Execution::ExecutionFacade.current
+      phase = Thread.current[:taski_current_phase] || :run
+      context&.notify_group_started(self.class, name, phase: phase, timestamp: Time.now)
 
       begin
         result = yield
-        duration_ms = ((Time.now - start_time) * 1000).round(0)
-        context&.notify_group_completed(self.class, name, duration: duration_ms)
+        context&.notify_group_completed(self.class, name, phase: phase, timestamp: Time.now)
         result
-      rescue => e
-        duration_ms = ((Time.now - start_time) * 1000).round(0)
-        context&.notify_group_completed(self.class, name, duration: duration_ms, error: e)
+      rescue
+        context&.notify_group_completed(self.class, name, phase: phase, timestamp: Time.now)
         raise
       end
     end

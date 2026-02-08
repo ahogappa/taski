@@ -38,7 +38,7 @@ module Taski
     # Module prepended to Scheduler to skip dependencies of mocked tasks.
     # @api private
     module SchedulerExtension
-      def build_dependency_graph(root_task_class)
+      def load_graph(dependency_graph, root_task_class)
         queue = [root_task_class]
 
         while (task_class = queue.shift)
@@ -46,11 +46,14 @@ module Taski
 
           # Mocked tasks have no dependencies (isolates indirect dependencies)
           mock = MockRegistry.mock_for(task_class)
-          deps = mock ? Set.new : task_class.cached_dependencies
+          deps = mock ? Set.new : dependency_graph.dependencies_for(task_class)
           @dependencies[task_class] = deps.dup
           @task_states[task_class] = Taski::Execution::Scheduler::STATE_PENDING
+          @run_reverse_deps[task_class] ||= Set.new
 
           deps.each do |dep|
+            @run_reverse_deps[dep] ||= Set.new
+            @run_reverse_deps[dep].add(task_class)
             log_dependency_resolved(task_class, dep)
             queue << dep
           end
@@ -65,9 +68,7 @@ module Taski
         return if @registry.abort_requested?
 
         if MockRegistry.mock_for(task_class)
-          wrapper.mark_running unless wrapper.completed?
           wrapper.mark_completed(nil) unless wrapper.completed?
-          @shared_state.mark_completed(task_class)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
           return
         end

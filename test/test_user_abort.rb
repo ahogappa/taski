@@ -124,14 +124,13 @@ class TestUserAbort < Minitest::Test
   def test_progress_display_cleanup_on_exception
     stop_called = false
 
-    # Create a spy progress display
+    # Create a spy progress display using the observer interface
     progress_spy = Object.new
-    progress_spy.define_singleton_method(:set_root_task) { |_| }
-    progress_spy.define_singleton_method(:set_output_capture) { |_| }
-    progress_spy.define_singleton_method(:register_task) { |_| }
-    progress_spy.define_singleton_method(:task_registered?) { |_| false }
-    progress_spy.define_singleton_method(:update_task) { |_, **_| }
-    progress_spy.define_singleton_method(:start) {}
+    progress_spy.define_singleton_method(:context=) { |_| }
+    progress_spy.define_singleton_method(:on_ready) {}
+    progress_spy.define_singleton_method(:on_task_updated) { |_, **_| }
+    progress_spy.define_singleton_method(:on_start) {}
+    progress_spy.define_singleton_method(:on_stop) { stop_called = true }
     progress_spy.define_singleton_method(:stop) { stop_called = true }
 
     # Set the spy as the progress display

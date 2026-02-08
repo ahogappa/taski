@@ -52,8 +52,14 @@ module Taski
           @non_tty_started = false
         end
 
-        # Override start to handle non-TTY mode
-        def start
+        # Returns the tree structure as a string.
+        # Uses the current theme to render task content for each node.
+        def render_tree
+          build_tree_lines.join("\n") + "\n"
+        end
+
+        # Override on_start to handle non-TTY mode
+        def on_start
           @monitor.synchronize do
             @nest_level += 1
             return if @nest_level > 1
@@ -69,11 +75,11 @@ module Taski
             end
           end
 
-          on_start if @active
+          handle_start if @active
         end
 
-        # Override stop to handle non-TTY mode
-        def stop
+        # Override on_stop to handle non-TTY mode
+        def on_stop
           was_active = false
           non_tty_was_started = false
           @monitor.synchronize do
@@ -86,7 +92,7 @@ module Taski
           end
 
           if was_active
-            on_stop
+            handle_stop
           elsif non_tty_was_started
             # Non-TTY mode: output execution summary
             output_execution_summary
@@ -96,25 +102,40 @@ module Taski
 
         protected
 
-        def on_root_task_set
-          build_tree_structure
+        def handle_ready
+          graph = context&.dependency_graph
+          root = context&.root_task_class
+          return unless graph && root
+
+          tree = build_tree_from_graph(root, graph)
+          register_tree_nodes(tree, depth: 0, is_last: true, ancestors_last: [])
         end
 
         # In TTY mode, tree is updated by render_live periodically.
         # In non-TTY mode, output lines immediately with tree prefix.
-        def on_task_updated(task_class, state, duration, error)
+        def handle_task_update(task_class, current_state, phase)
           return if @active  # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
-          text = render_for_task_event(task_class, state, duration, error)
+          progress = @tasks[task_class]
+          duration = compute_duration(progress, phase)
+          text = render_for_task_event(task_class, current_state, duration, nil, phase)
           output_with_prefix(task_class, text) if text
         end
 
-        def on_group_updated(task_class, group_name, state, duration, error)
+        def handle_group_started(task_class, group_name, phase)
           return if @active  # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
-          text = render_for_group_event(task_class, group_name, state, duration, error)
+          text = render_group_started(task_class, group_name: group_name)
+          output_with_prefix(task_class, text) if text
+        end
+
+        def handle_group_completed(task_class, group_name, phase, duration)
+          return if @active  # TTY mode: skip per-event output
+
+          # Non-TTY mode: output with tree prefix
+          text = render_group_succeeded(task_class, group_name: group_name, task_duration: duration)
           output_with_prefix(task_class, text) if text
         end
 
@@ -122,7 +143,7 @@ module Taski
           tty?
         end
 
-        def on_start
+        def handle_start
           @running_mutex.synchronize { @running = true }
           start_spinner_timer
           @output.print "\e[?25l" # Hide cursor
@@ -135,7 +156,7 @@ module Taski
           end
         end
 
-        def on_stop
+        def handle_stop
           @running_mutex.synchronize { @running = false }
           @renderer_thread&.join
           stop_spinner_timer
@@ -156,18 +177,25 @@ module Taski
           output_line(render_execution_summary)
         end
 
-        def build_tree_structure
-          return unless @root_task_class
+        def build_tree_from_graph(task_class, graph, ancestors = Set.new)
+          is_circular = ancestors.include?(task_class)
+          node = {task_class: task_class, is_circular: is_circular, children: []}
+          return node if is_circular
 
-          tree = build_tree_node(@root_task_class)
-          register_tree_nodes(tree, depth: 0, is_last: true, ancestors_last: [])
+          new_ancestors = ancestors + [task_class]
+          deps = graph.dependencies_for(task_class)
+          deps.each do |dep|
+            child_node = build_tree_from_graph(dep, graph, new_ancestors)
+            node[:children] << child_node
+          end
+          node
         end
 
         def register_tree_nodes(node, depth:, is_last:, ancestors_last:)
           return unless node
 
           task_class = node[:task_class]
-          @tasks[task_class] ||= TaskState.new
+          @tasks[task_class] ||= new_task_progress
           @tree_nodes[task_class] = node
           @node_depths[task_class] = depth
           @node_is_last[task_class] = {is_last: is_last, ancestors_last: ancestors_last.dup}
@@ -229,17 +257,18 @@ module Taski
           end
         end
 
-        # TODO: Consider using render_for_task_event once :pending becomes a formal state
         def build_task_content(task_class)
-          task_state = @tasks[task_class]
+          progress = @tasks[task_class]
 
-          case task_state&.run_state
+          case progress&.dig(:run_state)
           when :running
             render_task_started(task_class)
           when :completed
-            render_task_succeeded(task_class, task_duration: task_state.run_duration)
+            render_task_succeeded(task_class, task_duration: compute_duration(progress, :run))
           when :failed
-            render_task_failed(task_class, error: task_state.run_error)
+            render_task_failed(task_class, error: nil)
+          when :skipped
+            render_task_skipped(task_class)
           else
             task = TaskDrop.new(name: task_class_name(task_class), state: :pending)
             render_task_template(:task_pending, task:, execution: execution_drop)

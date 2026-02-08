@@ -6,8 +6,11 @@ class TestWorkerPool < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
     @registry = Taski::Execution::Registry.new
-    @execution_context = Taski::Execution::ExecutionContext.new
-    @shared_state = Taski::Execution::SharedState.new
+    dummy_task = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = nil
+    end
+    @execution_facade = Taski::Execution::ExecutionFacade.new(root_task_class: dummy_task)
   end
 
   def test_single_task_execution_no_deps
@@ -20,15 +23,14 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper = create_wrapper(task_class)
-    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
 
     pool.start
     pool.enqueue(task_class, wrapper)
@@ -61,17 +63,16 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
 
     wrapper_a = create_wrapper(task_a)
     wrapper_b = create_wrapper(task_b)
-    @shared_state.register(task_a, wrapper_a)
-    @shared_state.register(task_b, wrapper_b)
+    wrapper_a.mark_running
+    wrapper_b.mark_running
 
     pool.start
 
@@ -111,17 +112,15 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper_main = create_wrapper(task_main)
     wrapper_dep = create_wrapper(task_dep)
-    @shared_state.register(task_main, wrapper_main)
-    @shared_state.register(task_dep, wrapper_dep)
+    wrapper_main.mark_running
 
     pool.start
     pool.enqueue(task_main, wrapper_main)
@@ -160,17 +159,16 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
 
     wrapper_dep = create_wrapper(task_dep)
     wrapper_main = create_wrapper(task_main)
-    @shared_state.register(task_dep, wrapper_dep)
-    @shared_state.register(task_main, wrapper_main)
+    wrapper_dep.mark_running
+    wrapper_main.mark_running
 
     pool.start
 
@@ -191,9 +189,8 @@ class TestWorkerPool < Minitest::Test
   def test_shutdown_stops_all_threads
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 3,
       completion_queue: completion_queue
     )
@@ -207,7 +204,7 @@ class TestWorkerPool < Minitest::Test
 
   def test_fiber_context_restored_on_cross_thread_resume
     # When a fiber is parked (waiting for a dependency on another thread),
-    # the thread-local fiber context is cleared by teardown_fiber_context.
+    # the thread-local state is cleared by teardown_thread_locals.
     # When the fiber is resumed via :resume command, the context must be
     # restored so the fiber sees the correct registry and execution context.
     context_seen_after_resume = Queue.new
@@ -237,17 +234,16 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
 
     wrapper_dep = create_wrapper(task_dep)
     wrapper_main = create_wrapper(task_main)
-    @shared_state.register(task_dep, wrapper_dep)
-    @shared_state.register(task_main, wrapper_main)
+    wrapper_dep.mark_running
+    wrapper_main.mark_running
 
     pool.start
 
@@ -279,10 +275,10 @@ class TestWorkerPool < Minitest::Test
     mock_capture = Object.new
     mock_capture.define_singleton_method(:start_capture) { |tc| captured_tasks << tc }
     mock_capture.define_singleton_method(:stop_capture) { stopped_tasks << :stop }
-    mock_capture.define_singleton_method(:recent_lines_for) { |_| [] }
+    mock_capture.define_singleton_method(:read) { |_, **| [] }
 
     # Inject mock capture into execution context
-    @execution_context.define_singleton_method(:output_capture) { mock_capture }
+    @execution_facade.instance_variable_set(:@output_capture, mock_capture)
 
     task_dep = Class.new(Taski::Task) do
       exports :value
@@ -300,17 +296,15 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper_main = create_wrapper(task_main)
-    wrapper_dep = create_wrapper(task_dep)
-    @shared_state.register(task_main, wrapper_main)
-    @shared_state.register(task_dep, wrapper_dep)
+    create_wrapper(task_dep)
+    wrapper_main.mark_running
 
     pool.start
     pool.enqueue(task_main, wrapper_main)
@@ -348,15 +342,13 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper = create_wrapper(task_class)
-    @shared_state.register(task_class, wrapper)
     wrapper.mark_running
     wrapper.mark_completed("hello")
 
@@ -385,15 +377,13 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper = create_wrapper(task_class)
-    @shared_state.register(task_class, wrapper)
     wrapper.mark_running
     wrapper.mark_completed("hello")
 
@@ -426,15 +416,13 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper = create_wrapper(task_class)
-    @shared_state.register(task_class, wrapper)
     wrapper.mark_running
     wrapper.mark_completed("hello")
 
@@ -474,17 +462,16 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 2,
       completion_queue: completion_queue
     )
 
     wrapper_a = create_wrapper(task_a)
     wrapper_b = create_wrapper(task_b)
-    @shared_state.register(task_a, wrapper_a)
-    @shared_state.register(task_b, wrapper_b)
+    wrapper_a.mark_running
+    wrapper_b.mark_running
 
     pool.start
     pool.enqueue(task_a, wrapper_a)
@@ -529,16 +516,15 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 4,
       completion_queue: completion_queue
     )
 
     wrappers = tasks.map do |tc|
       w = create_wrapper(tc)
-      @shared_state.register(tc, w)
+      w.mark_running
       [tc, w]
     end
 
@@ -564,68 +550,6 @@ class TestWorkerPool < Minitest::Test
       "No extra completion events should remain in the queue"
   end
 
-  def test_drive_fiber_emits_registered_and_started_when_mark_running_fails
-    # When wrapper.mark_running returns false (task already running elsewhere),
-    # drive_fiber should still emit notify_task_registered and
-    # notify_task_started before waiting, so observers see the correct event
-    # ordering (registered → started → completed).
-    observer_events = []
-
-    observer = Object.new
-    observer.define_singleton_method(:register_task) { |tc| observer_events << [:registered, tc] }
-    observer.define_singleton_method(:update_task) { |tc, **kw| observer_events << [:update, tc, kw] }
-    observer.define_singleton_method(:method_missing) { |*| }
-    observer.define_singleton_method(:respond_to_missing?) { |*| true }
-
-    @execution_context.add_observer(observer)
-
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "hello"
-      end
-    end
-
-    completion_queue = Queue.new
-    pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
-      registry: @registry,
-      execution_context: @execution_context,
-      worker_count: 1,
-      completion_queue: completion_queue
-    )
-
-    wrapper = create_wrapper(task_class)
-    @shared_state.register(task_class, wrapper)
-
-    # Pre-mark the wrapper as running so that drive_fiber's mark_running fails
-    wrapper.mark_running
-
-    pool.start
-    pool.enqueue(task_class, wrapper)
-
-    # Complete the task from this thread so wait_for_completion unblocks
-    Thread.new do
-      sleep 0.05
-      wrapper.mark_completed("hello")
-      @shared_state.mark_completed(task_class)
-    end
-
-    event = completion_queue.pop
-    pool.shutdown
-
-    assert_equal task_class, event[:task_class]
-
-    task_events = observer_events.select { |e| e[1] == task_class }
-    registered = task_events.select { |e| e[0] == :registered }
-    started = task_events.select { |e| e[0] == :update && e[2][:state] == :running }
-
-    assert_operator registered.size, :>=, 1,
-      "Expected at least 1 registered event, got #{registered.size}"
-    assert_operator started.size, :>=, 1,
-      "Expected at least 1 started event, got #{started.size}"
-  end
-
   def test_error_in_task_is_captured
     task_class = Class.new(Taski::Task) do
       exports :value
@@ -636,15 +560,14 @@ class TestWorkerPool < Minitest::Test
 
     completion_queue = Queue.new
     pool = Taski::Execution::WorkerPool.new(
-      shared_state: @shared_state,
       registry: @registry,
-      execution_context: @execution_context,
+      execution_facade: @execution_facade,
       worker_count: 1,
       completion_queue: completion_queue
     )
 
     wrapper = create_wrapper(task_class)
-    @shared_state.register(task_class, wrapper)
+    wrapper.mark_running
 
     pool.start
     pool.enqueue(task_class, wrapper)
@@ -660,11 +583,12 @@ class TestWorkerPool < Minitest::Test
   private
 
   def create_wrapper(task_class)
-    task_instance = TaskiTestHelper.build_task_instance(task_class)
+    task_instance = task_class.allocate
+    task_instance.send(:initialize)
     wrapper = Taski::Execution::TaskWrapper.new(
       task_instance,
       registry: @registry,
-      execution_context: @execution_context
+      execution_facade: @execution_facade
     )
     @registry.register(task_class, wrapper)
     wrapper

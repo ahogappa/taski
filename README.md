@@ -309,11 +309,18 @@ DatabaseSetup.run_and_clean do
 end
 ```
 
-See [docs/guide.md](docs/guide.md#lifecycle-management) for details.
+See [docs/GUIDE.md](docs/GUIDE.md#lifecycle-management) for details.
 
 ### Progress Display
 
-Tree-based progress visualization is enabled by default:
+Simple progress display is enabled by default:
+
+```text
+⠹ [3/5] DeployTask | Uploading files...
+✓ [5/5] All tasks completed (1234ms)
+```
+
+**Tree mode** provides full dependency tree visualization:
 
 ```
 WebServer (Task)
@@ -323,14 +330,7 @@ WebServer (Task)
 └── ◻ Server (Task)
 ```
 
-**Simple mode** provides a compact single-line display:
-
-```
-⠹ [3/5] DeployTask | Uploading files...
-✓ [5/5] All tasks completed (1234ms)
-```
-
-**Plain mode** provides text output without escape codes (for CI/logs):
+**Log mode** provides text output without escape codes (for CI/logs):
 
 ```
 [START] DatabaseSetup
@@ -345,7 +345,7 @@ WebServer (Task)
 ```ruby
 Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
 Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
-Taski.progress_display = Taski::Progress::Layout::Log.new      # Plain text (CI/logs)
+Taski.progress_display = Taski::Progress::Layout::Log.new      # Log output (CI/logs)
 Taski.progress_display = nil                                    # Disable
 ```
 

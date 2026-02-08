@@ -26,8 +26,8 @@ module Taski
       #       "#{count}件"
       #     end
       #
-      #     def status_complete
-      #       '{% icon %} Done! {{ done_count | format_count }} tasks in {{ duration | format_duration }}'
+      #     def execution_complete
+      #       '{% icon %} Done! {{ execution.completed_count | format_count }} tasks in {{ execution.total_duration | format_duration }}'
       #     end
       #   end
       #
@@ -45,16 +45,23 @@ module Taski
 
         # === Template method overrides ===
 
-        def on_root_task_set
-          build_tree_structure
+        def handle_ready
+          graph = context&.dependency_graph
+          return unless graph
+
+          graph.all_tasks.each { |tc| register_task(tc) }
         end
 
         # Simple layout uses periodic status line updates instead of per-event output
-        def on_task_updated(_task_class, _state, _duration, _error)
+        def handle_task_update(_task_class, _current_state, _phase)
           # No per-event output; status line is updated by render_live
         end
 
-        def on_group_updated(_task_class, _group_name, _state, _duration, _error)
+        def handle_group_started(_task_class, _group_name, _phase)
+          # No per-event output; status line is updated by render_live
+        end
+
+        def handle_group_completed(_task_class, _group_name, _phase, _duration)
           # No per-event output; status line is updated by render_live
         end
 
@@ -62,7 +69,7 @@ module Taski
           tty?
         end
 
-        def on_start
+        def handle_start
           @running_mutex.synchronize { @running = true }
           start_spinner_timer
           @output.print "\e[?25l"  # Hide cursor
@@ -75,7 +82,7 @@ module Taski
           end
         end
 
-        def on_stop
+        def handle_stop
           @running_mutex.synchronize { @running = false }
           @renderer_thread&.join
           stop_spinner_timer
@@ -84,26 +91,6 @@ module Taski
         end
 
         private
-
-        # TODO: Move tree building logic to ExecutionContext (see #149)
-        # Layout should not be responsible for analyzing task dependencies.
-        # ExecutionContext should pre-register all tasks before execution.
-
-        def build_tree_structure
-          return unless @root_task_class
-
-          tree = build_tree_node(@root_task_class)
-          register_tasks_from_tree(tree)
-        end
-
-        def register_tasks_from_tree(node)
-          return unless node
-
-          task_class = node[:task_class]
-          @tasks[task_class] ||= TaskState.new
-
-          node[:children].each { |child| register_tasks_from_tree(child) }
-        end
 
         def render_live
           @monitor.synchronize do

@@ -3,8 +3,6 @@
 require "json"
 require "monitor"
 require "time"
-require_relative "logging/logger_observer"
-
 module Taski
   # Logging module provides structured logging support for debugging and monitoring.
   # Logging is disabled by default and has zero overhead when not configured.
@@ -18,16 +16,36 @@ module Taski
   module Logging
     # Event type constants
     module Events
+      # Execution lifecycle
       EXECUTION_STARTED = "execution.started"
       EXECUTION_COMPLETED = "execution.completed"
+
+      # Task lifecycle
       TASK_STARTED = "task.started"
       TASK_COMPLETED = "task.completed"
       TASK_FAILED = "task.failed"
+      TASK_SKIPPED = "task.skipped"
+      TASK_ERROR_DETAIL = "task.error_detail"
+      TASK_OUTPUT = "task.output"
+
+      # Clean lifecycle
       TASK_CLEAN_STARTED = "task.clean_started"
       TASK_CLEAN_COMPLETED = "task.clean_completed"
       TASK_CLEAN_FAILED = "task.clean_failed"
-      TASK_SKIPPED = "task.skipped"
+
+      # Dependency resolution
       DEPENDENCY_RESOLVED = "dependency.resolved"
+
+      # Internal components (debug-level)
+      WORKER_POOL_ENQUEUED = "worker_pool.enqueued"
+      EXECUTOR_TASK_COMPLETED = "executor.task_completed"
+      EXECUTOR_CLEAN_COMPLETED = "executor.clean_completed"
+      OUTPUT_ROUTER_START_CAPTURE = "output_router.start_capture"
+      OUTPUT_ROUTER_STOP_CAPTURE = "output_router.stop_capture"
+      OUTPUT_ROUTER_STOP_CAPTURE_UNREGISTERED = "output_router.stop_capture_unregistered"
+      OUTPUT_ROUTER_DRAIN_PIPE = "output_router.drain_pipe"
+      OUTPUT_ROUTER_STORE_LINES = "output_router.store_lines"
+      OBSERVER_ERROR = "observer.error"
     end
 
     # Log severity levels matching Ruby Logger

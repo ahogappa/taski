@@ -5,12 +5,12 @@ require_relative "taski/static_analysis/analyzer"
 require_relative "taski/static_analysis/visitor"
 require_relative "taski/static_analysis/dependency_graph"
 require_relative "taski/execution/registry"
-require_relative "taski/execution/execution_context"
+require_relative "taski/execution/task_observer"
+require_relative "taski/execution/execution_facade"
 require_relative "taski/execution/task_wrapper"
 require_relative "taski/execution/scheduler"
 require_relative "taski/execution/worker_pool"
 require_relative "taski/execution/executor"
-require_relative "taski/execution/shared_state"
 require_relative "taski/progress/layout/log"
 require_relative "taski/progress/layout/simple"
 require_relative "taski/progress/layout/tree"
@@ -49,8 +49,25 @@ module Taski
   end
 
   # Mixin for exception classes to enable transparent rescue matching with AggregateError.
-  # When extended by an exception class, `rescue ThatError` will also match
-  # an AggregateError that contains ThatError.
+  #
+  # == How it works
+  #
+  # Ruby's +rescue+ clause uses the +===+ operator to match exceptions.
+  # This module overrides +===+ so that when the rescued class is compared
+  # against an AggregateError, it checks whether the AggregateError *contains*
+  # an error of that type. This means +rescue TaskError+ will match an
+  # AggregateError that wraps one or more TaskError instances, even though
+  # AggregateError does not inherit from TaskError.
+  #
+  # == Why this exists
+  #
+  # Taski's Executor always raises AggregateError (even for a single failure)
+  # to provide a uniform error interface. Without AggregateAware, callers would
+  # always need to rescue AggregateError and inspect its contents. With this
+  # module, callers can rescue the specific error class they care about:
+  #
+  #   rescue MyTask::Error => e  # matches AggregateError containing MyTask::Error
+  #   rescue Taski::TaskError    # matches AggregateError containing any TaskError
   #
   # @note TaskError and all TaskClass::Error classes already extend this module.
   #

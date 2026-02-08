@@ -7,7 +7,7 @@ module Taski
   module Progress
     module Layout
       # Liquid tag for rendering animated spinner characters.
-      # Uses TemplateDrop from context to get spinner frames, falls back to defaults.
+      # Uses ThemeDrop from context to get spinner frames, falls back to defaults.
       # Uses spinner_index from context to determine current frame.
       #
       # @example Usage in Liquid template
@@ -25,7 +25,7 @@ module Taski
       end
 
       # Liquid tag for rendering status icons based on current state.
-      # Uses TemplateDrop from context to get icons and colors.
+      # Uses ThemeDrop from context to get icons and colors.
       # Uses state from context to determine which icon to show.
       #
       # @example Usage in Liquid template
@@ -46,11 +46,8 @@ module Taski
 
         STATE_CONFIG = {
           "completed" => {icon: :icon_success, color: :color_green},
-          "clean_completed" => {icon: :icon_success, color: :color_green},
           "failed" => {icon: :icon_failure, color: :color_red},
-          "clean_failed" => {icon: :icon_failure, color: :color_red},
           "running" => {icon: :icon_pending, color: :color_yellow},
-          "cleaning" => {icon: :icon_pending, color: :color_yellow},
           "skipped" => {icon: :icon_skip, color: :color_dim}
         }.freeze
 

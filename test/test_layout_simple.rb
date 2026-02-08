@@ -6,6 +6,8 @@ require "taski/progress/layout/simple"
 require "taski/progress/theme/compact"
 
 class TestLayoutSimple < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     # Stub tty? to return true for testing
@@ -18,16 +20,16 @@ class TestLayoutSimple < Minitest::Test
   def test_does_not_activate_for_non_tty
     non_tty_output = StringIO.new
     layout = Taski::Progress::Layout::Simple.new(output: non_tty_output)
-    layout.start
-    layout.stop
+    layout.on_start
+    layout.on_stop
 
     # Should not output anything (no cursor hide/show)
     refute_includes non_tty_output.string, "\e[?25l"
   end
 
   def test_activates_for_tty
-    @layout.start
-    @layout.stop
+    @layout.on_start
+    @layout.on_stop
 
     # Should have cursor hide/show escape codes
     assert_includes @output.string, "\e[?25l"  # Hide cursor
@@ -38,17 +40,19 @@ class TestLayoutSimple < Minitest::Test
 
   def test_tracks_task_state
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
 
     assert_equal :running, @layout.task_state(task_class)
   end
 
   def test_tracks_completed_task
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
 
     assert_equal :completed, @layout.task_state(task_class)
   end
@@ -57,11 +61,12 @@ class TestLayoutSimple < Minitest::Test
 
   def test_outputs_success_summary_when_all_tasks_complete
     task_class = stub_task_class("MyTask")
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :completed, duration: 100)
-    @layout.stop
+    started_at = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
+    @layout.on_stop
 
     # Should include success icon and task count
     assert_includes @output.string, "✓"
@@ -71,11 +76,12 @@ class TestLayoutSimple < Minitest::Test
 
   def test_outputs_failure_summary_when_task_fails
     task_class = stub_task_class("FailedTask")
-    @layout.register_task(task_class)
-    @layout.start
-    @layout.update_task(task_class, state: :running)
-    @layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
-    @layout.stop
+    now = Time.now
+    @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    @layout.on_start
+    @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: now)
+    @layout.on_stop
 
     # Should include failure icon and task count
     assert_includes @output.string, "✗"
@@ -88,7 +94,9 @@ class TestLayoutSimple < Minitest::Test
   def test_builds_tree_structure_on_root_task_set
     # This is a basic test to ensure tree building doesn't crash
     root_task = stub_task_class("RootTask")
-    @layout.set_root_task(root_task)
+    ctx = mock_execution_facade(root_task_class: root_task)
+    @layout.context = ctx
+    @layout.on_ready
 
     # Layout should have registered the root task
     assert @layout.task_registered?(root_task)
@@ -157,11 +165,12 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
-    layout.register_task(task_class)
-    layout.start
-    layout.update_task(task_class, state: :running)
-    layout.update_task(task_class, state: :completed, duration: 100)
-    layout.stop
+    started_at = Time.now
+    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
+    layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
+    layout.on_stop
 
     assert_includes @output.string, "🎉"
     assert_includes @output.string, "Done!"
@@ -180,11 +189,12 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("FailedTask")
-    layout.register_task(task_class)
-    layout.start
-    layout.update_task(task_class, state: :running)
-    layout.update_task(task_class, state: :failed, error: StandardError.new("oops"))
-    layout.stop
+    now = Time.now
+    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: now)
+    layout.on_stop
 
     assert_includes @output.string, "💥"
     assert_includes @output.string, "Boom!"
@@ -202,10 +212,11 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
-    layout.register_task(task_class)
-    layout.start
-    layout.update_task(task_class, state: :completed, duration: 100)
-    layout.stop
+    started_at = Time.now
+    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
+    layout.on_stop
 
     assert_includes @output.string, "Finished 1 tasks"
   end
@@ -254,10 +265,11 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
     layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("TestTask")
-    layout.register_task(task_class)
-    layout.start
-    layout.update_task(task_class, state: :completed, duration: 50)
-    layout.stop
+    started_at = Time.now
+    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
+    layout.on_start
+    layout.on_task_updated(task_class, previous_state: :pending, current_state: :completed, phase: :run, timestamp: started_at + 0.05)
+    layout.on_stop
 
     # Should complete without errors and use custom values
     assert_includes @output.string, "OK"
@@ -270,25 +282,5 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
-  end
-end
-
-class TestLayoutSimpleWithTreeProgressDisplay < Minitest::Test
-  # These tests verify the Simple layout works when TreeProgressDisplay's
-  # tree building method is available
-
-  def setup
-    @output = StringIO.new
-    @output.define_singleton_method(:tty?) { true }
-    @layout = Taski::Progress::Layout::Simple.new(output: @output)
-  end
-
-  def test_tree_building_uses_tree_progress_display_method
-    # If TreeProgressDisplay is available, it should use its tree building
-    if defined?(Taski::Execution::TreeProgressDisplay)
-      root = Taski::Task
-      # Just verify it doesn't crash when TreeProgressDisplay is available
-      @layout.set_root_task(root)
-    end
   end
 end

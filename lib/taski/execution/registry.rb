@@ -24,16 +24,14 @@ module Taski
       # @param task_class [Class] The task class
       # @param wrapper [TaskWrapper] The wrapper instance to register
       def register(task_class, wrapper)
-        @tasks[task_class] = wrapper
+        @monitor.synchronize { @tasks[task_class] = wrapper }
       end
 
+      # Check if a task wrapper has been registered (created during run phase).
       # @param task_class [Class] The task class
-      # @return [Object] The task instance
-      # @raise [RuntimeError] If the task is not registered
-      def get_task(task_class)
-        @tasks.fetch(task_class) do
-          raise "Task #{task_class} not registered"
-        end
+      # @return [Boolean] true if a wrapper exists for this task
+      def registered?(task_class)
+        @monitor.synchronize { @tasks.key?(task_class) }
       end
 
       # @param thread [Thread] The thread to register
@@ -80,29 +78,14 @@ module Taski
       # Create or retrieve a TaskWrapper for the given task class.
       # Encapsulates the standard wrapper creation pattern used by Executor and WorkerPool.
       # @param task_class [Class] The task class
-      # @param execution_context [ExecutionContext] The execution context
+      # @param execution_facade [ExecutionFacade] The execution facade
       # @return [TaskWrapper] The wrapper instance
-      def create_wrapper(task_class, execution_context:)
+      def create_wrapper(task_class, execution_facade:)
         get_or_create(task_class) do
           task_instance = task_class.allocate
           task_instance.send(:initialize)
-          TaskWrapper.new(task_instance, registry: self, execution_context: execution_context)
+          TaskWrapper.new(task_instance, registry: self, execution_facade: execution_facade)
         end
-      end
-
-      # @param task_class [Class] The task class to run
-      # @param exported_methods [Array<Symbol>] Methods to call to trigger execution
-      # @return [Object] The result of the task execution
-      def run(task_class, exported_methods)
-        exported_methods.each do |method|
-          task_class.public_send(method)
-        end
-
-        wait_all
-
-        # @type var wrapper: Taski::Execution::TaskWrapper
-        wrapper = get_task(task_class)
-        wrapper.result
       end
     end
   end
