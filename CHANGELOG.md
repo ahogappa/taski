@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-02-08
+
+### Added
+- Fiber-based lazy dependency resolution replacing Monitor-based approach ([#157](https://github.com/ahogappa/taski/pull/157))
+- Layout/Theme architecture for progress display ([#150](https://github.com/ahogappa/taski/pull/150))
+- Layout::Tree for hierarchical task display with TTY/non-TTY dual mode ([#151](https://github.com/ahogappa/taski/pull/151))
+- Structured logging support for debugging and monitoring ([#141](https://github.com/ahogappa/taski/pull/141))
+- Skipped task reporting in progress display and logging ([#157](https://github.com/ahogappa/taski/pull/157))
+- `clean_on_failure` option for `run_and_clean` ([#169](https://github.com/ahogappa/taski/pull/169))
+- `short_name` filter for template name formatting ([#151](https://github.com/ahogappa/taski/pull/151))
+- TaskDrop and ExecutionDrop for structured template variables ([#151](https://github.com/ahogappa/taski/pull/151))
+- Group duration computation in Layout::Base ([#167](https://github.com/ahogappa/taski/pull/167))
+- `mark_clean_failed` in Scheduler for symmetric failure tracking ([#167](https://github.com/ahogappa/taski/pull/167))
+- Ruby 4.0 support in CI ([#160](https://github.com/ahogappa/taski/pull/160))
+
+### Changed
+- Replace ExecutionContext with ExecutionFacade/TaskObserver architecture ([#167](https://github.com/ahogappa/taski/pull/167))
+- Remove SharedState, unify task state in TaskWrapper ([#167](https://github.com/ahogappa/taski/pull/167))
+- Remove Section API in favor of simple if-statement selection (BREAKING) ([#157](https://github.com/ahogappa/taski/pull/157))
+- Simplify clean API by removing `Task.clean` and `Task.new` (BREAKING) ([#163](https://github.com/ahogappa/taski/pull/163))
+- Simplify progress display configuration to single setter API ([#161](https://github.com/ahogappa/taski/pull/161))
+- Rename `completed?`/`clean_completed?` to `finished?`/`clean_finished?` (BREAKING) ([#167](https://github.com/ahogappa/taski/pull/167))
+- Unify `STATE_ERROR` to `STATE_FAILED` across execution layer (BREAKING) ([#167](https://github.com/ahogappa/taski/pull/167))
+- Rename Template to Theme, Layout::Plain to Layout::Log ([#151](https://github.com/ahogappa/taski/pull/151))
+- Rename `execution_context` to `execution_facade` across codebase ([#167](https://github.com/ahogappa/taski/pull/167))
+- Merge FiberExecutor into Executor, rename FiberWorkerPool to WorkerPool ([#157](https://github.com/ahogappa/taski/pull/157))
+- Replace inline `Class.new(Taski::Task)` with named fixture classes in tests ([#166](https://github.com/ahogappa/taski/pull/166))
+- Drop Ruby 3.2 from CI ([#160](https://github.com/ahogappa/taski/pull/160))
+
+### Fixed
+- Recursively add transitive dependencies in `merge_runtime_dependencies` ([#142](https://github.com/ahogappa/taski/pull/142))
+- Handle `Errno::EBADF` in TaskOutputRouter pipe operations ([#159](https://github.com/ahogappa/taski/pull/159))
+- Truncate simple progress line to terminal width ([#152](https://github.com/ahogappa/taski/pull/152))
+- Improve thread safety in Registry and WorkerPool ([#167](https://github.com/ahogappa/taski/pull/167))
+- Restore fiber context on resume, scope output capture per-fiber ([#157](https://github.com/ahogappa/taski/pull/157))
+- Prevent duplicate `:start` responses and ensure observer event ordering ([#157](https://github.com/ahogappa/taski/pull/157))
+- Route observer errors through structured logger instead of `warn` ([#167](https://github.com/ahogappa/taski/pull/167))
+- Resolve Bundler permission error on Ruby 4.0 CI ([#162](https://github.com/ahogappa/taski/pull/162))
+
 ## [0.8.3] - 2026-01-26
 
 ### Fixed

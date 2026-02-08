@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    taski (0.8.3)
+    taski (0.9.0)
       liquid (~> 5.0)
       prism (~> 1.4)
       tsort
