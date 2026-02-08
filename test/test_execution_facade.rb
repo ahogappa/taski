@@ -520,17 +520,15 @@ class TestExecutionFacade < Minitest::Test
     assert_equal String, facade.root_task_class
   end
 
-  def test_dependency_graph_set_once_then_frozen
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
+  def test_dependency_graph_built_on_initialization_and_frozen
+    task_class = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "test"
+    end
 
-    facade.update_dependency_graph(graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
     assert facade.dependency_graph.frozen?
-
-    # Second call is ignored
-    graph2 = Taski::StaticAnalysis::DependencyGraph.new
-    facade.update_dependency_graph(graph2)
-    assert_equal graph, facade.dependency_graph
+    assert_kind_of Taski::StaticAnalysis::DependencyGraph, facade.dependency_graph
   end
 
   # ========================================

@@ -179,7 +179,6 @@ module Taski
       def self.current=: (ExecutionFacade? context) -> void
 
       def initialize: (root_task_class: Class?, ?dependency_graph: StaticAnalysis::DependencyGraph?, ?output_stream: untyped) -> void
-      def update_dependency_graph: (StaticAnalysis::DependencyGraph graph) -> void
       def output_stream: () -> untyped
       def output_capture_active?: () -> bool
       def original_stdout: () -> IO?
