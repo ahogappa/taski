@@ -638,6 +638,33 @@ class TestScheduler < Minitest::Test
     assert_equal Taski::Execution::Scheduler::STATE_COMPLETED, :completed
   end
 
+  def test_pending_returns_true_for_pending_task
+    task = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "test"
+    end
+
+    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task)
+    scheduler = Taski::Execution::Scheduler.new
+    scheduler.load_graph(graph, task)
+
+    assert scheduler.pending?(task)
+  end
+
+  def test_pending_returns_false_for_running_task
+    task = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = "test"
+    end
+
+    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task)
+    scheduler = Taski::Execution::Scheduler.new
+    scheduler.load_graph(graph, task)
+
+    scheduler.mark_running(task)
+    refute scheduler.pending?(task)
+  end
+
   def test_never_started_task_classes_does_not_include_running_tasks
     task_a = Class.new(Taski::Task) do
       exports :value

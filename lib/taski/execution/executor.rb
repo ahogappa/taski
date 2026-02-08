@@ -9,23 +9,21 @@ module Taski
     # and ExecutionFacade (observer notifications).
     class Executor
       class << self
-        def execute(root_task_class, registry:, execution_facade: nil)
-          new(root_task_class: root_task_class, registry: registry, execution_facade: execution_facade).execute(root_task_class)
+        def execute(root_task_class, registry:, execution_facade:)
+          new(registry: registry, execution_facade: execution_facade).execute(root_task_class)
         end
 
-        def execute_clean(root_task_class, registry:, execution_facade: nil)
-          new(root_task_class: root_task_class, registry: registry, execution_facade: execution_facade).execute_clean(root_task_class)
+        def execute_clean(root_task_class, registry:, execution_facade:)
+          new(registry: registry, execution_facade: execution_facade).execute_clean(root_task_class)
         end
       end
 
-      def initialize(registry:, root_task_class: nil, worker_count: nil, execution_facade: nil)
-        @root_task_class = root_task_class
+      def initialize(registry:, execution_facade:, worker_count: nil)
         @registry = registry
         @completion_queue = Queue.new
-        @execution_facade = execution_facade || create_default_facade
+        @execution_facade = execution_facade
         @scheduler = Scheduler.new
         @effective_worker_count = worker_count || Taski.args_worker_count
-        @enqueued_tasks = Set.new
       end
 
       def execute(root_task_class)
@@ -90,8 +88,7 @@ module Taski
       end
 
       def enqueue_root_if_needed(root_task_class)
-        return if @scheduler.completed?(root_task_class)
-        return if @enqueued_tasks.include?(root_task_class)
+        return unless @scheduler.pending?(root_task_class)
 
         enqueue_for_execution(root_task_class)
       end
@@ -109,9 +106,6 @@ module Taski
         task_class = event[:task_class]
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_TASK_COMPLETED, task: task_class.name)
 
-        # Skip dynamic-only tasks not in the static graph
-        return unless @enqueued_tasks.include?(task_class)
-
         if event[:error]
           @scheduler.mark_failed(task_class)
           log_error_detail(task_class, event[:error])
@@ -121,13 +115,11 @@ module Taski
         end
 
         @scheduler.next_ready_tasks.each do |ready_class|
-          next if @enqueued_tasks.include?(ready_class)
           enqueue_for_execution(ready_class)
         end
       end
 
       def enqueue_for_execution(task_class)
-        @enqueued_tasks.add(task_class)
         wrapper = @registry.create_wrapper(task_class, execution_facade: @execution_facade)
         @scheduler.mark_running(task_class)
         if wrapper.mark_running
@@ -293,10 +285,6 @@ module Taski
       end
 
       # Context and logging
-
-      def create_default_facade
-        ExecutionFacade.build_default(root_task_class: @root_task_class)
-      end
 
       def log_execution_started(root_task_class)
         Taski::Logging.info(

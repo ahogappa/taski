@@ -134,6 +134,14 @@ module Taski
         @finished_tasks.add(task_class)
       end
 
+      # Check if a task is in pending state.
+      #
+      # @param task_class [Class] The task class to check
+      # @return [Boolean] true if the task is pending
+      def pending?(task_class)
+        @task_states[task_class] == STATE_PENDING
+      end
+
       # Check if a task is completed.
       #
       # @param task_class [Class] The task class to check

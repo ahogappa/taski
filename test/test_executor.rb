@@ -396,7 +396,6 @@ class TestExecutor < Minitest::Test
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
-      root_task_class: root_task,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -481,7 +480,6 @@ class TestExecutor < Minitest::Test
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
-      root_task_class: root_task,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -533,7 +531,6 @@ class TestExecutor < Minitest::Test
       facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
 
       executor = Taski::Execution::Executor.new(
-        root_task_class: root_task,
         registry: registry,
         execution_facade: facade,
         worker_count: 2
@@ -608,7 +605,6 @@ class TestExecutor < Minitest::Test
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
-      root_task_class: root,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -680,7 +676,6 @@ class TestExecutor < Minitest::Test
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
-      root_task_class: root,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -754,7 +749,6 @@ class TestExecutor < Minitest::Test
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
-      root_task_class: root,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -818,7 +812,6 @@ class TestExecutor < Minitest::Test
     # Run phase — failing_dep will fail, cascade-skipping skipped_dep
     begin
       Taski::Execution::Executor.new(
-        root_task_class: root,
         registry: registry,
         execution_facade: facade,
         worker_count: 2
@@ -829,7 +822,6 @@ class TestExecutor < Minitest::Test
 
     # Clean phase — skipped_dep should not be cleaned
     Taski::Execution::Executor.new(
-      root_task_class: root,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -877,7 +869,6 @@ class TestExecutor < Minitest::Test
     # Run phase — failing_dep will fail
     begin
       Taski::Execution::Executor.new(
-        root_task_class: root,
         registry: registry,
         execution_facade: facade,
         worker_count: 2
@@ -888,7 +879,6 @@ class TestExecutor < Minitest::Test
 
     # Clean phase — failing_dep should still be cleaned for resource release
     Taski::Execution::Executor.new(
-      root_task_class: root,
       registry: registry,
       execution_facade: facade,
       worker_count: 2
@@ -932,7 +922,6 @@ class TestExecutor < Minitest::Test
 
     registry = Taski::Execution::Registry.new
     executor = Taski::Execution::Executor.new(
-      root_task_class: task,
       registry: registry,
       execution_facade: facade
     )
