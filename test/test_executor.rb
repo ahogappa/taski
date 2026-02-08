@@ -236,61 +236,10 @@ class TestExecutor < Minitest::Test
   end
 
   def test_failed_task_skips_pending_dependents
-    # Graph: root -> [branch_a, branch_b]
-    #   branch_a -> failing_leaf (fails immediately)
-    #   branch_b -> middle -> failing_leaf
-    #
-    # When failing_leaf fails:
-    # - branch_a was started on-demand by WorkerPool (tracked by scheduler)
-    # - middle and branch_b are PENDING in scheduler
-    # - middle and branch_b should be marked as skipped via cascade
-    failing_leaf = Class.new(Taski::Task) do
-      exports :value
-      def run
-        raise StandardError, "leaf failed"
-      end
-    end
+    root_class = ExecutorFixtures::FailCascadeRoot
+    middle_class = ExecutorFixtures::FailCascadeMiddle
+    branch_b_class = ExecutorFixtures::FailCascadeBranchB
 
-    middle = Class.new(Taski::Task) do
-      exports :value
-    end
-    middle.define_method(:run) do
-      v = Fiber.yield([:need_dep, failing_leaf, :value])
-      @value = "m(#{v})"
-    end
-
-    branch_a = Class.new(Taski::Task) do
-      exports :value
-    end
-    branch_a.define_method(:run) do
-      v = Fiber.yield([:need_dep, failing_leaf, :value])
-      @value = "a(#{v})"
-    end
-
-    branch_b = Class.new(Taski::Task) do
-      exports :value
-    end
-    branch_b.define_method(:run) do
-      v = Fiber.yield([:need_dep, middle, :value])
-      @value = "b(#{v})"
-    end
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    root_task.define_method(:run) do
-      a = Fiber.yield([:need_dep, branch_a, :value])
-      b = Fiber.yield([:need_dep, branch_b, :value])
-      @value = "#{a}+#{b}"
-    end
-
-    failing_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    middle.instance_variable_set(:@dependencies_cache, Set[failing_leaf])
-    branch_a.instance_variable_set(:@dependencies_cache, Set[failing_leaf])
-    branch_b.instance_variable_set(:@dependencies_cache, Set[middle])
-    root_task.instance_variable_set(:@dependencies_cache, Set[branch_a, branch_b])
-
-    # Track observer notifications
     skipped_tasks = []
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |tc, current_state:, **_|
@@ -301,7 +250,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
@@ -311,12 +260,12 @@ class TestExecutor < Minitest::Test
     )
 
     assert_raises(Taski::AggregateError) do
-      executor.execute(root_task)
+      executor.execute(root_class)
     end
 
     # middle and branch_b should be skipped (never started, cascade from failing_leaf)
-    assert_includes skipped_tasks, middle, "middle should be skipped via cascade"
-    assert_includes skipped_tasks, branch_b, "branch_b should be skipped via cascade"
+    assert_includes skipped_tasks, middle_class, "middle should be skipped via cascade"
+    assert_includes skipped_tasks, branch_b_class, "branch_b should be skipped via cascade"
   end
 
   def test_log_execution_completed_includes_skipped_count
@@ -353,41 +302,9 @@ class TestExecutor < Minitest::Test
   # ========================================
 
   def test_unreached_tasks_and_subtree_receive_pending_to_skipped
-    # Graph: root -> [unreached_parent], unreached_parent -> unreached_child -> slow_leaf
-    # Root completes immediately without yielding. slow_leaf takes time (pre-started).
-    # Both unreached_parent and unreached_child remain STATE_PENDING -> skipped.
-    # (Section API removed; this tests the equivalent behavior for conditional tasks)
-    slow_leaf = Class.new(Taski::Task) do
-      exports :value
-    end
-    slow_leaf.define_method(:run) do
-      sleep 0.3
-      @value = "slow"
-    end
-
-    unreached_child = Class.new(Taski::Task) do
-      exports :value
-    end
-    unreached_child.define_method(:run) do
-      @value = Fiber.yield([:need_dep, slow_leaf, :value])
-    end
-
-    unreached_parent = Class.new(Taski::Task) do
-      exports :value
-    end
-    unreached_parent.define_method(:run) do
-      @value = Fiber.yield([:need_dep, unreached_child, :value])
-    end
-
-    root = Class.new(Taski::Task) do
-      exports :value
-    end
-    root.define_method(:run) { @value = "done" }
-
-    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    unreached_child.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
-    unreached_parent.instance_variable_set(:@dependencies_cache, Set[unreached_child])
-    root.instance_variable_set(:@dependencies_cache, Set[unreached_parent])
+    root_class = ExecutorFixtures::UnreachedRoot
+    parent_class = ExecutorFixtures::UnreachedParent
+    child_class = ExecutorFixtures::UnreachedChild
 
     skipped_transitions = {}
     observer = Object.new
@@ -401,7 +318,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
@@ -409,58 +326,21 @@ class TestExecutor < Minitest::Test
       execution_facade: facade,
       worker_count: 2
     )
-    executor.execute(root)
+    executor.execute(root_class)
 
     # Both unreached tasks should receive pending→skipped transition
-    assert skipped_transitions[unreached_parent],
+    assert skipped_transitions[parent_class],
       "unreached_parent should receive pending→skipped"
-    assert skipped_transitions[unreached_child],
+    assert skipped_transitions[child_class],
       "unreached_child should receive pending→skipped"
     # Root should NOT be skipped
-    refute skipped_transitions[root],
+    refute skipped_transitions[root_class],
       "root should not be skipped"
   end
 
   def test_tasks_depending_on_failed_task_receive_pending_to_skipped_transition
-    # Graph: root -> [started_branch, unstarted_branch]
-    # Both branches depend on failing_leaf (pre-started as leaf)
-    # Root yields for started_branch first -> it gets on-demand started
-    # When failing_leaf fails, unstarted_branch is still pending -> cascade skipped
-    failing_leaf = Class.new(Taski::Task) do
-      exports :value
-      def run
-        raise StandardError, "boom"
-      end
-    end
-
-    started_branch = Class.new(Taski::Task) do
-      exports :value
-    end
-    started_branch.define_method(:run) do
-      @value = Fiber.yield([:need_dep, failing_leaf, :value])
-    end
-
-    unstarted_branch = Class.new(Taski::Task) do
-      exports :value
-    end
-    unstarted_branch.define_method(:run) do
-      @value = Fiber.yield([:need_dep, failing_leaf, :value])
-    end
-
-    root = Class.new(Taski::Task) do
-      exports :value
-    end
-    # Root yields for started_branch first; unstarted_branch stays pending
-    root.define_method(:run) do
-      a = Fiber.yield([:need_dep, started_branch, :value])
-      b = Fiber.yield([:need_dep, unstarted_branch, :value])
-      @value = "#{a}+#{b}"
-    end
-
-    failing_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    started_branch.instance_variable_set(:@dependencies_cache, Set[failing_leaf])
-    unstarted_branch.instance_variable_set(:@dependencies_cache, Set[failing_leaf])
-    root.instance_variable_set(:@dependencies_cache, Set[started_branch, unstarted_branch])
+    root_class = ExecutorFixtures::FailBranchRoot
+    unstarted_class = ExecutorFixtures::FailBranchUnstarted
 
     transitions = []
     observer = Object.new
@@ -472,7 +352,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
@@ -481,59 +361,18 @@ class TestExecutor < Minitest::Test
       worker_count: 2
     )
 
-    assert_raises(Taski::AggregateError) { executor.execute(root) }
+    assert_raises(Taski::AggregateError) { executor.execute(root_class) }
 
     # unstarted_branch should receive pending→skipped (cascade from failing_leaf)
-    skip_transition = transitions.find { |t| t[:task] == unstarted_branch && t[:to] == :skipped }
+    skip_transition = transitions.find { |t| t[:task] == unstarted_class && t[:to] == :skipped }
     refute_nil skip_transition, "unstarted_branch should be skipped when its dependency fails"
     assert_equal :pending, skip_transition[:from]
   end
 
   def test_subtree_of_failed_task_also_marked_skipped
-    # Graph: root -> [started_branch, deep_branch]
-    #   started_branch -> failing_leaf (root yields for this first)
-    #   deep_branch -> middle -> failing_leaf (root hasn't yielded for these)
-    # When failing_leaf fails, middle and deep_branch are still pending -> skipped
-    failing_leaf = Class.new(Taski::Task) do
-      exports :value
-      def run = raise("fail")
-    end
-
-    started_branch = Class.new(Taski::Task) do
-      exports :value
-    end
-    started_branch.define_method(:run) do
-      @value = Fiber.yield([:need_dep, failing_leaf, :value])
-    end
-
-    middle = Class.new(Taski::Task) do
-      exports :value
-    end
-    middle.define_method(:run) do
-      @value = Fiber.yield([:need_dep, failing_leaf, :value])
-    end
-
-    deep_branch = Class.new(Taski::Task) do
-      exports :value
-    end
-    deep_branch.define_method(:run) do
-      @value = Fiber.yield([:need_dep, middle, :value])
-    end
-
-    root = Class.new(Taski::Task) do
-      exports :value
-    end
-    root.define_method(:run) do
-      a = Fiber.yield([:need_dep, started_branch, :value])
-      b = Fiber.yield([:need_dep, deep_branch, :value])
-      @value = "#{a}+#{b}"
-    end
-
-    failing_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    started_branch.instance_variable_set(:@dependencies_cache, Set[failing_leaf])
-    middle.instance_variable_set(:@dependencies_cache, Set[failing_leaf])
-    deep_branch.instance_variable_set(:@dependencies_cache, Set[middle])
-    root.instance_variable_set(:@dependencies_cache, Set[started_branch, deep_branch])
+    root_class = ExecutorFixtures::FailSubtreeRoot
+    middle_class = ExecutorFixtures::FailSubtreeMiddle
+    deep_branch_class = ExecutorFixtures::FailSubtreeDeepBranch
 
     skipped_tasks = []
     observer = Object.new
@@ -545,7 +384,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
@@ -554,47 +393,16 @@ class TestExecutor < Minitest::Test
       worker_count: 2
     )
 
-    assert_raises(Taski::AggregateError) { executor.execute(root) }
+    assert_raises(Taski::AggregateError) { executor.execute(root_class) }
 
     # Both middle and deep_branch are pending -> cascade skipped
-    assert_includes skipped_tasks, middle, "middle should be skipped (depends on failing_leaf)"
-    assert_includes skipped_tasks, deep_branch, "deep_branch should be skipped (transitively depends on failing_leaf)"
+    assert_includes skipped_tasks, middle_class, "middle should be skipped (depends on failing_leaf)"
+    assert_includes skipped_tasks, deep_branch_class, "deep_branch should be skipped (transitively depends on failing_leaf)"
   end
 
   def test_skipped_tasks_do_not_execute_clean_phase
-    # Graph: root -> [good_dep, skipped_dep], skipped_dep -> failing_dep
-    # failing_dep raises -> skipped_dep cascade-skipped -> never registered in Registry
-    # Clean phase should only clean tasks that were actually registered (executed)
-    good_dep = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "good"
-      def clean = nil
-    end
-
-    failing_dep = Class.new(Taski::Task) do
-      exports :value
-      def run = raise "boom"
-      def clean = nil
-    end
-
-    skipped_dep = Class.new(Taski::Task) do
-      exports :value
-    end
-    skipped_dep.define_method(:run) do
-      @value = Fiber.yield([:need_dep, failing_dep, :value])
-    end
-    skipped_dep.define_method(:clean) { nil }
-
-    root = Class.new(Taski::Task) do
-      exports :value
-    end
-    root.define_method(:run) { @value = "done" }
-    root.define_method(:clean) { nil }
-
-    good_dep.instance_variable_set(:@dependencies_cache, Set.new)
-    failing_dep.instance_variable_set(:@dependencies_cache, Set.new)
-    skipped_dep.instance_variable_set(:@dependencies_cache, Set[failing_dep])
-    root.instance_variable_set(:@dependencies_cache, Set[good_dep, skipped_dep])
+    root_class = ExecutorFixtures::CleanSkipRoot
+    skipped_dep_class = ExecutorFixtures::CleanSkipSkippedDep
 
     clean_started_tasks = []
     observer = Object.new
@@ -606,7 +414,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     # Run phase — failing_dep will fail, cascade-skipping skipped_dep
@@ -615,7 +423,7 @@ class TestExecutor < Minitest::Test
         registry: registry,
         execution_facade: facade,
         worker_count: 2
-      ).execute(root)
+      ).execute(root_class)
     rescue Taski::TaskError
       # Expected — failing_dep raises
     end
@@ -625,33 +433,16 @@ class TestExecutor < Minitest::Test
       registry: registry,
       execution_facade: facade,
       worker_count: 2
-    ).execute_clean(root)
+    ).execute_clean(root_class)
 
     # skipped_dep was cascade-skipped and never registered -> should not be cleaned
-    refute_includes clean_started_tasks, skipped_dep,
+    refute_includes clean_started_tasks, skipped_dep_class,
       "skipped task should not execute clean phase"
   end
 
   def test_failed_task_is_still_cleaned_for_resource_release
-    # When a task fails during run, its clean phase should still execute
-    # for resource release. Only cascade-skipped tasks (never started) skip clean.
-    # Graph: root -> failing_dep (leaf)
-    failing_dep = Class.new(Taski::Task) do
-      exports :value
-      def run = raise "boom"
-      def clean = nil
-    end
-
-    root = Class.new(Taski::Task) do
-      exports :value
-    end
-    root.define_method(:run) do
-      @value = Fiber.yield([:need_dep, failing_dep, :value])
-    end
-    root.define_method(:clean) { nil }
-
-    failing_dep.instance_variable_set(:@dependencies_cache, Set.new)
-    root.instance_variable_set(:@dependencies_cache, Set[failing_dep])
+    root_class = ExecutorFixtures::FailCleanRoot
+    failing_dep_class = ExecutorFixtures::FailCleanDep
 
     clean_started_tasks = []
     observer = Object.new
@@ -663,7 +454,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     # Run phase — failing_dep will fail
@@ -672,7 +463,7 @@ class TestExecutor < Minitest::Test
         registry: registry,
         execution_facade: facade,
         worker_count: 2
-      ).execute(root)
+      ).execute(root_class)
     rescue Taski::AggregateError
       # Expected
     end
@@ -682,9 +473,9 @@ class TestExecutor < Minitest::Test
       registry: registry,
       execution_facade: facade,
       worker_count: 2
-    ).execute_clean(root)
+    ).execute_clean(root_class)
 
-    assert_includes clean_started_tasks, failing_dep,
+    assert_includes clean_started_tasks, failing_dep_class,
       "failed task should still be cleaned for resource release"
   end
 
