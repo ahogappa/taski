@@ -416,8 +416,8 @@ class TestExecutor < Minitest::Test
     #   branch_b -> middle -> failing_leaf
     #
     # When failing_leaf fails:
-    # - branch_a was started on-demand by WorkerPool (in SharedState)
-    # - middle and branch_b are PENDING in scheduler, NOT in SharedState
+    # - branch_a was started on-demand by WorkerPool (tracked by scheduler)
+    # - middle and branch_b are PENDING in scheduler
     # - middle and branch_b should be marked as skipped via cascade
     failing_leaf = Class.new(Taski::Task) do
       exports :value
@@ -816,8 +816,8 @@ class TestExecutor < Minitest::Test
         execution_facade: facade,
         worker_count: 2
       ).execute(root)
-    rescue Taski::TaskError
-      # Expected — failing_dep raises
+    rescue Taski::AggregateError
+      # Expected — failing_dep raises, wrapped in AggregateError by Executor
     end
 
     # Clean phase — skipped_dep should not be cleaned

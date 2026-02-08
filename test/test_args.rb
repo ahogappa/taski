@@ -182,19 +182,25 @@ class TestArgs < Minitest::Test
 
   def test_args_options_are_immutable
     captured_value = nil
+    mutation_error = nil
 
     task_class = Class.new(Taski::Task) do
       exports :result
 
       define_method(:run) do
-        # Verify args are readable but the underlying data cannot be mutated
         captured_value = Taski.args[:env]
+        begin
+          Taski.args.instance_variable_get(:@options)[:env] = "staging"
+        rescue => e
+          mutation_error = e
+        end
         @result = captured_value
       end
     end
 
     task_class.run(args: {env: "production"})
     assert_equal "production", captured_value
+    assert_kind_of FrozenError, mutation_error
   end
 
   def test_args_options_shared_across_dependent_tasks

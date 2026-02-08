@@ -422,7 +422,18 @@ module Taski
 
       # Tree layout for hierarchical task display
       class Tree < Base
+        def initialize: (?output: IO, ?theme: Theme::Base?) -> void
         def render_tree: () -> String
+      end
+
+      # Simple layout for single-line progress display
+      class Simple < Base
+        def initialize: (?output: IO, ?theme: Theme::Base?) -> void
+      end
+
+      # Log layout for non-TTY environments
+      class Log < Base
+        def initialize: (?output: IO, ?theme: Theme::Base?) -> void
       end
     end
   end

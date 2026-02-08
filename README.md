@@ -315,7 +315,7 @@ See [docs/GUIDE.md](docs/GUIDE.md#lifecycle-management) for details.
 
 Simple progress display is enabled by default:
 
-```
+```text
 ⠹ [3/5] DeployTask | Uploading files...
 ✓ [5/5] All tasks completed (1234ms)
 ```

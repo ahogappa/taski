@@ -361,7 +361,7 @@ require "logger"
 Taski.logger = Logger.new($stdout, level: Logger::DEBUG)
 ```
 
-Set `Taski.logger` to a Ruby `Logger` instance to enable structured JSON logging of execution events.
+Set `Taski.logger` to a Ruby `Logger` instance to enable structured logging of execution events.
 
 ### Dependency Tree Visualization
 
