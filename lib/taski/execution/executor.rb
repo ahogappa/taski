@@ -6,7 +6,7 @@ module Taski
   module Execution
     # Orchestrates run (Fiber-based) and clean (direct) phases of task execution.
     # Delegates to Scheduler (dependency order), WorkerPool (worker threads),
-    # SharedState (Fiber coordination), and ExecutionFacade (observer notifications).
+    # and ExecutionFacade (observer notifications).
     class Executor
       class << self
         def execute(root_task_class, registry:, execution_context: nil)
@@ -25,7 +25,6 @@ module Taski
         @execution_context = execution_context || create_default_execution_context
         @scheduler = Scheduler.new
         @effective_worker_count = worker_count || Taski.args_worker_count
-        @shared_state = SharedState.new
         @enqueued_tasks = Set.new
       end
 
@@ -39,7 +38,6 @@ module Taski
 
         with_display_lifecycle(root_task_class) do
           @worker_pool = WorkerPool.new(
-            shared_state: @shared_state,
             registry: @registry,
             execution_context: @execution_context,
             worker_count: @effective_worker_count,
@@ -71,7 +69,6 @@ module Taski
 
         with_display_lifecycle(root_task_class) do
           @worker_pool = WorkerPool.new(
-            shared_state: @shared_state,
             registry: @registry,
             execution_context: @execution_context,
             worker_count: @effective_worker_count,
@@ -123,6 +120,9 @@ module Taski
         task_class = event[:task_class]
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_TASK_COMPLETED, task: task_class.name)
 
+        # Skip dynamic-only tasks not in the static graph
+        return unless @enqueued_tasks.include?(task_class)
+
         if event[:error]
           @scheduler.mark_failed(task_class)
           log_error_detail(task_class, event[:error])
@@ -138,18 +138,21 @@ module Taski
       end
 
       def enqueue_for_execution(task_class)
-        @scheduler.mark_running(task_class)
         @enqueued_tasks.add(task_class)
         wrapper = @registry.create_wrapper(task_class, execution_context: @execution_context)
-        @shared_state.register(task_class, wrapper)
-        @worker_pool.enqueue(task_class, wrapper)
+        @scheduler.mark_running(task_class)
+        if wrapper.mark_running
+          @worker_pool.enqueue(task_class, wrapper)
+        end
+        # If mark_running fails: Fiber path already claimed this task.
+        # Completion event will arrive through completion_queue.
       end
 
       # Skip pending dependents of a failed task (only those not yet started).
       def skip_pending_dependents(failed_task_class)
         now = Time.now
         @scheduler.pending_dependents_of(failed_task_class).each do |dep_class|
-          next if @shared_state.get_wrapper(dep_class)
+          next if @registry.registered?(dep_class)
 
           @scheduler.mark_skipped(dep_class)
           Taski::Logging.info(Taski::Logging::Events::TASK_SKIPPED, task: dep_class.name)

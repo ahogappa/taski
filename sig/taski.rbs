@@ -267,7 +267,6 @@ module Taski
     class WorkerPool
       attr_reader worker_count: Integer
 
-      @shared_state: SharedState
       @registry: Registry
       @execution_context: ExecutionFacade
       @worker_count: Integer
@@ -279,7 +278,7 @@ module Taski
       @fiber_contexts: Hash[Integer, Array[untyped]]
       @task_start_times: Hash[Class, Time]
 
-      def initialize: (shared_state: SharedState, registry: Registry, execution_context: ExecutionFacade, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
+      def initialize: (registry: Registry, execution_context: ExecutionFacade, completion_queue: Thread::Queue, ?worker_count: Integer?) -> void
       def start: () -> void
       def enqueue: (Class task_class, TaskWrapper wrapper) -> void
       def enqueue_clean: (Class task_class, TaskWrapper wrapper) -> void
@@ -293,7 +292,7 @@ module Taski
       def handle_dependency: (Class dep_class, Symbol method, Fiber fiber, Class task_class, TaskWrapper wrapper, Thread::Queue queue) -> void
       def resume_fiber: (Fiber fiber, untyped value, Thread::Queue queue) -> void
       def resume_fiber_with_error: (Fiber fiber, Exception error, Thread::Queue queue) -> void
-      def start_dependency: (Class dep_class, Thread::Queue queue) -> void
+      def start_dependency: (Class dep_class, TaskWrapper dep_wrapper, Thread::Queue queue) -> void
       def complete_task: (Class task_class, TaskWrapper wrapper, untyped result) -> void
       def fail_task: (Class task_class, TaskWrapper wrapper, Exception error) -> void
       def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
@@ -315,7 +314,6 @@ module Taski
       @execution_context: ExecutionFacade
       @scheduler: Scheduler
       @effective_worker_count: Integer?
-      @shared_state: SharedState
       @enqueued_tasks: Set[Class]
       @worker_pool: WorkerPool?
       @saved_output_capture: TaskOutputRouter?
@@ -355,34 +353,6 @@ module Taski
       def log_error_detail: (Class task_class, Exception error) -> void
     end
 
-    # SharedState provides centralized, thread-safe state management
-    # for the Fiber-based executor
-    class SharedState
-      STATE_PENDING: Symbol
-      STATE_RUNNING: Symbol
-      STATE_COMPLETED: Symbol
-      STATE_FAILED: Symbol
-
-      @mutex: Mutex
-      @states: Hash[Class, Symbol]
-      @wrappers: Hash[Class, TaskWrapper]
-      @errors: Hash[Class, Exception]
-      @waiters: Hash[Class, Array[Array[untyped]]]
-
-      def initialize: () -> void
-      def register: (Class task_class, TaskWrapper wrapper) -> void
-      def mark_running: (Class task_class) -> bool
-      def mark_completed: (Class task_class) -> void
-      def mark_failed: (Class task_class, Exception error) -> void
-      def completed?: (Class task_class) -> bool
-      def get_wrapper: (Class task_class) -> TaskWrapper?
-      def request_dependency: (Class dep_class, Symbol method, Thread::Queue thread_queue, Fiber fiber) -> Array[untyped]
-
-      private
-
-      def notify_waiters: (Class task_class, Array[Array[untyped]] waiters) -> void
-    end
-
     # TaskWrapper class for task execution
     class TaskWrapper
       attr_reader task: Task
@@ -403,6 +373,7 @@ module Taski
       @clean_condition: MonitorMixin::ConditionVariable
       @state: Symbol
       @clean_state: Symbol
+      @waiters: Array[Array[untyped]]
 
       STATE_PENDING: Symbol
       STATE_RUNNING: Symbol
@@ -421,6 +392,7 @@ module Taski
       def reset!: () -> void
       def run_and_clean: () ?{ () -> void } -> untyped
       def get_exported_value: (Symbol method_name) -> untyped
+      def request_value: (Symbol method, Thread::Queue thread_queue, Fiber fiber) -> Array[untyped]
       def mark_running: () -> bool
       def mark_completed: (untyped result) -> void
       def mark_failed: (StandardError error) -> void
@@ -446,6 +418,8 @@ module Taski
       def update_progress: (Symbol state, ?error: Exception?) -> void
       def update_clean_progress: (Symbol state, ?error: Exception?) -> void
       def notify_state_change: (previous_state: Symbol?, current_state: Symbol, phase: Symbol) -> void
+      def notify_fiber_waiters_completed: (Array[Array[untyped]] waiters) -> void
+      def notify_fiber_waiters_failed: (Array[Array[untyped]] waiters, Exception error) -> void
     end
   end
 

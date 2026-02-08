@@ -33,6 +33,7 @@ module Taski
         @clean_condition = @monitor.new_cond
         @state = STATE_PENDING
         @clean_state = STATE_PENDING
+        @waiters = []
       end
 
       def state
@@ -92,6 +93,32 @@ module Taski
         end
       end
 
+      # Atomically resolve the dependency value for a waiting Fiber.
+      # Returns a status tuple indicating how the caller should proceed:
+      # - [:completed, value] → dependency already done, resume immediately
+      # - [:failed, error]   → dependency failed, propagate error
+      # - [:wait]            → dependency running, Fiber parked (will be resumed via thread_queue)
+      # - [:start]           → dependency was PENDING, now RUNNING (caller must drive it)
+      def request_value(method, thread_queue, fiber)
+        @monitor.synchronize do
+          case @state
+          when STATE_COMPLETED
+            value = @task.public_send(method)
+            [:completed, value]
+          when STATE_FAILED
+            [:failed, @error]
+          when STATE_RUNNING
+            @waiters << [thread_queue, fiber, method]
+            [:wait]
+          else
+            # PENDING → atomically transition to RUNNING
+            @state = STATE_RUNNING
+            @waiters << [thread_queue, fiber, method]
+            [:start]
+          end
+        end
+      end
+
       def mark_running
         @monitor.synchronize do
           return false unless @state == STATE_PENDING
@@ -101,20 +128,28 @@ module Taski
       end
 
       def mark_completed(result)
+        waiters_to_notify = nil
         @monitor.synchronize do
           @result = result
           @state = STATE_COMPLETED
           @condition.broadcast
+          waiters_to_notify = @waiters.dup
+          @waiters.clear
         end
+        notify_fiber_waiters_completed(waiters_to_notify)
         update_progress(:completed)
       end
 
       def mark_failed(error)
+        waiters_to_notify = nil
         @monitor.synchronize do
           @error = error
           @state = STATE_FAILED
           @condition.broadcast
+          waiters_to_notify = @waiters.dup
+          @waiters.clear
         end
+        notify_fiber_waiters_failed(waiters_to_notify, error)
         update_progress(:failed)
       end
 
@@ -274,6 +309,19 @@ module Taski
           phase: phase,
           timestamp: Time.now
         )
+      end
+
+      def notify_fiber_waiters_completed(waiters)
+        waiters.each do |thread_queue, fiber, method|
+          value = @task.public_send(method)
+          thread_queue.push([:resume, fiber, value])
+        end
+      end
+
+      def notify_fiber_waiters_failed(waiters, error)
+        waiters.each do |thread_queue, fiber, _method|
+          thread_queue.push([:resume_error, fiber, error])
+        end
       end
     end
   end

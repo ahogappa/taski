@@ -67,9 +67,7 @@ module Taski
         return if @registry.abort_requested?
 
         if MockRegistry.mock_for(task_class)
-          wrapper.mark_running unless wrapper.completed?
           wrapper.mark_completed(nil) unless wrapper.completed?
-          @shared_state.mark_completed(task_class)
           @completion_queue.push({task_class: task_class, wrapper: wrapper})
           return
         end

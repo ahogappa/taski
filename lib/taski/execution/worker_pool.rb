@@ -11,7 +11,7 @@ module Taski
     # WorkerPool manages N threads, each with its own command Queue.
     # Tasks are executed within Fibers on worker threads.
     # When a Fiber yields [:need_dep, dep_class, method], the worker
-    # resolves the dependency via SharedState:
+    # resolves the dependency via TaskWrapper#request_value:
     #
     # - :completed → resume Fiber immediately with the value
     # - :wait → park the Fiber (it will be resumed later via the thread's queue)
@@ -26,8 +26,7 @@ module Taski
     class WorkerPool
       attr_reader :worker_count
 
-      def initialize(shared_state:, registry:, execution_context:, completion_queue:, worker_count: nil)
-        @shared_state = shared_state
+      def initialize(registry:, execution_context:, completion_queue:, worker_count: nil)
         @registry = registry
         @execution_context = execution_context
         @worker_count = worker_count || Execution.default_worker_count
@@ -94,6 +93,8 @@ module Taski
         end
       end
 
+      # Drive a new Fiber for a task. The caller MUST have already called
+      # wrapper.mark_running before enqueueing — drive_fiber never calls it.
       def drive_fiber(task_class, wrapper, queue)
         return if @registry.abort_requested?
 
@@ -103,18 +104,6 @@ module Taski
         end
 
         now = Time.now
-        unless wrapper.mark_running
-          # Already running or completed elsewhere — still emit observer events
-          # so progress display sees the full pending → running → completed sequence.
-          @execution_context.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
-          @execution_context.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
-          wrapper.wait_for_completion
-          @shared_state.mark_completed(task_class)
-          @completion_queue.push({task_class: task_class, wrapper: wrapper})
-          return
-        end
-
-        @shared_state.mark_running(task_class)
         @task_start_times[task_class] = now
         Taski::Logging.info(Taski::Logging::Events::TASK_STARTED, task: task_class.name)
         @execution_context.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
@@ -146,7 +135,8 @@ module Taski
       end
 
       def handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
-        status = @shared_state.request_dependency(dep_class, method, queue, fiber)
+        dep_wrapper = @registry.create_wrapper(dep_class, execution_context: @execution_context)
+        status = dep_wrapper.request_value(method, queue, fiber)
 
         case status[0]
         when :completed
@@ -157,7 +147,7 @@ module Taski
           store_fiber_context(fiber, task_class, wrapper)
         when :start
           store_fiber_context(fiber, task_class, wrapper)
-          start_dependency(dep_class, queue)
+          start_dependency(dep_class, dep_wrapper, queue)
         end
       end
 
@@ -185,11 +175,8 @@ module Taski
       end
 
       # Start a dependency task as a new Fiber on this thread.
-      # SharedState is already RUNNING (set atomically by request_dependency),
-      # so drive_fiber handles the wrapper-level mark_running transition.
-      def start_dependency(dep_class, queue)
-        dep_wrapper = @registry.create_wrapper(dep_class, execution_context: @execution_context)
-        @shared_state.register(dep_class, dep_wrapper)
+      # The wrapper is already RUNNING (set atomically by request_value).
+      def start_dependency(dep_class, dep_wrapper, queue)
         drive_fiber(dep_class, dep_wrapper, queue)
       end
 
@@ -198,7 +185,6 @@ module Taski
         duration = task_duration_ms(task_class)
         Taski::Logging.info(Taski::Logging::Events::TASK_COMPLETED, task: task_class.name, duration_ms: duration)
         wrapper.mark_completed(result)
-        @shared_state.mark_completed(task_class)
         @completion_queue.push({task_class: task_class, wrapper: wrapper})
         teardown_fiber_context
       end
@@ -208,7 +194,6 @@ module Taski
         duration = task_duration_ms(task_class)
         Taski::Logging.error(Taski::Logging::Events::TASK_FAILED, task: task_class.name, duration_ms: duration)
         wrapper.mark_failed(error)
-        @shared_state.mark_failed(task_class, error)
         @completion_queue.push({task_class: task_class, wrapper: wrapper, error: error})
         teardown_fiber_context
       end
