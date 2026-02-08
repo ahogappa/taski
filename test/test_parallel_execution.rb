@@ -551,31 +551,40 @@ class TestParallelExecution < Minitest::Test
     assert_equal [:child, :base], RunAndCleanFixtures::CleanOrder.order
   end
 
-  def test_run_and_clean_error_still_cleans
-    run_executed = false
-    clean_executed = false
-
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        run_executed = true
-        raise StandardError, "Run failed"
-      end
-
-      define_method(:clean) do
-        clean_executed = true
-      end
-    end
+  def test_run_and_clean_default_skips_clean_on_run_failure
+    require_relative "fixtures/run_and_clean_fixtures"
+    RunAndCleanFixtures::CleanOnFailureTracker.clear
 
     error = assert_raises(Taski::AggregateError) do
-      task_class.run_and_clean
+      RunAndCleanFixtures::FailingCleanableTask.run_and_clean
     end
 
     assert_equal 1, error.errors.size
     assert_equal "Run failed", error.errors.first.error.message
-    assert run_executed, "Run should have been executed"
-    assert clean_executed, "Clean should still execute after run failure"
+    assert RunAndCleanFixtures::CleanOnFailureTracker.run_executed?, "Run should have been executed"
+    refute RunAndCleanFixtures::CleanOnFailureTracker.clean_executed?, "Clean should NOT execute after run failure by default"
+  end
+
+  def test_run_and_clean_with_clean_on_failure_runs_clean
+    require_relative "fixtures/run_and_clean_fixtures"
+    RunAndCleanFixtures::CleanOnFailureTracker.clear
+
+    error = assert_raises(Taski::AggregateError) do
+      RunAndCleanFixtures::FailingCleanableTask.run_and_clean(clean_on_failure: true)
+    end
+
+    assert_equal 1, error.errors.size
+    assert_equal "Run failed", error.errors.first.error.message
+    assert RunAndCleanFixtures::CleanOnFailureTracker.run_executed?, "Run should have been executed"
+    assert RunAndCleanFixtures::CleanOnFailureTracker.clean_executed?, "Clean should execute after run failure with clean_on_failure: true"
+  end
+
+  def test_run_and_clean_success_always_cleans_regardless_of_option
+    require_relative "fixtures/run_and_clean_fixtures"
+    RunAndCleanFixtures::CleanOnFailureTracker.clear
+
+    RunAndCleanFixtures::SucceedingCleanableTask.run_and_clean
+    assert RunAndCleanFixtures::CleanOnFailureTracker.clean_executed?, "Clean should execute when run succeeds"
   end
 
   def test_run_and_clean_returns_result

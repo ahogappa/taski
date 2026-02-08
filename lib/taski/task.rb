@@ -84,18 +84,19 @@ module Taski
 
       ##
       # Execute run followed by clean in a single operation.
-      # If run fails, clean is still executed for resource release.
-      # Creates a fresh registry for both operations to share.
+      # By default, clean is skipped when run fails.
+      # Use clean_on_failure: true to always execute clean for resource release.
       # An optional block is executed between run and clean phases.
       #
       # @param args [Hash] User-defined arguments accessible via Taski.args.
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
       #   Must be a positive integer or nil.
+      # @param clean_on_failure [Boolean] When true, clean runs even if run raises (default: false).
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution
       # @yield Optional block executed between run and clean phases
-      def run_and_clean(args: {}, workers: nil, &block)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(&block) }
+      def run_and_clean(args: {}, workers: nil, clean_on_failure: false, &block)
+        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(clean_on_failure: clean_on_failure, &block) }
       end
 
       ##
