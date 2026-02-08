@@ -204,7 +204,7 @@ class TestWorkerPool < Minitest::Test
 
   def test_fiber_context_restored_on_cross_thread_resume
     # When a fiber is parked (waiting for a dependency on another thread),
-    # the thread-local fiber context is cleared by teardown_fiber_context.
+    # the thread-local state is cleared by teardown_thread_locals.
     # When the fiber is resumed via :resume command, the context must be
     # restored so the fiber sees the correct registry and execution context.
     context_seen_after_resume = Queue.new

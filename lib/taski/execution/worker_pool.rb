@@ -100,7 +100,7 @@ module Taski
         return if @registry.abort_requested?
 
         fiber = Fiber.new do
-          setup_fiber_context
+          setup_run_thread_locals
           wrapper.task.run
         end
 
@@ -153,14 +153,14 @@ module Taski
       end
 
       # Resume a parked Fiber from the thread queue.
-      # Restores fiber context before resuming since teardown_fiber_context
+      # Restores fiber context before resuming since teardown_thread_locals
       # cleared thread-local state when the fiber was parked.
       def resume_fiber(fiber, value, queue)
         context = get_fiber_context(fiber)
         return unless context
 
         task_class, wrapper = context
-        setup_fiber_context
+        setup_run_thread_locals
         start_output_capture(task_class)
         drive_fiber_loop(fiber, task_class, wrapper, queue, value)
       end
@@ -170,7 +170,7 @@ module Taski
         return unless context
 
         task_class, wrapper = context
-        setup_fiber_context
+        setup_run_thread_locals
         start_output_capture(task_class)
         drive_fiber_loop(fiber, task_class, wrapper, queue, [:_taski_error, error])
       end
@@ -187,7 +187,7 @@ module Taski
         Taski::Logging.info(Taski::Logging::Events::TASK_COMPLETED, task: task_class.name, duration_ms: duration)
         wrapper.mark_completed(result)
         @completion_queue.push({task_class: task_class, wrapper: wrapper})
-        teardown_fiber_context
+        teardown_thread_locals
       end
 
       def fail_task(task_class, wrapper, error)
@@ -196,14 +196,14 @@ module Taski
         Taski::Logging.error(Taski::Logging::Events::TASK_FAILED, task: task_class.name, duration_ms: duration)
         wrapper.mark_failed(error)
         @completion_queue.push({task_class: task_class, wrapper: wrapper, error: error})
-        teardown_fiber_context
+        teardown_thread_locals
       end
 
       # Execute a clean task directly (no Fiber needed).
       def execute_clean_task(task_class, wrapper)
         return if @registry.abort_requested?
 
-        setup_clean_context
+        setup_clean_thread_locals
         start_output_capture(task_class)
         clean_start = Time.now
         Taski::Logging.debug(Taski::Logging::Events::TASK_CLEAN_STARTED, task: task_class.name)
@@ -221,24 +221,24 @@ module Taski
         @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
       ensure
         stop_output_capture
-        teardown_fiber_context
+        teardown_thread_locals
       end
 
       # Set up context for clean execution (no Fiber flag).
-      def setup_clean_context
+      def setup_clean_thread_locals
         Thread.current[:taski_current_phase] = :clean
         ExecutionFacade.current = @execution_context
         Taski.set_current_registry(@registry)
       end
 
-      def setup_fiber_context
+      def setup_run_thread_locals
         Thread.current[:taski_fiber_context] = true
         Thread.current[:taski_current_phase] = :run
         ExecutionFacade.current = @execution_context
         Taski.set_current_registry(@registry)
       end
 
-      def teardown_fiber_context
+      def teardown_thread_locals
         Thread.current[:taski_fiber_context] = nil
         Thread.current[:taski_current_phase] = nil
         ExecutionFacade.current = nil

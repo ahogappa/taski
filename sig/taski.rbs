@@ -294,9 +294,9 @@ module Taski
       def complete_task: (Class task_class, TaskWrapper wrapper, untyped result) -> void
       def fail_task: (Class task_class, TaskWrapper wrapper, Exception error) -> void
       def execute_clean_task: (Class task_class, TaskWrapper wrapper) -> void
-      def setup_clean_context: () -> void
-      def setup_fiber_context: () -> void
-      def teardown_fiber_context: () -> void
+      def setup_clean_thread_locals: () -> void
+      def setup_run_thread_locals: () -> void
+      def teardown_thread_locals: () -> void
       def start_output_capture: (Class task_class) -> void
       def stop_output_capture: () -> void
       def store_fiber_context: (Fiber fiber, Class task_class, TaskWrapper wrapper) -> void
