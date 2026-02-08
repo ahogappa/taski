@@ -354,11 +354,14 @@ ruby build.rb > build.log 2>&1
 
 ## Debugging
 
-### Environment Variables
+### Structured Logging
 
-| Variable | Purpose |
-|----------|---------|
-| `TASKI_DEBUG=1` | Enable debug output |
+```ruby
+require "logger"
+Taski.logger = Logger.new($stdout, level: Logger::DEBUG)
+```
+
+Set `Taski.logger` to a Ruby `Logger` instance to enable structured JSON logging of execution events.
 
 ### Dependency Tree Visualization
 
