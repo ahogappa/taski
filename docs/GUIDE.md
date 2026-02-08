@@ -286,21 +286,9 @@ After completion:
 
 ### Display Modes
 
-Taski supports two progress display modes:
+Taski supports three progress display modes:
 
-#### Tree Mode (Default)
-
-Full dependency tree visualization with status for each task:
-
-```
-WebServer (Task)
-├── ⠋ Config (Task) | Reading config.yml...
-│   ├── ✅ Database (Task) 45.2ms
-│   └── ⠙ Cache (Task) | Connecting...
-└── ◻ Server (Task)
-```
-
-#### Simple Mode
+#### Simple Mode (Default)
 
 Compact single-line display showing current progress:
 
@@ -321,7 +309,19 @@ On failure:
 ✗ [3/5] DeployTask failed: Connection refused
 ```
 
-#### Plain Mode
+#### Tree Mode
+
+Full dependency tree visualization with status for each task:
+
+```
+WebServer (Task)
+├── ⠋ Config (Task) | Reading config.yml...
+│   ├── ✅ Database (Task) 45.2ms
+│   └── ⠙ Cache (Task) | Connecting...
+└── ◻ Server (Task)
+```
+
+#### Log Mode
 
 Plain text output without escape codes, designed for CI/logs:
 
@@ -338,7 +338,7 @@ Plain text output without escape codes, designed for CI/logs:
 ```ruby
 Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
 Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
-Taski.progress_display = Taski::Progress::Layout::Log.new      # Plain text (CI/logs)
+Taski.progress_display = Taski::Progress::Layout::Log.new      # Log output (CI/logs)
 Taski.progress_display = nil                                    # Disable
 ```
 
