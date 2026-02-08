@@ -86,25 +86,6 @@ module Taski
         drain_pipe(pipe) if pipe
       end
 
-      # Called after close_write to ensure all output is captured.
-      def drain_pipe(pipe)
-        return if pipe.read_closed?
-
-        loop do
-          data = pipe.read_io.read_nonblock(READ_BUFFER_SIZE)
-          Taski::Logging.debug(Taski::Logging::Events::OUTPUT_ROUTER_DRAIN_PIPE, task: pipe.task_class.name, bytes: data.bytesize)
-          store_output_lines(pipe.task_class, data)
-        rescue IO::WaitReadable
-          # Check if there's more data with a very short timeout
-          ready, = IO.select([pipe.read_io], nil, nil, 0.001)
-          break unless ready
-        rescue IOError, Errno::EBADF
-          # All data has been read (EOFError) or pipe was closed by another thread
-          synchronize { pipe.close_read }
-          break
-        end
-      end
-
       # Called periodically from the display thread.
       def poll
         readable_pipes = synchronize do
@@ -128,10 +109,6 @@ module Taski
 
       def last_line_for(task_class)
         synchronize { @recent_lines[task_class]&.last }
-      end
-
-      def recent_lines_for(task_class)
-        synchronize { (@recent_lines[task_class] || []).dup }
       end
 
       def read(task_class, limit: nil)
@@ -230,6 +207,24 @@ module Taski
       end
 
       private
+
+      def drain_pipe(pipe)
+        return if pipe.read_closed?
+
+        loop do
+          data = pipe.read_io.read_nonblock(READ_BUFFER_SIZE)
+          Taski::Logging.debug(Taski::Logging::Events::OUTPUT_ROUTER_DRAIN_PIPE, task: pipe.task_class.name, bytes: data.bytesize)
+          store_output_lines(pipe.task_class, data)
+        rescue IO::WaitReadable
+          # Check if there's more data with a very short timeout
+          ready, = IO.select([pipe.read_io], nil, nil, 0.001)
+          break unless ready
+        rescue IOError, Errno::EBADF
+          # All data has been read (EOFError) or pipe was closed by another thread
+          synchronize { pipe.close_read }
+          break
+        end
+      end
 
       def current_thread_pipe
         synchronize do

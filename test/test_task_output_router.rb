@@ -140,14 +140,13 @@ class TestTaskOutputRouter < Minitest::Test
     assert_equal ["line1"], result2
   end
 
-  # Same race condition in drain_pipe: IO.select blocked while another thread closes the IO
-  def test_drain_pipe_handles_ebadf_when_pipe_closed_during_io_select
+  # Same race condition in drain_pipe (via stop_capture): IO.select blocked while another thread closes the IO
+  def test_stop_capture_handles_ebadf_when_pipe_closed_during_drain
     task_class = Class.new(Taski::Task)
 
     @router.start_capture(task_class)
 
     pipe = @router.instance_variable_get(:@pipes)[task_class]
-    pipe.close_write
 
     # Close the read end from another thread while drain_pipe is blocked on IO.select
     closer = Thread.new do
@@ -155,8 +154,8 @@ class TestTaskOutputRouter < Minitest::Test
       pipe.read_io.close
     end
 
-    # drain_pipe should not raise Errno::EBADF
-    @router.drain_pipe(pipe)
+    # stop_capture (which calls drain_pipe internally) should not raise Errno::EBADF
+    @router.stop_capture
 
     closer.join
   end

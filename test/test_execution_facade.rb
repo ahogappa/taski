@@ -18,28 +18,28 @@ class TestExecutionFacade < Minitest::Test
 
   def test_constructor_stores_dependency_graph
     graph = Taski::StaticAnalysis::DependencyGraph.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, analysis_result: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, dependency_graph: graph)
     assert_equal graph, facade.dependency_graph
   end
 
   def test_dependency_graph_frozen_after_construction
     graph = Taski::StaticAnalysis::DependencyGraph.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, analysis_result: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, dependency_graph: graph)
     assert facade.dependency_graph.frozen?, "DependencyGraph should be frozen"
   end
 
-  def test_dependency_graph_nil_when_no_analysis_result
+  def test_dependency_graph_nil_when_not_provided
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
     assert_nil facade.dependency_graph
   end
 
-  def test_output_stream_returns_output_hub
-    hub = Object.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, output_hub: hub)
-    assert_equal hub, facade.output_stream
+  def test_output_stream_returns_provided_value
+    stream = Object.new
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, output_stream: stream)
+    assert_equal stream, facade.output_stream
   end
 
-  def test_output_stream_nil_when_no_hub
+  def test_output_stream_nil_when_not_provided
     facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
     assert_nil facade.output_stream
   end
@@ -561,7 +561,7 @@ class TestExecutionFacade < Minitest::Test
     root.define_singleton_method(:cached_dependencies) { Set[leaf] }
 
     graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(root)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, analysis_result: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, dependency_graph: graph)
 
     deps = facade.dependency_graph.dependencies_for(root)
     assert_includes deps, leaf
@@ -583,7 +583,7 @@ class TestExecutionFacade < Minitest::Test
     root.define_singleton_method(:cached_dependencies) { Set[leaf] }
 
     graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(root)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, analysis_result: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, dependency_graph: graph)
 
     all = facade.dependency_graph.all_tasks
     assert_includes all, root
@@ -611,7 +611,7 @@ class TestExecutionFacade < Minitest::Test
     root.define_singleton_method(:cached_dependencies) { Set[middle] }
 
     graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(root)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, analysis_result: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, dependency_graph: graph)
 
     # Root's children include middle
     root_deps = facade.dependency_graph.dependencies_for(root)

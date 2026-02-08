@@ -17,11 +17,12 @@ module Taski
     # - :wait → park the Fiber (it will be resumed later via the thread's queue)
     # - :start → start the dependency as a nested Fiber on the same thread
     #
-    # Worker threads process three kinds of commands:
-    # - [:execute, task_class, wrapper] → create and drive a new Fiber
-    # - [:resume, fiber, value]         → resume a parked Fiber with a value
-    # - [:resume_error, fiber, error]   → resume a parked Fiber with an error
-    # - :shutdown                       → exit the worker loop
+    # Worker threads process these commands:
+    # - [:execute, task_class, wrapper]       → create and drive a new Fiber
+    # - [:execute_clean, task_class, wrapper] → run clean directly (no Fiber)
+    # - [:resume, fiber, value]               → resume a parked Fiber with a value
+    # - [:resume_error, fiber, error]         → resume a parked Fiber with an error
+    # - :shutdown                             → exit the worker loop
     class WorkerPool
       attr_reader :worker_count
 

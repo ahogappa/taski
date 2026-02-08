@@ -168,7 +168,7 @@ module Taski
 
       @root_task_class: Class?
       @dependency_graph: StaticAnalysis::DependencyGraph?
-      @output_hub: untyped
+      @output_stream: untyped
       @monitor: Monitor
       @observers: Array[untyped]
       @execution_trigger: (^(Class, Registry) -> void)?
@@ -180,7 +180,7 @@ module Taski
       def self.current: () -> ExecutionFacade?
       def self.current=: (ExecutionFacade? context) -> void
 
-      def initialize: (root_task_class: Class?, ?analysis_result: StaticAnalysis::DependencyGraph?, ?output_hub: untyped) -> void
+      def initialize: (root_task_class: Class?, ?dependency_graph: StaticAnalysis::DependencyGraph?, ?output_stream: untyped) -> void
       def update_dependency_graph: (StaticAnalysis::DependencyGraph graph) -> void
       def output_stream: () -> untyped
       def output_capture_active?: () -> bool
@@ -227,11 +227,11 @@ module Taski
 
       @dependencies: Hash[Class, Array[Class]]
       @task_states: Hash[Class, Symbol]
-      @completed_tasks: Set[Class]
+      @finished_tasks: Set[Class]
       @run_reverse_deps: Hash[Class, Set[Class]]
       @reverse_dependencies: Hash[Class, Set[Class]]
       @clean_task_states: Hash[Class, Symbol]
-      @clean_completed_tasks: Set[Class]
+      @clean_finished_tasks: Set[Class]
 
       def initialize: () -> void
       def load_graph: (StaticAnalysis::DependencyGraph dependency_graph, Class root_task_class) -> void
@@ -338,7 +338,7 @@ module Taski
       def notify_skipped_tasks: () -> void
       def enqueue_ready_clean_tasks: () -> void
       def enqueue_clean_task: (Class task_class) -> void
-      def run_clean_main_loop: (Class root_task_class) -> void
+      def run_clean_main_loop: () -> void
       def handle_clean_completion: (Hash[Symbol, untyped] event) -> void
       def all_tasks_cleaned?: () -> bool
       def with_display_lifecycle: (Class root_task_class) { () -> void } -> void

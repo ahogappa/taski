@@ -16,22 +16,18 @@ module Taski
     class ExecutionFacade
       THREAD_LOCAL_KEY = :taski_execution_context
 
-      attr_reader :root_task_class, :dependency_graph
+      attr_reader :root_task_class, :dependency_graph, :output_stream
 
-      def initialize(root_task_class:, analysis_result: nil, output_hub: nil)
+      def initialize(root_task_class:, dependency_graph: nil, output_stream: nil)
         @root_task_class = root_task_class
-        @dependency_graph = analysis_result&.freeze
-        @output_hub = output_hub
+        @dependency_graph = dependency_graph&.freeze
+        @output_stream = output_stream
         @monitor = Monitor.new
         @observers = []
         @execution_trigger = nil
         @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
-      end
-
-      def output_stream
-        @output_hub
       end
 
       # Set once, then frozen.

@@ -79,7 +79,7 @@ module Taski
           )
           @worker_pool.start
           enqueue_ready_clean_tasks
-          run_clean_main_loop(root_task_class)
+          run_clean_main_loop
           @worker_pool.shutdown
         end
 
@@ -201,7 +201,7 @@ module Taski
         @worker_pool.enqueue_clean(task_class, wrapper)
       end
 
-      def run_clean_main_loop(root_task_class)
+      def run_clean_main_loop
         until all_tasks_cleaned?
           break if @registry.abort_requested? && !@scheduler.running_clean_tasks?
 
@@ -281,7 +281,7 @@ module Taski
             error.errors
           else
             wrapped_error = wrap_with_task_error(wrapper.task.class, error)
-            output_lines = output_capture&.recent_lines_for(wrapper.task.class) || []
+            output_lines = output_capture&.read(wrapper.task.class) || []
             [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
           end
         end

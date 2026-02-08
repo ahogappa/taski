@@ -279,7 +279,7 @@ class TestWorkerPool < Minitest::Test
     mock_capture = Object.new
     mock_capture.define_singleton_method(:start_capture) { |tc| captured_tasks << tc }
     mock_capture.define_singleton_method(:stop_capture) { stopped_tasks << :stop }
-    mock_capture.define_singleton_method(:recent_lines_for) { |_| [] }
+    mock_capture.define_singleton_method(:read) { |_, **| [] }
 
     # Inject mock capture into execution context
     @execution_context.instance_variable_set(:@output_capture, mock_capture)

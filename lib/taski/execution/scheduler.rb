@@ -59,13 +59,13 @@ module Taski
         # Run execution state
         @dependencies = {}
         @task_states = {}
-        @completed_tasks = Set.new
+        @finished_tasks = Set.new
         @run_reverse_deps = {}
 
         # Clean execution state (independent tracking, same state values)
         @reverse_dependencies = {}
         @clean_task_states = {}
-        @clean_completed_tasks = Set.new
+        @clean_finished_tasks = Set.new
       end
 
       # Load dependency graph from a pre-built DependencyGraph.
@@ -121,17 +121,17 @@ module Taski
       # @param task_class [Class] The task class to mark
       def mark_completed(task_class)
         @task_states[task_class] = STATE_COMPLETED
-        @completed_tasks.add(task_class)
+        @finished_tasks.add(task_class)
       end
 
       # Mark a task as failed.
-      # Failed tasks are added to the completed set so dependents can proceed
+      # Failed tasks are added to the finished set so dependents can proceed
       # (they will be skipped by the Executor's skip_pending_dependents).
       #
       # @param task_class [Class] The task class to mark
       def mark_failed(task_class)
         @task_states[task_class] = STATE_FAILED
-        @completed_tasks.add(task_class)
+        @finished_tasks.add(task_class)
       end
 
       # Check if a task is completed.
@@ -139,7 +139,7 @@ module Taski
       # @param task_class [Class] The task class to check
       # @return [Boolean] true if the task is completed
       def completed?(task_class)
-        @completed_tasks.include?(task_class)
+        @finished_tasks.include?(task_class)
       end
 
       # Check if there are any running tasks.
@@ -234,7 +234,7 @@ module Taski
         # Clear previous clean state
         @reverse_dependencies.clear
         @clean_task_states.clear
-        @clean_completed_tasks.clear
+        @clean_finished_tasks.clear
 
         # Initialize all tasks with empty reverse dependency sets
         @dependencies.each_key do |task_class|
@@ -278,7 +278,7 @@ module Taski
       # @param task_class [Class] The task class to mark as clean completed.
       def mark_clean_completed(task_class)
         @clean_task_states[task_class] = STATE_COMPLETED
-        @clean_completed_tasks.add(task_class)
+        @clean_finished_tasks.add(task_class)
       end
 
       # Check if a task's clean is completed.
@@ -286,7 +286,7 @@ module Taski
       # @param task_class [Class] The task class to check.
       # @return [Boolean] true if the task's clean is completed, false otherwise.
       def clean_completed?(task_class)
-        @clean_completed_tasks.include?(task_class)
+        @clean_finished_tasks.include?(task_class)
       end
 
       # Check if there are any running clean tasks.
@@ -301,13 +301,13 @@ module Taski
       # Check if a task is ready to execute (all dependencies completed).
       def ready_to_execute?(task_class)
         task_deps = @dependencies[task_class] || Set.new
-        task_deps.subset?(@completed_tasks)
+        task_deps.subset?(@finished_tasks)
       end
 
       # Check if a task is ready to clean (all reverse dependencies completed).
       def ready_to_clean?(task_class)
         reverse_deps = @reverse_dependencies[task_class] || Set.new
-        reverse_deps.subset?(@clean_completed_tasks)
+        reverse_deps.subset?(@clean_finished_tasks)
       end
 
       def log_dependency_resolved(from_task, to_task)

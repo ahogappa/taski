@@ -115,7 +115,7 @@ module Taski
           @state = STATE_FAILED
           @condition.broadcast
         end
-        update_progress(:failed, error: error)
+        update_progress(:failed)
       end
 
       def mark_skipped
@@ -151,7 +151,7 @@ module Taski
           @clean_state = STATE_FAILED
           @clean_condition.broadcast
         end
-        update_clean_progress(:failed, error: error)
+        update_clean_progress(:failed)
       end
 
       def wait_for_completion
@@ -255,11 +255,11 @@ module Taski
         notify_state_change(previous_state: :pending, current_state: :skipped, phase: :run)
       end
 
-      def update_progress(state, error: nil)
+      def update_progress(state)
         notify_state_change(previous_state: :running, current_state: state, phase: :run)
       end
 
-      def update_clean_progress(state, error: nil)
+      def update_clean_progress(state)
         notify_state_change(previous_state: :running, current_state: state, phase: :clean)
       end
 

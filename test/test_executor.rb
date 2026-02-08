@@ -970,7 +970,7 @@ class TestExecutor < Minitest::Test
     graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task)
     context = Taski::Execution::ExecutionFacade.new(
       root_task_class: task,
-      analysis_result: graph
+      dependency_graph: graph
     )
     context.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
