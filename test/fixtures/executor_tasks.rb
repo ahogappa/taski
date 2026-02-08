@@ -201,4 +201,220 @@ module ExecutorFixtures
       @value = "root_done"
     end
   end
+
+  # Failure cascade: FailCascadeRoot -> [FailCascadeBranchA, FailCascadeBranchB]
+  #   FailCascadeBranchA -> FailCascadeLeaf (fails)
+  #   FailCascadeBranchB -> FailCascadeMiddle -> FailCascadeLeaf (fails)
+  # When leaf fails, middle and branch_b are cascade-skipped.
+  class FailCascadeLeaf < Taski::Task
+    exports :value
+    def run = raise StandardError, "leaf failed"
+  end
+
+  class FailCascadeMiddle < Taski::Task
+    exports :value
+
+    def run
+      @value = "m(#{FailCascadeLeaf.value})"
+    end
+  end
+
+  class FailCascadeBranchA < Taski::Task
+    exports :value
+
+    def run
+      @value = "a(#{FailCascadeLeaf.value})"
+    end
+  end
+
+  class FailCascadeBranchB < Taski::Task
+    exports :value
+
+    def run
+      @value = "b(#{FailCascadeMiddle.value})"
+    end
+  end
+
+  class FailCascadeRoot < Taski::Task
+    exports :value
+
+    def run
+      a = FailCascadeBranchA.value
+      b = FailCascadeBranchB.value
+      @value = "#{a}+#{b}"
+    end
+  end
+
+  # Unreached subtree: UnreachedRoot -> UnreachedParent -> UnreachedChild -> UnreachedSlowLeaf
+  # Root completes immediately without accessing the chain.
+  # `if false` ensures static analysis sees the dependency.
+  class UnreachedSlowLeaf < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.3
+      @value = "slow"
+    end
+  end
+
+  class UnreachedChild < Taski::Task
+    exports :value
+
+    def run
+      @value = UnreachedSlowLeaf.value
+    end
+  end
+
+  class UnreachedParent < Taski::Task
+    exports :value
+
+    def run
+      @value = UnreachedChild.value
+    end
+  end
+
+  class UnreachedRoot < Taski::Task
+    exports :value
+
+    def run
+      if false # rubocop:disable Lint/LiteralAsCondition
+        UnreachedParent.value
+      end
+      @value = "done"
+    end
+  end
+
+  # Two branches sharing a failing leaf: FailBranchRoot -> [FailBranchStarted, FailBranchUnstarted]
+  # Both branches depend on FailBranchLeaf (fails).
+  # Root yields for Started first; Unstarted stays pending -> cascade-skipped.
+  class FailBranchLeaf < Taski::Task
+    exports :value
+    def run = raise StandardError, "boom"
+  end
+
+  class FailBranchStarted < Taski::Task
+    exports :value
+
+    def run
+      @value = FailBranchLeaf.value
+    end
+  end
+
+  class FailBranchUnstarted < Taski::Task
+    exports :value
+
+    def run
+      @value = FailBranchLeaf.value
+    end
+  end
+
+  class FailBranchRoot < Taski::Task
+    exports :value
+
+    def run
+      a = FailBranchStarted.value
+      b = FailBranchUnstarted.value
+      @value = "#{a}+#{b}"
+    end
+  end
+
+  # Deep subtree failure: FailSubtreeRoot -> [FailSubtreeStartedBranch, FailSubtreeDeepBranch]
+  #   FailSubtreeStartedBranch -> FailSubtreeLeaf (fails)
+  #   FailSubtreeDeepBranch -> FailSubtreeMiddle -> FailSubtreeLeaf (fails)
+  # middle and deep_branch are cascade-skipped.
+  class FailSubtreeLeaf < Taski::Task
+    exports :value
+    def run = raise("fail")
+  end
+
+  class FailSubtreeStartedBranch < Taski::Task
+    exports :value
+
+    def run
+      @value = FailSubtreeLeaf.value
+    end
+  end
+
+  class FailSubtreeMiddle < Taski::Task
+    exports :value
+
+    def run
+      @value = FailSubtreeLeaf.value
+    end
+  end
+
+  class FailSubtreeDeepBranch < Taski::Task
+    exports :value
+
+    def run
+      @value = FailSubtreeMiddle.value
+    end
+  end
+
+  class FailSubtreeRoot < Taski::Task
+    exports :value
+
+    def run
+      a = FailSubtreeStartedBranch.value
+      b = FailSubtreeDeepBranch.value
+      @value = "#{a}+#{b}"
+    end
+  end
+
+  # Clean skip: CleanSkipRoot -> [CleanSkipGoodDep, CleanSkipSkippedDep -> CleanSkipFailingDep]
+  # Root completes without accessing dependencies. FailingDep raises -> SkippedDep cascade-skipped.
+  # Verifies skipped tasks' clean method is NOT called.
+  class CleanSkipGoodDep < Taski::Task
+    exports :value
+    def run = @value = "good"
+    def clean = nil
+  end
+
+  class CleanSkipFailingDep < Taski::Task
+    exports :value
+    def run = raise "boom"
+    def clean = nil
+  end
+
+  class CleanSkipSkippedDep < Taski::Task
+    exports :value
+
+    def run
+      @value = CleanSkipFailingDep.value
+    end
+
+    def clean = nil
+  end
+
+  class CleanSkipRoot < Taski::Task
+    exports :value
+
+    def run
+      if false # rubocop:disable Lint/LiteralAsCondition
+        CleanSkipGoodDep.value
+        CleanSkipSkippedDep.value
+      end
+      @value = "done"
+    end
+
+    def clean = nil
+  end
+
+  # Failed task clean: FailCleanRoot -> FailCleanDep (raises)
+  # Verifies failed tasks' clean method IS called for resource release.
+  class FailCleanDep < Taski::Task
+    exports :value
+    def run = raise "boom"
+    def clean = nil
+  end
+
+  class FailCleanRoot < Taski::Task
+    exports :value
+
+    def run
+      @value = FailCleanDep.value
+    end
+
+    def clean = nil
+  end
 end
