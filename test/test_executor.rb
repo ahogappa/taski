@@ -816,8 +816,8 @@ class TestExecutor < Minitest::Test
         execution_facade: facade,
         worker_count: 2
       ).execute(root)
-    rescue Taski::AggregateError
-      # Expected — failing_dep raises, wrapped in AggregateError by Executor
+    rescue Taski::TaskError
+      # Expected — failing_dep raises
     end
 
     # Clean phase — skipped_dep should not be cleaned
