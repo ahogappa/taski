@@ -179,8 +179,6 @@ module Taski
         wrapper = @registry.create_wrapper(task_class, execution_facade: @execution_facade)
         return unless wrapper.mark_clean_running
 
-        @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: Time.now)
-
         @worker_pool.enqueue_clean(task_class, wrapper)
       end
 

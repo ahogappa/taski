@@ -206,6 +206,7 @@ module Taski
         setup_clean_thread_locals
         start_output_capture(task_class)
         clean_start = Time.now
+        @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :clean, timestamp: clean_start)
         Taski::Logging.debug(Taski::Logging::Events::TASK_CLEAN_STARTED, task: task_class.name)
 
         result = wrapper.task.clean
