@@ -16,12 +16,11 @@ module Taski
     class ExecutionFacade
       THREAD_LOCAL_KEY = :taski_execution_context
 
-      attr_reader :root_task_class, :output_stream, :dependency_graph
+      attr_reader :root_task_class, :dependency_graph
 
-      def initialize(root_task_class:, output_stream: nil)
+      def initialize(root_task_class:)
         @root_task_class = root_task_class
         @dependency_graph = StaticAnalysis::DependencyGraph.new.build_from_cached(root_task_class).freeze
-        @output_stream = output_stream
         @monitor = Monitor.new
         @observers = []
         @output_capture = nil

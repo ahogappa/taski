@@ -112,7 +112,7 @@ module Taski
           end
         end
 
-        # Event 7: Group started within a task.
+        # Event 5: Group started within a task.
         # @param task_class [Class]
         # @param group_name [String]
         # @param phase [Symbol] :run or :clean
@@ -123,7 +123,7 @@ module Taski
           end
         end
 
-        # Event 8: Group completed within a task.
+        # Event 6: Group completed within a task.
         # @param task_class [Class]
         # @param group_name [String]
         # @param phase [Symbol] :run or :clean
@@ -443,19 +443,6 @@ module Taski
             when :skipped
               render_task_skipped(task_class)
             end
-          end
-        end
-
-        # Dispatch group event to appropriate render method
-        # @return [String, nil] Rendered output or nil if state not handled
-        def render_for_group_event(task_class, group_name, state, task_duration, error)
-          case state
-          when :running
-            render_group_started(task_class, group_name: group_name)
-          when :completed
-            render_group_succeeded(task_class, group_name: group_name, task_duration: task_duration)
-          when :failed
-            render_group_failed(task_class, group_name: group_name, error: error)
           end
         end
 

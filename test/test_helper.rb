@@ -18,9 +18,9 @@ if ENV["CI"] || ENV["COVERAGE"]
     add_filter "/sig/"
 
     add_group "Core", "lib/taski.rb"
-    add_group "Parallel Execution", "lib/taski/parallel"
-    add_group "Static Analysis", "lib/taski/parallel/static_analysis"
-    add_group "Execution Engine", "lib/taski/parallel/execution"
+    add_group "Static Analysis", "lib/taski/static_analysis"
+    add_group "Execution Engine", "lib/taski/execution"
+    add_group "Progress Display", "lib/taski/progress"
   end
 end
 

@@ -166,7 +166,6 @@ module Taski
 
       @root_task_class: Class?
       @dependency_graph: StaticAnalysis::DependencyGraph?
-      @output_stream: untyped
       @monitor: Monitor
       @observers: Array[untyped]
       @output_capture: TaskOutputRouter?
@@ -177,8 +176,7 @@ module Taski
       def self.current: () -> ExecutionFacade?
       def self.current=: (ExecutionFacade? context) -> void
 
-      def initialize: (root_task_class: Class, ?output_stream: untyped) -> void
-      def output_stream: () -> untyped
+      def initialize: (root_task_class: Class) -> void
       def output_capture_active?: () -> bool
       def original_stdout: () -> IO?
       def original_stderr: () -> IO?

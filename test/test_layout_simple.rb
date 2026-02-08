@@ -318,38 +318,3 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
     klass
   end
 end
-
-class TestLayoutSimpleWithTreeProgressDisplay < Minitest::Test
-  # These tests verify the Simple layout works when TreeProgressDisplay's
-  # tree building method is available
-
-  def setup
-    @output = StringIO.new
-    @output.define_singleton_method(:tty?) { true }
-    @layout = Taski::Progress::Layout::Simple.new(output: @output)
-  end
-
-  def test_tree_building_uses_tree_progress_display_method
-    # If TreeProgressDisplay is available, it should use its tree building
-    if defined?(Taski::Execution::TreeProgressDisplay)
-      root = Taski::Task
-      # Just verify it doesn't crash when TreeProgressDisplay is available
-      ctx = mock_execution_facade(root_task_class: root)
-      @layout.context = ctx
-      @layout.on_ready
-    end
-  end
-
-  private
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
-  end
-end

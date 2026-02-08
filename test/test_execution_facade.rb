@@ -22,17 +22,6 @@ class TestExecutionFacade < Minitest::Test
     assert facade.dependency_graph.frozen?, "DependencyGraph should be frozen"
   end
 
-  def test_output_stream_returns_provided_value
-    stream = Object.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA, output_stream: stream)
-    assert_equal stream, facade.output_stream
-  end
-
-  def test_output_stream_nil_when_not_provided
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
-    assert_nil facade.output_stream
-  end
-
   # ========================================
   # Thread-local current context
   # ========================================
