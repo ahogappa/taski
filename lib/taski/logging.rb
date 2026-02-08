@@ -45,6 +45,7 @@ module Taski
       OUTPUT_ROUTER_STOP_CAPTURE_UNREGISTERED = "output_router.stop_capture_unregistered"
       OUTPUT_ROUTER_DRAIN_PIPE = "output_router.drain_pipe"
       OUTPUT_ROUTER_STORE_LINES = "output_router.store_lines"
+      OBSERVER_ERROR = "observer.error"
     end
 
     # Log severity levels matching Ruby Logger

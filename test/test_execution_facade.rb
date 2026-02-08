@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "logger"
 
 class TestExecutionFacade < Minitest::Test
   def setup
@@ -300,13 +301,25 @@ class TestExecutionFacade < Minitest::Test
     facade.add_observer(second_observer)
 
     # Should not raise, and second observer should still be called
-    _out, err = capture_io do
+    log_output = StringIO.new
+    logger = Logger.new(log_output)
+    logger.level = Logger::DEBUG
+    logger.formatter = proc { |_severity, _datetime, _progname, msg| "#{msg}\n" }
+
+    original_logger = Taski.logger
+    begin
+      Taski.logger = logger
       facade.notify_ready
+    ensure
+      Taski.logger = original_logger
     end
 
     assert first_called
     assert second_called
-    assert_match(/Observer.*raised error/, err)
+
+    log_content = log_output.string
+    assert_includes log_content, "observer.error"
+    assert_includes log_content, "Observer error"
   end
 
   # Test dispatch skips observers that don't respond to method

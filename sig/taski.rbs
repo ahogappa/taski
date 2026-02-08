@@ -553,6 +553,7 @@ module Taski
       OUTPUT_ROUTER_STOP_CAPTURE_UNREGISTERED: String
       OUTPUT_ROUTER_DRAIN_PIPE: String
       OUTPUT_ROUTER_STORE_LINES: String
+      OBSERVER_ERROR: String
     end
 
   end

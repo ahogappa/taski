@@ -160,7 +160,7 @@ module Taski
               observer.public_send(method_name, *args, **kwargs)
             end
           rescue => e
-            warn "[ExecutionFacade] Observer #{observer.class} raised error in #{method_name}: #{e.message}"
+            Taski::Logging.warn(Taski::Logging::Events::OBSERVER_ERROR, observer_class: observer.class.name, method: method_name.to_s, error_message: e.message)
           end
         end
       end
