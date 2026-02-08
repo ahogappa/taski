@@ -107,7 +107,6 @@ module Taski
         now = Time.now
         @task_start_times_mutex.synchronize { @task_start_times[task_class] = now }
         Taski::Logging.info(Taski::Logging::Events::TASK_STARTED, task: task_class.name)
-        @execution_facade.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
         @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
 
         start_output_capture(task_class)

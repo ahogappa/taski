@@ -155,7 +155,6 @@ module Taski
         @scheduler.never_started_task_classes.each do |task_class|
           @scheduler.mark_skipped(task_class)
           Taski::Logging.info(Taski::Logging::Events::TASK_SKIPPED, task: task_class.name)
-          @execution_facade.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
           @execution_facade.notify_task_updated(task_class, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now)
         end
       end

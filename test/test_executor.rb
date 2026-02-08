@@ -383,10 +383,8 @@ class TestExecutor < Minitest::Test
 
     # Track observer notifications
     skipped_tasks = []
-    pending_tasks = []
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |tc, previous_state:, current_state:, **_|
-      pending_tasks << tc if current_state == :pending
       skipped_tasks << tc if current_state == :skipped
     end
     observer.define_singleton_method(:on_ready) {}
@@ -407,8 +405,9 @@ class TestExecutor < Minitest::Test
     executor.execute(root_task)
 
     # middle_task was in static graph but never enqueued -> should be skipped
+    # Observers know all tasks start as pending from the dependency graph,
+    # so no explicit nil→:pending notification is needed.
     assert_includes skipped_tasks, middle_task, "middle_task should be skipped"
-    assert_includes pending_tasks, middle_task, "middle_task should be registered as pending first"
     refute_includes skipped_tasks, root_task, "root_task should not be skipped"
   end
 
