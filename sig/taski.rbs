@@ -100,7 +100,7 @@ module Taski
     def self.clear_dependency_cache: () -> void
     def self.run: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> untyped
     def self.clean: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> void
-    def self.run_and_clean: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> untyped
+    def self.run_and_clean: (?args: Hash[Symbol, untyped], ?workers: Integer?, ?clean_on_failure: bool) -> untyped
     def self.registry: () -> Execution::Registry
     def self.reset!: () -> void
     def self.tree: () -> String
@@ -380,7 +380,7 @@ module Taski
       def run: () -> untyped
       def clean: () -> untyped
       def reset!: () -> void
-      def run_and_clean: () ?{ () -> void } -> untyped
+      def run_and_clean: (?clean_on_failure: bool) ?{ () -> void } -> untyped
       def get_exported_value: (Symbol method_name) -> untyped
       def request_value: (Symbol method, Thread::Queue thread_queue, Fiber fiber) -> Array[untyped]
       def mark_running: () -> bool

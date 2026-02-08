@@ -74,14 +74,18 @@ module Taski
       end
 
       # Runs execution followed by cleanup. Block is called between phases.
-      def run_and_clean(&block)
+      # @param clean_on_failure [Boolean] When true, clean runs even if run raises.
+      #   Default is false (clean is skipped on run failure).
+      def run_and_clean(clean_on_failure: false, &block)
         facade = ensure_facade
         facade.notify_start # Pre-increment nest_level to prevent double rendering
+        run_succeeded = false
         result = run
+        run_succeeded = true
         block&.call
         result
       ensure
-        clean
+        clean if run_succeeded || clean_on_failure
         facade&.notify_stop # Final decrement and render
       end
 

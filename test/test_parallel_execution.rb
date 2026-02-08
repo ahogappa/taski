@@ -551,7 +551,7 @@ class TestParallelExecution < Minitest::Test
     assert_equal [:child, :base], RunAndCleanFixtures::CleanOrder.order
   end
 
-  def test_run_and_clean_error_still_cleans
+  def test_run_and_clean_default_skips_clean_on_run_failure
     run_executed = false
     clean_executed = false
 
@@ -575,7 +575,53 @@ class TestParallelExecution < Minitest::Test
     assert_equal 1, error.errors.size
     assert_equal "Run failed", error.errors.first.error.message
     assert run_executed, "Run should have been executed"
-    assert clean_executed, "Clean should still execute after run failure"
+    refute clean_executed, "Clean should NOT execute after run failure by default"
+  end
+
+  def test_run_and_clean_with_clean_on_failure_runs_clean
+    run_executed = false
+    clean_executed = false
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        run_executed = true
+        raise StandardError, "Run failed"
+      end
+
+      define_method(:clean) do
+        clean_executed = true
+      end
+    end
+
+    error = assert_raises(Taski::AggregateError) do
+      task_class.run_and_clean(clean_on_failure: true)
+    end
+
+    assert_equal 1, error.errors.size
+    assert_equal "Run failed", error.errors.first.error.message
+    assert run_executed, "Run should have been executed"
+    assert clean_executed, "Clean should execute after run failure with clean_on_failure: true"
+  end
+
+  def test_run_and_clean_success_always_cleans_regardless_of_option
+    clean_executed = false
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        @value = "ok"
+      end
+
+      define_method(:clean) do
+        clean_executed = true
+      end
+    end
+
+    task_class.run_and_clean
+    assert clean_executed, "Clean should execute when run succeeds"
   end
 
   def test_run_and_clean_returns_result
