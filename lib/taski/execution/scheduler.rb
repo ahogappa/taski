@@ -281,6 +281,15 @@ module Taski
         @clean_finished_tasks.add(task_class)
       end
 
+      # Mark a task as clean failed.
+      # Adds to @clean_finished_tasks so dependents are not blocked.
+      #
+      # @param task_class [Class] The task class to mark as clean failed.
+      def mark_clean_failed(task_class)
+        @clean_task_states[task_class] = STATE_FAILED
+        @clean_finished_tasks.add(task_class)
+      end
+
       # Check if a task's clean is completed.
       #
       # @param task_class [Class] The task class to check.

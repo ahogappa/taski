@@ -608,10 +608,9 @@ class TestScheduler < Minitest::Test
     refute scheduler.running_clean_tasks?
   end
 
-  def test_clean_phase_pending_to_running_to_failed_still_completes_in_scheduler
-    # At the Scheduler level, clean failure is indistinguishable from success —
-    # mark_clean_completed is always called. The error is tracked at the
-    # TaskWrapper level (mark_clean_failed sets state to STATE_COMPLETED + error).
+  def test_clean_phase_pending_to_running_to_failed_tracks_failure_in_scheduler
+    # mark_clean_failed sets state to STATE_FAILED but still adds to
+    # @clean_finished_tasks so dependents are not blocked.
     task = Class.new(Taski::Task) do
       exports :value
       def run = @value = "test"
@@ -625,8 +624,8 @@ class TestScheduler < Minitest::Test
     scheduler.mark_clean_running(task)
     assert scheduler.running_clean_tasks?
 
-    # Even if clean fails, the Scheduler marks it completed to unblock dependents
-    scheduler.mark_clean_completed(task)
+    # mark_clean_failed adds to finished tasks (unblocks dependents) but records failure state
+    scheduler.mark_clean_failed(task)
     assert scheduler.clean_completed?(task)
     refute scheduler.running_clean_tasks?
   end

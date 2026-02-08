@@ -251,6 +251,7 @@ module Taski
       def next_ready_clean_tasks: () -> Array[Class]
       def mark_clean_running: (Class task_class) -> void
       def mark_clean_completed: (Class task_class) -> void
+      def mark_clean_failed: (Class task_class) -> void
       def clean_completed?: (Class task_class) -> bool
       def running_clean_tasks?: () -> bool
 

@@ -216,7 +216,11 @@ module Taski
       def handle_clean_completion(event)
         task_class = event[:task_class]
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_CLEAN_COMPLETED, task: task_class.name)
-        @scheduler.mark_clean_completed(task_class)
+        if event[:error]
+          @scheduler.mark_clean_failed(task_class)
+        else
+          @scheduler.mark_clean_completed(task_class)
+        end
         enqueue_ready_clean_tasks
       end
 
