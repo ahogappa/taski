@@ -226,7 +226,7 @@ class TestTaskWrapper < Minitest::Test
     wrapper = Taski::Execution::TaskWrapper.new(
       task_instance,
       registry: @registry,
-      execution_context: Taski::Execution::ExecutionFacade.new(root_task_class: nil)
+      execution_context: Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
     )
     @registry.register(task_class, wrapper)
     wrapper

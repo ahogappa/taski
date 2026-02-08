@@ -13,35 +13,23 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_constructor_stores_root_task_class
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
-    assert_equal String, facade.root_task_class
-  end
-
-  def test_constructor_stores_dependency_graph
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, dependency_graph: graph)
-    assert_equal graph, facade.dependency_graph
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
+    assert_equal FixtureTaskA, facade.root_task_class
   end
 
   def test_dependency_graph_frozen_after_construction
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, dependency_graph: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     assert facade.dependency_graph.frozen?, "DependencyGraph should be frozen"
-  end
-
-  def test_dependency_graph_nil_when_not_provided
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
-    assert_nil facade.dependency_graph
   end
 
   def test_output_stream_returns_provided_value
     stream = Object.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String, output_stream: stream)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA, output_stream: stream)
     assert_equal stream, facade.output_stream
   end
 
   def test_output_stream_nil_when_not_provided
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     assert_nil facade.output_stream
   end
 
@@ -50,7 +38,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_current_context_thread_local
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     assert_nil Taski::Execution::ExecutionFacade.current
 
@@ -66,7 +54,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_add_and_remove_observer
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = Object.new
 
     facade.add_observer(observer)
@@ -77,7 +65,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_observers_returns_copy
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = Object.new
     facade.add_observer(observer)
 
@@ -89,7 +77,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_add_observer_sets_context_on_observer
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = Object.new
     observer.define_singleton_method(:context=) { |ctx| @context = ctx }
     observer.define_singleton_method(:context) { @context }
@@ -100,7 +88,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_add_observer_skips_context_when_not_supported
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = Object.new # No context= method
 
     # Should not raise
@@ -113,7 +101,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_notify_ready_dispatches_on_ready
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called = false
     observer = Object.new
     observer.define_singleton_method(:on_ready) { called = true }
@@ -125,7 +113,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_start_dispatches_on_start
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called = false
     observer = Object.new
     observer.define_singleton_method(:on_start) { called = true }
@@ -137,7 +125,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_stop_dispatches_on_stop
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called = false
     observer = Object.new
     observer.define_singleton_method(:on_stop) { called = true }
@@ -149,7 +137,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_task_updated_with_state_transition
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, phase:, timestamp:|
@@ -168,7 +156,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_task_updated_registration
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, **_kwargs|
@@ -184,7 +172,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_task_updated_completed
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, phase:, timestamp:|
@@ -200,7 +188,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_task_updated_failed
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, phase:, timestamp:|
@@ -214,7 +202,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_task_updated_skipped
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, phase:, timestamp:|
@@ -229,7 +217,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_task_updated_clean_phase
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |task_class, previous_state:, current_state:, phase:, timestamp:|
@@ -244,7 +232,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_group_started_with_phase_and_timestamp
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_group_started) do |task_class, group_name, phase:, timestamp:|
@@ -262,7 +250,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_notify_group_completed_with_phase_and_timestamp
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     called_with = nil
     observer = Object.new
     observer.define_singleton_method(:on_group_completed) do |task_class, group_name, phase:, timestamp:|
@@ -281,7 +269,7 @@ class TestExecutionFacade < Minitest::Test
 
   # Test dispatch handles observer exceptions gracefully
   def test_dispatch_handles_observer_exception
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     first_called = false
     second_called = false
@@ -324,7 +312,7 @@ class TestExecutionFacade < Minitest::Test
 
   # Test dispatch skips observers that don't respond to method
   def test_dispatch_skips_non_responding_observers
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = Object.new # No methods defined
 
     facade.add_observer(observer)
@@ -338,7 +326,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_execution_trigger_with_custom_trigger
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     triggered_with = nil
 
     facade.execution_trigger = ->(task_class, registry) do
@@ -353,7 +341,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_execution_trigger_fallback
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     task_class = Class.new(Taski::Task) do
       exports :value
@@ -374,7 +362,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_setup_output_capture_with_tty
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     # Create a mock TTY IO
     mock_io = StringIO.new
@@ -395,7 +383,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_setup_output_capture_does_not_dispatch_set_output_capture
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     set_capture_called = false
     observer = Object.new
@@ -416,7 +404,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_setup_output_capture_always_sets_capture
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     mock_io = StringIO.new
 
@@ -433,7 +421,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_setup_output_capture_replaces_stderr
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     mock_io = StringIO.new
 
     original_stdout = $stdout
@@ -453,7 +441,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_teardown_output_capture_restores_stderr
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     mock_io = StringIO.new
 
     original_stdout = $stdout
@@ -471,7 +459,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_original_stderr_accessor
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     mock_io = StringIO.new
 
     original_stdout = $stdout
@@ -496,7 +484,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_facade_holds_no_mutable_domain_state
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     # Facade stores only configuration — no task states, results, or errors
     refute_respond_to facade, :task_states
@@ -506,7 +494,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_facade_does_not_track_current_phase
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     # Phase is not tracked as state in facade
     refute_respond_to facade, :current_phase
@@ -514,21 +502,10 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_facade_root_task_class_immutable_after_construction
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     refute_respond_to facade, :root_task_class=
-    assert_equal String, facade.root_task_class
-  end
-
-  def test_dependency_graph_built_on_initialization_and_frozen
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "test"
-    end
-
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
-    assert facade.dependency_graph.frozen?
-    assert_kind_of Taski::StaticAnalysis::DependencyGraph, facade.dependency_graph
+    assert_equal FixtureTaskA, facade.root_task_class
   end
 
   # ========================================
@@ -536,8 +513,8 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_current_context_isolated_across_threads
-    facade1 = Taski::Execution::ExecutionFacade.new(root_task_class: String)
-    facade2 = Taski::Execution::ExecutionFacade.new(root_task_class: Integer)
+    facade1 = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
+    facade2 = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskB)
 
     Taski::Execution::ExecutionFacade.current = facade1
 
@@ -571,8 +548,7 @@ class TestExecutionFacade < Minitest::Test
     end
     root.define_singleton_method(:cached_dependencies) { Set[leaf] }
 
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(root)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, dependency_graph: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
 
     deps = facade.dependency_graph.dependencies_for(root)
     assert_includes deps, leaf
@@ -593,8 +569,7 @@ class TestExecutionFacade < Minitest::Test
     end
     root.define_singleton_method(:cached_dependencies) { Set[leaf] }
 
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(root)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, dependency_graph: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
 
     all = facade.dependency_graph.all_tasks
     assert_includes all, root
@@ -621,8 +596,7 @@ class TestExecutionFacade < Minitest::Test
     end
     root.define_singleton_method(:cached_dependencies) { Set[middle] }
 
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(root)
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root, dependency_graph: graph)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root)
 
     # Root's children include middle
     root_deps = facade.dependency_graph.dependencies_for(root)
@@ -645,7 +619,7 @@ class TestExecutionFacade < Minitest::Test
   # ========================================
 
   def test_output_stream_read_returns_captured_output
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     mock_io = StringIO.new
     task_class = Class.new(Taski::Task)
 
@@ -670,7 +644,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_output_stream_read_with_limit
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     mock_io = StringIO.new
     task_class = Class.new(Taski::Task)
 
@@ -696,7 +670,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_teardown_output_capture_when_not_set
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
 
     # Should not raise when no capture is set
     facade.teardown_output_capture
@@ -704,7 +678,7 @@ class TestExecutionFacade < Minitest::Test
   end
 
   def test_output_capture_active
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     mock_io = StringIO.new
 
     original_stdout = $stdout

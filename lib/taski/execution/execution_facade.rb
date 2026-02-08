@@ -16,11 +16,11 @@ module Taski
     class ExecutionFacade
       THREAD_LOCAL_KEY = :taski_execution_context
 
-      attr_reader :root_task_class, :output_stream
+      attr_reader :root_task_class, :output_stream, :dependency_graph
 
-      def initialize(root_task_class:, dependency_graph: nil, output_stream: nil)
+      def initialize(root_task_class:, output_stream: nil)
         @root_task_class = root_task_class
-        @dependency_graph = dependency_graph&.freeze
+        @dependency_graph = StaticAnalysis::DependencyGraph.new.build_from_cached(root_task_class).freeze
         @output_stream = output_stream
         @monitor = Monitor.new
         @observers = []
@@ -28,14 +28,6 @@ module Taski
         @clean_trigger = nil
         @output_capture = nil
         @original_stdout = nil
-      end
-
-      def dependency_graph
-        return @dependency_graph if defined?(@dependency_graph) && @dependency_graph
-
-        if @root_task_class.is_a?(Class) && @root_task_class < Taski::Task
-          @dependency_graph = StaticAnalysis::DependencyGraph.new.build_from_cached(@root_task_class).freeze
-        end
       end
 
       def self.current

@@ -18,7 +18,7 @@ class TestExecutor < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -61,7 +61,7 @@ class TestExecutor < Minitest::Test
     task_a.instance_variable_set(:@dependencies_cache, Set[task_b])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, task_a)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -113,7 +113,7 @@ class TestExecutor < Minitest::Test
     root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, root_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -158,7 +158,7 @@ class TestExecutor < Minitest::Test
     root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, root_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -186,7 +186,7 @@ class TestExecutor < Minitest::Test
     end
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -224,7 +224,7 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set.new)
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -264,7 +264,7 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set[dep_task])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -299,7 +299,7 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set[failing_dep])
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -337,7 +337,7 @@ class TestExecutor < Minitest::Test
     main_task.instance_variable_set(:@dependencies_cache, Set.new)
 
     registry = Taski::Execution::Registry.new
-    execution_context = create_execution_context(registry)
+    execution_context = create_execution_context(registry, main_task)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -966,12 +966,7 @@ class TestExecutor < Minitest::Test
       def run = @value = "hello"
     end
 
-    # Build graph once and set it on the facade
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task)
-    context = Taski::Execution::ExecutionFacade.new(
-      root_task_class: task,
-      dependency_graph: graph
-    )
+    context = Taski::Execution::ExecutionFacade.new(root_task_class: task)
     context.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
         root_task_class: tc,
@@ -979,6 +974,9 @@ class TestExecutor < Minitest::Test
         execution_context: context
       ).execute(tc)
     end
+
+    # Capture the graph built at facade initialization
+    graph_before = context.dependency_graph
 
     registry = Taski::Execution::Registry.new
     executor = Taski::Execution::Executor.new(
@@ -988,8 +986,8 @@ class TestExecutor < Minitest::Test
     )
     executor.execute(task)
 
-    # The facade's graph should still be the same object (not rebuilt)
-    assert_same graph, context.dependency_graph,
+    # The facade's graph should still be the same object (not rebuilt by Executor)
+    assert_same graph_before, context.dependency_graph,
       "Executor should reuse facade's existing dependency_graph"
   end
 
@@ -1017,14 +1015,14 @@ class TestExecutor < Minitest::Test
 
   private
 
-  def create_execution_context(registry)
-    context = Taski::Execution::ExecutionFacade.new(root_task_class: nil)
-    context.execution_trigger = ->(task_class, reg) do
+  def create_execution_context(registry, task_class)
+    context = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    context.execution_trigger = ->(tc, reg) do
       Taski::Execution::Executor.new(
-        root_task_class: task_class,
+        root_task_class: tc,
         registry: reg,
         execution_context: context
-      ).execute(task_class)
+      ).execute(tc)
     end
     context
   end

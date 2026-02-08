@@ -61,7 +61,7 @@ class TestTaskObserver < Minitest::Test
   end
 
   def test_integrates_with_execution_facade_add_observer
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = Taski::Execution::TaskObserver.new
 
     facade.add_observer(observer)
@@ -80,7 +80,7 @@ class TestTaskObserver < Minitest::Test
       end
     end
 
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: String)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: FixtureTaskA)
     observer = subclass.new
 
     facade.add_observer(observer)

@@ -86,8 +86,7 @@ module Taski
       private
 
       def resolve_dependency_graph(root_task_class)
-        @execution_context.dependency_graph ||
-          StaticAnalysis::DependencyGraph.new.build_from_cached(root_task_class)
+        @execution_context.dependency_graph
       end
 
       # Run phase

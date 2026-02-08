@@ -6,7 +6,11 @@ class TestWorkerPool < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
     @registry = Taski::Execution::Registry.new
-    @execution_context = Taski::Execution::ExecutionFacade.new(root_task_class: nil)
+    dummy_task = Class.new(Taski::Task) do
+      exports :value
+      def run = @value = nil
+    end
+    @execution_context = Taski::Execution::ExecutionFacade.new(root_task_class: dummy_task)
   end
 
   def test_single_task_execution_no_deps
