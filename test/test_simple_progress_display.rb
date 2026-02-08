@@ -4,6 +4,8 @@ require "test_helper"
 require_relative "fixtures/parallel_tasks"
 
 class TestSimpleProgressDisplay < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     Taski.reset_progress_display!
     @output = StringIO.new
@@ -12,17 +14,6 @@ class TestSimpleProgressDisplay < Minitest::Test
 
   def teardown
     Taski.reset_progress_display!
-  end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
   end
 
   def test_register_task
@@ -116,6 +107,8 @@ class TestSimpleProgressDisplay < Minitest::Test
 end
 
 class TestSimpleProgressDisplayWithTTY < Minitest::Test
+  include TaskiTestHelper
+
   # Create a StringIO that reports itself as a TTY
   class TTYStringIO < StringIO
     def tty?
@@ -140,17 +133,6 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def teardown
     @display&.on_stop
     Taski.reset_progress_display!
-  end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
   end
 
   def test_start_with_tty_starts_renderer_thread

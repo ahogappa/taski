@@ -9,6 +9,8 @@ require "taski/progress/layout/base"
 require "taski/progress/layout/theme_drop"
 
 class TestLayoutBase < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
@@ -195,19 +197,6 @@ class TestLayoutBase < Minitest::Test
     end
     threads.each(&:join)
     # No error raised
-  end
-
-  private
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
   end
 end
 

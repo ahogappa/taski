@@ -6,6 +6,8 @@ require "taski/progress/layout/simple"
 require "taski/progress/theme/compact"
 
 class TestLayoutSimple < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     # Stub tty? to return true for testing
@@ -132,17 +134,6 @@ class TestLayoutSimple < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
-  end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
   end
 end
 

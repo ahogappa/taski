@@ -35,4 +35,15 @@ module TaskiTestHelper
     # Reset the parallel execution system
     Taski::Task.reset! if defined?(Taski::Task)
   end
+
+  def mock_execution_facade(root_task_class:, output_capture: nil)
+    graph = Taski::StaticAnalysis::DependencyGraph.new
+    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
+
+    ctx = Object.new
+    ctx.define_singleton_method(:root_task_class) { root_task_class }
+    ctx.define_singleton_method(:output_capture) { output_capture }
+    ctx.define_singleton_method(:dependency_graph) { graph }
+    ctx
+  end
 end
