@@ -361,7 +361,7 @@ module Taski
       STATE_PENDING: Symbol
       STATE_RUNNING: Symbol
       STATE_COMPLETED: Symbol
-      STATE_ERROR: Symbol
+      STATE_FAILED: Symbol
 
       @mutex: Mutex
       @states: Hash[Class, Symbol]

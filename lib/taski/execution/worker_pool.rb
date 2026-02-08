@@ -151,7 +151,7 @@ module Taski
         case status[0]
         when :completed
           drive_fiber_loop(fiber, task_class, wrapper, queue, status[1])
-        when :error
+        when :failed
           drive_fiber_loop(fiber, task_class, wrapper, queue, [:_taski_error, status[1]])
         when :wait
           store_fiber_context(fiber, task_class, wrapper)

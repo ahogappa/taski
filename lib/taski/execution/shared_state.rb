@@ -12,7 +12,7 @@ module Taski
       STATE_PENDING = :pending
       STATE_RUNNING = :running
       STATE_COMPLETED = :completed
-      STATE_ERROR = :error
+      STATE_FAILED = :failed
 
       def initialize
         @mutex = Mutex.new
@@ -61,7 +61,7 @@ module Taski
       def mark_failed(task_class, error)
         waiters_to_notify = nil
         @mutex.synchronize do
-          @states[task_class] = STATE_ERROR
+          @states[task_class] = STATE_FAILED
           @errors[task_class] = error
           waiters_to_notify = @waiters.delete(task_class) || []
         end
@@ -102,9 +102,9 @@ module Taski
             wrapper = @wrappers[dep_class]
             value = wrapper.task.public_send(method)
             [:completed, value]
-          when STATE_ERROR
+          when STATE_FAILED
             error = @errors[dep_class]
-            [:error, error]
+            [:failed, error]
           when STATE_RUNNING
             @waiters[dep_class] ||= []
             @waiters[dep_class] << [thread_queue, fiber, method]
