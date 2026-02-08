@@ -4,6 +4,8 @@ require "stringio"
 require_relative "static_analysis/analyzer"
 require_relative "execution/registry"
 require_relative "execution/task_wrapper"
+require_relative "progress/layout/tree"
+require_relative "progress/theme/plain"
 
 module Taski
   # Base class for all tasks in the Taski framework.
@@ -110,30 +112,13 @@ module Taski
       # @return [String] The rendered tree string.
       def tree
         output = StringIO.new
-        layout = Progress::Layout::Tree.new(output: output)
-        # Set root_task_class directly and trigger ready to build tree structure
+        theme = Progress::Theme::Plain.new
+        layout = Progress::Layout::Tree.new(output: output, theme: theme)
         context = Execution::ExecutionFacade.new(root_task_class: self)
         layout.context = context
         layout.on_ready
-
-        render_tree_node(layout, self, output)
-        output.string
+        layout.render_tree
       end
-
-      def render_tree_node(layout, task_class, output)
-        prefix = layout.send(:build_tree_prefix, task_class)
-        name = task_class.name || task_class.to_s
-
-        output.puts "#{prefix}#{name}"
-
-        node = layout.instance_variable_get(:@tree_nodes)[task_class]
-        return unless node
-
-        node[:children].each do |child|
-          render_tree_node(layout, child[:task_class], output)
-        end
-      end
-      private :render_tree_node
 
       private
 

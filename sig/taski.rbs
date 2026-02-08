@@ -232,7 +232,7 @@ module Taski
       def mark_completed: (Class task_class) -> void
       def mark_failed: (Class task_class) -> void
       def pending?: (Class task_class) -> bool
-      def completed?: (Class task_class) -> bool
+      def finished?: (Class task_class) -> bool
       def running_tasks?: () -> bool
       def task_count: () -> Integer
       def never_started_task_classes: () -> Array[Class]
@@ -244,7 +244,7 @@ module Taski
       def mark_clean_running: (Class task_class) -> void
       def mark_clean_completed: (Class task_class) -> void
       def mark_clean_failed: (Class task_class) -> void
-      def clean_completed?: (Class task_class) -> bool
+      def clean_finished?: (Class task_class) -> bool
       def running_clean_tasks?: () -> bool
 
       private
@@ -418,6 +418,11 @@ module Taski
     module Layout
       # Base class for progress display layouts
       class Base < Execution::TaskObserver
+      end
+
+      # Tree layout for hierarchical task display
+      class Tree < Base
+        def render_tree: () -> String
       end
     end
   end

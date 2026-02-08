@@ -52,6 +52,12 @@ module Taski
           @non_tty_started = false
         end
 
+        # Returns the tree structure as a string.
+        # Uses the current theme to render task content for each node.
+        def render_tree
+          build_tree_lines.join("\n") + "\n"
+        end
+
         # Override on_start to handle non-TTY mode
         def on_start
           @monitor.synchronize do
@@ -125,11 +131,11 @@ module Taski
           output_with_prefix(task_class, text) if text
         end
 
-        def handle_group_completed(task_class, group_name, phase)
+        def handle_group_completed(task_class, group_name, phase, duration)
           return if @active  # TTY mode: skip per-event output
 
           # Non-TTY mode: output with tree prefix
-          text = render_group_succeeded(task_class, group_name: group_name, task_duration: nil)
+          text = render_group_succeeded(task_class, group_name: group_name, task_duration: duration)
           output_with_prefix(task_class, text) if text
         end
 

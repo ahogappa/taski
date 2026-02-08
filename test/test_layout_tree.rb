@@ -6,6 +6,8 @@ require "taski/progress/layout/tree"
 require "taski/progress/theme/default"
 
 class TestLayoutTree < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
@@ -58,20 +60,11 @@ class TestLayoutTree < Minitest::Test
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
   end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
-  end
 end
 
 class TestLayoutTreeRendering < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
@@ -168,20 +161,11 @@ class TestLayoutTreeRendering < Minitest::Test
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
   end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
-  end
 end
 
 class TestLayoutTreePrefix < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Tree.new(output: @output)
@@ -303,17 +287,6 @@ class TestLayoutTreePrefix < Minitest::Test
     klass.define_singleton_method(:cached_dependencies) { deps }
     klass
   end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
-
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
-  end
 end
 
 class TestLayoutTreeTaskContent < Minitest::Test
@@ -381,6 +354,8 @@ class TestLayoutTreeTaskContent < Minitest::Test
 end
 
 class TestLayoutTreeWithCustomTemplate < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
   end
@@ -459,15 +434,76 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     klass.define_singleton_method(:cached_dependencies) { deps }
     klass
   end
+end
 
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    graph = Taski::StaticAnalysis::DependencyGraph.new
-    graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)
+class TestLayoutTreeRenderTree < Minitest::Test
+  include TaskiTestHelper
 
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx.define_singleton_method(:dependency_graph) { graph }
-    ctx
+  def setup
+    @output = StringIO.new
+  end
+
+  def test_render_tree_returns_single_task
+    theme = Taski::Progress::Theme::Plain.new
+    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: theme)
+    root = stub_task_class("RootTask")
+
+    ctx = mock_execution_facade(root_task_class: root)
+    layout.context = ctx
+    layout.on_ready
+
+    result = layout.render_tree
+    assert_includes result, "RootTask"
+  end
+
+  def test_render_tree_returns_multi_level_tree
+    theme = Taski::Progress::Theme::Plain.new
+    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: theme)
+
+    leaf = stub_task_class("LeafTask")
+    middle = stub_task_class_with_deps("MiddleTask", [leaf])
+    root = stub_task_class_with_deps("RootTask", [middle])
+
+    ctx = mock_execution_facade(root_task_class: root)
+    layout.context = ctx
+    layout.on_ready
+
+    result = layout.render_tree
+    assert_includes result, "RootTask"
+    assert_includes result, "└── [PENDING] MiddleTask"
+    assert_includes result, "    └── [PENDING] LeafTask"
+  end
+
+  def test_render_tree_returns_multiple_children
+    theme = Taski::Progress::Theme::Plain.new
+    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: theme)
+
+    child1 = stub_task_class("Child1")
+    child2 = stub_task_class("Child2")
+    root = stub_task_class_with_deps("RootTask", [child1, child2])
+
+    ctx = mock_execution_facade(root_task_class: root)
+    layout.context = ctx
+    layout.on_ready
+
+    result = layout.render_tree
+    assert_includes result, "├── [PENDING] Child1"
+    assert_includes result, "└── [PENDING] Child2"
+  end
+
+  private
+
+  def stub_task_class(name)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass.define_singleton_method(:cached_dependencies) { [] }
+    klass
+  end
+
+  def stub_task_class_with_deps(name, deps)
+    klass = Class.new
+    klass.define_singleton_method(:name) { name }
+    klass.define_singleton_method(:cached_dependencies) { deps }
+    klass
   end
 end
