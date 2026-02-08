@@ -146,7 +146,6 @@ module Taski
       def initialize: () -> void
       def get_or_create: (Class task_class) { () -> TaskWrapper } -> TaskWrapper
       def create_wrapper: (Class task_class, execution_context: ExecutionFacade) -> TaskWrapper
-      def get_task: (Class task_class) -> TaskWrapper?
       def register: (Class task_class, TaskWrapper wrapper) -> void
       def register_thread: (Thread thread) -> void
       def wait_all: () -> void

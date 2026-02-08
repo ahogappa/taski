@@ -27,7 +27,7 @@ class TestExecutor < Minitest::Test
 
     executor.execute(task_class)
 
-    wrapper = registry.get_task(task_class)
+    wrapper = registry.create_wrapper(task_class, execution_context: execution_context)
     assert wrapper.completed?
     assert_equal "result_value", wrapper.task.value
   end
@@ -70,7 +70,7 @@ class TestExecutor < Minitest::Test
 
     executor.execute(task_a)
 
-    wrapper_a = registry.get_task(task_a)
+    wrapper_a = registry.create_wrapper(task_a, execution_context: execution_context)
     assert wrapper_a.completed?
     assert_equal "A->B->C", wrapper_a.task.value
   end
@@ -122,7 +122,7 @@ class TestExecutor < Minitest::Test
 
     executor.execute(root_task)
 
-    wrapper = registry.get_task(root_task)
+    wrapper = registry.create_wrapper(root_task, execution_context: execution_context)
     assert wrapper.completed?
     assert_equal "Root(A(C), B(C))", wrapper.task.value
   end
@@ -170,7 +170,7 @@ class TestExecutor < Minitest::Test
     executor.execute(root_task)
     elapsed = Time.now - start_time
 
-    wrapper = registry.get_task(root_task)
+    wrapper = registry.create_wrapper(root_task, execution_context: execution_context)
     assert wrapper.completed?
     assert_equal "A+B", wrapper.task.value
     # Both tasks sleep 0.1s; if parallel, should complete in ~0.1s not ~0.2s
@@ -233,12 +233,12 @@ class TestExecutor < Minitest::Test
 
     executor.execute(main_task)
 
-    wrapper = registry.get_task(main_task)
+    wrapper = registry.create_wrapper(main_task, execution_context: execution_context)
     assert wrapper.completed?
     assert_equal "no_dep", wrapper.task.value
 
     # dep_task should NOT have been registered
-    assert_raises(RuntimeError) { registry.get_task(dep_task) }
+    refute registry.registered?(dep_task)
   end
 
   def test_multiple_exported_methods
@@ -273,7 +273,7 @@ class TestExecutor < Minitest::Test
 
     executor.execute(main_task)
 
-    wrapper = registry.get_task(main_task)
+    wrapper = registry.create_wrapper(main_task, execution_context: execution_context)
     assert wrapper.completed?
     assert_equal "Alice:30", wrapper.task.value
   end
@@ -346,7 +346,7 @@ class TestExecutor < Minitest::Test
 
     executor.execute(main_task)
 
-    wrapper = registry.get_task(main_task)
+    wrapper = registry.create_wrapper(main_task, execution_context: execution_context)
     assert wrapper.completed?
     assert_equal "got:dynamic", wrapper.task.value
   end

@@ -24,7 +24,7 @@ module Taski
       # @param task_class [Class] The task class
       # @param wrapper [TaskWrapper] The wrapper instance to register
       def register(task_class, wrapper)
-        @tasks[task_class] = wrapper
+        @monitor.synchronize { @tasks[task_class] = wrapper }
       end
 
       # Check if a task wrapper has been registered (created during run phase).
@@ -32,15 +32,6 @@ module Taski
       # @return [Boolean] true if a wrapper exists for this task
       def registered?(task_class)
         @monitor.synchronize { @tasks.key?(task_class) }
-      end
-
-      # @param task_class [Class] The task class
-      # @return [Object] The task instance
-      # @raise [RuntimeError] If the task is not registered
-      def get_task(task_class)
-        @tasks.fetch(task_class) do
-          raise "Task #{task_class} not registered"
-        end
       end
 
       # @param thread [Thread] The thread to register

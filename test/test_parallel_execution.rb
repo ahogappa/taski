@@ -254,8 +254,8 @@ class TestParallelExecution < Minitest::Test
     assert_match(/Subclasses must implement the run method/, error.message)
   end
 
-  # Test Registry#get_task raises error for unregistered task
-  def test_registry_get_task_raises_for_unregistered
+  # Test Registry#registered? returns false for unregistered task
+  def test_registry_registered_returns_false_for_unregistered
     registry = Taski::Execution::Registry.new
 
     unregistered_class = Class.new(Taski::Task) do
@@ -266,10 +266,7 @@ class TestParallelExecution < Minitest::Test
       end
     end
 
-    error = assert_raises(RuntimeError) do
-      registry.get_task(unregistered_class)
-    end
-    assert_match(/not registered/, error.message)
+    refute registry.registered?(unregistered_class)
   end
 
   # Test TaskWrapper state methods

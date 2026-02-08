@@ -36,6 +36,7 @@ module Taski
         @next_thread_index = 0
         @fiber_contexts_mutex = Mutex.new
         @fiber_contexts = {}
+        @task_start_times_mutex = Mutex.new
         @task_start_times = {}
       end
 
@@ -104,7 +105,7 @@ module Taski
         end
 
         now = Time.now
-        @task_start_times[task_class] = now
+        @task_start_times_mutex.synchronize { @task_start_times[task_class] = now }
         Taski::Logging.info(Taski::Logging::Events::TASK_STARTED, task: task_class.name)
         @execution_context.notify_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
         @execution_context.notify_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
@@ -245,7 +246,7 @@ module Taski
       end
 
       def task_duration_ms(task_class)
-        start = @task_start_times.delete(task_class)
+        start = @task_start_times_mutex.synchronize { @task_start_times.delete(task_class) }
         return nil unless start
         ((Time.now - start) * 1000).round(1)
       end
