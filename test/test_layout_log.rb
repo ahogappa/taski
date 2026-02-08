@@ -5,6 +5,8 @@ require "stringio"
 require "taski/progress/layout/log"
 
 class TestLayoutLog < Minitest::Test
+  include TaskiTestHelper
+
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Log.new(output: @output)
@@ -113,6 +115,16 @@ class TestLayoutLog < Minitest::Test
     assert_includes @output.string, "[GROUP DONE] MyTask#build"
   end
 
+  def test_outputs_group_completed_with_duration
+    task_class = stub_task_class("MyTask")
+    now = Time.now
+    @layout.on_start
+    @layout.on_group_started(task_class, "build", phase: :run, timestamp: now)
+    @layout.on_group_completed(task_class, "build", phase: :run, timestamp: now + 0.15)
+
+    assert_includes @output.string, "(150ms)"
+  end
+
   # === Execution lifecycle output ===
 
   def test_outputs_execution_start
@@ -188,13 +200,6 @@ class TestLayoutLog < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
-  end
-
-  def mock_execution_facade(root_task_class:, output_capture: nil)
-    ctx = Object.new
-    ctx.define_singleton_method(:root_task_class) { root_task_class }
-    ctx.define_singleton_method(:output_capture) { output_capture }
-    ctx
   end
 
   class CustomTestTheme < Taski::Progress::Theme::Base

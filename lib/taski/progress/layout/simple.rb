@@ -61,7 +61,7 @@ module Taski
           # No per-event output; status line is updated by render_live
         end
 
-        def handle_group_completed(_task_class, _group_name, _phase)
+        def handle_group_completed(_task_class, _group_name, _phase, _duration)
           # No per-event output; status line is updated by render_live
         end
 

@@ -44,6 +44,7 @@ module Taski
           @root_task_class = nil
           @output_capture = nil
           @message_queue = []
+          @group_start_times = {}
           @spinner_index = 0
           @spinner_timer = nil
           @spinner_running = false
@@ -119,6 +120,7 @@ module Taski
         # @param timestamp [Time]
         def on_group_started(task_class, group_name, phase:, timestamp:)
           @monitor.synchronize do
+            @group_start_times[[task_class, group_name]] = timestamp
             handle_group_started(task_class, group_name, phase)
           end
         end
@@ -130,7 +132,9 @@ module Taski
         # @param timestamp [Time]
         def on_group_completed(task_class, group_name, phase:, timestamp:)
           @monitor.synchronize do
-            handle_group_completed(task_class, group_name, phase)
+            started_at = @group_start_times.delete([task_class, group_name])
+            duration = started_at ? ((timestamp - started_at) * 1000).round : nil
+            handle_group_completed(task_class, group_name, phase, duration)
           end
         end
 
@@ -227,8 +231,8 @@ module Taski
 
         # Called when a group has completed.
         # Default: render and output the event.
-        def handle_group_completed(task_class, group_name, phase)
-          text = render_group_succeeded(task_class, group_name: group_name, task_duration: nil)
+        def handle_group_completed(task_class, group_name, phase, duration)
+          text = render_group_succeeded(task_class, group_name: group_name, task_duration: duration)
           output_line(text) if text
         end
 
