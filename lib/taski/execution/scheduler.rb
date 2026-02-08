@@ -29,7 +29,7 @@ module Taski
     # - {#next_ready_tasks} - Get tasks ready for execution
     # - {#mark_running} - Mark task as sent to worker pool
     # - {#mark_completed} - Mark task as finished
-    # - {#completed?} - Check if task is completed
+    # - {#finished?} - Check if task is completed
     # - {#running_tasks?} - Check if any tasks are currently executing
     #
     # Clean operations:
@@ -37,7 +37,7 @@ module Taski
     # - {#next_ready_clean_tasks} - Get tasks ready for clean (reverse order)
     # - {#mark_clean_running} - Mark task as sent for clean
     # - {#mark_clean_completed} - Mark task as clean finished
-    # - {#clean_completed?} - Check if task clean is completed
+    # - {#clean_finished?} - Check if task clean is completed
     # - {#running_clean_tasks?} - Check if any clean tasks are currently executing
     #
     # == Thread Safety
@@ -142,11 +142,11 @@ module Taski
         @task_states[task_class] == STATE_PENDING
       end
 
-      # Check if a task is completed.
+      # Check if a task is finished (completed or failed).
       #
       # @param task_class [Class] The task class to check
-      # @return [Boolean] true if the task is completed
-      def completed?(task_class)
+      # @return [Boolean] true if the task is finished
+      def finished?(task_class)
         @finished_tasks.include?(task_class)
       end
 
@@ -292,7 +292,7 @@ module Taski
       #
       # @param task_class [Class] The task class to check.
       # @return [Boolean] true if the task's clean is completed, false otherwise.
-      def clean_completed?(task_class)
+      def clean_finished?(task_class)
         @clean_finished_tasks.include?(task_class)
       end
 

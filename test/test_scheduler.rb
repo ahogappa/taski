@@ -20,7 +20,7 @@ class TestScheduler < Minitest::Test
     scheduler = Taski::Execution::Scheduler.new
     scheduler.load_graph(graph, task)
 
-    refute scheduler.completed?(task)
+    refute scheduler.finished?(task)
   end
 
   def test_load_graph_populates_task_states
@@ -96,7 +96,7 @@ class TestScheduler < Minitest::Test
     scheduler.mark_running(task)
     scheduler.mark_completed(task)
 
-    assert scheduler.completed?(task)
+    assert scheduler.finished?(task)
   end
 
   def test_running_tasks_returns_true_when_tasks_running
@@ -131,7 +131,7 @@ class TestScheduler < Minitest::Test
     scheduler.load_graph(graph, FixtureTaskA)
     scheduler.build_reverse_dependency_graph
 
-    refute scheduler.clean_completed?(FixtureTaskA)
+    refute scheduler.clean_finished?(FixtureTaskA)
   end
 
   def test_build_reverse_dependency_graph_creates_reverse_mappings
@@ -187,7 +187,7 @@ class TestScheduler < Minitest::Test
     scheduler.mark_clean_running(FixtureTaskA)
     scheduler.mark_clean_completed(FixtureTaskA)
 
-    assert scheduler.clean_completed?(FixtureTaskA)
+    assert scheduler.clean_finished?(FixtureTaskA)
   end
 
   def test_clean_order_is_reverse_of_run_order
@@ -519,7 +519,7 @@ class TestScheduler < Minitest::Test
 
     # pending
     assert_includes scheduler.next_ready_tasks, task
-    refute scheduler.completed?(task)
+    refute scheduler.finished?(task)
 
     # running
     scheduler.mark_running(task)
@@ -528,7 +528,7 @@ class TestScheduler < Minitest::Test
 
     # completed
     scheduler.mark_completed(task)
-    assert scheduler.completed?(task)
+    assert scheduler.finished?(task)
     refute scheduler.running_tasks?
   end
 
@@ -546,7 +546,7 @@ class TestScheduler < Minitest::Test
     scheduler.mark_failed(task)
 
     # mark_failed should mark as failed AND count as completed for dependency ordering
-    assert scheduler.completed?(task)
+    assert scheduler.finished?(task)
     refute scheduler.running_tasks?
   end
 
@@ -604,7 +604,7 @@ class TestScheduler < Minitest::Test
 
     # completed
     scheduler.mark_clean_completed(task)
-    assert scheduler.clean_completed?(task)
+    assert scheduler.clean_finished?(task)
     refute scheduler.running_clean_tasks?
   end
 
@@ -626,7 +626,7 @@ class TestScheduler < Minitest::Test
 
     # mark_clean_failed adds to finished tasks (unblocks dependents) but records failure state
     scheduler.mark_clean_failed(task)
-    assert scheduler.clean_completed?(task)
+    assert scheduler.clean_finished?(task)
     refute scheduler.running_clean_tasks?
   end
 

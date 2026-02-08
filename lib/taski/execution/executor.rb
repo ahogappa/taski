@@ -94,7 +94,7 @@ module Taski
       end
 
       def run_main_loop(root_task_class)
-        until @scheduler.completed?(root_task_class)
+        until @scheduler.finished?(root_task_class)
           break if @registry.abort_requested? && !@scheduler.running_tasks?
 
           event = @completion_queue.pop
