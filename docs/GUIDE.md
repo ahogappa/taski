@@ -87,7 +87,9 @@ rescue DatabaseTask::Error => e
 end
 ```
 
-This works transparently with `AggregateError` - when you rescue `DatabaseTask::Error`, it matches an `AggregateError` that contains a `DatabaseTask::Error`.
+This works transparently with `AggregateError` — when you rescue `DatabaseTask::Error`, it matches an `AggregateError` that contains a `DatabaseTask::Error`.
+
+**How this works:** Ruby's `rescue` uses the `===` operator to match exceptions. Taski's `AggregateAware` module (extended by `TaskError` and all `TaskClass::Error` classes) overrides `===` to check whether an `AggregateError` *contains* an error of that type. This means `rescue Taski::TaskError` will match an `AggregateError` wrapping TaskError instances, even though `AggregateError` does not inherit from `TaskError`.
 
 ### TaskAbortException
 
