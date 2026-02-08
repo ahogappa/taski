@@ -69,4 +69,63 @@ module RunAndCleanFixtures
       CleanOrder.add(:child)
     end
   end
+
+  # Thread-safe tracker for clean_on_failure tests
+  module CleanOnFailureTracker
+    @run_executed = false
+    @clean_executed = false
+    @mutex = Mutex.new
+
+    class << self
+      def record_run
+        @mutex.synchronize { @run_executed = true }
+      end
+
+      def record_clean
+        @mutex.synchronize { @clean_executed = true }
+      end
+
+      def run_executed?
+        @mutex.synchronize { @run_executed }
+      end
+
+      def clean_executed?
+        @mutex.synchronize { @clean_executed }
+      end
+
+      def clear
+        @mutex.synchronize do
+          @run_executed = false
+          @clean_executed = false
+        end
+      end
+    end
+  end
+
+  # Task that fails in run — used for clean_on_failure tests
+  class FailingCleanableTask < Taski::Task
+    exports :value
+
+    def run
+      CleanOnFailureTracker.record_run
+      raise StandardError, "Run failed"
+    end
+
+    def clean
+      CleanOnFailureTracker.record_clean
+    end
+  end
+
+  # Task that succeeds in run — used for success + clean verification
+  class SucceedingCleanableTask < Taski::Task
+    exports :value
+
+    def run
+      @value = "ok"
+    end
+
+    def clean
+      CleanOnFailureTracker.record_clean
+    end
+  end
 end

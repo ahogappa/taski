@@ -100,7 +100,7 @@ module Taski
     def self.clear_dependency_cache: () -> void
     def self.run: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> untyped
     def self.clean: (?args: Hash[Symbol, untyped], ?workers: Integer?) -> void
-    def self.run_and_clean: (?args: Hash[Symbol, untyped], ?workers: Integer?, ?clean_on_failure: bool) -> untyped
+    def self.run_and_clean: (?args: Hash[Symbol, untyped], ?workers: Integer?, ?clean_on_failure: bool) ?{ () -> void } -> untyped
     def self.registry: () -> Execution::Registry
     def self.reset!: () -> void
     def self.tree: () -> String
