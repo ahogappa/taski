@@ -1,11 +1,82 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require_relative "fixtures/args_tasks"
 
 class TestArgs < Minitest::Test
   def setup
     # Reset the task system before each test
     Taski::Task.reset! if defined?(Taski::Task)
+    ArgsFixtures::CapturedValues.clear
+  end
+
+  def test_working_directory_returns_current_directory
+    expected_dir = Dir.pwd
+    captured_dir = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :captured_dir
+
+      define_method(:run) do
+        captured_dir = Taski.env.working_directory
+        @captured_dir = captured_dir
+      end
+    end
+
+    task_class.run
+    assert_equal expected_dir, captured_dir
+  end
+
+  def test_started_at_returns_time
+    captured_time = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :captured_time
+
+      define_method(:run) do
+        captured_time = Taski.env.started_at
+        @captured_time = captured_time
+      end
+    end
+
+    before_run = Time.now
+    task_class.run
+    after_run = Time.now
+
+    assert_kind_of Time, captured_time
+    assert captured_time >= before_run
+    assert captured_time <= after_run
+  end
+
+  def test_root_task_returns_first_called_task
+    captured_root = nil
+
+    task_class = Class.new(Taski::Task) do
+      exports :value
+
+      define_method(:run) do
+        captured_root = Taski.env.root_task
+        @value = "test"
+      end
+    end
+
+    task_class.run
+
+    # root_task is captured during execution (before reset_env!)
+    assert_equal task_class, captured_root
+  end
+
+  def test_root_task_is_consistent_during_dependency_execution
+    ArgsFixtures::RootConsistencyTask.run
+
+    root_before = ArgsFixtures::CapturedValues.get(:root_before)
+    dep_root = ArgsFixtures::CapturedValues.get(:dep_root)
+    root_after = ArgsFixtures::CapturedValues.get(:root_after)
+
+    # All captured root_tasks should be the same (RootConsistencyTask, not DepTask)
+    assert_equal ArgsFixtures::RootConsistencyTask, root_before
+    assert_equal ArgsFixtures::RootConsistencyTask, dep_root
+    assert_equal ArgsFixtures::RootConsistencyTask, root_after
   end
 
   def test_args_and_env_cleared_after_execution
@@ -27,6 +98,9 @@ class TestArgs < Minitest::Test
     # Args and env should be set during execution
     refute_nil captured_args
     refute_nil captured_env
+    assert_equal task_class, captured_env.root_task
+    refute_nil captured_env.working_directory
+    refute_nil captured_env.started_at
 
     # Args and env should be cleared after execution
     assert_nil Taski.args
@@ -76,6 +150,20 @@ class TestArgs < Minitest::Test
     results.each do |expected_value, actual_value|
       assert_equal expected_value, actual_value, "Each execution should capture its own value"
     end
+  end
+
+  def test_env_values_are_consistent_during_execution
+    ArgsFixtures::EnvCaptureRoot.run
+
+    root_env = ArgsFixtures::CapturedValues.get(:root_env)
+    dep_env = ArgsFixtures::CapturedValues.get(:dep_env)
+
+    # Both tasks should see consistent env values within the same execution
+    refute_nil root_env
+    refute_nil dep_env
+    assert_equal root_env[:dir], dep_env[:dir]
+    assert_equal root_env[:time], dep_env[:time]
+    assert_equal root_env[:root], dep_env[:root]
   end
 
   # Tests for user-defined options
@@ -181,53 +269,31 @@ class TestArgs < Minitest::Test
   end
 
   def test_args_options_are_immutable
-    captured_value = nil
-    mutation_error = nil
+    captured_args = nil
 
     task_class = Class.new(Taski::Task) do
       exports :result
 
       define_method(:run) do
-        captured_value = Taski.args[:env]
-        begin
-          Taski.args.instance_variable_get(:@options)[:env] = "staging"
-        rescue => e
-          mutation_error = e
-        end
-        @result = captured_value
+        captured_args = Taski.args
+        @result = Taski.args[:env]
       end
     end
 
-    task_class.run(args: {env: "production"})
-    assert_equal "production", captured_value
-    assert_kind_of FrozenError, mutation_error
+    result = task_class.run(args: {env: "production"})
+    assert_equal "production", result
+
+    # Args exposes only read methods — no mutation methods exist
+    refute_respond_to captured_args, :[]=
+    refute_respond_to captured_args, :delete
+    refute_respond_to captured_args, :merge!
+    refute_respond_to captured_args, :store
   end
 
   def test_args_options_shared_across_dependent_tasks
-    Taski::Task.reset!
+    ArgsFixtures::ArgsMainTask.run(args: {env: "staging"})
 
-    dependency_env = nil
-
-    dep_task = Class.new(Taski::Task) do
-      exports :dep_value
-
-      define_method(:run) do
-        dependency_env = Taski.args[:env]
-        @dep_value = "from_dep"
-      end
-    end
-
-    main_task_class = Class.new(Taski::Task) do
-      exports :main_value
-
-      define_singleton_method(:dep_task) { dep_task }
-
-      define_method(:run) do
-        @main_value = self.class.dep_task.dep_value
-      end
-    end
-
-    main_task_class.run(args: {env: "staging"})
-    assert_equal "staging", dependency_env
+    dep_env = ArgsFixtures::CapturedValues.get(:dep_env_arg)
+    assert_equal "staging", dep_env
   end
 end

@@ -16,7 +16,7 @@ class TestTaskOutputRouter < Minitest::Test
   # Errno::EBADF occurs when IO.select is blocked and another thread closes the IO.
   # This simulates the race condition between the poll thread and stop_capture/drain_pipe.
   def test_poll_handles_ebadf_when_pipe_closed_during_io_select
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
 
@@ -39,7 +39,7 @@ class TestTaskOutputRouter < Minitest::Test
   # ========================================
 
   def test_read_returns_all_lines
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
 
@@ -53,7 +53,7 @@ class TestTaskOutputRouter < Minitest::Test
   end
 
   def test_read_with_limit
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
 
@@ -64,7 +64,7 @@ class TestTaskOutputRouter < Minitest::Test
   end
 
   def test_read_returns_empty_for_unknown_task
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     result = @router.read(task_class)
     assert_equal [], result
@@ -75,7 +75,7 @@ class TestTaskOutputRouter < Minitest::Test
   # ========================================
 
   def test_store_output_lines_logs_to_debug
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
     task_class.define_singleton_method(:name) { "LoggedTask" }
 
     log_output = StringIO.new
@@ -104,7 +104,7 @@ class TestTaskOutputRouter < Minitest::Test
   # ========================================
 
   def test_stderr_capture_routes_to_pipe
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
 
@@ -128,7 +128,7 @@ class TestTaskOutputRouter < Minitest::Test
   end
 
   def test_read_returns_independent_copy
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
     @router.send(:store_output_lines, task_class, "line1\n")
@@ -142,7 +142,7 @@ class TestTaskOutputRouter < Minitest::Test
 
   # Same race condition in drain_pipe (via stop_capture): IO.select blocked while another thread closes the IO
   def test_stop_capture_handles_ebadf_when_pipe_closed_during_drain
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
 
@@ -162,7 +162,7 @@ class TestTaskOutputRouter < Minitest::Test
 
   # Same race condition in read_from_pipe via poll
   def test_read_from_pipe_handles_ebadf_when_pipe_closed_during_read
-    task_class = Class.new(Taski::Task)
+    task_class = Class.new
 
     @router.start_capture(task_class)
 

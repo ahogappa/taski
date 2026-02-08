@@ -36,6 +36,14 @@ module TaskiTestHelper
     Taski::Task.reset! if defined?(Taski::Task)
   end
 
+  # Build a task instance bypassing private Task.new
+  # This mirrors the pattern used by production code (fresh_wrapper).
+  def self.build_task_instance(task_class)
+    instance = task_class.allocate
+    instance.__send__(:initialize)
+    instance
+  end
+
   def mock_execution_facade(root_task_class:, output_capture: nil)
     graph = Taski::StaticAnalysis::DependencyGraph.new
     graph.build_from_cached(root_task_class) if root_task_class.respond_to?(:cached_dependencies)

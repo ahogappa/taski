@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
+require_relative "fixtures/logging_tasks"
 require "logger"
 require "json"
 
@@ -79,13 +80,7 @@ class TestLogging < Minitest::Test
   def test_task_failed_event_is_logged
     set_logger(level: Logger::ERROR)
 
-    failing_task = Class.new(Taski::Task) do
-      def run
-        raise "intentional error"
-      end
-    end
-
-    assert_raises(Taski::AggregateError) { failing_task.run }
+    assert_raises(Taski::AggregateError) { LoggingFixtures::FailingTask.run }
 
     refute_nil find_event("task.failed"), "task.failed event should be logged"
   end
@@ -93,12 +88,7 @@ class TestLogging < Minitest::Test
   def test_clean_events_are_logged_at_debug_level
     set_logger(level: Logger::DEBUG)
 
-    task_with_clean = Class.new(Taski::Task) do
-      def run = "result"
-      def clean = "cleaned"
-    end
-
-    task_with_clean.run_and_clean
+    LoggingFixtures::CleanableTask.run_and_clean
 
     refute_nil find_event("task.clean_started"), "task.clean_started event should be logged"
     refute_nil find_event("task.clean_completed"), "task.clean_completed event should be logged"
@@ -170,8 +160,7 @@ class TestLogging < Minitest::Test
   end
 
   def run_simple_task
-    task = Class.new(Taski::Task) { def run = "result" }
-    task.run
+    LoggingFixtures::SimpleTask.run
   end
 
   def find_event(event_name)

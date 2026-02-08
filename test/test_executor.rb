@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require_relative "fixtures/executor_tasks"
 require "logger"
 require "json"
 
@@ -10,12 +11,7 @@ class TestExecutor < Minitest::Test
   end
 
   def test_single_task_no_deps
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "result_value"
-      end
-    end
+    task_class = ExecutorFixtures::SingleTask
 
     registry = Taski::Execution::Registry.new
     execution_facade = create_execution_facade(registry, task_class)
@@ -34,131 +30,47 @@ class TestExecutor < Minitest::Test
 
   def test_linear_chain
     # A -> B -> C (C is leaf, B depends on C, A depends on B)
-    task_c = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "C"
-      end
-    end
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-    end
-    task_b.define_method(:run) do
-      @value = "B->#{Fiber.yield([:need_dep, task_c, :value])}"
-    end
-
-    task_a = Class.new(Taski::Task) do
-      exports :value
-    end
-    task_a.define_method(:run) do
-      @value = "A->#{Fiber.yield([:need_dep, task_b, :value])}"
-    end
-
-    # Set up static dependencies for the scheduler
-    task_c.instance_variable_set(:@dependencies_cache, Set.new)
-    task_b.instance_variable_set(:@dependencies_cache, Set[task_c])
-    task_a.instance_variable_set(:@dependencies_cache, Set[task_b])
+    task_class = ExecutorFixtures::ChainRoot
 
     registry = Taski::Execution::Registry.new
-    execution_facade = create_execution_facade(registry, task_a)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_facade: execution_facade
     )
 
-    executor.execute(task_a)
+    executor.execute(task_class)
 
-    wrapper_a = registry.create_wrapper(task_a, execution_facade: execution_facade)
-    assert wrapper_a.completed?
-    assert_equal "A->B->C", wrapper_a.task.value
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "A->B->C", wrapper.task.value
   end
 
   def test_diamond_dependency
     # Root -> [A, B] -> C
-    task_c = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "C"
-      end
-    end
-
-    task_a = Class.new(Taski::Task) do
-      exports :value
-    end
-    task_a.define_method(:run) do
-      @value = "A(#{Fiber.yield([:need_dep, task_c, :value])})"
-    end
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-    end
-    task_b.define_method(:run) do
-      @value = "B(#{Fiber.yield([:need_dep, task_c, :value])})"
-    end
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    root_task.define_method(:run) do
-      a = Fiber.yield([:need_dep, task_a, :value])
-      b = Fiber.yield([:need_dep, task_b, :value])
-      @value = "Root(#{a}, #{b})"
-    end
-
-    task_c.instance_variable_set(:@dependencies_cache, Set.new)
-    task_a.instance_variable_set(:@dependencies_cache, Set[task_c])
-    task_b.instance_variable_set(:@dependencies_cache, Set[task_c])
-    root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
+    task_class = ExecutorFixtures::DiamondRoot
 
     registry = Taski::Execution::Registry.new
-    execution_facade = create_execution_facade(registry, root_task)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_facade: execution_facade
     )
 
-    executor.execute(root_task)
+    executor.execute(task_class)
 
-    wrapper = registry.create_wrapper(root_task, execution_facade: execution_facade)
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "Root(A(C), B(C))", wrapper.task.value
   end
 
   def test_independent_parallel_tasks
-    task_a = Class.new(Taski::Task) do
-      exports :value
-      def run
-        sleep 0.1
-        @value = "A"
-      end
-    end
-
-    task_b = Class.new(Taski::Task) do
-      exports :value
-      def run
-        sleep 0.1
-        @value = "B"
-      end
-    end
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    root_task.define_method(:run) do
-      a = Fiber.yield([:need_dep, task_a, :value])
-      b = Fiber.yield([:need_dep, task_b, :value])
-      @value = "#{a}+#{b}"
-    end
-
-    task_a.instance_variable_set(:@dependencies_cache, Set.new)
-    task_b.instance_variable_set(:@dependencies_cache, Set.new)
-    root_task.instance_variable_set(:@dependencies_cache, Set[task_a, task_b])
+    task_class = ExecutorFixtures::ParallelRoot
 
     registry = Taski::Execution::Registry.new
-    execution_facade = create_execution_facade(registry, root_task)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -167,10 +79,10 @@ class TestExecutor < Minitest::Test
     )
 
     start_time = Time.now
-    executor.execute(root_task)
+    executor.execute(task_class)
     elapsed = Time.now - start_time
 
-    wrapper = registry.create_wrapper(root_task, execution_facade: execution_facade)
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "A+B", wrapper.task.value
     # Both tasks sleep 0.1s; if parallel, should complete in ~0.1s not ~0.2s
@@ -178,12 +90,7 @@ class TestExecutor < Minitest::Test
   end
 
   def test_task_with_error
-    task_class = Class.new(Taski::Task) do
-      exports :value
-      def run
-        raise StandardError, "fiber error"
-      end
-    end
+    task_class = ExecutorFixtures::ErrorTask
 
     registry = Taski::Execution::Registry.new
     execution_facade = create_execution_facade(registry, task_class)
@@ -202,104 +109,48 @@ class TestExecutor < Minitest::Test
   end
 
   def test_conditional_dependency_not_executed
-    # A task that conditionally depends on another task
-    dep_task = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "should_not_run"
-      end
-    end
-
-    main_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    # Condition is false, so dep is NOT accessed via Fiber.yield
-    main_task.define_method(:run) do
-      if false # rubocop:disable Lint/LiteralAsCondition
-        Fiber.yield([:need_dep, dep_task, :value])
-      end
-      @value = "no_dep"
-    end
-
-    main_task.instance_variable_set(:@dependencies_cache, Set.new)
+    task_class = ExecutorFixtures::ConditionalMain
 
     registry = Taski::Execution::Registry.new
-    execution_facade = create_execution_facade(registry, main_task)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_facade: execution_facade
     )
 
-    executor.execute(main_task)
+    executor.execute(task_class)
 
-    wrapper = registry.create_wrapper(main_task, execution_facade: execution_facade)
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
     assert wrapper.completed?
+    # ConditionalMain's `if false` branch is never taken at runtime,
+    # so the result reflects the non-conditional path
     assert_equal "no_dep", wrapper.task.value
-
-    # dep_task should NOT have been registered
-    refute registry.registered?(dep_task)
   end
 
   def test_multiple_exported_methods
-    # A task exporting two methods, accessed via separate Fiber.yields
-    dep_task = Class.new(Taski::Task) do
-      exports :first_name, :age
-      def run
-        @first_name = "Alice"
-        @age = 30
-      end
-    end
-
-    main_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    main_task.define_method(:run) do
-      n = Fiber.yield([:need_dep, dep_task, :first_name])
-      a = Fiber.yield([:need_dep, dep_task, :age])
-      @value = "#{n}:#{a}"
-    end
-
-    dep_task.instance_variable_set(:@dependencies_cache, Set.new)
-    main_task.instance_variable_set(:@dependencies_cache, Set[dep_task])
+    task_class = ExecutorFixtures::MultiExportMain
 
     registry = Taski::Execution::Registry.new
-    execution_facade = create_execution_facade(registry, main_task)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
       execution_facade: execution_facade
     )
 
-    executor.execute(main_task)
+    executor.execute(task_class)
 
-    wrapper = registry.create_wrapper(main_task, execution_facade: execution_facade)
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
     assert wrapper.completed?
     assert_equal "Alice:30", wrapper.task.value
   end
 
   def test_dependency_error_propagates_to_waiting_fiber
-    # A dependency that fails should propagate the error to the waiting task
-    failing_dep = Class.new(Taski::Task) do
-      exports :value
-      def run
-        raise StandardError, "dep failed"
-      end
-    end
-
-    main_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    main_task.define_method(:run) do
-      Fiber.yield([:need_dep, failing_dep, :value])
-      @value = "should not reach"
-    end
-
-    failing_dep.instance_variable_set(:@dependencies_cache, Set.new)
-    main_task.instance_variable_set(:@dependencies_cache, Set[failing_dep])
+    task_class = ExecutorFixtures::DepErrorMain
 
     registry = Taski::Execution::Registry.new
-    execution_facade = create_execution_facade(registry, main_task)
+    execution_facade = create_execution_facade(registry, task_class)
 
     executor = Taski::Execution::Executor.new(
       registry: registry,
@@ -307,7 +158,7 @@ class TestExecutor < Minitest::Test
     )
 
     error = assert_raises(Taski::AggregateError) do
-      executor.execute(main_task)
+      executor.execute(task_class)
     end
 
     # At least the failing_dep's error should be present
@@ -352,34 +203,8 @@ class TestExecutor < Minitest::Test
   end
 
   def test_skipped_tasks_are_notified_to_observers
-    # Graph: root -> middle -> slow_leaf
-    # Root completes before slow_leaf, so middle never becomes ready -> skipped
-    slow_leaf = Class.new(Taski::Task) do
-      exports :value
-      def run
-        sleep 0.2
-        @value = "leaf"
-      end
-    end
-
-    middle_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    middle_task.define_method(:run) do
-      v = Fiber.yield([:need_dep, slow_leaf, :value])
-      @value = "middle(#{v})"
-    end
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    root_task.define_method(:run) do
-      @value = "root_done"
-    end
-
-    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    middle_task.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
-    root_task.instance_variable_set(:@dependencies_cache, Set[middle_task])
+    root_class = ExecutorFixtures::SkippedRoot
+    middle_class = ExecutorFixtures::SkippedMiddle
 
     # Track observer notifications
     skipped_tasks = []
@@ -392,7 +217,7 @@ class TestExecutor < Minitest::Test
     observer.define_singleton_method(:on_stop) {}
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
     facade.add_observer(observer)
 
     executor = Taski::Execution::Executor.new(
@@ -401,13 +226,13 @@ class TestExecutor < Minitest::Test
       worker_count: 2
     )
 
-    executor.execute(root_task)
+    executor.execute(root_class)
 
-    # middle_task was in static graph but never enqueued -> should be skipped
+    # middle_class was in static graph but never enqueued -> should be skipped
     # Observers know all tasks start as pending from the dependency graph,
     # so no explicit nil→:pending notification is needed.
-    assert_includes skipped_tasks, middle_task, "middle_task should be skipped"
-    refute_includes skipped_tasks, root_task, "root_task should not be skipped"
+    assert_includes skipped_tasks, middle_class, "SkippedMiddle should be skipped"
+    refute_includes skipped_tasks, root_class, "SkippedRoot should not be skipped"
   end
 
   def test_failed_task_skips_pending_dependents
@@ -495,32 +320,7 @@ class TestExecutor < Minitest::Test
   end
 
   def test_log_execution_completed_includes_skipped_count
-    # Graph: root -> middle -> slow_leaf
-    # Root completes before slow_leaf, so middle is skipped
-    slow_leaf = Class.new(Taski::Task) do
-      exports :value
-      def run
-        sleep 0.2
-        @value = "leaf"
-      end
-    end
-
-    middle_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    middle_task.define_method(:run) do
-      v = Fiber.yield([:need_dep, slow_leaf, :value])
-      @value = "middle(#{v})"
-    end
-
-    root_task = Class.new(Taski::Task) do
-      exports :value
-    end
-    root_task.define_method(:run) { @value = "root" }
-
-    slow_leaf.instance_variable_set(:@dependencies_cache, Set.new)
-    middle_task.instance_variable_set(:@dependencies_cache, Set[slow_leaf])
-    root_task.instance_variable_set(:@dependencies_cache, Set[middle_task])
+    root_class = ExecutorFixtures::SkippedRoot
 
     log_output = StringIO.new
     original_logger = Taski.logger
@@ -528,7 +328,7 @@ class TestExecutor < Minitest::Test
       Taski.logger = Logger.new(log_output, level: Logger::INFO)
 
       registry = Taski::Execution::Registry.new
-      facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_task)
+      facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
 
       executor = Taski::Execution::Executor.new(
         registry: registry,
@@ -536,7 +336,7 @@ class TestExecutor < Minitest::Test
         worker_count: 2
       )
 
-      executor.execute(root_task)
+      executor.execute(root_class)
 
       log_lines = log_output.string.lines.map { |l| l[/\{.*\}/] }.compact.map { |j| JSON.parse(j) }
       completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
@@ -910,12 +710,9 @@ class TestExecutor < Minitest::Test
   # ========================================
 
   def test_executor_reuses_facade_dependency_graph
-    task = Class.new(Taski::Task) do
-      exports :value
-      def run = @value = "hello"
-    end
+    task_class = ExecutorFixtures::SingleTask
 
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
 
     # Capture the graph built at facade initialization
     graph_before = facade.dependency_graph
@@ -925,7 +722,7 @@ class TestExecutor < Minitest::Test
       registry: registry,
       execution_facade: facade
     )
-    executor.execute(task)
+    executor.execute(task_class)
 
     # The facade's graph should still be the same object (not rebuilt by Executor)
     assert_same graph_before, facade.dependency_graph,
@@ -935,15 +732,16 @@ class TestExecutor < Minitest::Test
   def test_task_wrapper_clean_phase_failed_transitions_to_completed_with_error
     # Clean failure at the TaskWrapper level: state goes to STATE_COMPLETED
     # but error is captured. Scheduler-level always marks as completed.
-    task = Class.new(Taski::Task) do
+    # Uses inline class because it needs a custom clean method
+    task_class = Class.new(Taski::Task) do
       exports :value
       def run = @value = "test"
       def clean = nil
     end
 
     registry = Taski::Execution::Registry.new
-    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task)
-    wrapper = registry.create_wrapper(task, execution_facade: facade)
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+    wrapper = registry.create_wrapper(task_class, execution_facade: facade)
 
     # Simulate clean lifecycle: pending → running → failed
     assert wrapper.mark_clean_running

@@ -54,6 +54,7 @@ module Taski
           deps.each do |dep|
             @run_reverse_deps[dep] ||= Set.new
             @run_reverse_deps[dep].add(task_class)
+            log_dependency_resolved(task_class, dep)
             queue << dep
           end
         end
