@@ -96,21 +96,6 @@ module Taski
           TaskWrapper.new(task_instance, registry: self, execution_context: execution_context)
         end
       end
-
-      # @param task_class [Class] The task class to run
-      # @param exported_methods [Array<Symbol>] Methods to call to trigger execution
-      # @return [Object] The result of the task execution
-      def run(task_class, exported_methods)
-        exported_methods.each do |method|
-          task_class.public_send(method)
-        end
-
-        wait_all
-
-        # @type var wrapper: Taski::Execution::TaskWrapper
-        wrapper = get_task(task_class)
-        wrapper.result
-      end
     end
   end
 end
