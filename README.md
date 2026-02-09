@@ -77,6 +77,46 @@ class Server < Taski::Task
 end
 ```
 
+### Custom Export Methods
+
+By default, `exports` generates a reader that returns the instance variable (e.g., `exports :value` reads `@value`). You can override this by defining your own instance method with the same name:
+
+**Fixed values** — no computation needed in `run`:
+
+```ruby
+class Config < Taski::Task
+  exports :timeout
+
+  def timeout
+    30
+  end
+
+  def run; end
+end
+
+Config.timeout  # => 30
+```
+
+**Shared logic between `run` and `clean`** — the method works as both an export and a regular instance method:
+
+```ruby
+class DatabaseSetup < Taski::Task
+  exports :connection
+
+  def connection
+    @connection ||= Database.connect
+  end
+
+  def run
+    connection.setup_schema
+  end
+
+  def clean
+    connection.close
+  end
+end
+```
+
 ### Conditional Logic - Runtime Selection
 
 Use `if` statements to switch behavior based on environment:

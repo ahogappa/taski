@@ -704,6 +704,29 @@ class TestParallelExecution < Minitest::Test
   end
 
   # ========================================
+  # Exported method override Tests
+  # ========================================
+
+  def test_exported_method_override_with_fixed_value
+    require_relative "fixtures/method_override_tasks"
+
+    Taski::Task.reset!
+
+    result = MethodOverrideFixtures::FixedValueTask.timeout
+    assert_equal 30, result
+  end
+
+  def test_exported_method_override_shared_between_run_and_clean
+    require_relative "fixtures/method_override_tasks"
+
+    Taski::Task.reset!
+
+    result = MethodOverrideFixtures::SharedMethodTask.run_and_clean
+    assert_equal "db://localhost", result
+    assert_equal "db://localhost", MethodOverrideFixtures::SharedMethodTask.connection
+  end
+
+  # ========================================
   # API Removal Tests
   # ========================================
 
