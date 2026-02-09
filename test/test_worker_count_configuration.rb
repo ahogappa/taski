@@ -71,24 +71,12 @@ class TestWorkerCountConfiguration < Minitest::Test
     ParentTask.reset!
     SlowTask.reset!
 
-    # Capture thread ID during execution
-    captured_thread_id = nil
-
-    task_class = Class.new(Taski::Task) do
-      exports :result
-
-      define_method(:run) do
-        captured_thread_id = SlowTask.thread_id
-        @result = captured_thread_id
-      end
-    end
-
-    result = task_class.run(workers: 1)
+    result = ParentTask.run(workers: 1)
 
     # Verify execution completed with valid thread ID
-    refute_nil captured_thread_id
-    assert_kind_of Integer, captured_thread_id
-    assert_equal result, captured_thread_id
+    # result is the return value of ParentTask#run, which is @slow_task_thread_id
+    refute_nil result
+    assert_kind_of Integer, result
   end
 
   def test_sequential_execution_with_workers_1

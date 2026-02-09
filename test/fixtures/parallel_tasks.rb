@@ -398,3 +398,51 @@ class SystemCallStderrTask < Taski::Task
     @result = system("ruby -e 'STDERR.puts \"stderr_message\"'")
   end
 end
+
+# Test fixtures for basic task execution tests in test_parallel_execution.rb
+
+class BasicValueTask < Taski::Task
+  exports :value
+
+  def run
+    @value = "exported_value"
+    "run_return_value"
+  end
+end
+
+class ExportedMethodOverrideTask < Taski::Task
+  exports :value
+
+  def run
+    value
+  end
+
+  def value
+    "test_value"
+  end
+end
+
+class FreshExecutionTask < Taski::Task
+  exports :value
+
+  def run
+    @value = "value_#{rand(10000)}"
+  end
+end
+
+class NoCleanTask < Taski::Task
+  exports :value
+
+  def run
+    @value = "test"
+  end
+  # No clean method defined - should use default no-op
+end
+
+class ErrorRaisingTask < Taski::Task
+  exports :value
+
+  def run
+    raise StandardError, "Test error"
+  end
+end
