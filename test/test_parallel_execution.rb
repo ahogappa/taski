@@ -9,71 +9,42 @@ class TestParallelExecution < Minitest::Test
   end
 
   def test_basic_task_execution
-    task_class = Class.new(Taski::Task) do
-      exports :value
+    require_relative "fixtures/parallel_tasks"
 
-      def run
-        @value = "exported_value"
-        "run_return_value"
-      end
-    end
-
+    Taski::Task.reset!
     # Test run's return value
-    result = task_class.run
+    result = BasicValueTask.run
     assert_equal "run_return_value", result
   end
 
   def test_task_with_exported_method_override
-    task_class = Class.new(Taski::Task) do
-      exports :value
+    require_relative "fixtures/parallel_tasks"
 
-      def run
-        value
-      end
-
-      def value
-        "test_value"
-      end
-    end
-
-    result = task_class.run
+    Taski::Task.reset!
+    result = ExportedMethodOverrideTask.run
     assert_equal "test_value", result
   end
 
   def test_class_method_always_fresh_execution
-    task_class = Class.new(Taski::Task) do
-      exports :value
+    require_relative "fixtures/parallel_tasks"
 
-      def run
-        @value = "value_#{rand(10000)}"
-      end
-    end
-
+    Taski::Task.reset!
     # Class method calls should be fresh each time (no caching)
-    value1 = task_class.value
-    value2 = task_class.value
+    value1 = FreshExecutionTask.value
+    value2 = FreshExecutionTask.value
 
     refute_equal value1, value2, "Class method calls should execute fresh each time"
   end
 
   def test_reset_clears_cached_values
-    unless Object.const_defined?(:ResetTaskTest)
-      Object.const_set(:ResetTaskTest, Class.new(Taski::Task) do
-        exports :value
+    require_relative "fixtures/parallel_tasks"
 
-        def run
-          @value = rand(10000)
-        end
-      end)
-    end
-
-    value1 = ResetTaskTest.value
-    ResetTaskTest.reset!
-    value2 = ResetTaskTest.value
+    Taski::Task.reset!
+    value1 = FreshExecutionTask.value
+    FreshExecutionTask.reset!
+    value2 = FreshExecutionTask.value
 
     assert value1 != value2, "Values should be different after reset"
-  ensure
-    Object.send(:remove_const, :ResetTaskTest) if Object.const_defined?(:ResetTaskTest)
   end
 
   def test_parallel_execution_with_timing
@@ -227,17 +198,11 @@ class TestParallelExecution < Minitest::Test
   end
 
   def test_clean_with_no_implementation
+    require_relative "fixtures/parallel_tasks"
+
+    Taski::Task.reset!
     # Test default clean (no-op) doesn't break with run_and_clean
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "test"
-      end
-      # No clean method defined - should use default no-op
-    end
-
-    result = task_class.run_and_clean # Should not raise
+    result = NoCleanTask.run_and_clean # Should not raise
     assert_equal "test", result
   end
 
@@ -351,16 +316,11 @@ class TestParallelExecution < Minitest::Test
 
   # Test non-TaskAbortException error handling in Executor
   def test_executor_handles_non_abort_exception
-    task_class = Class.new(Taski::Task) do
-      exports :value
+    require_relative "fixtures/parallel_tasks"
 
-      def run
-        raise StandardError, "Test error"
-      end
-    end
-
+    Taski::Task.reset!
     error = assert_raises(Taski::AggregateError) do
-      task_class.run
+      ErrorRaisingTask.run
     end
     assert_equal 1, error.errors.size
     assert_equal "Test error", error.errors.first.error.message
@@ -510,26 +470,13 @@ class TestParallelExecution < Minitest::Test
   # ========================================
 
   def test_run_and_clean_basic_execution
-    run_order = []
-    clean_order = []
+    require_relative "fixtures/run_and_clean_fixtures"
+    RunAndCleanFixtures::BlockOrder.clear
 
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        run_order << :task
-        @value = "test_value"
-      end
-
-      define_method(:clean) do
-        clean_order << :task
-      end
-    end
-
-    result = task_class.run_and_clean
+    result = RunAndCleanFixtures::TrackedRunCleanTask.run_and_clean
     assert_equal "test_value", result
-    assert_equal [:task], run_order
-    assert_equal [:task], clean_order
+    assert_includes RunAndCleanFixtures::BlockOrder.order, :run
+    assert_includes RunAndCleanFixtures::BlockOrder.order, :clean
   end
 
   def test_run_and_clean_with_dependencies
@@ -588,19 +535,9 @@ class TestParallelExecution < Minitest::Test
   end
 
   def test_run_and_clean_returns_result
-    task_class = Class.new(Taski::Task) do
-      exports :computed
+    require_relative "fixtures/run_and_clean_fixtures"
 
-      def run
-        @computed = 42 * 2
-      end
-
-      def clean
-        # Cleanup logic
-      end
-    end
-
-    result = task_class.run_and_clean
+    result = RunAndCleanFixtures::ComputedResultTask.run_and_clean
     assert_equal 84, result
   end
 
@@ -609,59 +546,29 @@ class TestParallelExecution < Minitest::Test
   # ========================================
 
   def test_run_and_clean_with_block
-    execution_order = []
+    require_relative "fixtures/run_and_clean_fixtures"
+    RunAndCleanFixtures::BlockOrder.clear
 
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        execution_order << :run
-        @value = "test_value"
-      end
-
-      define_method(:clean) do
-        execution_order << :clean
-      end
+    RunAndCleanFixtures::TrackedBlockTask.run_and_clean do
+      RunAndCleanFixtures::BlockOrder.add(:block)
     end
 
-    task_class.run_and_clean do
-      execution_order << :block
-    end
-
-    assert_equal [:run, :block, :clean], execution_order
+    assert_equal [:run, :block, :clean], RunAndCleanFixtures::BlockOrder.order
   end
 
   def test_run_and_clean_block_can_access_exported_values
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "exported_data"
-      end
-
-      def clean
-      end
-    end
+    require_relative "fixtures/run_and_clean_fixtures"
 
     captured_value = nil
-    task_class.run_and_clean do
-      captured_value = task_class.value
+    RunAndCleanFixtures::ExportedDataTask.run_and_clean do
+      captured_value = RunAndCleanFixtures::ExportedDataTask.value
     end
 
     assert_equal "exported_data", captured_value
   end
 
   def test_run_and_clean_block_can_use_stdout
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      def run
-        @value = "test"
-      end
-
-      def clean
-      end
-    end
+    require_relative "fixtures/run_and_clean_fixtures"
 
     # Verify block can write to stdout (capture is released)
     output = StringIO.new
@@ -669,7 +576,7 @@ class TestParallelExecution < Minitest::Test
     begin
       $stdout = output
 
-      task_class.run_and_clean do
+      RunAndCleanFixtures::StdoutTestTask.run_and_clean do
         puts "block output"
       end
     ensure
@@ -680,27 +587,16 @@ class TestParallelExecution < Minitest::Test
   end
 
   def test_run_and_clean_block_error_still_cleans
-    clean_executed = false
-
-    task_class = Class.new(Taski::Task) do
-      exports :value
-
-      define_method(:run) do
-        @value = "test"
-      end
-
-      define_method(:clean) do
-        clean_executed = true
-      end
-    end
+    require_relative "fixtures/run_and_clean_fixtures"
+    RunAndCleanFixtures::BlockErrorTracker.clear
 
     assert_raises(RuntimeError) do
-      task_class.run_and_clean do
+      RunAndCleanFixtures::CleanOnBlockErrorTask.run_and_clean do
         raise "block error"
       end
     end
 
-    assert clean_executed, "Clean should still execute after block raises"
+    assert RunAndCleanFixtures::BlockErrorTracker.clean_executed?, "Clean should still execute after block raises"
   end
 
   # ========================================

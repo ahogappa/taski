@@ -94,4 +94,117 @@ module ArgsFixtures
       @main_value = ArgsDepTask.dep_value
     end
   end
+
+  # Task that captures working directory
+  class WorkingDirectoryTask < Taski::Task
+    exports :captured_dir
+
+    def run
+      @captured_dir = Taski.env.working_directory
+      CapturedValues.store(:working_directory, @captured_dir)
+    end
+  end
+
+  # Task that captures started_at
+  class StartedAtTask < Taski::Task
+    exports :captured_time
+
+    def run
+      @captured_time = Taski.env.started_at
+      CapturedValues.store(:started_at, @captured_time)
+    end
+  end
+
+  # Task that captures root_task
+  class RootTaskCaptureTask < Taski::Task
+    exports :value
+
+    def run
+      CapturedValues.store(:root_task, Taski.env.root_task)
+      @value = "test"
+    end
+  end
+
+  # Task that captures args and env references
+  class ArgsAndEnvCaptureTask < Taski::Task
+    exports :value
+
+    def run
+      CapturedValues.store(:captured_args, Taski.args)
+      CapturedValues.store(:captured_env, Taski.env)
+      @value = "test"
+    end
+  end
+
+  # Task that captures Taski.args[:env]
+  class ArgsOptionsCaptureTask < Taski::Task
+    exports :env_value
+
+    def run
+      @env_value = Taski.args[:env]
+      CapturedValues.store(:args_env, @env_value)
+    end
+  end
+
+  # Task that captures Taski.args[:nonexistent]
+  class ArgsMissingKeyCaptureTask < Taski::Task
+    exports :missing_value
+
+    def run
+      @missing_value = Taski.args[:nonexistent]
+      CapturedValues.store(:args_missing, @missing_value)
+    end
+  end
+
+  # Task that captures Taski.args.fetch(:timeout, 30)
+  class ArgsFetchDefaultTask < Taski::Task
+    exports :timeout_value
+
+    def run
+      @timeout_value = Taski.args.fetch(:timeout, 30)
+      CapturedValues.store(:fetch_default, @timeout_value)
+    end
+  end
+
+  # Task that captures Taski.args.fetch(:computed) { 10 * 5 }
+  class ArgsFetchBlockTask < Taski::Task
+    exports :computed_value
+
+    def run
+      @computed_value = Taski.args.fetch(:computed) { 10 * 5 }
+      CapturedValues.store(:fetch_block, @computed_value)
+    end
+  end
+
+  # Task that captures Taski.args.fetch(:timeout, 30) with existing value
+  class ArgsFetchExistingTask < Taski::Task
+    exports :timeout_value
+
+    def run
+      @timeout_value = Taski.args.fetch(:timeout, 30)
+      CapturedValues.store(:fetch_existing, @timeout_value)
+    end
+  end
+
+  # Task that captures key?() results
+  class ArgsKeyCheckTask < Taski::Task
+    exports :has_env, :has_missing
+
+    def run
+      @has_env = Taski.args.key?(:env)
+      @has_missing = Taski.args.key?(:missing)
+      CapturedValues.store(:has_env, @has_env)
+      CapturedValues.store(:has_missing, @has_missing)
+    end
+  end
+
+  # Task that captures args reference for immutability test
+  class ArgsImmutabilityTask < Taski::Task
+    exports :result
+
+    def run
+      CapturedValues.store(:args_ref, Taski.args)
+      @result = Taski.args[:env]
+    end
+  end
 end

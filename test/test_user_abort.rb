@@ -2,6 +2,7 @@
 
 require_relative "test_helper"
 require_relative "fixtures/error_tasks"
+require_relative "fixtures/parallel_tasks"
 
 class TestUserAbort < Minitest::Test
   include TaskiTestHelper
@@ -136,18 +137,9 @@ class TestUserAbort < Minitest::Test
     # Set the spy as the progress display
     Taski.progress_display = progress_spy
 
-    # Task that raises an exception
-    task_class = Class.new(Taski::Task) do
-      exports :result
-
-      def run
-        raise "Task failed"
-      end
-    end
-
-    # Run the task (it should raise but still clean up)
+    # Run a task that raises an exception (should raise but still clean up)
     assert_raises(Taski::AggregateError) do
-      task_class.result
+      ErrorRaisingTask.value
     end
 
     # Verify stop was called despite the exception

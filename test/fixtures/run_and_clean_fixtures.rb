@@ -128,4 +128,122 @@ module RunAndCleanFixtures
       CleanOnFailureTracker.record_clean
     end
   end
+
+  # Thread-safe order tracking for block execution tests
+  module BlockOrder
+    @order = []
+    @mutex = Mutex.new
+
+    class << self
+      def add(symbol)
+        @mutex.synchronize { @order << symbol }
+      end
+
+      def order
+        @mutex.synchronize { @order.dup }
+      end
+
+      def clear
+        @mutex.synchronize { @order.clear }
+      end
+    end
+  end
+
+  # Task with computed result for run_and_clean return value test
+  class ComputedResultTask < Taski::Task
+    exports :computed
+
+    def run
+      @computed = 42 * 2
+    end
+
+    def clean
+      # Cleanup logic
+    end
+  end
+
+  # Task for basic run_and_clean execution order test
+  class TrackedRunCleanTask < Taski::Task
+    exports :value
+
+    def run
+      BlockOrder.add(:run)
+      @value = "test_value"
+    end
+
+    def clean
+      BlockOrder.add(:clean)
+    end
+  end
+
+  # Task for run_and_clean with block test
+  class TrackedBlockTask < Taski::Task
+    exports :value
+
+    def run
+      BlockOrder.add(:run)
+      @value = "test_value"
+    end
+
+    def clean
+      BlockOrder.add(:clean)
+    end
+  end
+
+  # Task for block access to exported values test
+  class ExportedDataTask < Taski::Task
+    exports :value
+
+    def run
+      @value = "exported_data"
+    end
+
+    def clean
+    end
+  end
+
+  # Task for stdout capture test
+  class StdoutTestTask < Taski::Task
+    exports :value
+
+    def run
+      @value = "test"
+    end
+
+    def clean
+    end
+  end
+
+  # Thread-safe tracker for block error + clean test
+  module BlockErrorTracker
+    @clean_executed = false
+    @mutex = Mutex.new
+
+    class << self
+      def record_clean
+        @mutex.synchronize { @clean_executed = true }
+      end
+
+      def clean_executed?
+        @mutex.synchronize { @clean_executed }
+      end
+
+      def clear
+        @mutex.synchronize { @clean_executed = false }
+      end
+    end
+  end
+
+  # Task for block error still cleans test
+  class CleanOnBlockErrorTask < Taski::Task
+    exports :value
+
+    def run
+      @value = "test"
+    end
+
+    def clean
+      BlockErrorTracker.record_clean
+    end
+  end
 end

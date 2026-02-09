@@ -2,6 +2,7 @@
 
 require "test_helper"
 require "stringio"
+require_relative "fixtures/message_tasks"
 
 class TestMessage < Minitest::Test
   def setup
@@ -79,23 +80,13 @@ class TestMessage < Minitest::Test
   def test_message_in_task_execution_with_log_mode
     original_stdout = $stdout
 
-    task_class = Class.new(Taski::Task) do
-      exports :result
-
-      def run
-        Taski.message("Created: /path/to/output.txt")
-        Taski.message("Summary: 42 items processed")
-        @result = "done"
-      end
-    end
-
     output = StringIO.new
     begin
       $stdout = output
       $stderr = output
 
       Taski.progress_display = Taski::Progress::Layout::Log.new(output: output)
-      task_class.run
+      MessageFixtures::MessageOutputTask.run
     ensure
       $stdout = original_stdout
       $stderr = STDERR
