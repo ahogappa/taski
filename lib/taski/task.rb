@@ -6,6 +6,8 @@ require_relative "execution/registry"
 require_relative "execution/task_wrapper"
 require_relative "progress/layout/tree"
 require_relative "progress/theme/plain"
+require_relative "task_proxy"
+require_relative "await_handle"
 
 module Taski
   # Base class for all tasks in the Taski framework.
@@ -109,6 +111,19 @@ module Taski
       end
 
       ##
+      # Returns an AwaitHandle for eager (synchronous) dependency resolution.
+      # Use this when you need the resolved value immediately rather than a lazy proxy.
+      #
+      # @example
+      #   def run
+      #     resolved = SomeDep.await.value  # resolves immediately
+      #   end
+      # @return [AwaitHandle]
+      def await
+        AwaitHandle.new(self)
+      end
+
+      ##
       # Renders a static tree representation of the task dependencies.
       # @return [String] The rendered tree string.
       def tree
@@ -181,12 +196,8 @@ module Taski
           registry = Taski.current_registry
           if registry
             if Thread.current[:taski_fiber_context]
-              # Fiber-based lazy resolution - yield to the worker loop
-              result = Fiber.yield([:need_dep, self, method])
-              if result.is_a?(Array) && result[0] == :_taski_error
-                raise result[1]
-              end
-              result
+              # Lazy resolution via proxy - defers Fiber.yield until value is actually used
+              TaskProxy.new(self, method)
             else
               # Synchronous resolution (clean phase, outside Fiber)
               wrapper = registry.get_or_create(self) do

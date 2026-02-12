@@ -101,7 +101,9 @@ module Taski
 
         fiber = Fiber.new do
           setup_run_thread_locals
-          wrapper.task.run
+          run_result = wrapper.task.run
+          resolve_proxy_exports(wrapper)
+          run_result
         end
 
         now = Time.now
@@ -178,6 +180,19 @@ module Taski
       # The wrapper is already RUNNING (set atomically by request_value).
       def start_dependency(dep_class, dep_wrapper, queue)
         drive_fiber(dep_class, dep_wrapper, queue)
+      end
+
+      # Resolve any TaskProxy instances stored in exported ivars.
+      # After task.run, proxies assigned to @value etc. must be resolved
+      # while still inside the Fiber context so Fiber.yield works.
+      def resolve_proxy_exports(wrapper)
+        wrapper.task.class.exported_methods.each do |method|
+          ivar = :"@#{method}"
+          val = wrapper.task.instance_variable_get(ivar)
+          next unless val.respond_to?(:__taski_proxy_resolve__)
+          resolved = val.__taski_proxy_resolve__
+          wrapper.task.instance_variable_set(ivar, resolved)
+        end
       end
 
       def complete_task(task_class, wrapper, result)
