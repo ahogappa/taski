@@ -10,12 +10,15 @@ module Taski
 
     # WorkerPool manages N threads, each with its own command Queue.
     # Tasks are executed within Fibers on worker threads.
-    # When a Fiber yields [:need_dep, dep_class, method], the worker
-    # resolves the dependency via TaskWrapper#request_value:
     #
-    # - :completed → resume Fiber immediately with the value
-    # - :wait → park the Fiber (it will be resumed later via the thread's queue)
-    # - :start → start the dependency as a nested Fiber on the same thread
+    # Fiber protocol supports two yield types:
+    # - [:start_dep, dep_class, method] → non-blocking. Starts dep on another
+    #   thread and resumes the Fiber immediately. Used for speculative prestart.
+    # - [:need_dep, dep_class, method]  → blocking. Resolves dependency via
+    #   TaskWrapper#request_value:
+    #   - :completed → resume Fiber immediately with the value
+    #   - :wait → park the Fiber (it will be resumed later via the thread's queue)
+    #   - :start → start the dependency as a nested Fiber on the same thread
     #
     # Worker threads process these commands:
     # - [:execute, task_class, wrapper]       → create and drive a new Fiber
@@ -38,6 +41,7 @@ module Taski
         @fiber_contexts = {}
         @task_start_times_mutex = Mutex.new
         @task_start_times = {}
+        @enqueue_mutex = Mutex.new
       end
 
       def start
@@ -99,8 +103,10 @@ module Taski
       def drive_fiber(task_class, wrapper, queue)
         return if @registry.abort_requested?
 
+        ast_deps = Taski::StaticAnalysis::StartDepAnalyzer.analyze(task_class)
         fiber = Fiber.new do
           setup_run_thread_locals
+          ast_deps.each { |dep| Fiber.yield([:start_dep, dep.klass, dep.method_name]) }
           run_result = wrapper.task.run
           resolve_proxy_exports(wrapper)
           run_result
@@ -122,13 +128,20 @@ module Taski
         result = fiber.resume(resume_value)
 
         while fiber.alive?
-          if result.is_a?(Array) && result[0] == :need_dep
-            _, dep_class, method = result
-            handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
-            return # Fiber is either continuing or parked
-          else
-            break
+          if result.is_a?(Array)
+            case result[0]
+            when :start_dep
+              _, dep_class, _method = result
+              handle_start_dep(dep_class)
+              result = fiber.resume
+              next
+            when :need_dep
+              _, dep_class, method = result
+              handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
+              return # Fiber is either continuing or parked
+            end
           end
+          break
         end
 
         complete_task(task_class, wrapper, result)
@@ -180,6 +193,20 @@ module Taski
       # The wrapper is already RUNNING (set atomically by request_value).
       def start_dependency(dep_class, dep_wrapper, queue)
         drive_fiber(dep_class, dep_wrapper, queue)
+      end
+
+      # Handle :start_dep — speculatively start a dependency on another thread.
+      # Non-blocking: the calling Fiber is resumed immediately after enqueueing.
+      # Uses mark_running to prevent duplicate starts.
+      def handle_start_dep(dep_class)
+        dep_wrapper = @registry.create_wrapper(dep_class, execution_facade: @execution_facade)
+        return unless dep_wrapper.mark_running
+
+        @enqueue_mutex.synchronize do
+          target_queue = @thread_queues[@next_thread_index % @worker_count]
+          @next_thread_index += 1
+          target_queue.push([:execute, dep_class, dep_wrapper])
+        end
       end
 
       # Resolve any TaskProxy instances stored in exported ivars.

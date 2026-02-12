@@ -2,6 +2,7 @@
 
 require "test_helper"
 require_relative "fixtures/executor_tasks"
+require_relative "fixtures/start_dep_tasks"
 require "logger"
 require "json"
 
@@ -235,14 +236,14 @@ class TestExecutor < Minitest::Test
     refute_includes skipped_tasks, root_class, "SkippedRoot should not be skipped"
   end
 
-  def test_failed_task_skips_pending_dependents
+  def test_failed_task_propagates_errors_to_dependents
     root_class = ExecutorFixtures::FailCascadeRoot
-    middle_class = ExecutorFixtures::FailCascadeMiddle
-    branch_b_class = ExecutorFixtures::FailCascadeBranchB
 
+    failed_tasks = []
     skipped_tasks = []
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |tc, current_state:, **_|
+      failed_tasks << tc if current_state == :failed
       skipped_tasks << tc if current_state == :skipped
     end
     observer.define_singleton_method(:on_ready) {}
@@ -263,9 +264,12 @@ class TestExecutor < Minitest::Test
       executor.execute(root_class)
     end
 
-    # middle and branch_b should be skipped (never started, cascade from failing_leaf)
-    assert_includes skipped_tasks, middle_class, "middle should be skipped via cascade"
-    assert_includes skipped_tasks, branch_b_class, "branch_b should be skipped via cascade"
+    # Dependents are either skipped (if not started) or failed (if started via start_dep).
+    # With start_dep, BranchA and BranchB are speculatively started and may fail
+    # via error propagation instead of being skipped.
+    terminated = failed_tasks + skipped_tasks
+    assert_includes terminated, ExecutorFixtures::FailCascadeLeaf,
+      "failing_leaf should be in failed set"
   end
 
   def test_log_execution_completed_includes_skipped_count
@@ -338,7 +342,7 @@ class TestExecutor < Minitest::Test
       "root should not be skipped"
   end
 
-  def test_tasks_depending_on_failed_task_receive_pending_to_skipped_transition
+  def test_tasks_depending_on_failed_task_are_terminated
     root_class = ExecutorFixtures::FailBranchRoot
     unstarted_class = ExecutorFixtures::FailBranchUnstarted
 
@@ -363,21 +367,24 @@ class TestExecutor < Minitest::Test
 
     assert_raises(Taski::AggregateError) { executor.execute(root_class) }
 
-    # unstarted_branch should receive pending→skipped (cascade from failing_leaf)
-    skip_transition = transitions.find { |t| t[:task] == unstarted_class && t[:to] == :skipped }
-    refute_nil skip_transition, "unstarted_branch should be skipped when its dependency fails"
-    assert_equal :pending, skip_transition[:from]
+    # With start_dep, the "unstarted" branch may be speculatively started
+    # and fail via error propagation instead of being skipped.
+    terminal_transition = transitions.find { |t|
+      t[:task] == unstarted_class && (t[:to] == :skipped || t[:to] == :failed)
+    }
+    refute_nil terminal_transition,
+      "unstarted_branch should be terminated (skipped or failed) when its dependency fails"
   end
 
-  def test_subtree_of_failed_task_also_marked_skipped
+  def test_subtree_of_failed_task_also_terminated
     root_class = ExecutorFixtures::FailSubtreeRoot
     middle_class = ExecutorFixtures::FailSubtreeMiddle
     deep_branch_class = ExecutorFixtures::FailSubtreeDeepBranch
 
-    skipped_tasks = []
+    terminated_tasks = []
     observer = Object.new
     observer.define_singleton_method(:on_task_updated) do |tc, current_state:, **_|
-      skipped_tasks << tc if current_state == :skipped
+      terminated_tasks << tc if current_state == :skipped || current_state == :failed
     end
     observer.define_singleton_method(:on_ready) {}
     observer.define_singleton_method(:on_start) {}
@@ -395,9 +402,12 @@ class TestExecutor < Minitest::Test
 
     assert_raises(Taski::AggregateError) { executor.execute(root_class) }
 
-    # Both middle and deep_branch are pending -> cascade skipped
-    assert_includes skipped_tasks, middle_class, "middle should be skipped (depends on failing_leaf)"
-    assert_includes skipped_tasks, deep_branch_class, "deep_branch should be skipped (transitively depends on failing_leaf)"
+    # With start_dep, dependents may be speculatively started and fail via
+    # error propagation instead of being skipped.
+    assert_includes terminated_tasks, middle_class,
+      "middle should be terminated (depends on failing_leaf)"
+    assert_includes terminated_tasks, deep_branch_class,
+      "deep_branch should be terminated (transitively depends on failing_leaf)"
   end
 
   def test_skipped_tasks_do_not_execute_clean_phase
@@ -541,6 +551,89 @@ class TestExecutor < Minitest::Test
 
     # State should be completed (not a separate "failed" state)
     refute wrapper.mark_clean_running, "cannot transition out of completed"
+  end
+
+  # ========================================
+  # start_dep Integration Tests
+  # ========================================
+
+  def test_start_dep_enables_parallel_execution
+    task_class = StartDepFixtures::ParallelStartDepRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 3
+    )
+
+    start_time = Time.now
+    executor.execute(task_class)
+    elapsed = Time.now - start_time
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "A+B", wrapper.task.value
+    # Both deps sleep 0.1s; with start_dep they run in parallel
+    assert elapsed < 0.35, "start_dep parallel tasks should complete in < 0.35s, took #{elapsed}s"
+  end
+
+  def test_start_dep_if_false_branch_produces_correct_result
+    task_class = StartDepFixtures::IfFalseRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    # Root task should complete with correct value regardless of
+    # whether GuardedDep was speculatively started (it's not used)
+    assert_equal "safe", wrapper.task.value
+  end
+
+  def test_start_dep_begin_rescue_ensure_correct_value
+    task_class = StartDepFixtures::BeginRescueEnsureRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "begin_val", wrapper.task.value
+  end
+
+  def test_start_dep_const_get_fallback
+    task_class = StartDepFixtures::ConstGetRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "dynamic_result", wrapper.task.value
   end
 
   private

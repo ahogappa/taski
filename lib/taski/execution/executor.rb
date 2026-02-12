@@ -5,8 +5,12 @@ require "etc"
 module Taski
   module Execution
     # Orchestrates run (Fiber-based) and clean (direct) phases of task execution.
-    # Delegates to Scheduler (dependency order), WorkerPool (worker threads),
-    # and ExecutionFacade (observer notifications).
+    # Delegates to Scheduler (state tracking / advisory proposals),
+    # WorkerPool (worker threads), and ExecutionFacade (observer notifications).
+    #
+    # Task execution is driven by the Fiber pull model — tasks start only when
+    # requested via Fiber.yield [:need_dep, ...]. Scheduler may propose tasks,
+    # but Executor/Wrapper can reject proposals not backed by actual Fiber requests.
     class Executor
       class << self
         def execute(root_task_class, registry:, execution_facade:)
@@ -105,6 +109,9 @@ module Taski
       def handle_completion(event)
         task_class = event[:task_class]
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_TASK_COMPLETED, task: task_class.name)
+
+        # Sync Scheduler state for tasks started via start_dep (bypassed enqueue_for_execution)
+        @scheduler.mark_running(task_class) if @scheduler.pending?(task_class)
 
         if event[:error]
           @scheduler.mark_failed(task_class)
