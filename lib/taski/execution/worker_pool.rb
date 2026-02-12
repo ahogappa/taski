@@ -103,13 +103,16 @@ module Taski
       def drive_fiber(task_class, wrapper, queue)
         return if @registry.abort_requested?
 
-        ast_deps = Taski::StaticAnalysis::StartDepAnalyzer.analyze(task_class)
+        analysis = Taski::StaticAnalysis::StartDepAnalyzer.analyze(task_class)
         fiber = Fiber.new do
           setup_run_thread_locals
-          ast_deps.each { |dep| Fiber.yield([:start_dep, dep.klass, dep.method_name]) }
+          Thread.current[:taski_sync_deps] = analysis.sync_dep_classes
+          analysis.deps.each { |dep| Fiber.yield([:start_dep, dep.klass, dep.method_name]) }
           run_result = wrapper.task.run
           resolve_proxy_exports(wrapper)
           run_result
+        ensure
+          Thread.current[:taski_sync_deps] = nil
         end
 
         now = Time.now

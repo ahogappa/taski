@@ -13,8 +13,8 @@ class TestStartDepAnalyzer < Minitest::Test
       StartDepAnalyzerFixtures::LocalVarAssignment
     )
 
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_instance_variable_assignment_dep
@@ -22,8 +22,8 @@ class TestStartDepAnalyzer < Minitest::Test
       StartDepAnalyzerFixtures::IvarAssignment
     )
 
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_multiple_assignment_deps
@@ -31,8 +31,8 @@ class TestStartDepAnalyzer < Minitest::Test
       StartDepAnalyzerFixtures::MultipleAssignments
     )
 
-    classes = result.map(&:klass)
-    assert_equal 2, result.size
+    classes = result.deps.map(&:klass)
+    assert_equal 2, result.deps.size
     assert_includes classes, StartDepAnalyzerFixtures::LeafTask
     assert_includes classes, StartDepAnalyzerFixtures::LeafTaskB
   end
@@ -42,8 +42,8 @@ class TestStartDepAnalyzer < Minitest::Test
       StartDepAnalyzerFixtures::DedupAssignment
     )
 
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_non_dep_assignment_continues_scanning
@@ -51,8 +51,8 @@ class TestStartDepAnalyzer < Minitest::Test
       StartDepAnalyzerFixtures::NonDepAssignment
     )
 
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_unknown_pattern_stops_scanning
@@ -61,8 +61,8 @@ class TestStartDepAnalyzer < Minitest::Test
     )
 
     # if statement stops scanning, only LeafTask (before if) is returned
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_caching
@@ -81,8 +81,8 @@ class TestStartDepAnalyzer < Minitest::Test
       StartDepAnalyzerFixtures::NamespacedConstant
     )
 
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_return_stops_scanning
@@ -91,8 +91,8 @@ class TestStartDepAnalyzer < Minitest::Test
     )
 
     # return stops scanning — LeafTaskB after return is not collected
-    assert_equal 1, result.size
-    assert_equal StartDepAnalyzerFixtures::LeafTask, result.first.klass
+    assert_equal 1, result.deps.size
+    assert_equal StartDepAnalyzerFixtures::LeafTask, result.deps.first.klass
   end
 
   def test_unparseable_class_returns_empty
@@ -106,6 +106,130 @@ class TestStartDepAnalyzer < Minitest::Test
     end
 
     result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(klass)
-    assert_equal [], result
+    assert_empty result.deps
+    assert_empty result.sync_dep_classes
+  end
+
+  def test_analysis_result_has_empty_sync_dep_classes_by_default
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::LocalVarAssignment
+    )
+
+    assert_instance_of Set, result.sync_dep_classes
+    assert_empty result.sync_dep_classes
+  end
+
+  # ========================================
+  # Phase 2: Danger Pattern Detection
+  # ========================================
+
+  def test_danger_arg_comparison
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerArgComparison
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_arg_include
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerArgInclude
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_arg_method_call
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerArgMethodCall
+    )
+    # b is argument → sync, a is receiver → safe
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTaskB
+    refute_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_condition_if
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerConditionIf
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_condition_unless
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerConditionUnless
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_condition_while
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerConditionWhile
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_condition_until
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerConditionUntil
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_safe_receiver_only
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::SafeReceiverOnly
+    )
+    assert_empty result.sync_dep_classes
+  end
+
+  def test_safe_interpolation
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::SafeInterpolation
+    )
+    assert_empty result.sync_dep_classes
+  end
+
+  def test_safe_ivar_assignment
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::SafeIvarAssignment
+    )
+    assert_empty result.sync_dep_classes
+  end
+
+  def test_mixed_safe_and_danger
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::MixedSafeAndDanger
+    )
+    # a is receiver → safe; b is argument → sync
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTaskB
+    refute_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_multiple_danger_uses
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::MultipleDangerUses
+    )
+    # condition usage makes it danger even if also used as receiver
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_unknown_usage_falls_to_sync
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::UnknownUsageFallsToSync
+    )
+    assert_includes result.sync_dep_classes, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_safe_reassign_to_ivar
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::SafeReassignToIvar
+    )
+    assert_empty result.sync_dep_classes
+  end
+
+  def test_safe_chained_receiver
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::SafeChainedReceiver
+    )
+    assert_empty result.sync_dep_classes
   end
 end

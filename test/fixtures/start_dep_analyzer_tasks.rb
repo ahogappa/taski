@@ -104,4 +104,169 @@ module StartDepAnalyzerFixtures
       @other = LeafTaskB.value # rubocop:disable Lint/UnreachableCode
     end
   end
+
+  # === Phase 2: Danger pattern detection ===
+
+  # Danger: proxy used as argument (0 == a → Integer#== receives proxy)
+  class DangerArgComparison < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = (0 == a) # standard:disable Style/YodaCondition
+    end
+  end
+
+  # Danger: proxy used as argument to include?
+  class DangerArgInclude < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = [1, 2].include?(a)
+    end
+  end
+
+  # Danger: b is argument, a is receiver (safe)
+  class DangerArgMethodCall < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      b = LeafTaskB.value
+      @value = a.foo(b)
+    end
+  end
+
+  # Danger: proxy used in if condition
+  class DangerConditionIf < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      if a # rubocop:disable Lint/LiteralAsCondition
+        @value = "truthy"
+      end
+    end
+  end
+
+  # Danger: proxy used in unless condition
+  class DangerConditionUnless < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      unless a # rubocop:disable Lint/LiteralAsCondition
+        @value = "falsy"
+      end
+    end
+  end
+
+  # Danger: proxy used in while condition
+  class DangerConditionWhile < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      while a # rubocop:disable Lint/LiteralAsCondition
+        @value = "loop"
+        break
+      end
+    end
+  end
+
+  # Danger: proxy used in until condition
+  class DangerConditionUntil < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      until a # rubocop:disable Lint/LiteralAsCondition
+        @value = "loop"
+        break
+      end
+    end
+  end
+
+  # Safe: proxy used as receiver only
+  class SafeReceiverOnly < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = a.to_s
+    end
+  end
+
+  # Safe: proxy used in string interpolation (to_s via method_missing)
+  class SafeInterpolation < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = "result: #{a}"
+    end
+  end
+
+  # Safe: ivar assignment (resolve_proxy_exports handles it)
+  class SafeIvarAssignment < Taski::Task
+    exports :value
+
+    def run
+      @value = LeafTask.value
+    end
+  end
+
+  # Mixed: a is safe (receiver), b is danger (argument)
+  class MixedSafeAndDanger < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      b = LeafTaskB.value
+      @value = a.foo(b)
+    end
+  end
+
+  # Multiple danger uses: first use (condition) makes it danger
+  class MultipleDangerUses < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      if a # rubocop:disable Lint/LiteralAsCondition
+        @value = a.to_s
+      end
+    end
+  end
+
+  # Unknown usage falls to sync (safety-first)
+  class UnknownUsageFallsToSync < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = [a]
+    end
+  end
+
+  # Safe: proxy reassigned to ivar
+  class SafeReassignToIvar < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = a
+    end
+  end
+
+  # Safe: proxy used as receiver in chained calls
+  class SafeChainedReceiver < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = a.to_s.upcase
+    end
+  end
 end

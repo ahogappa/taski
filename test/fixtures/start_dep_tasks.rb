@@ -110,4 +110,70 @@ module StartDepFixtures
       @value = klass.value
     end
   end
+
+  # === Phase 2: Sync fallback integration tests ===
+
+  class SyncFallbackIndexDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = 1
+    end
+  end
+
+  # Proxy used as argument to Array#[]: ["a", "b"][result]
+  # Without sync fallback: Array#[] receives BasicObject proxy → TypeError.
+  # With sync fallback: Array#[](1) → "b" (correct).
+  class SyncFallbackArgRoot < Taski::Task
+    exports :value
+
+    def run
+      result = SyncFallbackIndexDep.value
+      @value = ["a", "b"][result]
+    end
+  end
+
+  class SyncFallbackNilDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = nil
+    end
+  end
+
+  # Proxy used in condition: if result → BasicObject proxy is always truthy
+  # Without sync fallback: always "truthy". With sync: correctly "falsy" for nil.
+  class SyncFallbackConditionRoot < Taski::Task
+    exports :value
+
+    def run
+      result = SyncFallbackNilDep.value
+      @value = if result
+        "truthy"
+      else
+        "falsy"
+      end
+    end
+  end
+
+  # Safe proxy usage: receiver only → no sync needed
+  class SafeProxyUsageDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = "hello"
+    end
+  end
+
+  class SafeProxyUsageRoot < Taski::Task
+    exports :value
+
+    def run
+      result = SafeProxyUsageDep.value
+      @value = result.upcase
+    end
+  end
 end

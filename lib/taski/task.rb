@@ -196,8 +196,18 @@ module Taski
           registry = Taski.current_registry
           if registry
             if Thread.current[:taski_fiber_context]
-              # Lazy resolution via proxy - defers Fiber.yield until value is actually used
-              TaskProxy.new(self, method)
+              sync_deps = Thread.current[:taski_sync_deps]
+              if sync_deps&.include?(self)
+                # Synchronous resolution: proxy variable is used unsafely (e.g., as argument, condition)
+                result = Fiber.yield([:need_dep, self, method])
+                if result.is_a?(Array) && result[0] == :_taski_error
+                  raise result[1]
+                end
+                result
+              else
+                # Lazy resolution via proxy - defers Fiber.yield until value is actually used
+                TaskProxy.new(self, method)
+              end
             else
               # Synchronous resolution (clean phase, outside Fiber)
               wrapper = registry.get_or_create(self) do

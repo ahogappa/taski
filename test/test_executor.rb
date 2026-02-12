@@ -636,6 +636,71 @@ class TestExecutor < Minitest::Test
     assert_equal "dynamic_result", wrapper.task.value
   end
 
+  # ========================================
+  # Phase 2: Sync Fallback Integration Tests
+  # ========================================
+
+  def test_sync_fallback_argument
+    task_class = StartDepFixtures::SyncFallbackArgRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 2
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    # ["a", "b"][1] → "b". Without sync: Array#[] receives proxy → TypeError.
+    # With sync fallback: Array#[](1) → "b" (correct).
+    assert_equal "b", wrapper.task.value
+  end
+
+  def test_sync_fallback_condition
+    task_class = StartDepFixtures::SyncFallbackConditionRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 2
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    # nil is falsy. Without sync: proxy always truthy → "truthy". With sync: nil → "falsy".
+    assert_equal "falsy", wrapper.task.value
+  end
+
+  def test_safe_proxy_usage_still_works
+    task_class = StartDepFixtures::SafeProxyUsageRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 2
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    # result.upcase → proxy as receiver → method_missing fires → works without sync
+    assert_equal "HELLO", wrapper.task.value
+  end
+
   private
 
   def create_execution_facade(registry, task_class)
