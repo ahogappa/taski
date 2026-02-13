@@ -176,4 +176,95 @@ module StartDepFixtures
       @value = result.upcase
     end
   end
+
+  # === Phase 3: Allowlist integration tests ===
+
+  # Direct condition: dep returns false → unless body executed
+  class AllowlistFalseDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = false
+    end
+  end
+
+  class AllowlistUnlessRoot < Taski::Task
+    exports :value
+
+    def run
+      unless AllowlistFalseDep.value
+        @value = "unless_body_executed"
+      end
+    end
+  end
+
+  # || operator: dep returns nil → default used
+  class AllowlistNilDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = nil
+    end
+  end
+
+  class AllowlistOrRoot < Taski::Task
+    exports :value
+
+    def run
+      result = AllowlistNilDep.value || "default"
+      @value = result
+    end
+  end
+
+  # Direct argument: dep as argument in array literal
+  class AllowlistDirectArgDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "direct_arg_result"
+    end
+  end
+
+  class AllowlistDirectArgRoot < Taski::Task
+    exports :value
+
+    def run
+      @value = [AllowlistDirectArgDep.value].join
+    end
+  end
+
+  # Mixed: safe dep (receiver) + unsafe dep (condition)
+  class AllowlistMixedSafeDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = "safe_val"
+    end
+  end
+
+  class AllowlistMixedUnsafeDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = nil
+    end
+  end
+
+  class AllowlistMixedRoot < Taski::Task
+    exports :value
+
+    def run
+      safe = AllowlistMixedSafeDep.value
+      unsafe = AllowlistMixedUnsafeDep.value
+      @value = if unsafe
+        safe.upcase
+      else
+        safe.downcase
+      end
+    end
+  end
 end

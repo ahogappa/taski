@@ -12,7 +12,7 @@ module Taski
     # Tasks are executed within Fibers on worker threads.
     #
     # Fiber protocol supports two yield types:
-    # - [:start_dep, dep_class, method] → non-blocking. Starts dep on another
+    # - [:start_dep, dep_class] → non-blocking. Starts dep on another
     #   thread and resumes the Fiber immediately. Used for speculative prestart.
     # - [:need_dep, dep_class, method]  → blocking. Resolves dependency via
     #   TaskWrapper#request_value:
@@ -106,13 +106,13 @@ module Taski
         analysis = Taski::StaticAnalysis::StartDepAnalyzer.analyze(task_class)
         fiber = Fiber.new do
           setup_run_thread_locals
-          Thread.current[:taski_sync_deps] = analysis.sync_dep_classes
-          analysis.deps.each { |dep| Fiber.yield([:start_dep, dep.klass, dep.method_name]) }
+          Thread.current[:taski_start_deps] = analysis.start_deps
+          (analysis.start_deps | analysis.sync_deps).each { |dep_class| Fiber.yield([:start_dep, dep_class]) }
           run_result = wrapper.task.run
           resolve_proxy_exports(wrapper)
           run_result
         ensure
-          Thread.current[:taski_sync_deps] = nil
+          Thread.current[:taski_start_deps] = nil
         end
 
         now = Time.now
@@ -134,7 +134,7 @@ module Taski
           if result.is_a?(Array)
             case result[0]
             when :start_dep
-              _, dep_class, _method = result
+              _, dep_class = result
               handle_start_dep(dep_class)
               result = fiber.resume
               next

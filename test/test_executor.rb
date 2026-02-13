@@ -701,6 +701,85 @@ class TestExecutor < Minitest::Test
     assert_equal "HELLO", wrapper.task.value
   end
 
+  # ========================================
+  # Phase 3: Allowlist Integration Tests
+  # ========================================
+
+  def test_allowlist_unless_with_false_dep
+    task_class = StartDepFixtures::AllowlistUnlessRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 2
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "unless_body_executed", wrapper.task.value
+  end
+
+  def test_allowlist_or_with_nil_dep
+    task_class = StartDepFixtures::AllowlistOrRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 2
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "default", wrapper.task.value
+  end
+
+  def test_allowlist_direct_arg_sync
+    task_class = StartDepFixtures::AllowlistDirectArgRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "direct_arg_result", wrapper.task.value
+  end
+
+  def test_allowlist_mixed_proxy_and_sync
+    task_class = StartDepFixtures::AllowlistMixedRoot
+
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: execution_facade,
+      worker_count: 2
+    )
+
+    executor.execute(task_class)
+
+    wrapper = registry.create_wrapper(task_class, execution_facade: execution_facade)
+    assert wrapper.completed?
+    assert_equal "safe_val", wrapper.task.value
+  end
+
   private
 
   def create_execution_facade(registry, task_class)

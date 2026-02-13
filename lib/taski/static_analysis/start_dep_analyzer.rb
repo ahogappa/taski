@@ -17,7 +17,7 @@ module Taski
     # empty, tasks still work correctly via lazy Fiber pull (need_dep).
     class StartDepAnalyzer
       DepInfo = Data.define(:klass, :method_name)
-      AnalysisResult = Data.define(:deps, :sync_dep_classes)
+      AnalysisResult = Data.define(:start_deps, :sync_deps)
 
       # AST node types that are known safe (not dependencies, won't stop scanning)
       SAFE_TYPES = Set[
@@ -54,7 +54,7 @@ module Taski
         end
       end
 
-      EMPTY_RESULT = AnalysisResult.new(deps: [].freeze, sync_dep_classes: Set.new.freeze).freeze
+      EMPTY_RESULT = AnalysisResult.new(start_deps: Set.new.freeze, sync_deps: Set.new.freeze).freeze
 
       def initialize
         @deps = []
@@ -77,8 +77,11 @@ module Taski
         return EMPTY_RESULT unless run_node&.body
 
         scan_statements(run_node.body)
-        sync_dep_classes = detect_unsafe_proxy_usage(run_node.body)
-        AnalysisResult.new(deps: @deps, sync_dep_classes: sync_dep_classes)
+        unsafe_classes = detect_unsafe_proxy_usage(run_node.body)
+        all_dep_classes = Set.new(@deps.map(&:klass))
+        start_deps = all_dep_classes - unsafe_classes
+        sync_deps = unsafe_classes
+        AnalysisResult.new(start_deps: start_deps, sync_deps: sync_deps)
       rescue NameError
         EMPTY_RESULT
       end
