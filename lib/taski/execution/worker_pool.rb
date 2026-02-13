@@ -205,6 +205,10 @@ module Taski
         dep_wrapper = @registry.create_wrapper(dep_class, execution_facade: @execution_facade)
         return unless dep_wrapper.mark_running
 
+        # Notify Executor so Scheduler can track the running state.
+        # Must be pushed before the execute command to guarantee ordering.
+        @completion_queue.push({start_dep: true, task_class: dep_class})
+
         @enqueue_mutex.synchronize do
           target_queue = @thread_queues[@next_thread_index % @worker_count]
           @next_thread_index += 1

@@ -102,16 +102,17 @@ module Taski
           break if @registry.abort_requested? && !@scheduler.running_tasks?
 
           event = @completion_queue.pop
-          handle_completion(event)
+          if event[:start_dep]
+            @scheduler.mark_running(event[:task_class])
+          else
+            handle_completion(event)
+          end
         end
       end
 
       def handle_completion(event)
         task_class = event[:task_class]
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_TASK_COMPLETED, task: task_class.name)
-
-        # Sync Scheduler state for tasks started via start_dep (bypassed enqueue_for_execution)
-        @scheduler.mark_running(task_class) if @scheduler.pending?(task_class)
 
         if event[:error]
           @scheduler.mark_failed(task_class)
