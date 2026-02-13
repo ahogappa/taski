@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- TaskProxy (BasicObject-based) for transparent lazy dependency resolution ([#175](https://github.com/ahogappa/taski/pull/175))
+- `Task.await` / `AwaitHandle` for explicit eager resolution of multiple dependencies ([#175](https://github.com/ahogappa/taski/pull/175))
+- StartDepAnalyzer using Prism AST analysis to speculatively pre-start dependencies in parallel ([#175](https://github.com/ahogappa/taski/pull/175))
+- Phase 2 analysis to detect unsafe proxy variable usage and resolve them synchronously ([#175](https://github.com/ahogappa/taski/pull/175))
+
+### Changed
+- Invert `define_class_accessor` from blocklist to allowlist — default resolution is now sync (safe), only statically confirmed safe patterns use proxy resolution ([#175](https://github.com/ahogappa/taski/pull/175))
+
 ## [0.9.0] - 2026-02-08
 
 ### Added

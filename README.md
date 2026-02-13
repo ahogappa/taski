@@ -15,6 +15,7 @@
 - **Exports API**: Simple value sharing between tasks
 - **Real-time Progress**: Visual feedback with parallel task progress display
 - **Fiber-Based Execution**: Lightweight Fiber-based dependency resolution for efficient parallel execution
+- **Lazy Dependency Resolution**: Dependencies return lightweight proxies that defer resolution until the value is actually used, enabling better parallelism
 
 ## Quick Start
 
@@ -269,6 +270,28 @@ RandomTask.value  # => 99 (different value - fresh execution)
 # Dependencies within same execution share results
 DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 ```
+
+When a task accesses a dependency (e.g., `SomeDep.value`), the result is a lightweight proxy. The actual resolution is deferred until the value is used, allowing independent dependencies to execute in parallel transparently. This is automatic and requires no changes to your task code.
+
+### Task.await - Eager Resolution
+
+By default, dependency access returns a lazy proxy that defers resolution. If you need the resolved value immediately (e.g., to branch on it or pass it to a method that won't accept a proxy), use `.await`:
+
+```ruby
+class Deploy < Taski::Task
+  def run
+    # Lazy (default) - returns a proxy, resolves when actually used
+    artifact = BuildApp.artifact
+
+    # Eager - resolves immediately at this point
+    test_result = RunTests.await.result
+
+    deploy(artifact) if test_result.passed?
+  end
+end
+```
+
+`.await` returns a handle that resolves the dependency as soon as an exported method is called on it. Use it when you need the actual value right away rather than a deferred proxy.
 
 ### Error Handling
 
