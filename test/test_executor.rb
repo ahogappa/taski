@@ -127,6 +127,10 @@ class TestExecutor < Minitest::Test
     # ConditionalMain's `if false` branch is never taken at runtime,
     # so the result reflects the non-conditional path
     assert_equal "no_dep", wrapper.task.value
+
+    # ConditionalDep must NOT have been executed (not even speculatively)
+    refute registry.registered?(ExecutorFixtures::ConditionalDep),
+      "ConditionalDep should not be executed when branch is unreachable"
   end
 
   def test_multiple_exported_methods
