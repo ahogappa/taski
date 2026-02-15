@@ -297,13 +297,13 @@ module Taski
       def notify_fiber_waiters_completed(waiters)
         waiters.each do |thread_queue, fiber, method|
           value = @task.public_send(method)
-          thread_queue.push([:resume, fiber, value])
+          thread_queue.push(FiberProtocol::Resume.new(fiber, value))
         end
       end
 
       def notify_fiber_waiters_failed(waiters, error)
         waiters.each do |thread_queue, fiber, _method|
-          thread_queue.push([:resume_error, fiber, error])
+          thread_queue.push(FiberProtocol::ResumeError.new(fiber, error))
         end
       end
     end

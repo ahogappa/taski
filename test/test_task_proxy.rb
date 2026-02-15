@@ -18,7 +18,7 @@ class TestTaskProxy < Minitest::Test
 
     # First resume: proxy is created and method_missing triggers __resolve__ which yields
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     # Resume with resolved value
     result = fiber.resume("hello")
@@ -33,7 +33,7 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     result = fiber.resume(nil)
     assert_equal true, result
@@ -47,7 +47,7 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     result = fiber.resume(42)
     assert_equal true, result
@@ -61,7 +61,7 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     result = fiber.resume(42)
     assert_equal false, result
@@ -78,7 +78,7 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     # Resume with "123" - proxy resolves and caches
     # Both to_s and to_i should work without another yield
@@ -93,7 +93,7 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     result = fiber.resume("resolved_value")
     assert_equal "resolved_value", result
@@ -118,7 +118,7 @@ class TestTaskProxy < Minitest::Test
 
     # respond_to? for other methods triggers resolution
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     result = fiber.resume("hello")
     assert_equal true, result
@@ -131,11 +131,11 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     error = StandardError.new("dep failed")
     assert_raises(StandardError) do
-      fiber.resume([:_taski_error, error])
+      fiber.resume(Taski::Execution::FiberProtocol::DepError.new(error))
     end
   end
 
@@ -161,11 +161,11 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     # Resume with error — first access raises, rescue catches it
     # Second access should re-raise from cache (no new yield)
-    result = fiber.resume([:_taski_error, StandardError.new("dep failed")])
+    result = fiber.resume(Taski::Execution::FiberProtocol::DepError.new(StandardError.new("dep failed")))
     assert_equal :done, result
     assert_equal 2, results.size
     assert_equal "dep failed", results[0].message
@@ -181,7 +181,7 @@ class TestTaskProxy < Minitest::Test
     end
 
     result = fiber.resume
-    assert_equal [:need_dep, String, :value], result
+    assert_equal Taski::Execution::FiberProtocol::NeedDep.new(String, :value), result
 
     obj = "hello"
     result = fiber.resume(obj)

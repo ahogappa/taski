@@ -15,9 +15,9 @@ module Taski
     def __resolve__
       ::Kernel.raise @error if @error
       return @value if @resolved
-      @value = ::Fiber.yield([:need_dep, @task_class, @method])
-      if @value.is_a?(::Array) && @value[0] == :_taski_error
-        @error = @value[1]
+      @value = ::Fiber.yield(::Taski::Execution::FiberProtocol::NeedDep.new(@task_class, @method))
+      if @value in ::Taski::Execution::FiberProtocol::DepError
+        @error = @value.error
         ::Kernel.raise @error
       end
       @resolved = true

@@ -188,10 +188,8 @@ module Taski
                 TaskProxy.new(self, method)
               else
                 # Synchronous resolution: dep not in allowlist (unknown or unsafe usage)
-                result = Fiber.yield([:need_dep, self, method])
-                if result.is_a?(Array) && result[0] == :_taski_error
-                  raise result[1]
-                end
+                result = Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(self, method))
+                raise result.error if result in Taski::Execution::FiberProtocol::DepError
                 result
               end
             else

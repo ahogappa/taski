@@ -69,7 +69,7 @@ module Taski
 
         if MockRegistry.mock_for(task_class)
           wrapper.mark_completed(nil) unless wrapper.completed?
-          @completion_queue.push({task_class: task_class, wrapper: wrapper})
+          @completion_queue.push(Taski::Execution::FiberProtocol::TaskCompleted.new(task_class, wrapper))
           return
         end
 

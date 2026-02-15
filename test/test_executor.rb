@@ -180,7 +180,7 @@ class TestExecutor < Minitest::Test
       exports :value
     end
     main_task.define_method(:run) do
-      v = Fiber.yield([:need_dep, dynamic_dep, :value])
+      v = Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(dynamic_dep, :value))
       @value = "got:#{v}"
     end
 

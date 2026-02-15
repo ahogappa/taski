@@ -133,9 +133,9 @@ class TestTaskWrapper < Minitest::Test
     wrapper.mark_completed(wrapper.task.value)
 
     msg = thread_queue.pop
-    assert_equal :resume, msg[0]
-    assert_equal fiber, msg[1]
-    assert_equal "notified_value", msg[2]
+    assert_instance_of Taski::Execution::FiberProtocol::Resume, msg
+    assert_equal fiber, msg.fiber
+    assert_equal "notified_value", msg.value
   end
 
   def test_mark_failed_notifies_fiber_waiters_with_error
@@ -158,9 +158,9 @@ class TestTaskWrapper < Minitest::Test
     wrapper.mark_failed(error)
 
     msg = thread_queue.pop
-    assert_equal :resume_error, msg[0]
-    assert_equal fiber, msg[1]
-    assert_equal error, msg[2]
+    assert_instance_of Taski::Execution::FiberProtocol::ResumeError, msg
+    assert_equal fiber, msg.fiber
+    assert_equal error, msg.error
   end
 
   def test_multiple_waiters_all_notified_on_completion
@@ -184,9 +184,9 @@ class TestTaskWrapper < Minitest::Test
 
     queues.each_with_index do |q, i|
       msg = q.pop
-      assert_equal :resume, msg[0]
-      assert_equal fibers[i], msg[1]
-      assert_equal "shared_value", msg[2]
+      assert_instance_of Taski::Execution::FiberProtocol::Resume, msg
+      assert_equal fibers[i], msg.fiber
+      assert_equal "shared_value", msg.value
     end
   end
 

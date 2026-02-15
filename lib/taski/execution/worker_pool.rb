@@ -11,21 +11,21 @@ module Taski
     # WorkerPool manages N threads, each with its own command Queue.
     # Tasks are executed within Fibers on worker threads.
     #
-    # Fiber protocol supports two yield types:
-    # - [:start_dep, dep_class] → non-blocking. Starts dep on another
+    # Fiber protocol supports two yield types (FiberProtocol Data classes):
+    # - StartDep(task_class)          → non-blocking. Starts dep on another
     #   thread and resumes the Fiber immediately. Used for speculative prestart.
-    # - [:need_dep, dep_class, method]  → blocking. Resolves dependency via
+    # - NeedDep(task_class, method)   → blocking. Resolves dependency via
     #   TaskWrapper#request_value:
     #   - :completed → resume Fiber immediately with the value
     #   - :wait → park the Fiber (it will be resumed later via the thread's queue)
     #   - :start → start the dependency as a nested Fiber on the same thread
     #
-    # Worker threads process these commands:
-    # - [:execute, task_class, wrapper]       → create and drive a new Fiber
-    # - [:execute_clean, task_class, wrapper] → run clean directly (no Fiber)
-    # - [:resume, fiber, value]               → resume a parked Fiber with a value
-    # - [:resume_error, fiber, error]         → resume a parked Fiber with an error
-    # - :shutdown                             → exit the worker loop
+    # Worker threads process these commands (FiberProtocol Data classes):
+    # - Execute(task_class, wrapper)       → create and drive a new Fiber
+    # - ExecuteClean(task_class, wrapper)  → run clean directly (no Fiber)
+    # - Resume(fiber, value)               → resume a parked Fiber with a value
+    # - ResumeError(fiber, error)          → resume a parked Fiber with an error
+    # - :shutdown                          → exit the worker loop
     class WorkerPool
       attr_reader :worker_count
 
@@ -59,7 +59,7 @@ module Taski
         @enqueue_mutex.synchronize do
           queue = @thread_queues[@next_thread_index % @worker_count]
           @next_thread_index += 1
-          queue.push([:execute, task_class, wrapper])
+          queue.push(FiberProtocol::Execute.new(task_class, wrapper))
           Taski::Logging.debug(Taski::Logging::Events::WORKER_POOL_ENQUEUED, task: task_class.name, thread_index: (@next_thread_index - 1) % @worker_count)
         end
       end
@@ -69,7 +69,7 @@ module Taski
         @enqueue_mutex.synchronize do
           queue = @thread_queues[@next_thread_index % @worker_count]
           @next_thread_index += 1
-          queue.push([:execute_clean, task_class, wrapper])
+          queue.push(FiberProtocol::ExecuteClean.new(task_class, wrapper))
         end
       end
 
@@ -85,19 +85,17 @@ module Taski
           cmd = queue.pop
           break if cmd == :shutdown
 
-          case cmd[0]
-          when :execute
-            _, task_class, wrapper = cmd
-            drive_fiber(task_class, wrapper, queue)
-          when :resume
-            _, fiber, value = cmd
-            resume_fiber(fiber, value, queue)
-          when :resume_error
-            _, fiber, error = cmd
-            resume_fiber_with_error(fiber, error, queue)
-          when :execute_clean
-            _, task_class, wrapper = cmd
-            execute_clean_task(task_class, wrapper)
+          case cmd
+          in FiberProtocol::Execute => exec
+            drive_fiber(exec.task_class, exec.wrapper, queue)
+          in FiberProtocol::Resume => res
+            resume_fiber(res.fiber, res.value, queue)
+          in FiberProtocol::ResumeError => err
+            resume_fiber_with_error(err.fiber, err.error, queue)
+          in FiberProtocol::ExecuteClean => clean
+            execute_clean_task(clean.task_class, clean.wrapper)
+          else
+            raise "[BUG] unexpected worker command: #{cmd.inspect}"
           end
         end
       end
@@ -111,7 +109,7 @@ module Taski
         fiber = Fiber.new do
           setup_run_thread_locals
           Thread.current[:taski_start_deps] = analysis.start_deps
-          (analysis.start_deps | analysis.sync_deps).each { |dep_class| Fiber.yield([:start_dep, dep_class]) }
+          (analysis.start_deps | analysis.sync_deps).each { |dep_class| Fiber.yield(FiberProtocol::StartDep.new(dep_class)) }
           run_result = wrapper.task.run
           resolve_proxy_exports(wrapper)
           run_result
@@ -135,20 +133,17 @@ module Taski
         result = fiber.resume(resume_value)
 
         while fiber.alive?
-          if result.is_a?(Array)
-            case result[0]
-            when :start_dep
-              _, dep_class = result
-              handle_start_dep(dep_class)
-              result = fiber.resume
-              next
-            when :need_dep
-              _, dep_class, method = result
-              handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
-              return # Fiber is either continuing or parked
-            end
+          case result
+          in FiberProtocol::StartDep => start_dep
+            handle_start_dep(start_dep.task_class)
+            result = fiber.resume
+            next
+          in FiberProtocol::NeedDep => need_dep
+            handle_dependency(need_dep.task_class, need_dep.method, fiber, task_class, wrapper, queue)
+            return # Fiber is either continuing or parked
+          else
+            break # task.run returned a non-protocol value (normal completion)
           end
-          break
         end
 
         complete_task(task_class, wrapper, result)
@@ -164,12 +159,13 @@ module Taski
         when :completed
           drive_fiber_loop(fiber, task_class, wrapper, queue, status[1])
         when :failed
-          drive_fiber_loop(fiber, task_class, wrapper, queue, [:_taski_error, status[1]])
+          drive_fiber_loop(fiber, task_class, wrapper, queue, FiberProtocol::DepError.new(status[1]))
         when :wait
           store_fiber_context(fiber, task_class, wrapper)
         when :start
           store_fiber_context(fiber, task_class, wrapper)
-          start_dependency(dep_class, dep_wrapper, queue)
+          # dep_wrapper is already RUNNING (set atomically by request_value)
+          drive_fiber(dep_class, dep_wrapper, queue)
         end
       end
 
@@ -177,29 +173,21 @@ module Taski
       # Restores fiber context before resuming since teardown_thread_locals
       # cleared thread-local state when the fiber was parked.
       def resume_fiber(fiber, value, queue)
-        context = get_fiber_context(fiber)
-        return unless context
-
-        task_class, wrapper = context
-        setup_run_thread_locals
-        start_output_capture(task_class)
-        drive_fiber_loop(fiber, task_class, wrapper, queue, value)
+        resume_fiber_with_value(fiber, value, queue)
       end
 
       def resume_fiber_with_error(fiber, error, queue)
+        resume_fiber_with_value(fiber, FiberProtocol::DepError.new(error), queue)
+      end
+
+      def resume_fiber_with_value(fiber, resume_value, queue)
         context = get_fiber_context(fiber)
         return unless context
 
         task_class, wrapper = context
         setup_run_thread_locals
         start_output_capture(task_class)
-        drive_fiber_loop(fiber, task_class, wrapper, queue, [:_taski_error, error])
-      end
-
-      # Start a dependency task as a new Fiber on this thread.
-      # The wrapper is already RUNNING (set atomically by request_value).
-      def start_dependency(dep_class, dep_wrapper, queue)
-        drive_fiber(dep_class, dep_wrapper, queue)
+        drive_fiber_loop(fiber, task_class, wrapper, queue, resume_value)
       end
 
       # Handle :start_dep — speculatively start a dependency on another thread.
@@ -211,12 +199,12 @@ module Taski
 
         # Notify Executor so Scheduler can track the running state.
         # Must be pushed before the execute command to guarantee ordering.
-        @completion_queue.push({start_dep: true, task_class: dep_class})
+        @completion_queue.push(FiberProtocol::StartDepNotify.new(dep_class))
 
         @enqueue_mutex.synchronize do
           target_queue = @thread_queues[@next_thread_index % @worker_count]
           @next_thread_index += 1
-          target_queue.push([:execute, dep_class, dep_wrapper])
+          target_queue.push(FiberProtocol::Execute.new(dep_class, dep_wrapper))
         end
       end
 
@@ -238,7 +226,7 @@ module Taski
         duration = task_duration_ms(task_class)
         Taski::Logging.info(Taski::Logging::Events::TASK_COMPLETED, task: task_class.name, duration_ms: duration)
         wrapper.mark_completed(result)
-        @completion_queue.push({task_class: task_class, wrapper: wrapper})
+        @completion_queue.push(FiberProtocol::TaskCompleted.new(task_class, wrapper))
         teardown_thread_locals
       end
 
@@ -248,7 +236,7 @@ module Taski
         duration = task_duration_ms(task_class)
         Taski::Logging.error(Taski::Logging::Events::TASK_FAILED, task: task_class.name, duration_ms: duration)
         wrapper.mark_failed(error)
-        @completion_queue.push({task_class: task_class, wrapper: wrapper, error: error})
+        @completion_queue.push(FiberProtocol::TaskFailed.new(task_class, wrapper, error))
         teardown_thread_locals
       end
 
@@ -266,13 +254,13 @@ module Taski
         duration = ((Time.now - clean_start) * 1000).round(1)
         Taski::Logging.debug(Taski::Logging::Events::TASK_CLEAN_COMPLETED, task: task_class.name, duration_ms: duration)
         wrapper.mark_clean_completed(result)
-        @completion_queue.push({task_class: task_class, wrapper: wrapper, clean: true})
+        @completion_queue.push(FiberProtocol::CleanCompleted.new(task_class, wrapper))
       rescue => e
         @registry.request_abort! if e.is_a?(Taski::TaskAbortException)
         duration = ((Time.now - clean_start) * 1000).round(1) if clean_start
         Taski::Logging.warn(Taski::Logging::Events::TASK_CLEAN_FAILED, task: task_class.name, duration_ms: duration)
         wrapper.mark_clean_failed(e)
-        @completion_queue.push({task_class: task_class, wrapper: wrapper, error: e, clean: true})
+        @completion_queue.push(FiberProtocol::CleanFailed.new(task_class, wrapper, e))
       ensure
         stop_output_capture
         teardown_thread_locals
