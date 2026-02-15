@@ -38,8 +38,8 @@ class TestWorkerPool < Minitest::Test
     event = completion_queue.pop
     pool.shutdown
 
-    assert_equal task_class, event[:task_class]
-    assert_nil event[:error]
+    assert_instance_of Taski::Execution::FiberProtocol::TaskCompleted, event
+    assert_equal task_class, event.task_class
     assert wrapper.completed?
     assert_equal "hello", wrapper.task.value
   end
@@ -107,7 +107,7 @@ class TestWorkerPool < Minitest::Test
     # We need to define run with access to task_dep
     task_main.define_method(:run) do
       # Simulate Fiber.yield for dependency
-      @result = "main_got_#{Fiber.yield([:need_dep, task_dep, :value])}"
+      @result = "main_got_#{Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))}"
     end
 
     completion_queue = Queue.new
@@ -130,7 +130,7 @@ class TestWorkerPool < Minitest::Test
     2.times { events << completion_queue.pop }
     pool.shutdown
 
-    completed_classes = events.map { |e| e[:task_class] }
+    completed_classes = events.map { |e| e.task_class }
     assert_includes completed_classes, task_dep
     assert_includes completed_classes, task_main
 
@@ -154,7 +154,7 @@ class TestWorkerPool < Minitest::Test
     end
 
     task_main.define_method(:run) do
-      @result = "got_#{Fiber.yield([:need_dep, task_dep, :value])}"
+      @result = "got_#{Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))}"
     end
 
     completion_queue = Queue.new
@@ -223,7 +223,7 @@ class TestWorkerPool < Minitest::Test
 
     task_main.define_method(:run) do
       # This Fiber.yield will park the fiber if dep is not yet complete
-      v = Fiber.yield([:need_dep, task_dep, :value])
+      v = Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))
       # After resume, check that fiber context is properly set
       context_seen_after_resume.push({
         fiber_context: Thread.current[:taski_fiber_context],
@@ -291,7 +291,7 @@ class TestWorkerPool < Minitest::Test
       exports :result
     end
     task_main.define_method(:run) do
-      @result = "main:#{Fiber.yield([:need_dep, task_dep, :value])}"
+      @result = "main:#{Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))}"
     end
 
     completion_queue = Queue.new
@@ -358,9 +358,8 @@ class TestWorkerPool < Minitest::Test
     event = completion_queue.pop
     pool.shutdown
 
-    assert_equal task_class, event[:task_class]
-    assert_equal true, event[:clean]
-    assert_nil event[:error]
+    assert_instance_of Taski::Execution::FiberProtocol::CleanCompleted, event
+    assert_equal task_class, event.task_class
   end
 
   def test_clean_task_error_captured
@@ -393,10 +392,10 @@ class TestWorkerPool < Minitest::Test
     event = completion_queue.pop
     pool.shutdown
 
-    assert_equal task_class, event[:task_class]
-    assert_equal true, event[:clean]
-    assert_instance_of StandardError, event[:error]
-    assert_equal "clean error", event[:error].message
+    assert_instance_of Taski::Execution::FiberProtocol::CleanFailed, event
+    assert_equal task_class, event.task_class
+    assert_instance_of StandardError, event.error
+    assert_equal "clean error", event.error.message
   end
 
   def test_clean_task_does_not_set_fiber_context
@@ -453,11 +452,11 @@ class TestWorkerPool < Minitest::Test
     task_b = Class.new(Taski::Task) { exports :result }
 
     task_a.define_method(:run) do
-      @result = "a:#{Fiber.yield([:need_dep, task_dep, :value])}"
+      @result = "a:#{Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))}"
     end
 
     task_b.define_method(:run) do
-      @result = "b:#{Fiber.yield([:need_dep, task_dep, :value])}"
+      @result = "b:#{Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))}"
     end
 
     completion_queue = Queue.new
@@ -487,7 +486,7 @@ class TestWorkerPool < Minitest::Test
     assert_equal "b:shared_dep", wrapper_b.task.result
 
     # The dep should only have been started once — verify via completion events
-    dep_events = events.select { |e| e[:task_class] == task_dep }
+    dep_events = events.select { |e| e.task_class == task_dep }
     assert_equal 1, dep_events.size,
       "Dependency should complete exactly once, got #{dep_events.size}"
 
@@ -509,7 +508,7 @@ class TestWorkerPool < Minitest::Test
     tasks = 4.times.map do
       tc = Class.new(Taski::Task) { exports :result }
       tc.define_method(:run) do
-        @result = "got:#{Fiber.yield([:need_dep, task_dep, :value])}"
+        @result = "got:#{Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(task_dep, :value))}"
       end
       tc
     end
@@ -542,7 +541,7 @@ class TestWorkerPool < Minitest::Test
       assert_equal "got:dep_result", w.task.result
     end
 
-    dep_events = events.select { |e| e[:task_class] == task_dep }
+    dep_events = events.select { |e| e.task_class == task_dep }
     assert_equal 1, dep_events.size,
       "Dependency should have exactly 1 completion event, got #{dep_events.size}"
 
@@ -575,9 +574,10 @@ class TestWorkerPool < Minitest::Test
     event = completion_queue.pop
     pool.shutdown
 
-    assert_equal task_class, event[:task_class]
-    assert_instance_of StandardError, event[:error]
-    assert_equal "task error", event[:error].message
+    assert_instance_of Taski::Execution::FiberProtocol::TaskFailed, event
+    assert_equal task_class, event.task_class
+    assert_instance_of StandardError, event.error
+    assert_equal "task error", event.error.message
   end
 
   private

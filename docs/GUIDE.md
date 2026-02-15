@@ -7,6 +7,7 @@ This guide provides detailed documentation beyond the basics covered in the READ
 - [Error Handling](#error-handling)
 - [Lifecycle Management](#lifecycle-management)
 - [Progress Display](#progress-display)
+- [Lazy Dependency Resolution](#lazy-dependency-resolution)
 - [Debugging](#debugging)
 
 ---
@@ -354,6 +355,44 @@ ruby build.rb > build.log 2>&1
 
 ---
 
+## Lazy Dependency Resolution
+
+### How It Works
+
+When a task accesses a dependency's exported value (e.g., `DepTask.value`), Taski may return a lightweight **proxy object** instead of the actual value. This proxy defers dependency resolution until you call a method on it, at which point it transparently resolves the real value and forwards the method call.
+
+```ruby
+class FetchData < Taski::Task
+  exports :data
+  def run
+    @data = expensive_api_call
+  end
+end
+
+class ProcessData < Taski::Task
+  exports :result
+  def run
+    raw = FetchData.data       # May return a proxy (no blocking yet)
+    setup_environment          # Task continues while FetchData runs
+    @result = raw.transform    # Proxy resolves here — blocks if needed
+  end
+end
+```
+
+From the user's perspective, the proxy is completely transparent — it behaves exactly like the real value.
+
+### Why It Matters
+
+Proxy-based resolution enables better parallelism. A task can continue executing setup logic while its dependencies are still running, only blocking when the dependency value is actually used. This can significantly reduce total execution time when tasks have independent setup work before they need their dependencies.
+
+### Automatic Safety
+
+Taski uses static analysis (Prism AST parsing) to determine when proxy resolution is safe. Dependencies used in positions where the proxy could cause issues — such as conditions (`if dep_value`), method arguments, or other contexts where truthiness or identity matters — are automatically resolved synchronously instead of returning a proxy.
+
+You do not need to think about this in normal usage. The static analyzer examines your task's `run` method and only enables proxy resolution for dependency accesses that are confirmed safe (e.g., simple assignments like `x = Dep.value` followed by method calls on `x`).
+
+---
+
 ## Debugging
 
 ### Structured Logging
@@ -390,4 +429,4 @@ end
 
 **Static Analysis Requirements**
 
-Tasks must be defined in source files (not dynamically with `Class.new`) because static analysis uses Prism AST parsing which requires actual source files.
+Tasks must be defined in source files (not dynamically with `Class.new`) because static analysis uses Prism AST parsing which requires actual source files. Static analysis is used for dependency tree visualization, circular dependency detection, and optimizing dependency resolution (determining when lazy proxy resolution is safe vs. when synchronous resolution is required).

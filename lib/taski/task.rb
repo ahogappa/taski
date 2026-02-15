@@ -6,6 +6,7 @@ require_relative "execution/registry"
 require_relative "execution/task_wrapper"
 require_relative "progress/layout/tree"
 require_relative "progress/theme/plain"
+require_relative "task_proxy"
 
 module Taski
   # Base class for all tasks in the Taski framework.
@@ -181,12 +182,16 @@ module Taski
           registry = Taski.current_registry
           if registry
             if Thread.current[:taski_fiber_context]
-              # Fiber-based lazy resolution - yield to the worker loop
-              result = Fiber.yield([:need_dep, self, method])
-              if result.is_a?(Array) && result[0] == :_taski_error
-                raise result[1]
+              start_deps = Thread.current[:taski_start_deps]
+              if start_deps&.include?(self)
+                # Lazy resolution via proxy - safe dep confirmed by static analysis
+                TaskProxy.new(self, method)
+              else
+                # Synchronous resolution: dep not in allowlist (unknown or unsafe usage)
+                result = Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(self, method))
+                raise result.error if result in Taski::Execution::FiberProtocol::DepError
+                result
               end
-              result
             else
               # Synchronous resolution (clean phase, outside Fiber)
               wrapper = registry.get_or_create(self) do

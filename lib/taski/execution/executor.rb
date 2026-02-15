@@ -5,8 +5,12 @@ require "etc"
 module Taski
   module Execution
     # Orchestrates run (Fiber-based) and clean (direct) phases of task execution.
-    # Delegates to Scheduler (dependency order), WorkerPool (worker threads),
-    # and ExecutionFacade (observer notifications).
+    # Delegates to Scheduler (state tracking / advisory proposals),
+    # WorkerPool (worker threads), and ExecutionFacade (observer notifications).
+    #
+    # Task execution is driven by the Fiber pull model — tasks start only when
+    # requested via Fiber.yield FiberProtocol::NeedDep. Scheduler may propose tasks,
+    # but Executor/Wrapper can reject proposals not backed by actual Fiber requests.
     class Executor
       class << self
         def execute(root_task_class, registry:, execution_facade:)
@@ -98,20 +102,30 @@ module Taski
           break if @registry.abort_requested? && !@scheduler.running_tasks?
 
           event = @completion_queue.pop
-          handle_completion(event)
+          case event
+          in FiberProtocol::StartDepNotify => notify
+            @scheduler.mark_running(notify.task_class)
+          in FiberProtocol::TaskCompleted | FiberProtocol::TaskFailed
+            handle_completion(event)
+          else
+            raise "[BUG] unexpected completion queue event: #{event.inspect}"
+          end
         end
       end
 
       def handle_completion(event)
-        task_class = event[:task_class]
+        task_class = event.task_class
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_TASK_COMPLETED, task: task_class.name)
 
-        if event[:error]
-          @scheduler.mark_failed(task_class)
-          log_error_detail(task_class, event[:error])
-          skip_pending_dependents(task_class)
-        else
+        case event
+        in FiberProtocol::TaskFailed => failed
+          @scheduler.mark_failed(failed.task_class)
+          log_error_detail(failed.task_class, failed.error)
+          skip_pending_dependents(failed.task_class)
+        in FiberProtocol::TaskCompleted
           @scheduler.mark_completed(task_class)
+        else
+          raise "[BUG] unexpected run completion event: #{event.inspect}"
         end
 
         @scheduler.next_ready_tasks.each do |ready_class|
@@ -192,13 +206,18 @@ module Taski
       end
 
       def handle_clean_completion(event)
-        task_class = event[:task_class]
+        task_class = event.task_class
         Taski::Logging.debug(Taski::Logging::Events::EXECUTOR_CLEAN_COMPLETED, task: task_class.name)
-        if event[:error]
-          @scheduler.mark_clean_failed(task_class)
-        else
+
+        case event
+        in FiberProtocol::CleanFailed => failed
+          @scheduler.mark_clean_failed(failed.task_class)
+        in FiberProtocol::CleanCompleted
           @scheduler.mark_clean_completed(task_class)
+        else
+          raise "[BUG] unexpected clean completion event: #{event.inspect}"
         end
+
         enqueue_ready_clean_tasks
       end
 

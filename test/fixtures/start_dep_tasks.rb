@@ -1,0 +1,270 @@
+# frozen_string_literal: true
+
+require "taski"
+
+# Integration test fixtures for start_dep-driven parallel execution.
+module StartDepFixtures
+  # Two independent deps with sleep — verifies parallel execution via start_dep
+  class SlowDepA < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.1
+      @value = "A"
+    end
+  end
+
+  class SlowDepB < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.1
+      @value = "B"
+    end
+  end
+
+  class ParallelStartDepRoot < Taski::Task
+    exports :value
+
+    def run
+      a = SlowDepA.value
+      b = SlowDepB.value
+      @value = "#{a}+#{b}"
+    end
+  end
+
+  # if false branch — dep must NOT be executed
+  class GuardedDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "should_not_run"
+    end
+  end
+
+  class IfFalseRoot < Taski::Task
+    exports :value
+
+    def run
+      if false # rubocop:disable Lint/LiteralAsCondition
+        GuardedDep.value
+      end
+      @value = "safe"
+    end
+  end
+
+  # begin/rescue/ensure pattern
+  class EnsureDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "ensure_val"
+    end
+  end
+
+  class RescueDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "rescue_val"
+    end
+  end
+
+  class BeginDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "begin_val"
+    end
+  end
+
+  class BeginRescueEnsureRoot < Taski::Task
+    exports :value
+
+    def run
+      begin
+        v = BeginDep.value
+      rescue
+        v = RescueDep.value
+      ensure
+        EnsureDep.value
+      end
+      @value = v
+    end
+  end
+
+  # Dynamic const_get fallback — deps resolved via Fiber pull only
+  class DynamicDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "dynamic_result"
+    end
+  end
+
+  class ConstGetRoot < Taski::Task
+    exports :value
+
+    def run
+      klass = Object.const_get("StartDepFixtures::DynamicDep")
+      @value = klass.value
+    end
+  end
+
+  # === Phase 2: Sync fallback integration tests ===
+
+  class SyncFallbackIndexDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = 1
+    end
+  end
+
+  # Proxy used as argument to Array#[]: ["a", "b"][result]
+  # Without sync fallback: Array#[] receives BasicObject proxy → TypeError.
+  # With sync fallback: Array#[](1) → "b" (correct).
+  class SyncFallbackArgRoot < Taski::Task
+    exports :value
+
+    def run
+      result = SyncFallbackIndexDep.value
+      @value = ["a", "b"][result]
+    end
+  end
+
+  class SyncFallbackNilDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = nil
+    end
+  end
+
+  # Proxy used in condition: if result → BasicObject proxy is always truthy
+  # Without sync fallback: always "truthy". With sync: correctly "falsy" for nil.
+  class SyncFallbackConditionRoot < Taski::Task
+    exports :value
+
+    def run
+      result = SyncFallbackNilDep.value
+      @value = if result
+        "truthy"
+      else
+        "falsy"
+      end
+    end
+  end
+
+  # Safe proxy usage: receiver only → no sync needed
+  class SafeProxyUsageDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = "hello"
+    end
+  end
+
+  class SafeProxyUsageRoot < Taski::Task
+    exports :value
+
+    def run
+      result = SafeProxyUsageDep.value
+      @value = result.upcase
+    end
+  end
+
+  # === Phase 3: Allowlist integration tests ===
+
+  # Direct condition: dep returns false → unless body executed
+  class AllowlistFalseDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = false
+    end
+  end
+
+  class AllowlistUnlessRoot < Taski::Task
+    exports :value
+
+    def run
+      unless AllowlistFalseDep.value
+        @value = "unless_body_executed"
+      end
+    end
+  end
+
+  # || operator: dep returns nil → default used
+  class AllowlistNilDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = nil
+    end
+  end
+
+  class AllowlistOrRoot < Taski::Task
+    exports :value
+
+    def run
+      result = AllowlistNilDep.value || "default"
+      @value = result
+    end
+  end
+
+  # Direct argument: dep as argument in array literal
+  class AllowlistDirectArgDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "direct_arg_result"
+    end
+  end
+
+  class AllowlistDirectArgRoot < Taski::Task
+    exports :value
+
+    def run
+      @value = [AllowlistDirectArgDep.value].join
+    end
+  end
+
+  # Mixed: safe dep (receiver) + unsafe dep (condition)
+  class AllowlistMixedSafeDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = "safe_val"
+    end
+  end
+
+  class AllowlistMixedUnsafeDep < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      @value = nil
+    end
+  end
+
+  class AllowlistMixedRoot < Taski::Task
+    exports :value
+
+    def run
+      safe = AllowlistMixedSafeDep.value
+      unsafe = AllowlistMixedUnsafeDep.value
+      @value = if unsafe
+        safe.upcase
+      else
+        safe.downcase
+      end
+    end
+  end
+end

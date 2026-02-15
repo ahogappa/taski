@@ -15,6 +15,7 @@
 - **Exports API**: Simple value sharing between tasks
 - **Real-time Progress**: Visual feedback with parallel task progress display
 - **Fiber-Based Execution**: Lightweight Fiber-based dependency resolution for efficient parallel execution
+- **Lazy Dependency Resolution**: Dependencies return lightweight proxies that defer resolution until the value is actually used, enabling better parallelism
 
 ## Quick Start
 
@@ -269,6 +270,8 @@ RandomTask.value  # => 99 (different value - fresh execution)
 # Dependencies within same execution share results
 DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 ```
+
+When a task accesses a dependency (e.g., `SomeDep.value`), the result may be a lightweight proxy. The actual resolution is deferred until the value is used, allowing independent dependencies to execute in parallel transparently. This is automatic and requires no changes to your task code. Dependencies used in conditions or as arguments are automatically resolved synchronously for safety.
 
 ### Error Handling
 
