@@ -9,13 +9,16 @@ module Taski
       @method = method
       @resolved = false
       @value = nil
+      @error = nil
     end
 
     def __resolve__
+      ::Kernel.raise @error if @error
       return @value if @resolved
       @value = ::Fiber.yield([:need_dep, @task_class, @method])
       if @value.is_a?(::Array) && @value[0] == :_taski_error
-        ::Kernel.raise @value[1]
+        @error = @value[1]
+        ::Kernel.raise @error
       end
       @resolved = true
       @value

@@ -139,6 +139,40 @@ class TestTaskProxy < Minitest::Test
     end
   end
 
+  def test_proxy_caches_error_on_reaccess
+    proxy = nil
+    results = []
+
+    fiber = Fiber.new do
+      proxy = Taski::TaskProxy.new(String, :value)
+      # First access: triggers yield, receives error, raises
+      begin
+        proxy.to_s
+      rescue => e
+        results << e
+      end
+      # Second access: should re-raise cached error without yielding again
+      begin
+        proxy.to_s
+      rescue => e
+        results << e
+      end
+      :done
+    end
+
+    result = fiber.resume
+    assert_equal [:need_dep, String, :value], result
+
+    # Resume with error — first access raises, rescue catches it
+    # Second access should re-raise from cache (no new yield)
+    result = fiber.resume([:_taski_error, StandardError.new("dep failed")])
+    assert_equal :done, result
+    assert_equal 2, results.size
+    assert_equal "dep failed", results[0].message
+    assert_equal "dep failed", results[1].message
+    assert_same results[0], results[1]
+  end
+
   def test_proxy_equal_method
     fiber = Fiber.new do
       proxy = Taski::TaskProxy.new(String, :value)
