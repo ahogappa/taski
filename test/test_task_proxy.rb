@@ -153,40 +153,4 @@ class TestTaskProxy < Minitest::Test
     result = fiber.resume(obj)
     assert_equal true, result
   end
-
-  # --- Taski::AwaitHandle ---
-
-  def test_await_handle_yields_need_dep_in_fiber
-    klass = Class.new
-    fiber = Fiber.new do
-      Thread.current[:taski_fiber_context] = true
-      handle = Taski::AwaitHandle.new(klass)
-      handle.value
-    ensure
-      Thread.current[:taski_fiber_context] = nil
-    end
-
-    result = fiber.resume
-    assert_equal [:need_dep, klass, :value], result
-
-    result = fiber.resume("awaited_value")
-    assert_equal "awaited_value", result
-  end
-
-  def test_await_handle_raises_on_taski_error
-    klass = Class.new
-    fiber = Fiber.new do
-      Thread.current[:taski_fiber_context] = true
-      handle = Taski::AwaitHandle.new(klass)
-      handle.value
-    ensure
-      Thread.current[:taski_fiber_context] = nil
-    end
-
-    fiber.resume
-    error = StandardError.new("dep failed")
-    assert_raises(StandardError) do
-      fiber.resume([:_taski_error, error])
-    end
-  end
 end

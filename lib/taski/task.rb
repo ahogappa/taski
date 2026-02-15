@@ -7,7 +7,6 @@ require_relative "execution/task_wrapper"
 require_relative "progress/layout/tree"
 require_relative "progress/theme/plain"
 require_relative "task_proxy"
-require_relative "await_handle"
 
 module Taski
   # Base class for all tasks in the Taski framework.
@@ -108,19 +107,6 @@ module Taski
         Taski.reset_args!
         Taski.reset_progress_display!
         @circular_dependency_checked = false
-      end
-
-      ##
-      # Returns an AwaitHandle for eager (synchronous) dependency resolution.
-      # Use this when you need the resolved value immediately rather than a lazy proxy.
-      #
-      # @example
-      #   def run
-      #     resolved = SomeDep.await.value  # resolves immediately
-      #   end
-      # @return [AwaitHandle]
-      def await
-        AwaitHandle.new(self)
       end
 
       ##

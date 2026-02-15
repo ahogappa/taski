@@ -271,27 +271,7 @@ RandomTask.value  # => 99 (different value - fresh execution)
 DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 ```
 
-When a task accesses a dependency (e.g., `SomeDep.value`), the result is a lightweight proxy. The actual resolution is deferred until the value is used, allowing independent dependencies to execute in parallel transparently. This is automatic and requires no changes to your task code.
-
-### Task.await - Eager Resolution
-
-By default, dependency access returns a lazy proxy that defers resolution. If you need the resolved value immediately (e.g., to branch on it or pass it to a method that won't accept a proxy), use `.await`:
-
-```ruby
-class Deploy < Taski::Task
-  def run
-    # Lazy (default) - returns a proxy, resolves when actually used
-    artifact = BuildApp.artifact
-
-    # Eager - resolves immediately at this point
-    test_result = RunTests.await.result
-
-    deploy(artifact) if test_result.passed?
-  end
-end
-```
-
-`.await` returns a handle that resolves the dependency as soon as an exported method is called on it. Use it when you need the actual value right away rather than a deferred proxy.
+When a task accesses a dependency (e.g., `SomeDep.value`), the result may be a lightweight proxy. The actual resolution is deferred until the value is used, allowing independent dependencies to execute in parallel transparently. This is automatic and requires no changes to your task code. Dependencies used in conditions or as arguments are automatically resolved synchronously for safety.
 
 ### Error Handling
 

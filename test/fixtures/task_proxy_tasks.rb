@@ -59,25 +59,4 @@ module TaskProxyFixtures
       @value = "#{s}:#{i}"
     end
   end
-
-  # Task that uses Task.await.value for eager resolution
-  class AwaitTask < Taski::Task
-    exports :value
-
-    def run
-      resolved = StringLeaf.await.value
-      @value = "awaited: #{resolved}"
-    end
-  end
-
-  # Task that uses await on multiple deps
-  class MultiAwaitTask < Taski::Task
-    exports :value
-
-    def run
-      s = StringLeaf.await.value
-      i = IntLeaf.await.value
-      @value = "#{s}:#{i}"
-    end
-  end
 end

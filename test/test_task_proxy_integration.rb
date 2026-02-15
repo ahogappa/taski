@@ -42,22 +42,6 @@ class TestTaskProxyIntegration < Minitest::Test
     assert_equal "hello:42", wrapper.task.value
   end
 
-  def test_await_resolves_eagerly
-    task_class = TaskProxyFixtures::AwaitTask
-    execute(task_class)
-    wrapper = get_wrapper(task_class)
-    assert wrapper.completed?
-    assert_equal "awaited: hello", wrapper.task.value
-  end
-
-  def test_await_with_multiple_deps
-    task_class = TaskProxyFixtures::MultiAwaitTask
-    execute(task_class)
-    wrapper = get_wrapper(task_class)
-    assert wrapper.completed?
-    assert_equal "hello:42", wrapper.task.value
-  end
-
   private
 
   def execute(task_class)

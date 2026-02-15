@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - TaskProxy (BasicObject-based) for transparent lazy dependency resolution ([#175](https://github.com/ahogappa/taski/pull/175))
-- `Task.await` / `AwaitHandle` for explicit eager resolution of multiple dependencies ([#175](https://github.com/ahogappa/taski/pull/175))
 - StartDepAnalyzer using Prism AST analysis to speculatively pre-start dependencies in parallel ([#175](https://github.com/ahogappa/taski/pull/175))
 - Phase 2 analysis to detect unsafe proxy variable usage and resolve them synchronously ([#175](https://github.com/ahogappa/taski/pull/175))
 
