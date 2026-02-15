@@ -56,17 +56,21 @@ module Taski
 
       # Round-robins across worker threads.
       def enqueue(task_class, wrapper)
-        queue = @thread_queues[@next_thread_index % @worker_count]
-        @next_thread_index += 1
-        queue.push([:execute, task_class, wrapper])
-        Taski::Logging.debug(Taski::Logging::Events::WORKER_POOL_ENQUEUED, task: task_class.name, thread_index: (@next_thread_index - 1) % @worker_count)
+        @enqueue_mutex.synchronize do
+          queue = @thread_queues[@next_thread_index % @worker_count]
+          @next_thread_index += 1
+          queue.push([:execute, task_class, wrapper])
+          Taski::Logging.debug(Taski::Logging::Events::WORKER_POOL_ENQUEUED, task: task_class.name, thread_index: (@next_thread_index - 1) % @worker_count)
+        end
       end
 
       # Clean tasks run directly without Fiber wrapping.
       def enqueue_clean(task_class, wrapper)
-        queue = @thread_queues[@next_thread_index % @worker_count]
-        @next_thread_index += 1
-        queue.push([:execute_clean, task_class, wrapper])
+        @enqueue_mutex.synchronize do
+          queue = @thread_queues[@next_thread_index % @worker_count]
+          @next_thread_index += 1
+          queue.push([:execute_clean, task_class, wrapper])
+        end
       end
 
       def shutdown
