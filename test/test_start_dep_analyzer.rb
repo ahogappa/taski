@@ -283,16 +283,16 @@ class TestStartDepAnalyzer < Minitest::Test
   end
 
   # ========================================
-  # Phase 2: Non-exported ivar detection
+  # Phase 2: Non-exported ivar proxy tracking
   # ========================================
 
-  def test_danger_non_exported_ivar
+  def test_safe_non_exported_ivar_receiver
     result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
-      StartDepAnalyzerFixtures::DangerNonExportedIvar
+      StartDepAnalyzerFixtures::SafeNonExportedIvarReceiver
     )
-    # @cache is not exported → proxy assigned to non-exported ivar is unsafe
-    assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
-    refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+    # @cache used as receiver only → safe
+    assert_empty result.sync_deps
+    assert_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
   end
 
   def test_safe_exported_ivar
@@ -304,12 +304,29 @@ class TestStartDepAnalyzer < Minitest::Test
     assert_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
   end
 
-  def test_danger_direct_non_exported_ivar
-    # @cache = LeafTask.value — Phase 1 detects dep (ivar assignment pattern),
-    # but Phase 2 should detect @cache is non-exported → unsafe
+  def test_safe_direct_non_exported_ivar
     result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
-      StartDepAnalyzerFixtures::DangerDirectNonExportedIvar
+      StartDepAnalyzerFixtures::SafeDirectNonExportedIvar
     )
+    # @cache = Dep.value, used as receiver → safe
+    assert_empty result.sync_deps
+    assert_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_non_exported_ivar_condition
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerNonExportedIvarCondition
+    )
+    # @flag used in if condition → unsafe
+    assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
+    refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_non_exported_ivar_argument
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerNonExportedIvarArgument
+    )
+    # @data used as argument → unsafe
     assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
     refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
   end

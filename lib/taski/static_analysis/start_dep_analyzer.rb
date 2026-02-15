@@ -229,38 +229,35 @@ module Taski
           node.body.each { |child| scan_for_unsafe_usage(child, proxy_vars, unsafe_classes) }
 
         when Prism::LocalVariableWriteNode
-          if node.value.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(node.value.name)
-            # Reassignment: track the new variable name too
-            proxy_vars[node.name] = proxy_vars[node.value.name]
+          if (dep_class = proxy_dep_class(node.value, proxy_vars))
+            # Reassignment or direct dep call: track the new variable name
+            proxy_vars[node.name] = dep_class
           else
             scan_for_unsafe_usage(node.value, proxy_vars, unsafe_classes)
           end
 
         when Prism::InstanceVariableWriteNode
-          if node.value.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(node.value.name)
+          if (dep_class = proxy_dep_class(node.value, proxy_vars))
             if @exported_ivars.include?(node.name)
               # @exported = proxy → safe (resolve_proxy_exports handles it)
             else
-              # @non_exported = proxy → unsafe (resolve_proxy_exports won't resolve it)
-              unsafe_classes.add(proxy_vars[node.value.name])
+              # @non_exported = proxy → track for unsafe usage detection
+              proxy_vars[node.name] = dep_class
             end
-          elsif !@exported_ivars.include?(node.name) && (dep_class = extract_dep_class(node.value))
-            # @non_exported = Dep.value → unsafe (direct dep call to non-exported ivar)
-            unsafe_classes.add(dep_class)
           else
             scan_for_unsafe_usage(node.value, proxy_vars, unsafe_classes)
           end
 
         when Prism::CallNode
           # Receiver: proxy.foo → safe (method_missing fires)
-          if node.receiver.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(node.receiver.name)
+          if proxy_var_read?(node.receiver, proxy_vars)
             # safe — don't flag receiver
           elsif node.receiver
             scan_for_unsafe_usage(node.receiver, proxy_vars, unsafe_classes)
           end
           # Arguments: foo(proxy) → UNSAFE
           node.arguments&.arguments&.each do |arg|
-            if arg.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(arg.name)
+            if proxy_var_read?(arg, proxy_vars)
               unsafe_classes.add(proxy_vars[arg.name])
             else
               scan_for_unsafe_usage(arg, proxy_vars, unsafe_classes)
@@ -287,8 +284,7 @@ module Taski
             next unless part.is_a?(Prism::EmbeddedStatementsNode)
 
             if part.statements&.body&.size == 1 &&
-                part.statements.body[0].is_a?(Prism::LocalVariableReadNode) &&
-                proxy_vars.key?(part.statements.body[0].name)
+                proxy_var_read?(part.statements.body[0], proxy_vars)
               # safe — string interpolation calls to_s
             else
               scan_for_unsafe_usage(part, proxy_vars, unsafe_classes)
@@ -300,7 +296,7 @@ module Taski
 
         when Prism::ArrayNode
           node.elements.each do |elem|
-            if elem.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(elem.name)
+            if proxy_var_read?(elem, proxy_vars)
               unsafe_classes.add(proxy_vars[elem.name])
             else
               scan_for_unsafe_usage(elem, proxy_vars, unsafe_classes)
@@ -325,7 +321,7 @@ module Taski
         when Prism::ParenthesesNode
           scan_for_unsafe_usage(node.body, proxy_vars, unsafe_classes) if node.body
 
-        when Prism::LocalVariableReadNode
+        when Prism::LocalVariableReadNode, Prism::InstanceVariableReadNode
           # Bare proxy variable read in unknown context → UNSAFE
           unsafe_classes.add(proxy_vars[node.name]) if proxy_vars.key?(node.name)
 
@@ -341,11 +337,38 @@ module Taski
 
       # Check if a predicate node is an unsafe proxy variable read
       def check_predicate_unsafe(predicate, proxy_vars, unsafe_classes)
-        if predicate.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(predicate.name)
-          unsafe_classes.add(proxy_vars[predicate.name])
+        if proxy_var_read?(predicate, proxy_vars)
+          unsafe_classes.add(proxy_vars[predicate_key(predicate)])
         else
           scan_for_unsafe_usage(predicate, proxy_vars, unsafe_classes)
         end
+      end
+
+      # Return the dep class if the node reads a proxy variable (local or ivar)
+      # or is a direct dep call. Returns nil otherwise.
+      def proxy_dep_class(node, proxy_vars)
+        if proxy_var_read?(node, proxy_vars)
+          proxy_vars[predicate_key(node)]
+        else
+          extract_dep_class(node)
+        end
+      end
+
+      # Check if node is a proxy variable read (local var or ivar)
+      def proxy_var_read?(node, proxy_vars)
+        case node
+        when Prism::LocalVariableReadNode
+          proxy_vars.key?(node.name)
+        when Prism::InstanceVariableReadNode
+          proxy_vars.key?(node.name)
+        else
+          false
+        end
+      end
+
+      # Extract the proxy_vars key from a variable read node
+      def predicate_key(node)
+        node.name
       end
 
       # Resolve a constant name to the class, with namespace fallback.
