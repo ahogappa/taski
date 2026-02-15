@@ -295,7 +295,7 @@ class TestExecutor < Minitest::Test
       completed_event = log_lines.find { |e| e["event"] == "execution.completed" }
 
       refute_nil completed_event
-      assert_equal 1, completed_event["data"]["skipped_count"]
+      assert_equal 2, completed_event["data"]["skipped_count"]
     ensure
       Taski.logger = original_logger
     end

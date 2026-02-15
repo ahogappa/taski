@@ -47,8 +47,6 @@ module Taski
 
           @worker_pool.start
 
-          pre_start_leaf_tasks
-
           enqueue_root_if_needed(root_task_class)
 
           run_main_loop(root_task_class)
@@ -87,10 +85,6 @@ module Taski
 
       # Run phase
 
-      def pre_start_leaf_tasks
-        @scheduler.next_ready_tasks.each { |task_class| enqueue_for_execution(task_class) }
-      end
-
       def enqueue_root_if_needed(root_task_class)
         return unless @scheduler.pending?(root_task_class)
 
@@ -126,10 +120,6 @@ module Taski
           @scheduler.mark_completed(task_class)
         else
           raise "[BUG] unexpected run completion event: #{event.inspect}"
-        end
-
-        @scheduler.next_ready_tasks.each do |ready_class|
-          enqueue_for_execution(ready_class)
         end
       end
 
