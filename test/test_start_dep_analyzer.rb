@@ -281,4 +281,36 @@ class TestStartDepAnalyzer < Minitest::Test
       assert_kind_of Class, dep
     end
   end
+
+  # ========================================
+  # Phase 2: Non-exported ivar detection
+  # ========================================
+
+  def test_danger_non_exported_ivar
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerNonExportedIvar
+    )
+    # @cache is not exported → proxy assigned to non-exported ivar is unsafe
+    assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
+    refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_safe_exported_ivar
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::SafeExportedIvar
+    )
+    # @value is exported → resolve_proxy_exports handles it → safe
+    assert_empty result.sync_deps
+    assert_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  def test_danger_direct_non_exported_ivar
+    # @cache = LeafTask.value — Phase 1 detects dep (ivar assignment pattern),
+    # but Phase 2 should detect @cache is non-exported → unsafe
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerDirectNonExportedIvar
+    )
+    assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
+    refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
 end

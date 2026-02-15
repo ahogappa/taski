@@ -67,6 +67,7 @@ module Taski
       # @return [AnalysisResult]
       def analyze(task_class)
         @task_class = task_class
+        @exported_ivars = Set.new(task_class.exported_methods.map { |m| :"@#{m}" })
         source_location = task_class.instance_method(:run).source_location
         return EMPTY_RESULT unless source_location
 
@@ -184,7 +185,6 @@ module Taski
       # added to sync_dep_classes so it will be resolved synchronously.
       def detect_unsafe_proxy_usage(body_node)
         proxy_vars = build_proxy_var_map(body_node)
-        return Set.new if proxy_vars.empty?
 
         unsafe_classes = Set.new
         scan_for_unsafe_usage(body_node, proxy_vars, unsafe_classes)
@@ -238,7 +238,15 @@ module Taski
 
         when Prism::InstanceVariableWriteNode
           if node.value.is_a?(Prism::LocalVariableReadNode) && proxy_vars.key?(node.value.name)
-            # @x = proxy → safe (resolve_proxy_exports handles it)
+            if @exported_ivars.include?(node.name)
+              # @exported = proxy → safe (resolve_proxy_exports handles it)
+            else
+              # @non_exported = proxy → unsafe (resolve_proxy_exports won't resolve it)
+              unsafe_classes.add(proxy_vars[node.value.name])
+            end
+          elsif !@exported_ivars.include?(node.name) && (dep_class = extract_dep_class(node.value))
+            # @non_exported = Dep.value → unsafe (direct dep call to non-exported ivar)
+            unsafe_classes.add(dep_class)
           else
             scan_for_unsafe_usage(node.value, proxy_vars, unsafe_classes)
           end

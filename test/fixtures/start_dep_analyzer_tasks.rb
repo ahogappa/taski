@@ -269,4 +269,35 @@ module StartDepAnalyzerFixtures
       @value = a.to_s.upcase
     end
   end
+
+  # Danger: proxy assigned to non-exported ivar (resolve_proxy_exports won't resolve it)
+  class DangerNonExportedIvar < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @cache = a # @cache is NOT exported → unsafe
+      @value = @cache.to_s
+    end
+  end
+
+  # Safe: proxy assigned to exported ivar (resolve_proxy_exports will resolve it)
+  class SafeExportedIvar < Taski::Task
+    exports :value
+
+    def run
+      a = LeafTask.value
+      @value = a # @value IS exported → safe
+    end
+  end
+
+  # Danger: direct dep call assigned to non-exported ivar
+  class DangerDirectNonExportedIvar < Taski::Task
+    exports :value
+
+    def run
+      @cache = LeafTask.value # @cache is NOT exported → Phase 1 detects dep, but Phase 2 should not mark safe
+      @value = @cache.to_s
+    end
+  end
 end
