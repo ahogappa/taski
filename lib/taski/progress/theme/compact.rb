@@ -45,7 +45,7 @@ module Taski
 
         # Execution complete with icon
         def execution_complete
-          "{% icon %} [TASKI] Completed: {{ execution.completed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
+          "{% icon %} [TASKI] Completed: {{ execution.done_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
         # Execution fail with icon

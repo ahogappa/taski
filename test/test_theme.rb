@@ -139,7 +139,7 @@ class TestTheme < Minitest::Test
   def test_execution_complete_renders_with_stats
     template_string = @theme.execution_complete
     rendered = render_template(template_string,
-      "completed_count" => 5,
+      "done_count" => 5,
       "total_count" => 5,
       "total_duration" => 1234)
     assert_includes rendered, "[TASKI] Completed: 5/5 tasks (1.2s)"

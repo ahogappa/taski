@@ -275,11 +275,11 @@ class TestExecutionDrop < Minitest::Test
 
   def test_can_be_used_in_liquid_template
     drop = Taski::Progress::Layout::ExecutionDrop.new(
-      completed_count: 5,
+      done_count: 5,
       total_count: 10,
       total_duration: 2000
     )
-    liquid_template = Liquid::Template.parse("[{{ execution.completed_count }}/{{ execution.total_count }}]")
+    liquid_template = Liquid::Template.parse("[{{ execution.done_count }}/{{ execution.total_count }}]")
     result = liquid_template.render("execution" => drop)
 
     assert_equal "[5/10]", result

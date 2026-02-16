@@ -228,7 +228,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   def test_uses_custom_execution_complete_template
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
-        "{% icon %} Finished {{ execution.completed_count }} tasks in {{ execution.total_duration | format_duration }}"
+        "{% icon %} Finished {{ execution.done_count }} tasks in {{ execution.total_duration | format_duration }}"
       end
     end.new
 
