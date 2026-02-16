@@ -419,12 +419,12 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     # Create a custom template that uses task.name in execution_complete
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
-        "Done: {{ execution.completed_count }}/{{ execution.total_count }}{% if task.name %} ({{ task.name }}){% endif %}"
+        "Done: {{ execution.done_count }}/{{ execution.total_count }}{% if task.name %} ({{ task.name }}){% endif %}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
-    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 5, total_duration: 1000)
+    result = layout.send(:render_execution_completed, done_count: 5, total_count: 5, total_duration: 1000)
 
     # task.name is nil for execution_complete, so the if block should not render
     assert_equal "Done: 5/5", result
@@ -480,12 +480,12 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     # Create a template that uses execution drop
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
-        "[{{ execution.completed_count }}/{{ execution.total_count }}] ({{ execution.total_duration }}ms)"
+        "[{{ execution.done_count }}/{{ execution.total_count }}] ({{ execution.total_duration }}ms)"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
-    result = layout.send(:render_execution_completed, completed_count: 5, total_count: 10, total_duration: 1500)
+    result = layout.send(:render_execution_completed, done_count: 5, total_count: 10, total_duration: 1500)
 
     assert_equal "[5/10] (1500ms)", result
   end
@@ -532,14 +532,14 @@ class TestLayoutBaseCommonVariables < Minitest::Test
   def test_render_execution_completed_with_skipped_count
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
-        "{{ execution.completed_count }}/{{ execution.total_count }}{% if execution.skipped_count > 0 %} ({{ execution.skipped_count }} skipped){% endif %}"
+        "{{ execution.done_count }}/{{ execution.total_count }}{% if execution.skipped_count > 0 %} ({{ execution.skipped_count }} skipped){% endif %}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
-    result = layout.send(:render_execution_completed, completed_count: 3, total_count: 5, total_duration: 1000, skipped_count: 2)
+    result = layout.send(:render_execution_completed, done_count: 5, total_count: 5, total_duration: 1000, skipped_count: 2)
 
-    assert_equal "3/5 (2 skipped)", result
+    assert_equal "5/5 (2 skipped)", result
   end
 
   def test_render_for_task_event_dispatches_skipped

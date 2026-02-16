@@ -267,7 +267,7 @@ module Taski
           if failed_count > 0
             render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
           else
-            render_execution_completed(completed_count: completed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
+            render_execution_completed(done_count: done_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
           end
         end
 
@@ -372,8 +372,8 @@ module Taski
         end
 
         # Render execution complete event
-        def render_execution_completed(completed_count:, total_count:, total_duration:, skipped_count: 0)
-          execution = ExecutionDrop.new(state: :completed, completed_count:, total_count:, total_duration:, skipped_count:)
+        def render_execution_completed(done_count:, total_count:, total_duration:, skipped_count: 0)
+          execution = ExecutionDrop.new(state: :completed, done_count:, total_count:, total_duration:, skipped_count:)
           render_execution_template(:execution_complete, execution:)
         end
 

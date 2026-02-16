@@ -89,6 +89,34 @@ class TestLayoutSimple < Minitest::Test
     assert_includes @output.string, "Failed"
   end
 
+  def test_skipped_count_is_passed_to_completion_template
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def icon_success = "✓"
+
+      def execution_complete
+        "{% icon %} [TASKI] Completed: {{ execution.done_count }}/{{ execution.total_count }} tasks ({{ execution.skipped_count }} skipped)"
+      end
+    end.new
+
+    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    task_a = stub_task_class("TaskA")
+    task_b = stub_task_class("TaskB")
+    now = Time.now
+
+    # Register both tasks as pending
+    layout.on_task_updated(task_a, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    layout.on_task_updated(task_b, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    layout.on_start
+
+    # TaskA completes, TaskB is skipped
+    layout.on_task_updated(task_a, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    layout.on_task_updated(task_a, previous_state: :running, current_state: :completed, phase: :run, timestamp: now + 0.1)
+    layout.on_task_updated(task_b, previous_state: :pending, current_state: :skipped, phase: :run, timestamp: now + 0.1)
+    layout.on_stop
+
+    assert_includes @output.string, "2/2 tasks (1 skipped)"
+  end
+
   # === Task name ordering ===
 
   def test_displays_most_recently_started_tasks_first
@@ -228,7 +256,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
   def test_uses_custom_execution_complete_template
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def execution_complete
-        "{% icon %} Finished {{ execution.completed_count }} tasks in {{ execution.total_duration | format_duration }}"
+        "{% icon %} Finished {{ execution.done_count }} tasks in {{ execution.total_duration | format_duration }}"
       end
     end.new
 

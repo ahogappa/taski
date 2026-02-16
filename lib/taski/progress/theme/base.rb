@@ -84,7 +84,7 @@ module Taski
         end
 
         def execution_complete
-          "[TASKI] Completed: {{ execution.completed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
+          "[TASKI] Completed: {{ execution.done_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
         end
 
         def execution_fail

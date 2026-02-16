@@ -76,7 +76,7 @@ module Taski
       #   failed_count, total_count, total_duration, root_task_name, task_names
       #
       # @example Using in Liquid template
-      #   [{{ execution.completed_count }}/{{ execution.total_count }}]
+      #   [{{ execution.done_count }}/{{ execution.total_count }}]
       #   {{ execution.total_duration | format_duration }}
       class ExecutionDrop < DataDrop; end
     end
