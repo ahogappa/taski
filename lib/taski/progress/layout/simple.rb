@@ -126,7 +126,7 @@ module Taski
         def build_status_line
           task_names = collect_current_task_names
 
-          primary_task = running_tasks.keys.first || cleaning_tasks.keys.first
+          primary_task = running_tasks.keys.last || cleaning_tasks.keys.last
           task_stdout = build_task_stdout(primary_task)
 
           render_execution_running(
@@ -139,12 +139,13 @@ module Taski
 
         def collect_current_task_names
           # Prioritize: cleaning > running > pending
+          # Reverse so most recently started tasks appear first
           current_tasks = if cleaning_tasks.any?
-            cleaning_tasks.keys
+            cleaning_tasks.keys.reverse
           elsif running_tasks.any?
-            running_tasks.keys
+            running_tasks.keys.reverse
           elsif pending_tasks.any?
-            pending_tasks.keys
+            pending_tasks.keys.reverse
           else
             []
           end

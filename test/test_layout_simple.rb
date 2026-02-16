@@ -89,6 +89,28 @@ class TestLayoutSimple < Minitest::Test
     assert_includes @output.string, "Failed"
   end
 
+  # === Task name ordering ===
+
+  def test_displays_most_recently_started_tasks_first
+    root_task = stub_task_class("RootTask")
+    middle_task = stub_task_class("MiddleTask")
+    leaf_task = stub_task_class("LeafTask")
+    now = Time.now
+
+    # Start tasks in order: root first, leaf last
+    [root_task, middle_task, leaf_task].each do |task|
+      @layout.on_task_updated(task, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
+    end
+    [root_task, middle_task, leaf_task].each do |task|
+      @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    end
+
+    task_names = @layout.send(:collect_current_task_names)
+
+    # Most recently started tasks should appear first
+    assert_equal %w[LeafTask MiddleTask RootTask], task_names
+  end
+
   # === Root task tree building ===
 
   def test_builds_tree_structure_on_root_task_set
