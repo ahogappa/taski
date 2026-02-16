@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     taski (0.9.1)
+      base64
       liquid (~> 5.0)
       prism (~> 1.4)
       tsort
