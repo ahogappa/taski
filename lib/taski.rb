@@ -16,6 +16,7 @@ require_relative "taski/execution/executor"
 require_relative "taski/progress/layout/log"
 require_relative "taski/progress/layout/simple"
 require_relative "taski/progress/layout/tree"
+require_relative "taski/progress/config"
 require_relative "taski/args"
 require_relative "taski/env"
 require_relative "taski/logging"
@@ -267,14 +268,28 @@ module Taski
     reset_args! if created_args
   end
 
-  NOT_CONFIGURED = Object.new.freeze
   PROGRESS_MONITOR = Monitor.new
-  @progress_display = NOT_CONFIGURED
+  PROGRESS_NOT_SET = Object.new.freeze
+  @progress_display = PROGRESS_NOT_SET
+  @progress_config = Progress::Config.new {
+    PROGRESS_MONITOR.synchronize do
+      unless @progress_display.equal?(PROGRESS_NOT_SET)
+        @progress_display.stop if @progress_display.respond_to?(:stop)
+      end
+      @progress_display = PROGRESS_NOT_SET
+    end
+  }
+
+  # Get the progress configuration singleton.
+  # @return [Progress::Config]
+  def self.progress
+    PROGRESS_MONITOR.synchronize { @progress_config }
+  end
 
   def self.progress_display
     PROGRESS_MONITOR.synchronize do
-      if @progress_display.equal?(NOT_CONFIGURED)
-        @progress_display = Progress::Layout::Simple.new
+      if @progress_display.equal?(PROGRESS_NOT_SET)
+        @progress_display = @progress_config.build
       end
       @progress_display
     end
@@ -282,7 +297,7 @@ module Taski
 
   def self.progress_display=(display)
     PROGRESS_MONITOR.synchronize do
-      unless @progress_display.equal?(NOT_CONFIGURED)
+      unless @progress_display.equal?(PROGRESS_NOT_SET)
         @progress_display.stop if @progress_display.respond_to?(:stop)
       end
       @progress_display = display
@@ -291,10 +306,11 @@ module Taski
 
   def self.reset_progress_display!
     PROGRESS_MONITOR.synchronize do
-      unless @progress_display.equal?(NOT_CONFIGURED)
+      unless @progress_display.equal?(PROGRESS_NOT_SET)
         @progress_display.stop if @progress_display.respond_to?(:stop)
       end
-      @progress_display = NOT_CONFIGURED
+      @progress_display = PROGRESS_NOT_SET
+      @progress_config.reset
     end
   end
 
