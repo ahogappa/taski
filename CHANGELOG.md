@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-02-16
+
+### Added
+- Progress::Config API for declarative layout/theme configuration ([#180](https://github.com/ahogappa/taski/pull/180))
+- Split Layout::Tree into Tree::Live (TTY) and Tree::Event (non-TTY) with `Tree.for` factory ([#181](https://github.com/ahogappa/taski/pull/181))
+
+### Fixed
+- Add base64 as runtime dependency ([#182](https://github.com/ahogappa/taski/pull/182))
+- Use done_count instead of completed_count in completion display ([#179](https://github.com/ahogappa/taski/pull/179))
+- Pass skipped_count in Simple layout's render_final ([#179](https://github.com/ahogappa/taski/pull/179))
+- Show most recently started tasks first in simple progress display ([#178](https://github.com/ahogappa/taski/pull/178))
+
 ## [0.9.1] - 2026-02-16
 
 ### Changed
