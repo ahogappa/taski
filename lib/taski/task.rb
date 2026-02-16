@@ -115,7 +115,7 @@ module Taski
       def tree
         output = StringIO.new
         theme = Progress::Theme::Plain.new
-        layout = Progress::Layout::Tree::Event.new(output: output, theme: theme)
+        layout = Progress::Layout::Tree.for(output: output, theme: theme)
         context = Execution::ExecutionFacade.new(root_task_class: self)
         layout.context = context
         layout.on_ready
