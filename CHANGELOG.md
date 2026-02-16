@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-02-16
+
+### Changed
+- Replace raw arrays and hashes with FiberProtocol Data classes for typed protocol messages ([#175](https://github.com/ahogappa/taski/pull/175))
+- Add AST-guided start_dep speculative parallel execution for improved performance ([#175](https://github.com/ahogappa/taski/pull/175))
+- Add TaskProxy for lazy dependency resolution with unsafe proxy usage detection ([#175](https://github.com/ahogappa/taski/pull/175))
+- Remove static-graph-based task scheduling from Executor in favor of Fiber pull model ([#176](https://github.com/ahogappa/taski/pull/176))
+- Replace inline `Class.new(Taski::Task)` with named fixture classes in tests ([#174](https://github.com/ahogappa/taski/pull/174))
+- Add custom export methods section to README ([#172](https://github.com/ahogappa/taski/pull/172))
+
+### Fixed
+- Fix data race on `@next_thread_index` in enqueue/enqueue_clean ([#175](https://github.com/ahogappa/taski/pull/175))
+
 ## [0.9.0] - 2026-02-08
 
 ### Added
