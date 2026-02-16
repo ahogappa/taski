@@ -107,12 +107,27 @@ class TestProgressConfig < Minitest::Test
     assert_instance_of Taski::Progress::Layout::Simple, display
   end
 
-  def test_build_with_layout_and_theme
+  def test_build_with_layout_module_uses_for
+    config = Taski::Progress::Config.new
+    config.layout = Taski::Progress::Layout::Tree
+    display = config.build
+    # Non-TTY default ($stderr in test is not TTY), so Tree.for returns Event
+    assert_instance_of Taski::Progress::Layout::Tree::Event, display
+  end
+
+  def test_build_with_layout_module_and_theme
     config = Taski::Progress::Config.new
     config.layout = Taski::Progress::Layout::Tree
     config.theme = Taski::Progress::Theme::Plain
     display = config.build
-    assert_instance_of Taski::Progress::Layout::Tree, display
+    assert_instance_of Taski::Progress::Layout::Tree::Event, display
+  end
+
+  def test_build_with_layout_class_still_works
+    config = Taski::Progress::Config.new
+    config.layout = Taski::Progress::Layout::Tree::Event
+    display = config.build
+    assert_instance_of Taski::Progress::Layout::Tree::Event, display
   end
 
   def test_build_with_output

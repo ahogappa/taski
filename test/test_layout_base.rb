@@ -309,6 +309,50 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
   end
 end
 
+class TestLayoutBaseRenderLoop < Minitest::Test
+  def setup
+    @output = StringIO.new
+    @layout = Taski::Progress::Layout::Base.new(output: @output)
+    @render_count = 0
+  end
+
+  def teardown
+    @layout.send(:stop_render_loop)
+  end
+
+  def test_render_loop_calls_block_periodically
+    count = 0
+    @layout.send(:render_loop) { count += 1 }
+    sleep 0.2
+    @layout.send(:stop_render_loop)
+    assert count > 0, "render_loop should have called the block at least once"
+  end
+
+  def test_stop_render_loop_stops_the_thread
+    @layout.send(:render_loop) {}
+    @layout.send(:stop_render_loop)
+    thread = @layout.instance_variable_get(:@render_thread)
+    assert_nil thread, "render_thread should be nil after stop_render_loop"
+  end
+
+  def test_stop_render_loop_stops_spinner_timer
+    @layout.send(:render_loop) {}
+    @layout.send(:stop_render_loop)
+    assert_equal false, @layout.instance_variable_get(:@spinner_running)
+  end
+
+  def test_render_loop_starts_spinner_timer
+    @layout.send(:render_loop) {}
+    assert @layout.instance_variable_get(:@spinner_running), "spinner should be running during render_loop"
+    @layout.send(:stop_render_loop)
+  end
+
+  def test_stop_render_loop_without_start_is_safe
+    @layout.send(:stop_render_loop)
+    # No error raised
+  end
+end
+
 class TestLayoutBaseStateTransitions < Minitest::Test
   def setup
     @output = StringIO.new

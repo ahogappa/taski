@@ -515,6 +515,28 @@ module Taski
           task_class.name || task_class.to_s
         end
 
+        # Start a periodic render loop in a background thread.
+        # Starts spinner timer and calls the given block at @theme.render_interval.
+        # @yield Block to execute each render cycle (called under @monitor.synchronize)
+        def render_loop(&block)
+          @render_thread_running = true
+          start_spinner_timer
+          @render_thread = Thread.new do
+            while @render_thread_running
+              @monitor.synchronize(&block)
+              sleep @theme.render_interval
+            end
+          end
+        end
+
+        # Stop the periodic render loop and spinner timer.
+        def stop_render_loop
+          @render_thread_running = false
+          @render_thread&.join
+          @render_thread = nil
+          stop_spinner_timer
+        end
+
         # Check if output is a TTY
         def tty?
           @output.tty?

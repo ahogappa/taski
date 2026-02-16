@@ -59,16 +59,24 @@ module Taski
       end
 
       def build_display
-        layout_class = @layout || Layout::Simple
+        layout_ref = @layout || Layout::Simple
         args = {}
         args[:theme] = @theme.new if @theme
         args[:output] = @output if @output
-        layout_class.new(**args)
+
+        if layout_ref.respond_to?(:for)
+          layout_ref.for(**args)
+        else
+          layout_ref.new(**args)
+        end
       end
 
       def validate_layout!(klass)
-        unless klass.is_a?(Class) && klass <= Layout::Base
-          raise ArgumentError, "layout must be a subclass of Taski::Progress::Layout::Base, got #{klass.inspect}"
+        # Accept a Class that inherits from Base, or a Module with .for factory
+        valid = (klass.is_a?(Class) && klass <= Layout::Base) ||
+          (klass.is_a?(Module) && klass.respond_to?(:for))
+        unless valid
+          raise ArgumentError, "layout must be a Layout::Base subclass or a module with .for, got #{klass.inspect}"
         end
       end
 
