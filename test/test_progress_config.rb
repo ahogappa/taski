@@ -32,8 +32,8 @@ class TestProgressConfig < Minitest::Test
 
   def test_set_layout_class
     config = Taski::Progress::Config.new
-    config.layout = Taski::Progress::Layout::Tree
-    assert_equal Taski::Progress::Layout::Tree, config.layout
+    config.layout = Taski::Progress::Layout::Tree::Event
+    assert_equal Taski::Progress::Layout::Tree::Event, config.layout
   end
 
   def test_set_theme_class
@@ -51,7 +51,7 @@ class TestProgressConfig < Minitest::Test
 
   def test_set_layout_to_nil
     config = Taski::Progress::Config.new
-    config.layout = Taski::Progress::Layout::Tree
+    config.layout = Taski::Progress::Layout::Tree::Event
     config.layout = nil
     assert_nil config.layout
   end
@@ -109,10 +109,10 @@ class TestProgressConfig < Minitest::Test
 
   def test_build_with_layout_and_theme
     config = Taski::Progress::Config.new
-    config.layout = Taski::Progress::Layout::Tree
+    config.layout = Taski::Progress::Layout::Tree::Event
     config.theme = Taski::Progress::Theme::Plain
     display = config.build
-    assert_instance_of Taski::Progress::Layout::Tree, display
+    assert_instance_of Taski::Progress::Layout::Tree::Event, display
   end
 
   def test_build_with_output
@@ -146,7 +146,7 @@ class TestProgressConfig < Minitest::Test
 
   def test_reset_clears_all_settings
     config = Taski::Progress::Config.new
-    config.layout = Taski::Progress::Layout::Tree
+    config.layout = Taski::Progress::Layout::Tree::Event
     config.theme = Taski::Progress::Theme::Detail
     config.output = StringIO.new
     config.reset
@@ -191,7 +191,7 @@ class TestProgressConfig < Minitest::Test
   end
 
   def test_reset_progress_display_clears_display_and_config
-    Taski.progress.layout = Taski::Progress::Layout::Tree
+    Taski.progress.layout = Taski::Progress::Layout::Tree::Event
     Taski.reset_progress_display!
     assert_nil Taski.progress.layout
     display = Taski.progress_display

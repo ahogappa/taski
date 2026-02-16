@@ -307,7 +307,7 @@ class TestProgressDisplayConfiguration < Minitest::Test
   end
 
   def test_progress_display_can_be_set_to_tree
-    tree = Taski::Progress::Layout::Tree.new
+    tree = Taski::Progress::Layout::Tree::Event.new
     Taski.progress_display = tree
     assert_same tree, Taski.progress_display
   end

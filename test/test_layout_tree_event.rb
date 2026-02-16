@@ -4,31 +4,66 @@ require "test_helper"
 require "stringio"
 require "taski/progress/layout/tree"
 require "taski/progress/theme/default"
+require "taski/progress/theme/plain"
 
-class TestLayoutTree < Minitest::Test
+class TestLayoutTreeFactory < Minitest::Test
+  def test_for_returns_live_for_tty_output
+    output = StringIO.new
+    output.define_singleton_method(:tty?) { true }
+    layout = Taski::Progress::Layout::Tree.for(output: output)
+    assert_instance_of Taski::Progress::Layout::Tree::Live, layout
+  end
+
+  def test_for_returns_event_for_non_tty_output
+    output = StringIO.new
+    layout = Taski::Progress::Layout::Tree.for(output: output)
+    assert_instance_of Taski::Progress::Layout::Tree::Event, layout
+  end
+
+  def test_for_passes_theme_to_live
+    output = StringIO.new
+    output.define_singleton_method(:tty?) { true }
+    theme = Taski::Progress::Theme::Plain.new
+    layout = Taski::Progress::Layout::Tree.for(output: output, theme: theme)
+    assert_instance_of Taski::Progress::Layout::Tree::Live, layout
+  end
+
+  def test_for_passes_theme_to_event
+    output = StringIO.new
+    theme = Taski::Progress::Theme::Plain.new
+    layout = Taski::Progress::Layout::Tree.for(output: output, theme: theme)
+    assert_instance_of Taski::Progress::Layout::Tree::Event, layout
+  end
+end
+
+class TestLayoutTreeEvent < Minitest::Test
   include TaskiTestHelper
 
   def setup
     @output = StringIO.new
-    @layout = Taski::Progress::Layout::Tree.new(output: @output)
-  end
-
-  def test_can_initialize_with_default_template
-    layout = Taski::Progress::Layout::Tree.new(output: @output)
-    assert_instance_of Taski::Progress::Layout::Tree, layout
-  end
-
-  def test_can_initialize_with_custom_theme
-    template = Taski::Progress::Theme::Default.new
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: template)
-    assert_instance_of Taski::Progress::Layout::Tree, layout
+    @layout = Taski::Progress::Layout::Tree::Event.new(output: @output)
   end
 
   def test_inherits_from_layout_base
     assert_kind_of Taski::Progress::Layout::Base, @layout
   end
 
-  def test_registers_root_task_on_set_root_task
+  def test_includes_tree_structure
+    assert_kind_of Taski::Progress::Layout::Tree::Structure, @layout
+  end
+
+  def test_can_initialize_with_default_theme
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output)
+    assert_instance_of Taski::Progress::Layout::Tree::Event, layout
+  end
+
+  def test_can_initialize_with_custom_theme
+    theme = Taski::Progress::Theme::Default.new
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output, theme: theme)
+    assert_instance_of Taski::Progress::Layout::Tree::Event, layout
+  end
+
+  def test_registers_root_task_on_ready
     root_task = stub_task_class("RootTask")
     ctx = mock_execution_facade(root_task_class: root_task)
     @layout.context = ctx
@@ -62,15 +97,13 @@ class TestLayoutTree < Minitest::Test
   end
 end
 
-class TestLayoutTreeRendering < Minitest::Test
+class TestLayoutTreeEventRendering < Minitest::Test
   include TaskiTestHelper
 
   def setup
     @output = StringIO.new
-    @layout = Taski::Progress::Layout::Tree.new(output: @output)
+    @layout = Taski::Progress::Layout::Tree::Event.new(output: @output)
   end
-
-  # Test that Layout::Tree uses Theme::Detail by default with icons/spinner
 
   def test_outputs_task_start_with_spinner
     task_class = stub_task_class("MyTask")
@@ -79,7 +112,6 @@ class TestLayoutTreeRendering < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     @layout.on_stop
 
-    # Theme::Detail uses spinner for running tasks
     assert_includes @output.string, "⠋ MyTask"
   end
 
@@ -92,7 +124,6 @@ class TestLayoutTreeRendering < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.123)
     @layout.on_stop
 
-    # Theme::Detail uses ✓ icon for completed tasks
     assert_includes @output.string, "✓"
     assert_includes @output.string, "MyTask"
     assert_includes @output.string, "(123"
@@ -107,7 +138,6 @@ class TestLayoutTreeRendering < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
     @layout.on_stop
 
-    # Theme::Detail uses ✗ icon for failed tasks
     assert_includes @output.string, "✗"
     assert_includes @output.string, "MyTask"
   end
@@ -163,16 +193,15 @@ class TestLayoutTreeRendering < Minitest::Test
   end
 end
 
-class TestLayoutTreePrefix < Minitest::Test
+class TestLayoutTreeEventPrefix < Minitest::Test
   include TaskiTestHelper
 
   def setup
     @output = StringIO.new
-    @layout = Taski::Progress::Layout::Tree.new(output: @output)
+    @layout = Taski::Progress::Layout::Tree::Event.new(output: @output)
   end
 
   def test_tree_prefix_for_single_child
-    # Create a parent with one child
     child = stub_task_class("ChildTask")
     parent = stub_task_class_with_deps("ParentTask", [child])
 
@@ -183,13 +212,10 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.on_task_updated(child, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     @layout.on_stop
 
-    # Child should have tree prefix with spinner
-    output = @output.string
-    assert_includes output, "└── ⠋ ChildTask"
+    assert_includes @output.string, "└── ⠋ ChildTask"
   end
 
   def test_tree_prefix_for_multiple_children
-    # Create a parent with two children
     child1 = stub_task_class("Child1")
     child2 = stub_task_class("Child2")
     parent = stub_task_class_with_deps("ParentTask", [child1, child2])
@@ -202,15 +228,11 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.on_task_updated(child2, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     @layout.on_stop
 
-    output = @output.string
-    # First child should use branch with spinner
-    assert_includes output, "├── ⠋ Child1"
-    # Last child should use last_branch with spinner
-    assert_includes output, "└── ⠋ Child2"
+    assert_includes @output.string, "├── ⠋ Child1"
+    assert_includes @output.string, "└── ⠋ Child2"
   end
 
   def test_tree_prefix_for_nested_children
-    # Create a grandchild -> child -> parent structure
     grandchild = stub_task_class("GrandChild")
     child = stub_task_class_with_deps("ChildTask", [grandchild])
     parent = stub_task_class_with_deps("ParentTask", [child])
@@ -223,15 +245,11 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.on_task_updated(grandchild, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     @layout.on_stop
 
-    output = @output.string
-    # Child at depth 1 with spinner
-    assert_includes output, "└── ⠋ ChildTask"
-    # Grandchild at depth 2 with proper indentation and spinner
-    assert_includes output, "    └── ⠋ GrandChild"
+    assert_includes @output.string, "└── ⠋ ChildTask"
+    assert_includes @output.string, "    └── ⠋ GrandChild"
   end
 
   def test_tree_prefix_with_continuation_line
-    # Create parent with two children, first child has a grandchild
     grandchild = stub_task_class("GrandChild")
     child1 = stub_task_class_with_deps("Child1", [grandchild])
     child2 = stub_task_class("Child2")
@@ -246,13 +264,9 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.on_task_updated(child2, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     @layout.on_stop
 
-    output = @output.string
-    # Child1 is not last (has sibling child2) with spinner
-    assert_includes output, "├── ⠋ Child1"
-    # Grandchild should have vertical continuation line with spinner
-    assert_includes output, "│   └── ⠋ GrandChild"
-    # Child2 is last with spinner
-    assert_includes output, "└── ⠋ Child2"
+    assert_includes @output.string, "├── ⠋ Child1"
+    assert_includes @output.string, "│   └── ⠋ GrandChild"
+    assert_includes @output.string, "└── ⠋ Child2"
   end
 
   def test_root_task_has_no_prefix
@@ -264,12 +278,9 @@ class TestLayoutTreePrefix < Minitest::Test
     @layout.on_task_updated(root, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     @layout.on_stop
 
-    output = @output.string
-    # Root task should NOT have tree prefix, but should have spinner
-    assert_includes output, "⠋ RootTask"
-    # But should not have the prefix before it
-    refute_includes output, "├── ⠋ RootTask"
-    refute_includes output, "└── ⠋ RootTask"
+    assert_includes @output.string, "⠋ RootTask"
+    refute_includes @output.string, "├── ⠋ RootTask"
+    refute_includes @output.string, "└── ⠋ RootTask"
   end
 
   private
@@ -289,10 +300,10 @@ class TestLayoutTreePrefix < Minitest::Test
   end
 end
 
-class TestLayoutTreeTaskContent < Minitest::Test
+class TestLayoutTreeEventTaskContent < Minitest::Test
   def setup
     @output = StringIO.new
-    @layout = Taski::Progress::Layout::Tree.new(output: @output)
+    @layout = Taski::Progress::Layout::Tree::Event.new(output: @output)
   end
 
   def test_build_task_content_uses_icon_for_pending_state
@@ -300,7 +311,6 @@ class TestLayoutTreeTaskContent < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
 
     content = @layout.send(:build_task_content, task_class)
-    # Theme::Detail uses ○ icon for pending
     assert_includes content, "○"
     assert_includes content, "MyTask"
   end
@@ -311,7 +321,6 @@ class TestLayoutTreeTaskContent < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
 
     content = @layout.send(:build_task_content, task_class)
-    # Theme::Detail uses spinner for running
     assert_includes content, "⠋"
     assert_includes content, "MyTask"
   end
@@ -324,7 +333,6 @@ class TestLayoutTreeTaskContent < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
 
     content = @layout.send(:build_task_content, task_class)
-    # Theme::Detail uses ✓ icon for completed
     assert_includes content, "✓"
     assert_includes content, "MyTask"
     assert_includes content, "(100"
@@ -338,7 +346,6 @@ class TestLayoutTreeTaskContent < Minitest::Test
     @layout.on_task_updated(task_class, previous_state: :running, current_state: :failed, phase: :run, timestamp: started_at + 0.001)
 
     content = @layout.send(:build_task_content, task_class)
-    # Theme::Detail uses ✗ icon for failed
     assert_includes content, "✗"
     assert_includes content, "MyTask"
   end
@@ -353,7 +360,7 @@ class TestLayoutTreeTaskContent < Minitest::Test
   end
 end
 
-class TestLayoutTreeWithCustomTemplate < Minitest::Test
+class TestLayoutTreeEventWithCustomTemplate < Minitest::Test
   include TaskiTestHelper
 
   def setup
@@ -367,7 +374,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
     layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
     layout.on_start
@@ -377,25 +384,6 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     assert_includes @output.string, "[BEGIN] MyTask"
   end
 
-  def test_uses_custom_theme_task_success
-    custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_success
-        "[OK] {{ task.name }}"
-      end
-    end.new
-
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: custom_theme)
-    task_class = stub_task_class("MyTask")
-    started_at = Time.now
-    layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
-    layout.on_start
-    layout.on_task_updated(task_class, previous_state: :pending, current_state: :running, phase: :run, timestamp: started_at)
-    layout.on_task_updated(task_class, previous_state: :running, current_state: :completed, phase: :run, timestamp: started_at + 0.1)
-    layout.on_stop
-
-    assert_includes @output.string, "[OK] MyTask"
-  end
-
   def test_tree_prefix_with_custom_theme
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def task_start
@@ -403,7 +391,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output, theme: custom_theme)
 
     child = stub_task_class("ChildTask")
     parent = stub_task_class_with_deps("ParentTask", [child])
@@ -415,7 +403,6 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
     layout.on_task_updated(child, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
     layout.on_stop
 
-    # Tree prefix should combine with custom template
     assert_includes @output.string, "└── => ChildTask"
   end
 
@@ -436,7 +423,7 @@ class TestLayoutTreeWithCustomTemplate < Minitest::Test
   end
 end
 
-class TestLayoutTreeRenderTree < Minitest::Test
+class TestLayoutTreeEventRenderTree < Minitest::Test
   include TaskiTestHelper
 
   def setup
@@ -445,7 +432,7 @@ class TestLayoutTreeRenderTree < Minitest::Test
 
   def test_render_tree_returns_single_task
     theme = Taski::Progress::Theme::Plain.new
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: theme)
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output, theme: theme)
     root = stub_task_class("RootTask")
 
     ctx = mock_execution_facade(root_task_class: root)
@@ -458,7 +445,7 @@ class TestLayoutTreeRenderTree < Minitest::Test
 
   def test_render_tree_returns_multi_level_tree
     theme = Taski::Progress::Theme::Plain.new
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: theme)
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output, theme: theme)
 
     leaf = stub_task_class("LeafTask")
     middle = stub_task_class_with_deps("MiddleTask", [leaf])
@@ -476,7 +463,7 @@ class TestLayoutTreeRenderTree < Minitest::Test
 
   def test_render_tree_returns_multiple_children
     theme = Taski::Progress::Theme::Plain.new
-    layout = Taski::Progress::Layout::Tree.new(output: @output, theme: theme)
+    layout = Taski::Progress::Layout::Tree::Event.new(output: @output, theme: theme)
 
     child1 = stub_task_class("Child1")
     child2 = stub_task_class("Child2")

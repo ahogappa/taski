@@ -6,7 +6,7 @@ module Taski
     # Holds class references for Layout and Theme, and builds display instances lazily.
     #
     # @example
-    #   Taski.progress.layout = Taski::Progress::Layout::Tree
+    #   Taski.progress.layout = Taski::Progress::Layout::Tree::Event
     #   Taski.progress.theme = Taski::Progress::Theme::Detail
     class Config
       attr_reader :layout, :theme, :output

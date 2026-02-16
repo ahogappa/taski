@@ -36,9 +36,6 @@ module Taski
         def initialize(output: $stdout, theme: nil)
           theme ||= Theme::Compact.new
           super
-          @renderer_thread = nil
-          @running = false
-          @running_mutex = Mutex.new
         end
 
         protected
@@ -70,38 +67,26 @@ module Taski
         end
 
         def handle_start
-          @running_mutex.synchronize { @running = true }
-          start_spinner_timer
           @output.print "\e[?25l"  # Hide cursor
-          @renderer_thread = Thread.new do
-            loop do
-              break unless @running_mutex.synchronize { @running }
-              render_live
-              sleep @theme.render_interval
-            end
-          end
+          render_loop { render_status_line }
         end
 
         def handle_stop
-          @running_mutex.synchronize { @running = false }
-          @renderer_thread&.join
-          stop_spinner_timer
+          stop_render_loop
           @output.print "\e[?25h"  # Show cursor
           render_final
         end
 
         private
 
-        def render_live
-          @monitor.synchronize do
-            line = build_status_line
-            # Truncate line to terminal width to prevent line wrap
-            max_width = terminal_width - 1  # Leave space for cursor
-            line = line[0, max_width] if line.length > max_width
-            # Clear line and write new content
-            @output.print "\r\e[K#{line}"
-            @output.flush
-          end
+        def render_status_line
+          line = build_status_line
+          # Truncate line to terminal width to prevent line wrap
+          max_width = terminal_width - 1  # Leave space for cursor
+          line = line[0, max_width] if line.length > max_width
+          # Clear line and write new content
+          @output.print "\r\e[K#{line}"
+          @output.flush
         end
 
         def terminal_width
