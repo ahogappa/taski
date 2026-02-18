@@ -182,4 +182,32 @@ class TestArgs < Minitest::Test
     dep_env = ArgsFixtures::CapturedValues.get(:dep_env_arg)
     assert_equal "staging", dep_env
   end
+
+  # Tests for class accessor with args
+
+  def test_class_accessor_accepts_args
+    result = ArgsFixtures::ExportedWithArgsTask.greeting(args: {name: "taski"})
+    assert_equal "hello, taski", result
+  end
+
+  def test_class_accessor_without_args_uses_empty_default
+    result = ArgsFixtures::ExportedWithArgsTask.greeting
+    assert_equal "hello, world", result
+  end
+
+  def test_class_accessor_args_propagate_to_dependencies
+    result = ArgsFixtures::ExportedWithArgsRootTask.combined(args: {name: "taski"})
+    assert_equal "dep: taski + root", result
+  end
+
+  def test_class_accessor_warns_when_args_passed_inside_execution
+    registry = Taski::Execution::Registry.new
+    Taski.set_current_registry(registry)
+    _out, err = capture_io do
+      ArgsFixtures::ExportedWithArgsTask.greeting(args: {name: "ignored"})
+    end
+    assert_match(/args:.*ignored.*inside.*execution/i, err)
+  ensure
+    Taski.clear_current_registry
+  end
 end
