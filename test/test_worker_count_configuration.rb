@@ -3,8 +3,6 @@
 require_relative "test_helper"
 
 class TestWorkerCountConfiguration < Minitest::Test
-  include Taski::TestHelper
-
   def setup
     Taski.reset_args!
     Taski.reset_progress_display!
@@ -91,18 +89,26 @@ class TestWorkerCountConfiguration < Minitest::Test
   # Args worker count API
   # ========================================
 
+  class WorkerCountCaptureTask < Taski::Task
+    exports :captured_count
+
+    def run
+      @captured_count = Taski.args_worker_count
+    end
+  end
+
   def test_args_worker_count_returns_nil_without_args
     assert_nil Taski.args_worker_count
   end
 
   def test_args_worker_count_returns_nil_when_not_set
-    mock_args
-    assert_nil Taski.args_worker_count
+    result = WorkerCountCaptureTask.captured_count(args: {})
+    assert_nil result
   end
 
   def test_args_worker_count_returns_value_when_set
-    mock_args(_workers: 4)
-    assert_equal 4, Taski.args_worker_count
+    result = WorkerCountCaptureTask.captured_count(args: {_workers: 4})
+    assert_equal 4, result
   end
 
   # ========================================

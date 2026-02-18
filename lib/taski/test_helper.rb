@@ -98,21 +98,6 @@ module Taski
       end
     end
 
-    # Sets mock args for the duration of the test.
-    # This allows testing code that depends on Taski.args without running full task execution.
-    # Args are automatically cleared when MockRegistry.reset! is called (in test teardown).
-    # @param options [Hash] User-defined options to include in args
-    # @return [Taski::Args] The created args instance
-    #
-    # @example
-    #   mock_args(env: "test", debug: true)
-    #   assert_equal "test", Taski.args[:env]
-    def mock_args(**options)
-      Taski.reset_args!
-      Taski.send(:start_args, options: options)
-      Taski.args
-    end
-
     # Sets mock env for the duration of the test.
     # This allows testing code that depends on Taski.env without running full task execution.
     # Env is automatically cleared when MockRegistry.reset! is called (in test teardown).
