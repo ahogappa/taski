@@ -26,11 +26,11 @@ module Taski
         super
         original_method = self.method(method)
 
-        define_singleton_method(method) do
+        define_singleton_method(method) do |args: {}|
           mock = MockRegistry.mock_for(self)
           return mock.get_exported_value(method) if mock
 
-          original_method.call
+          original_method.call(args: args)
         end
       end
     end
