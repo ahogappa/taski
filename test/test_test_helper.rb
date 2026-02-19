@@ -52,6 +52,25 @@ module TestHelperFixtures
       @combined = LeafTask.value + "_" + MultiExportTask.first
     end
   end
+
+  # A task that uses Taski.args
+  class ArgsTask < Taski::Task
+    exports :greeting
+
+    def run
+      name = Taski.args[:name] || "world"
+      @greeting = "hello, #{name}"
+    end
+  end
+
+  # A task that depends on ArgsTask
+  class ArgsConsumerTask < Taski::Task
+    exports :message
+
+    def run
+      @message = "#{ArgsTask.greeting}!"
+    end
+  end
 end
 
 class TestTestHelper < Minitest::Test
@@ -476,5 +495,30 @@ class TestSelectiveMocking < Minitest::Test
 
     # MultiExportTask is NOT mocked
     assert_nil Taski::TestHelper.mock_for(TestHelperFixtures::MultiExportTask)
+  end
+end
+
+# === Test class accessor with args and mock_task ===
+class TestClassAccessorWithArgs < Minitest::Test
+  include Taski::TestHelper
+
+  def setup
+    Taski::TestHelper.reset_mocks!
+    Taski::Task.reset!
+  end
+
+  def teardown
+    Taski::TestHelper.reset_mocks!
+  end
+
+  def test_class_accessor_passes_args_without_mock
+    result = TestHelperFixtures::ArgsTask.greeting(args: {name: "taski"})
+    assert_equal "hello, taski", result
+  end
+
+  def test_class_accessor_passes_args_with_mocked_dependency
+    mock_task(TestHelperFixtures::ArgsTask, greeting: "mocked greeting")
+    result = TestHelperFixtures::ArgsConsumerTask.message(args: {name: "ignored"})
+    assert_equal "mocked greeting!", result
   end
 end

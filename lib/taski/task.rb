@@ -178,9 +178,12 @@ module Taski
       def define_class_accessor(method)
         singleton_class.undef_method(method) if singleton_class.method_defined?(method)
 
-        define_singleton_method(method) do
+        define_singleton_method(method) do |args: {}|
           registry = Taski.current_registry
           if registry
+            unless args.empty?
+              warn "Taski: args: passed to #{self}.#{method} is ignored inside an execution context"
+            end
             if Thread.current[:taski_fiber_context]
               start_deps = Thread.current[:taski_start_deps]
               if start_deps&.include?(self)
@@ -208,7 +211,7 @@ module Taski
           else
             # Outside execution - fresh execution (top-level call)
             Taski.send(:with_env, root_task: self) do
-              Taski.send(:with_args, options: {}) do
+              Taski.send(:with_args, options: args) do
                 validate_no_circular_dependencies!
                 fresh_wrapper.get_exported_value(method)
               end

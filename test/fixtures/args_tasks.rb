@@ -207,4 +207,31 @@ module ArgsFixtures
       @result = Taski.args[:env]
     end
   end
+
+  # Task that exports a value derived from args (for class accessor args test)
+  class ExportedWithArgsTask < Taski::Task
+    exports :greeting
+
+    def run
+      name = Taski.args[:name] || "world"
+      @greeting = "hello, #{name}"
+    end
+  end
+
+  # Dependency for class accessor args propagation test
+  class ExportedWithArgsDepTask < Taski::Task
+    exports :dep_greeting
+
+    def run
+      @dep_greeting = "dep: #{Taski.args[:name]}"
+    end
+  end
+
+  class ExportedWithArgsRootTask < Taski::Task
+    exports :combined
+
+    def run
+      @combined = "#{ExportedWithArgsDepTask.dep_greeting} + root"
+    end
+  end
 end

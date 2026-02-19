@@ -26,11 +26,11 @@ module Taski
         super
         original_method = self.method(method)
 
-        define_singleton_method(method) do
+        define_singleton_method(method) do |args: {}|
           mock = MockRegistry.mock_for(self)
           return mock.get_exported_value(method) if mock
 
-          original_method.call
+          original_method.call(args: args)
         end
       end
     end
@@ -96,21 +96,6 @@ module Taski
       def reset_mocks!
         MockRegistry.reset!
       end
-    end
-
-    # Sets mock args for the duration of the test.
-    # This allows testing code that depends on Taski.args without running full task execution.
-    # Args are automatically cleared when MockRegistry.reset! is called (in test teardown).
-    # @param options [Hash] User-defined options to include in args
-    # @return [Taski::Args] The created args instance
-    #
-    # @example
-    #   mock_args(env: "test", debug: true)
-    #   assert_equal "test", Taski.args[:env]
-    def mock_args(**options)
-      Taski.reset_args!
-      Taski.send(:start_args, options: options)
-      Taski.args
     end
 
     # Sets mock env for the duration of the test.
