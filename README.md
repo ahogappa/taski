@@ -249,8 +249,7 @@ end
 # Pass options when running
 DeployTask.run(args: { env: "production", debug: true })
 
-# Args can also be passed via value or exported class methods
-DeployTask.value(args: { env: "staging" })
+# Args can also be passed to exported class methods
 Config.timeout(args: { env: "test" })
 ```
 
