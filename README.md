@@ -253,6 +253,8 @@ DeployTask.run(args: { env: "production", debug: true })
 Config.timeout(args: { env: "test" })
 ```
 
+**Note:** `args:` is only accepted at the top-level call that starts an execution. If `args:` is passed to a dependency access inside a running task (e.g., `DepTask.value(args: {...})`), the args are ignored and a warning is emitted.
+
 Args API (user-defined options):
 - `Taski.args[:key]` - Get option value (nil if not set)
 - `Taski.args.fetch(:key, default)` - Get with default value
