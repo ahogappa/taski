@@ -248,6 +248,10 @@ end
 
 # Pass options when running
 DeployTask.run(args: { env: "production", debug: true })
+
+# Args can also be passed via value or exported class methods
+DeployTask.value(args: { env: "staging" })
+Config.timeout(args: { env: "test" })
 ```
 
 Args API (user-defined options):
@@ -424,8 +428,31 @@ class BuildReportTest < Minitest::Test
 end
 ```
 
+### Passing Args in Tests
+
+Pass `args:` directly to task class methods instead of setting global state:
+
+```ruby
+class DeployTaskTest < Minitest::Test
+  include Taski::TestHelper::Minitest
+
+  def test_deploy_to_staging
+    mock_task(FetchConfig, url: "https://staging.example.com")
+
+    # Pass args directly - no global state needed
+    DeployTask.run(args: { env: "staging", debug: true })
+  end
+
+  def test_exported_value_with_args
+    result = Config.timeout(args: { env: "test" })
+    assert_equal 30, result
+  end
+end
+```
+
 **Key features:**
 - Mock only direct dependencies; indirect dependencies are automatically isolated
+- Pass `args:` directly to `Task.run`, `Task.value`, and exported class methods
 - Verify which dependencies were accessed with `assert_task_accessed` / `refute_task_accessed`
 - Automatic cleanup after each test
 - Supports both Minitest and RSpec
