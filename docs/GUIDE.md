@@ -339,10 +339,12 @@ Plain text output without escape codes, designed for CI/logs:
 ### Configuring Progress Display
 
 ```ruby
-Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
-Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
-Taski.progress_display = Taski::Progress::Layout::Log.new      # Log output (CI/logs)
-Taski.progress_display = nil                                    # Disable
+# Choose the layout — assign the kind; the right variant and output are built for you:
+Taski.progress.layout = Taski::Progress::Layout::Simple  # Simple display (default)
+Taski.progress.layout = Taski::Progress::Layout::Tree    # Tree display (Live on a TTY, Event in logs/CI)
+Taski.progress.layout = Taski::Progress::Layout::Log     # Log output (CI/logs)
+
+Taski.progress_display = nil                             # Disable progress output entirely
 ```
 
 ### File Output Mode

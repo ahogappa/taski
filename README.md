@@ -185,7 +185,7 @@ end
 **Why small tasks matter:**
 
 - **Parallel Execution**: Independent tasks run concurrently. Large monolithic tasks can't be parallelized
-- **Easier Cleanup**: `Task.clean` works per-task. Smaller tasks mean more granular cleanup control
+- **Easier Cleanup**: each task's `clean` method runs in reverse dependency order via `run_and_clean`. Smaller tasks mean more granular cleanup control
 - **Better Reusability**: Small tasks can be composed into different workflows
 - **Clearer Dependencies**: The dependency graph becomes explicit and visible with `Task.tree`
 
@@ -391,10 +391,12 @@ WebServer (Task)
 **Configuration:**
 
 ```ruby
-Taski.progress_display = Taski::Progress::Layout::Simple.new  # Simple display (default)
-Taski.progress_display = Taski::Progress::Layout::Tree.new     # Tree display
-Taski.progress_display = Taski::Progress::Layout::Log.new      # Log output (CI/logs)
-Taski.progress_display = nil                                    # Disable
+# Choose the layout — assign the kind; the right variant and output are built for you:
+Taski.progress.layout = Taski::Progress::Layout::Simple  # Simple display (default)
+Taski.progress.layout = Taski::Progress::Layout::Tree    # Tree display (Live on a TTY, Event in logs/CI)
+Taski.progress.layout = Taski::Progress::Layout::Log     # Log output (CI/logs)
+
+Taski.progress_display = nil                             # Disable progress output entirely
 ```
 
 ### Tree Visualization
