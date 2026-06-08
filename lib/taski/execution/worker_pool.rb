@@ -146,12 +146,15 @@ module Taski
             handle_start_dep(start_dep.task_class)
             result = fiber.resume
           in FiberProtocol::NeedDep => need_dep
-            action, value = handle_dependency(need_dep.task_class, need_dep.method, fiber, task_class, wrapper, queue)
-            return if action == :parked # fiber parked (or nested dep driven); resumed later via its queue
-            # Dependency was already resolved: continue iteratively rather than
-            # recursing, so a task reading many completed deps cannot overflow
-            # the worker stack.
-            result = fiber.resume(value)
+            case handle_dependency(need_dep.task_class, need_dep.method, fiber, task_class, wrapper, queue)
+            in FiberProtocol::Parked
+              return # fiber parked (or nested dep driven); resumed later via its queue
+            in FiberProtocol::ResumeWith(value:)
+              # Dependency was already resolved: continue iteratively rather than
+              # recursing, so a task reading many completed deps cannot overflow
+              # the worker stack.
+              result = fiber.resume(value)
+            end
           else
             break # task.run returned a non-protocol value (normal completion)
           end
@@ -162,29 +165,29 @@ module Taski
         fail_task(task_class, wrapper, e)
       end
 
-      # Resolve a dependency for a fiber that yielded NeedDep. Returns a tuple
+      # Resolve a dependency for a fiber that yielded NeedDep. Returns a value
       # the driver loop acts on:
-      #   [:resume, value] → resolved; resume the fiber with value iteratively
-      #   [:parked]        → fiber parked (or a nested dep is being driven);
-      #                      the driver loop must stop and let a later queue
-      #                      event resume the fiber.
+      #   FiberProtocol::ResumeWith(value) → resolved; resume the fiber with value
+      #   FiberProtocol::Parked            → fiber parked (or a nested dep is being
+      #                                      driven); the driver loop must stop and
+      #                                      let a later queue event resume the fiber.
       def handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
         dep_wrapper = @registry.create_wrapper(dep_class, execution_facade: @execution_facade)
         status = dep_wrapper.request_value(method, queue, fiber)
 
         case status[0]
         when :completed
-          [:resume, status[1]]
+          FiberProtocol::ResumeWith.new(status[1])
         when :failed
-          [:resume, FiberProtocol::DepError.new(status[1])]
+          FiberProtocol::ResumeWith.new(FiberProtocol::DepError.new(status[1]))
         when :wait
           store_fiber_context(fiber, task_class, wrapper)
-          [:parked]
+          FiberProtocol::Parked.new
         when :start
           store_fiber_context(fiber, task_class, wrapper)
           # dep_wrapper is already RUNNING (set atomically by request_value)
           drive_fiber(dep_class, dep_wrapper, queue)
-          [:parked]
+          FiberProtocol::Parked.new
         end
       end
 
