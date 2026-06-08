@@ -35,15 +35,18 @@ module Taski
 
       ##
       # Declares exported methods that will be accessible after task execution.
-      # Creates instance reader and class accessor methods for each export.
+      # Exported values are resolved lazily through method_missing, so an export
+      # never overrides an existing method (Module#name, Task.run, ...) — it is
+      # only reachable as +Task.method+ / +instance.method+ when no method of
+      # that name already exists. Colliding names are warned about here.
       # @param export_methods [Array<Symbol>] The method names to export.
       def exports(*export_methods)
-        @exported_methods = export_methods
-
         export_methods.each do |method|
-          define_instance_reader(method)
-          define_class_accessor(method)
+          if singleton_class.method_defined?(method) || method_defined?(method)
+            warn_export_collision(method)
+          end
         end
+        @exported_methods = export_methods
       end
 
       ##
@@ -51,6 +54,20 @@ module Taski
       # @return [Array<Symbol>] The exported method names.
       def exported_methods
         @exported_methods ||= []
+      end
+
+      ##
+      # Resolves an exported value when called as Task.<export> on the class.
+      # Only fires for names that are not already defined as real methods, so an
+      # export can never shadow Module#name / Task.run / etc.
+      def method_missing(name, *args, **kwargs, &block)
+        return super unless exported_methods.include?(name)
+
+        resolve_exported_value(name, kwargs.fetch(:args, {}))
+      end
+
+      def respond_to_missing?(name, include_private = false)
+        exported_methods.include?(name) || super
       end
 
       private :new
@@ -159,62 +176,59 @@ module Taski
       end
 
       ##
-      # Defines an instance reader method for an exported value.
-      # @param method [Symbol] The method name to define.
-      def define_instance_reader(method)
-        undef_method(method) if method_defined?(method)
-
-        define_method(method) do
-          # @type self: Task
-          instance_variable_get("@#{method}")
-        end
+      # Warn that an export name collides with an existing method and so cannot
+      # be reached as an accessor.
+      # @param method [Symbol] The colliding export name.
+      def warn_export_collision(method)
+        warn "Taski: #{self} exports :#{method}, but :#{method} already exists as a method " \
+          "on the class or its instances. #{self}.#{method} (and instance ##{method}) keep their " \
+          "existing behavior, so the exported value is NOT reachable through that name. " \
+          "Choose a different export name."
       end
 
       ##
-      # Defines a class accessor method for an exported value.
-      # When called inside an execution, returns cached value from registry.
-      # When called outside execution, creates fresh execution.
-      # @param method [Symbol] The method name to define.
-      def define_class_accessor(method)
-        singleton_class.undef_method(method) if singleton_class.method_defined?(method)
-
-        define_singleton_method(method) do |args: {}|
-          registry = Taski.current_registry
-          if registry
-            unless args.empty?
-              warn "Taski: args: passed to #{self}.#{method} is ignored inside an execution context"
-            end
-            if Thread.current[:taski_fiber_context]
-              start_deps = Thread.current[:taski_start_deps]
-              if start_deps&.include?(self)
-                # Lazy resolution via proxy - safe dep confirmed by static analysis
-                TaskProxy.new(self, method)
-              else
-                # Synchronous resolution: dep not in allowlist (unknown or unsafe usage)
-                result = Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(self, method))
-                raise result.error if result in Taski::Execution::FiberProtocol::DepError
-                result
-              end
+      # Resolve an exported value for a Task.<export> call.
+      # When called inside an execution, returns the cached value from the
+      # registry (or a proxy / synchronous Fiber pull during the run phase).
+      # When called outside execution, creates a fresh execution.
+      # @param method [Symbol] The exported method name.
+      # @param args [Hash] User-defined arguments (only honored outside execution).
+      def resolve_exported_value(method, args)
+        registry = Taski.current_registry
+        if registry
+          unless args.empty?
+            warn "Taski: args: passed to #{self}.#{method} is ignored inside an execution context"
+          end
+          if Thread.current[:taski_fiber_context]
+            start_deps = Thread.current[:taski_start_deps]
+            if start_deps&.include?(self)
+              # Lazy resolution via proxy - safe dep confirmed by static analysis
+              TaskProxy.new(self, method)
             else
-              # Synchronous resolution (clean phase, outside Fiber)
-              wrapper = registry.get_or_create(self) do
-                task_instance = allocate
-                task_instance.__send__(:initialize)
-                Execution::TaskWrapper.new(
-                  task_instance,
-                  registry: registry,
-                  execution_facade: Execution::ExecutionFacade.current
-                )
-              end
-              wrapper.get_exported_value(method)
+              # Synchronous resolution: dep not in allowlist (unknown or unsafe usage)
+              result = Fiber.yield(Taski::Execution::FiberProtocol::NeedDep.new(self, method))
+              raise result.error if result in Taski::Execution::FiberProtocol::DepError
+              result
             end
           else
-            # Outside execution - fresh execution (top-level call)
-            Taski.send(:with_env, root_task: self) do
-              Taski.send(:with_args, options: args) do
-                validate_no_circular_dependencies!
-                fresh_wrapper.get_exported_value(method)
-              end
+            # Synchronous resolution (clean phase, outside Fiber)
+            wrapper = registry.get_or_create(self) do
+              task_instance = allocate
+              task_instance.__send__(:initialize)
+              Execution::TaskWrapper.new(
+                task_instance,
+                registry: registry,
+                execution_facade: Execution::ExecutionFacade.current
+              )
+            end
+            wrapper.get_exported_value(method)
+          end
+        else
+          # Outside execution - fresh execution (top-level call)
+          Taski.send(:with_env, root_task: self) do
+            Taski.send(:with_args, options: args) do
+              validate_no_circular_dependencies!
+              fresh_wrapper.get_exported_value(method)
             end
           end
         end
@@ -321,6 +335,20 @@ module Taski
       self.class.exported_methods.each do |method|
         instance_variable_set("@#{method}", nil)
       end
+    end
+
+    ##
+    # Reads an exported value (instance.<export>). Only fires for export names
+    # that are not already defined as real instance methods, so an export can
+    # never shadow an existing method.
+    def method_missing(name, *args, &block)
+      return super unless self.class.exported_methods.include?(name)
+
+      instance_variable_get("@#{name}")
+    end
+
+    def respond_to_missing?(name, include_private = false)
+      self.class.exported_methods.include?(name) || super
     end
   end
 end
