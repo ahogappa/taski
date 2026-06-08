@@ -52,9 +52,13 @@ module Taski
       end
 
       # Get task classes involved in cycles
-      # @return [Array<Array<Class>>] Only components with size > 1 (cycles)
+      # @return [Array<Array<Class>>] Components that form a cycle: either a
+      #   strongly connected component of size > 1, or a single task that
+      #   depends on itself (a self-loop SCC of size 1).
       def cyclic_components
-        strongly_connected_components.select { |component| component.size > 1 }
+        strongly_connected_components.select do |component|
+          component.size > 1 || self_dependent?(component.first)
+        end
       end
 
       # Get all task classes in the graph
@@ -81,6 +85,11 @@ module Taski
       end
 
       private
+
+      # Check whether a task class directly depends on itself (self-loop).
+      def self_dependent?(task_class)
+        dependencies_for(task_class).include?(task_class)
+      end
 
       # Recursively collect all dependencies starting from a task class
       def collect_dependencies(task_class)

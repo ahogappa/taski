@@ -17,6 +17,11 @@ module Taski
       CleanCompleted = Data.define(:task_class, :wrapper)
       CleanFailed = Data.define(:task_class, :wrapper, :error)
 
+      # === handle_dependency outcome (worker pool internal) ===
+      # Tells drive_fiber_loop how to proceed after resolving a NeedDep.
+      ResumeWith = Data.define(:value) # resume the parent fiber with this value
+      Parked = Data.define # parent fiber parked (or a nested dep is being driven)
+
       # === Worker thread commands (pool -> worker thread) ===
       Execute = Data.define(:task_class, :wrapper)
       ExecuteClean = Data.define(:task_class, :wrapper)

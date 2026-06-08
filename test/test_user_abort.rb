@@ -3,6 +3,7 @@
 require_relative "test_helper"
 require_relative "fixtures/error_tasks"
 require_relative "fixtures/parallel_tasks"
+require_relative "fixtures/abort_tasks"
 
 class TestUserAbort < Minitest::Test
   include TaskiTestHelper
@@ -10,6 +11,16 @@ class TestUserAbort < Minitest::Test
   def setup
     setup_taski_test
     ErrorFixtures::ExecutionTracker.clear
+  end
+
+  # When a task is dropped because abort was requested before its worker
+  # dequeued it, it must still emit a terminal completion event and release
+  # any fibers parked on it. Otherwise the parent that parked on the dropped
+  # task waits forever and the executor's main loop deadlocks.
+  def test_abort_does_not_deadlock_when_parked_on_dropped_task
+    assert_raises(Taski::TaskAbortException) do
+      Timeout.timeout(15) { AbortFixtures::AbortRoot.run(workers: 1) }
+    end
   end
 
   # Test that TaskAbortException can be raised to abort a task

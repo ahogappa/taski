@@ -103,7 +103,7 @@ module Taski
       # Drive a new Fiber for a task. The caller MUST have already called
       # wrapper.mark_running before enqueueing — drive_fiber never calls it.
       def drive_fiber(task_class, wrapper, queue)
-        return if @registry.abort_requested?
+        return abort_unstarted_task(task_class, wrapper) if @registry.abort_requested?
 
         analysis = Taski::StaticAnalysis::StartDepAnalyzer.analyze(task_class)
         fiber = Fiber.new do
@@ -124,6 +124,14 @@ module Taski
 
         start_output_capture(task_class)
         drive_fiber_loop(fiber, task_class, wrapper, queue)
+      rescue => e
+        # An exception escaping the pre-fiber setup (analysis, fiber creation,
+        # notifications, capture) would otherwise propagate out of worker_loop
+        # and kill this worker thread, leaving tasks routed to its queue stuck
+        # forever. Route it to fail_task so the task fails cleanly and the
+        # worker keeps serving. (drive_fiber_loop has its own rescue, so this
+        # only catches setup-phase errors and never double-fails.)
+        fail_task(task_class, wrapper, e)
       end
 
       # Drive a Fiber forward by resuming it with resume_value.
@@ -137,10 +145,16 @@ module Taski
           in FiberProtocol::StartDep => start_dep
             handle_start_dep(start_dep.task_class)
             result = fiber.resume
-            next
           in FiberProtocol::NeedDep => need_dep
-            handle_dependency(need_dep.task_class, need_dep.method, fiber, task_class, wrapper, queue)
-            return # Fiber is either continuing or parked
+            case handle_dependency(need_dep.task_class, need_dep.method, fiber, task_class, wrapper, queue)
+            in FiberProtocol::Parked
+              return # fiber parked (or nested dep driven); resumed later via its queue
+            in FiberProtocol::ResumeWith(value:)
+              # Dependency was already resolved: continue iteratively rather than
+              # recursing, so a task reading many completed deps cannot overflow
+              # the worker stack.
+              result = fiber.resume(value)
+            end
           else
             break # task.run returned a non-protocol value (normal completion)
           end
@@ -151,21 +165,29 @@ module Taski
         fail_task(task_class, wrapper, e)
       end
 
+      # Resolve a dependency for a fiber that yielded NeedDep. Returns a value
+      # the driver loop acts on:
+      #   FiberProtocol::ResumeWith(value) → resolved; resume the fiber with value
+      #   FiberProtocol::Parked            → fiber parked (or a nested dep is being
+      #                                      driven); the driver loop must stop and
+      #                                      let a later queue event resume the fiber.
       def handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
         dep_wrapper = @registry.create_wrapper(dep_class, execution_facade: @execution_facade)
         status = dep_wrapper.request_value(method, queue, fiber)
 
         case status[0]
         when :completed
-          drive_fiber_loop(fiber, task_class, wrapper, queue, status[1])
+          FiberProtocol::ResumeWith.new(status[1])
         when :failed
-          drive_fiber_loop(fiber, task_class, wrapper, queue, FiberProtocol::DepError.new(status[1]))
+          FiberProtocol::ResumeWith.new(FiberProtocol::DepError.new(status[1]))
         when :wait
           store_fiber_context(fiber, task_class, wrapper)
+          FiberProtocol::Parked.new
         when :start
           store_fiber_context(fiber, task_class, wrapper)
           # dep_wrapper is already RUNNING (set atomically by request_value)
           drive_fiber(dep_class, dep_wrapper, queue)
+          FiberProtocol::Parked.new
         end
       end
 
@@ -240,9 +262,20 @@ module Taski
         teardown_thread_locals
       end
 
+      # A task that was scheduled (marked running) but never started because
+      # abort was requested first. Its Fiber never ran, so no thread-locals or
+      # output capture were set up. We must still mark it failed (releasing any
+      # fibers parked on it) and push a terminal event so the Executor's main
+      # loop does not block forever waiting on a completion that never arrives.
+      def abort_unstarted_task(task_class, wrapper)
+        error = Taski::TaskAbortException.new("Execution aborted before #{task_class.name} started")
+        wrapper.mark_failed(error)
+        @completion_queue.push(FiberProtocol::TaskFailed.new(task_class, wrapper, error))
+      end
+
       # Execute a clean task directly (no Fiber needed).
       def execute_clean_task(task_class, wrapper)
-        return if @registry.abort_requested?
+        return abort_unstarted_clean_task(task_class, wrapper) if @registry.abort_requested?
 
         setup_clean_thread_locals
         start_output_capture(task_class)
@@ -264,6 +297,15 @@ module Taski
       ensure
         stop_output_capture
         teardown_thread_locals
+      end
+
+      # Clean task dropped because abort was requested before its worker
+      # dequeued it. Push a terminal clean event so run_clean_main_loop does
+      # not block forever on completion_queue.pop.
+      def abort_unstarted_clean_task(task_class, wrapper)
+        error = Taski::TaskAbortException.new("Execution aborted before #{task_class.name} clean started")
+        wrapper.mark_clean_failed(error)
+        @completion_queue.push(FiberProtocol::CleanFailed.new(task_class, wrapper, error))
       end
 
       # Set up context for clean execution (no Fiber flag).

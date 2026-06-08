@@ -64,6 +64,32 @@ class TestStartDepAnalyzer < Minitest::Test
     assert_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
   end
 
+  def test_analyze_degrades_to_empty_when_source_file_unreadable
+    require "tempfile"
+
+    file = Tempfile.new(["start_dep_missing_source", ".rb"])
+    file.write(<<~RUBY)
+      module StartDepMissingSourceFixture
+        class Task1 < Taski::Task
+          exports :value
+          def run
+            @value = "x"
+          end
+        end
+      end
+    RUBY
+    file.close
+    load file.path
+    klass = StartDepMissingSourceFixture::Task1
+
+    Taski::StaticAnalysis::StartDepAnalyzer.clear_cache!
+    File.delete(file.path) # Prism.parse_file now raises Errno::ENOENT
+
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(klass)
+
+    assert_equal Taski::StaticAnalysis::StartDepAnalyzer::EMPTY_RESULT, result
+  end
+
   def test_caching
     result1 = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
       StartDepAnalyzerFixtures::IvarAssignment

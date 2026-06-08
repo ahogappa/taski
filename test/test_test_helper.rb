@@ -3,6 +3,7 @@
 require "test_helper"
 require "taski/test_helper"
 require "taski/test_helper/minitest"
+require_relative "fixtures/abort_tasks"
 
 # Fixture tasks for testing the test helper
 module TestHelperFixtures
@@ -83,6 +84,16 @@ class TestTestHelper < Minitest::Test
 
   def teardown
     Taski::TestHelper.reset_mocks!
+  end
+
+  # WorkerPoolExtension#drive_fiber (prepended when taski/test_helper loads)
+  # must handle abort the same way as the real drive_fiber: a task dropped on
+  # abort still needs a terminal event, otherwise a parent parked on it
+  # deadlocks. This guards against the extension re-introducing the bug.
+  def test_abort_does_not_deadlock_with_test_helper_extensions_loaded
+    assert_raises(Taski::TaskAbortException) do
+      Timeout.timeout(15) { AbortFixtures::AbortRoot.run(workers: 1) }
+    end
   end
 
   # === T007: Test basic mock registration and retrieval ===

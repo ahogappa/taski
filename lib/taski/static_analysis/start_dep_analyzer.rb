@@ -83,7 +83,11 @@ module Taski
         start_deps = all_dep_classes - unsafe_classes
         sync_deps = unsafe_classes
         AnalysisResult.new(start_deps: start_deps, sync_deps: sync_deps)
-      rescue NameError
+      rescue
+        # Prestart analysis is a pure performance optimization. If anything goes
+        # wrong (missing/unreadable source file, unexpected AST shape, constant
+        # resolution failure, ...) degrade to no prestart — tasks still execute
+        # correctly via lazy Fiber pull. This must never crash a worker thread.
         EMPTY_RESULT
       end
 

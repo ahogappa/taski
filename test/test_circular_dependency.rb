@@ -29,6 +29,24 @@ class TestCircularDependency < Minitest::Test
     assert_includes error.message, "CircularTaskB"
   end
 
+  def test_detects_self_dependency_in_cyclic_components
+    require_relative "fixtures/circular_tasks"
+
+    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from(SelfReferentialTask)
+
+    assert_includes graph.cyclic_components.flatten, SelfReferentialTask
+  end
+
+  def test_self_dependency_raises_circular_error_instead_of_hanging
+    require_relative "fixtures/circular_tasks"
+
+    error = assert_raises(Taski::CircularDependencyError) do
+      Timeout.timeout(5) { SelfReferentialTask.value }
+    end
+
+    assert_includes error.message, "SelfReferentialTask"
+  end
+
   def test_detects_indirect_circular_dependency
     require_relative "fixtures/circular_tasks"
 

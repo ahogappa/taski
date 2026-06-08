@@ -65,7 +65,10 @@ module Taski
     # @api private
     module WorkerPoolExtension
       def drive_fiber(task_class, wrapper, queue)
-        return if @registry.abort_requested?
+        # Delegate the abort case to the real drive_fiber so the dropped task
+        # still emits a terminal event (otherwise a parent parked on it
+        # deadlocks). Abort takes precedence over mock handling.
+        return super if @registry.abort_requested?
 
         if MockRegistry.mock_for(task_class)
           wrapper.mark_completed(nil) unless wrapper.completed?
