@@ -164,6 +164,16 @@ class TestStartDepAnalyzer < Minitest::Test
     refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
   end
 
+  def test_danger_exported_ivar_read_as_argument
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::DangerExportedIvarReadAsArgument
+    )
+    # An exported ivar holding a proxy that is later read unsafely must be a
+    # sync_dep, not a start_dep, or the proxy leaks into the unsafe context.
+    assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
+    refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
+
   def test_danger_arg_method_call
     result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
       StartDepAnalyzerFixtures::DangerArgMethodCall
