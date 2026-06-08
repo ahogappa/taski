@@ -11,6 +11,21 @@ class TestExecutor < Minitest::Test
     Taski::Task.reset! if defined?(Taski::Task)
   end
 
+  # An unexpected exception raised in framework code BEFORE the task fiber is
+  # created (e.g. inside StartDepAnalyzer.analyze in drive_fiber) must not kill
+  # the worker thread silently. If it did, future tasks routed to that worker's
+  # queue would never run and the executor would deadlock. Instead the task
+  # should be marked failed and surfaced as an AggregateError.
+  def test_worker_survives_unexpected_framework_error
+    error = assert_raises(Taski::AggregateError) do
+      with_stubbed_start_dep_analyze(->(_task_class) { raise "boom in analysis" }) do
+        Timeout.timeout(10) { ExecutorFixtures::SingleTask.run(workers: 1) }
+      end
+    end
+
+    assert_includes error.message, "boom in analysis"
+  end
+
   def test_single_task_no_deps
     task_class = ExecutorFixtures::SingleTask
 
@@ -788,5 +803,16 @@ class TestExecutor < Minitest::Test
 
   def create_execution_facade(registry, task_class)
     Taski::Execution::ExecutionFacade.new(root_task_class: task_class)
+  end
+
+  # Temporarily replace StartDepAnalyzer.analyze (a class method) for the
+  # duration of the block. Used to simulate an unexpected framework failure.
+  def with_stubbed_start_dep_analyze(impl)
+    singleton = Taski::StaticAnalysis::StartDepAnalyzer.singleton_class
+    original = singleton.instance_method(:analyze)
+    singleton.send(:define_method, :analyze, impl)
+    yield
+  ensure
+    singleton.send(:define_method, :analyze, original)
   end
 end

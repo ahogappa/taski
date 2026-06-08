@@ -21,6 +21,15 @@ class CircularTaskB < Taski::Task
   end
 end
 
+# Self-referential dependency: a task that depends on itself (cycle of size 1)
+class SelfReferentialTask < Taski::Task
+  exports :value
+
+  def run
+    @value = "self: #{SelfReferentialTask.value}"
+  end
+end
+
 # Indirect circular dependency: X -> Y -> Z -> X
 module IndirectCircular
   class TaskX < Taski::Task
