@@ -242,12 +242,13 @@ module Taski
 
         when Prism::InstanceVariableWriteNode
           if (dep_class = proxy_dep_class(node.value, proxy_vars))
-            if @exported_ivars.include?(node.name)
-              # @exported = proxy → safe (resolve_proxy_exports handles it)
-            else
-              # @non_exported = proxy → track for unsafe usage detection
-              proxy_vars[node.name] = dep_class
-            end
+            # Track the proxy ivar so later unsafe reads of it are detected.
+            # This applies to exported ivars too: resolve_proxy_exports only
+            # fixes the FINAL stored value after run, so a proxy read unsafely
+            # (as an argument, condition, array element, ...) before run returns
+            # would otherwise leak. The terminal `@exported = proxy` assignment
+            # itself stays safe — it is not flagged here, only later reads are.
+            proxy_vars[node.name] = dep_class
           else
             scan_for_unsafe_usage(node.value, proxy_vars, unsafe_classes)
           end

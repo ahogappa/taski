@@ -323,4 +323,17 @@ module StartDepAnalyzerFixtures
       @value = [1, 2].include?(@data) # argument → unsafe
     end
   end
+
+  # Danger: proxy assigned to an EXPORTED ivar, then read unsafely as an
+  # argument before run returns. resolve_proxy_exports only fixes the final
+  # stored value, so the proxy already passed into include? leaks unless the
+  # dep is resolved synchronously.
+  class DangerExportedIvarReadAsArgument < Taski::Task
+    exports :value
+
+    def run
+      @value = LeafTask.value
+      @flag = [1, 2].include?(@value) # exported ivar used as argument → unsafe
+    end
+  end
 end

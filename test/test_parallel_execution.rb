@@ -513,6 +513,19 @@ class TestParallelExecution < Minitest::Test
     refute RunAndCleanFixtures::CleanOnFailureTracker.clean_executed?, "Clean should NOT execute after run failure by default"
   end
 
+  def test_run_and_clean_clean_failure_does_not_mask_run_failure
+    require_relative "fixtures/run_and_clean_fixtures"
+
+    error = assert_raises(Taski::AggregateError) do
+      RunAndCleanFixtures::FailRunAndFailClean.run_and_clean(clean_on_failure: true)
+    end
+
+    # The original run failure must propagate, not the clean failure raised in
+    # the ensure block.
+    assert_includes error.message, "run boom"
+    refute_includes error.message, "clean boom"
+  end
+
   def test_run_and_clean_with_clean_on_failure_runs_clean
     require_relative "fixtures/run_and_clean_fixtures"
     RunAndCleanFixtures::CleanOnFailureTracker.clear

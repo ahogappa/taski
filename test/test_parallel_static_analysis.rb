@@ -2,11 +2,21 @@
 
 require "test_helper"
 require_relative "fixtures/parallel_tasks"
+require_relative "fixtures/compact_path_tasks"
 
 class TestParallelStaticAnalysis < Minitest::Test
   def test_analyze_simple_dependency
     dependencies = Taski::StaticAnalysis::Analyzer.analyze(FixtureTaskB)
     assert_includes dependencies.map(&:name), "FixtureTaskA"
+  end
+
+  # A class defined with a compact path (class Outer::Consumer) must resolve a
+  # sibling dependency referenced unqualified inside run relative to the Outer
+  # namespace. Previously the compact name was pushed unsplit, so the namespace
+  # prefix candidates skipped "Outer::Dep" and the dependency was dropped.
+  def test_analyze_compact_path_class_resolves_sibling_dependency
+    dependencies = Taski::StaticAnalysis::Analyzer.analyze(CompactPath::Consumer)
+    assert_includes dependencies, CompactPath::Dep
   end
 
   def test_analyze_namespaced_dependency

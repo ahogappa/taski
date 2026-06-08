@@ -80,12 +80,19 @@ module Taski
         facade = ensure_facade
         facade.notify_start # Pre-increment nest_level to prevent double rendering
         run_succeeded = false
-        result = run
-        run_succeeded = true
-        block&.call
-        result
+        body_error = nil
+        begin
+          result = run
+          run_succeeded = true
+          block&.call
+          result
+        rescue => e
+          body_error = e
+          raise
+        ensure
+          run_clean_phase(body_error) if run_succeeded || clean_on_failure
+        end
       ensure
-        clean if run_succeeded || clean_on_failure
         facade&.notify_stop # Final decrement and render
       end
 
@@ -218,6 +225,22 @@ module Taski
       end
 
       private
+
+      # Run the clean phase without letting a clean failure mask an in-flight
+      # body (run/block) error. If the body already failed, log the clean
+      # failure and let the original error propagate; otherwise surface it.
+      def run_clean_phase(body_error)
+        clean
+      rescue => clean_error
+        raise clean_error if body_error.nil?
+
+        Taski::Logging.warn(
+          Taski::Logging::Events::TASK_CLEAN_FAILED,
+          task: @task.class.name,
+          error_class: clean_error.class.name,
+          error_message: clean_error.message
+        )
+      end
 
       def with_args_lifecycle(&block)
         # If args are already set, just execute the block

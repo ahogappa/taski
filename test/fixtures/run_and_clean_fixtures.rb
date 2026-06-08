@@ -129,6 +129,20 @@ module RunAndCleanFixtures
     end
   end
 
+  # Task that fails in BOTH run and clean — used to verify that a clean failure
+  # in the ensure phase does not mask the original run failure.
+  class FailRunAndFailClean < Taski::Task
+    exports :value
+
+    def run
+      raise StandardError, "run boom"
+    end
+
+    def clean
+      raise StandardError, "clean boom"
+    end
+  end
+
   # Thread-safe order tracking for block execution tests
   module BlockOrder
     @order = []
