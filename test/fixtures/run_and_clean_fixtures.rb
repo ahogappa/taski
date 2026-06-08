@@ -129,6 +129,21 @@ module RunAndCleanFixtures
     end
   end
 
+  # Task whose run succeeds but whose clean raises — used to verify that a clean
+  # failure after a successful run is still surfaced (run_clean_phase re-raises
+  # when there is no in-flight body error).
+  class SucceedRunFailClean < Taski::Task
+    exports :value
+
+    def run
+      @value = "ok"
+    end
+
+    def clean
+      raise StandardError, "clean boom"
+    end
+  end
+
   # Task that fails in BOTH run and clean — used to verify that a clean failure
   # in the ensure phase does not mask the original run failure.
   class FailRunAndFailClean < Taski::Task
