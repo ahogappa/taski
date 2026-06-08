@@ -48,6 +48,16 @@ class TestLayoutBase < Minitest::Test
     assert_equal "", result
   end
 
+  # A RUNTIME template error (Liquid renders in lax mode and does not raise) must
+  # also degrade to "" rather than leaking the literal "Liquid error: ..." text
+  # that Liquid inlines into the output.
+  def test_render_template_string_degrades_runtime_template_errors
+    result = @layout.send(:render_template_string, "{{ 1 | divided_by: 0 }}")
+
+    assert_equal "", result
+    refute_includes result, "Liquid error"
+  end
+
   # === Inheritance tests ===
 
   def test_inherits_from_task_observer
