@@ -236,7 +236,7 @@ module Taski
 
         Taski::Logging.warn(
           Taski::Logging::Events::TASK_CLEAN_FAILED,
-          task: @task.class.name,
+          task: @task.class.name || @task.class.inspect, # anonymous classes have a nil #name
           error_class: clean_error.class.name,
           error_message: clean_error.message
         )

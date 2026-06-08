@@ -140,6 +140,7 @@ module RunAndCleanFixtures
     end
 
     def clean
+      CleanOnFailureTracker.record_clean
       raise StandardError, "clean boom"
     end
   end
@@ -154,6 +155,7 @@ module RunAndCleanFixtures
     end
 
     def clean
+      CleanOnFailureTracker.record_clean
       raise StandardError, "clean boom"
     end
   end

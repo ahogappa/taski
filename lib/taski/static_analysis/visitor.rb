@@ -102,15 +102,10 @@ module Taski
       end
 
       def within_namespace(name)
-        # A compact definition (class Outer::Consumer) yields a single name
-        # "Outer::Consumer"; split it so each segment is its own path element.
-        # Otherwise namespace-prefix resolution skips intermediate namespaces
-        # (e.g. it would never try "Outer::Dep" for a sibling reference).
-        segments = name.to_s.split("::")
-        @current_namespace_path.concat(segments)
+        @current_namespace_path.push(name)
         yield
       ensure
-        segments.size.times { @current_namespace_path.pop }
+        @current_namespace_path.pop
       end
 
       def in_target_class?
