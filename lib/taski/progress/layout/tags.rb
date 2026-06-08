@@ -19,6 +19,8 @@ module Taski
         def render(context)
           template = context["template"]
           frames = template&.spinner_frames || DEFAULT_FRAMES
+          return "" if frames.empty? # a custom theme may return no frames; avoid divide-by-zero
+
           index = context["spinner_index"] || 0
           frames[index % frames.size]
         end

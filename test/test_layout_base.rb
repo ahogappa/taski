@@ -16,6 +16,38 @@ class TestLayoutBase < Minitest::Test
     @layout = Taski::Progress::Layout::Base.new(output: @output)
   end
 
+  # The spinner timer thread must not die from a divide-by-zero when a custom
+  # theme returns no spinner frames.
+  def test_spinner_timer_survives_empty_spinner_frames
+    theme = Class.new(Taski::Progress::Theme::Base) do
+      def spinner_frames
+        []
+      end
+
+      def spinner_interval
+        0.01
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: StringIO.new, theme: theme)
+
+    layout.send(:start_spinner_timer)
+    sleep 0.05
+    timer = layout.instance_variable_get(:@spinner_timer)
+
+    assert timer.alive?, "spinner timer thread died (divide by zero on empty frames)"
+  ensure
+    layout&.send(:stop_spinner_timer)
+  end
+
+  # A malformed theme template must not raise out of render_template_string
+  # (which would silently kill the background render thread). It should degrade
+  # to an empty string instead.
+  def test_render_template_string_handles_malformed_template
+    result = @layout.send(:render_template_string, "{% if true %}never closed")
+
+    assert_equal "", result
+  end
+
   # === Inheritance tests ===
 
   def test_inherits_from_task_observer

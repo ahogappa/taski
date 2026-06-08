@@ -45,15 +45,19 @@ module Taski
             completion_queue: @completion_queue
           )
 
-          @worker_pool.start
+          begin
+            @worker_pool.start
 
-          enqueue_root_if_needed(root_task_class)
+            enqueue_root_if_needed(root_task_class)
 
-          run_main_loop(root_task_class)
+            run_main_loop(root_task_class)
 
-          @worker_pool.shutdown
-
-          notify_skipped_tasks
+            notify_skipped_tasks
+          ensure
+            # Always shut the pool down — otherwise a raise in the main loop
+            # leaves worker threads blocked on queue.pop forever.
+            @worker_pool.shutdown
+          end
         end
 
         log_execution_completed(root_task_class, start_time)
@@ -72,10 +76,15 @@ module Taski
             worker_count: @effective_worker_count,
             completion_queue: @completion_queue
           )
-          @worker_pool.start
-          enqueue_ready_clean_tasks
-          run_clean_main_loop
-          @worker_pool.shutdown
+          begin
+            @worker_pool.start
+            enqueue_ready_clean_tasks
+            run_clean_main_loop
+          ensure
+            # Always shut the pool down so a raise in the clean loop cannot
+            # leak worker threads.
+            @worker_pool.shutdown
+          end
         end
 
         raise_if_any_clean_failures

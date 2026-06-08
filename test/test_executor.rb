@@ -26,6 +26,25 @@ class TestExecutor < Minitest::Test
     assert_includes error.message, "boom in analysis"
   end
 
+  # If the main loop raises (e.g. an unexpected event), the worker pool must
+  # still be shut down and its threads joined, not leaked blocking on queue.pop.
+  def test_worker_threads_shut_down_when_main_loop_raises
+    task_class = ExecutorFixtures::SingleTask
+    registry = Taski::Execution::Registry.new
+    execution_facade = create_execution_facade(registry, task_class)
+    executor = Taski::Execution::Executor.new(registry: registry, execution_facade: execution_facade)
+
+    with_scheduler_finished_raising do
+      assert_raises(RuntimeError) { executor.execute(task_class) }
+    end
+
+    threads = registry.instance_variable_get(:@threads)
+    refute_empty threads, "expected worker threads to have been started"
+    threads.each do |t|
+      assert t.join(5), "worker thread leaked: not shut down when the main loop raised"
+    end
+  end
+
   def test_single_task_no_deps
     task_class = ExecutorFixtures::SingleTask
 
@@ -814,5 +833,16 @@ class TestExecutor < Minitest::Test
     yield
   ensure
     singleton.send(:define_method, :analyze, original)
+  end
+
+  # Temporarily make Scheduler#finished? raise, to force the executor's main
+  # loop to fail after the worker pool has started.
+  def with_scheduler_finished_raising
+    klass = Taski::Execution::Scheduler
+    original = klass.instance_method(:finished?)
+    klass.send(:define_method, :finished?) { |_| raise "boom in main loop" }
+    yield
+  ensure
+    klass.send(:define_method, :finished?, original)
   end
 end

@@ -80,6 +80,10 @@ module Taski
           @original_stderr = nil
         end
         capture&.stop_polling
+        # Close every pipe so its file descriptors are released deterministically
+        # rather than leaking until the router is garbage-collected. Done after
+        # stop_polling so the poll thread is no longer reading the pipes.
+        capture&.close_all
       end
 
       def output_capture

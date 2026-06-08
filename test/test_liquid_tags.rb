@@ -72,6 +72,21 @@ class TestLiquidTags < Minitest::Test
     assert_equal "-", result2
   end
 
+  def test_spinner_tag_handles_empty_frames_without_dividing_by_zero
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def spinner_frames
+        []
+      end
+    end.new
+
+    drop = Taski::Progress::Layout::ThemeDrop.new(custom_theme)
+    liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
+    result = liquid_template.render("template" => drop, "spinner_index" => 2)
+
+    assert_equal "", result
+    refute_includes result, "Liquid error"
+  end
+
   def test_spinner_tag_without_theme_drop_uses_default
     liquid_template = Liquid::Template.parse("{% spinner %}", environment: @environment)
     result = liquid_template.render({})
