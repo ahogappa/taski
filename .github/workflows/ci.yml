@@ -21,6 +21,10 @@ jobs:
       uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
       with:
         ruby-version: ${{ matrix.ruby-version }}
+        # The debug (nightly) Ruby ships an old default Bundler that crashes on
+        # `bundle install` (NameError: uninitialized constant Pathname::SEPARATOR_PAT).
+        # Use the latest Bundler there so the nightly tests can actually run.
+        bundler: ${{ matrix.ruby-version == 'debug' && 'latest' || 'default' }}
         bundler-cache: false
 
     - name: Fix gem directory permissions (Ruby 4.0+)
