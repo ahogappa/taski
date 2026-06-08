@@ -140,4 +140,4 @@ puts "Execution completed!"
 puts "Result: #{result.inspect}"
 puts
 puts "To use tree mode, add before execution:"
-puts "  Taski.progress_display = Taski::Progress::Layout::Tree.new"
+puts "  Taski.progress.layout = Taski::Progress::Layout::Tree"

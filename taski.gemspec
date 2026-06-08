@@ -9,13 +9,13 @@ Gem::Specification.new do |spec|
   spec.email = ["ahogappa@gmail.com"]
 
   spec.summary = "A simple yet powerful Ruby task runner with static dependency resolution (in development)."
-  spec.description = "Taski is a Ruby-based task runner currently under development. It allows you to define small, composable tasks along with the outputs they depend on. Taski statically resolves dependencies and executes tasks in the correct topological order, from the most dependent tasks first. It also supports reverse execution, useful for cleaning up temporary files after a build. **Note:** Taski does not yet support circular dependencies and may change as development progresses."
+  spec.description = "Taski is a Ruby-based task runner. It lets you define small, composable tasks along with the outputs they depend on. Taski statically resolves dependencies (via Prism AST analysis) and executes tasks in the correct topological order, running independent tasks in parallel using a Fiber-based pull model. It also supports reverse execution, useful for cleaning up temporary files after a build. Circular dependencies are detected before execution and raise CircularDependencyError."
   spec.homepage = "https://github.com/ahogappa/taski"
   spec.required_ruby_version = ">= 3.2.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/ahogappa/taski"
-  spec.metadata["changelog_uri"] = "https://github.com/ahogappa/taski"
+  spec.metadata["changelog_uri"] = "https://github.com/ahogappa/taski/blob/master/CHANGELOG.md"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
