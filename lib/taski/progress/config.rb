@@ -64,19 +64,19 @@ module Taski
         args[:theme] = @theme.new if @theme
         args[:output] = @output if @output
 
-        if layout_ref.respond_to?(:for)
-          layout_ref.for(**args)
-        else
-          layout_ref.new(**args)
-        end
+        # Every layout exposes the same factory: .build(output:, theme:) returning
+        # a Layout::Base instance. The layout itself decides which concrete class
+        # to build (Simple/Log return their single class; Tree picks Live/Event).
+        layout_ref.build(**args)
       end
 
       def validate_layout!(klass)
-        # Accept a Class that inherits from Base, or a Module with .for factory
-        valid = (klass.is_a?(Class) && klass <= Layout::Base) ||
-          (klass.is_a?(Module) && klass.respond_to?(:for))
-        unless valid
-          raise ArgumentError, "layout must be a Layout::Base subclass or a module with .for, got #{klass.inspect}"
+        # A layout is anything that responds to .build. That admits the public
+        # layouts (Simple, Log, Tree) and custom ones, while rejecting instances,
+        # non-layout classes, and the internal Tree::Live / Tree::Event variants
+        # (which have no .build, so they can't be forced as a layout directly).
+        unless klass.respond_to?(:build)
+          raise ArgumentError, "layout must respond to .build (e.g. Simple, Log, Tree, or a custom layout), got #{klass.inspect}"
         end
       end
 

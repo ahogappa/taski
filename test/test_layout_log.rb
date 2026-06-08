@@ -9,7 +9,7 @@ class TestLayoutLog < Minitest::Test
 
   def setup
     @output = StringIO.new
-    @layout = Taski::Progress::Layout::Log.new(output: @output)
+    @layout = Taski::Progress::Layout::Log::Display.new(output: @output)
   end
 
   # === Task lifecycle output ===
@@ -184,7 +184,7 @@ class TestLayoutLog < Minitest::Test
 
   def test_uses_custom_theme
     custom_theme = CustomTestTheme.new
-    layout = Taski::Progress::Layout::Log.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Log::Display.new(output: @output, theme: custom_theme)
 
     task_class = stub_task_class("MyTask")
     layout.on_start

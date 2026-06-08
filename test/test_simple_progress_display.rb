@@ -9,7 +9,7 @@ class TestSimpleProgressDisplay < Minitest::Test
   def setup
     Taski.reset_progress_display!
     @output = StringIO.new
-    @display = Taski::Progress::Layout::Simple.new(output: @output)
+    @display = Taski::Progress::Layout::Simple::Display.new(output: @output)
   end
 
   def teardown
@@ -127,7 +127,7 @@ class TestSimpleProgressDisplayWithTTY < Minitest::Test
   def setup
     Taski.reset_progress_display!
     @output = TTYStringIO.new
-    @display = Taski::Progress::Layout::Simple.new(output: @output)
+    @display = Taski::Progress::Layout::Simple::Display.new(output: @output)
   end
 
   def teardown
@@ -298,7 +298,7 @@ class TestProgressDisplayConfiguration < Minitest::Test
 
   def test_default_progress_display_is_simple
     display = Taski.progress_display
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 
   def test_progress_display_can_be_set_to_nil
@@ -307,13 +307,13 @@ class TestProgressDisplayConfiguration < Minitest::Test
   end
 
   def test_progress_display_can_be_set_to_tree
-    tree = Taski::Progress::Layout::Tree.for
+    tree = Taski::Progress::Layout::Tree.build
     Taski.progress_display = tree
     assert_same tree, Taski.progress_display
   end
 
   def test_progress_display_can_be_set_to_log
-    log = Taski::Progress::Layout::Log.new
+    log = Taski::Progress::Layout::Log::Display.new
     Taski.progress_display = log
     assert_same log, Taski.progress_display
   end
@@ -328,7 +328,7 @@ class TestProgressDisplayConfiguration < Minitest::Test
     Taski.progress_display = nil
     Taski.reset_progress_display!
     display = Taski.progress_display
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 
   def test_setting_progress_display_stops_previous
@@ -337,7 +337,7 @@ class TestProgressDisplayConfiguration < Minitest::Test
     old_display.define_singleton_method(:stop) { stop_called = true }
     Taski.progress_display = old_display
 
-    Taski.progress_display = Taski::Progress::Layout::Simple.new
+    Taski.progress_display = Taski::Progress::Layout::Simple::Display.new
     assert stop_called, "Previous display should be stopped when setting a new one"
   end
 

@@ -7,31 +7,31 @@ require "taski/progress/theme/default"
 require "taski/progress/theme/plain"
 
 class TestLayoutTreeFactory < Minitest::Test
-  def test_for_returns_live_for_tty_output
+  def test_build_returns_live_for_tty_output
     output = StringIO.new
     output.define_singleton_method(:tty?) { true }
-    layout = Taski::Progress::Layout::Tree.for(output: output)
+    layout = Taski::Progress::Layout::Tree.build(output: output)
     assert_instance_of Taski::Progress::Layout::Tree::Live, layout
   end
 
-  def test_for_returns_event_for_non_tty_output
+  def test_build_returns_event_for_non_tty_output
     output = StringIO.new
-    layout = Taski::Progress::Layout::Tree.for(output: output)
+    layout = Taski::Progress::Layout::Tree.build(output: output)
     assert_instance_of Taski::Progress::Layout::Tree::Event, layout
   end
 
-  def test_for_passes_theme_to_live
+  def test_build_passes_theme_to_live
     output = StringIO.new
     output.define_singleton_method(:tty?) { true }
     theme = Taski::Progress::Theme::Plain.new
-    layout = Taski::Progress::Layout::Tree.for(output: output, theme: theme)
+    layout = Taski::Progress::Layout::Tree.build(output: output, theme: theme)
     assert_instance_of Taski::Progress::Layout::Tree::Live, layout
   end
 
-  def test_for_passes_theme_to_event
+  def test_build_passes_theme_to_event
     output = StringIO.new
     theme = Taski::Progress::Theme::Plain.new
-    layout = Taski::Progress::Layout::Tree.for(output: output, theme: theme)
+    layout = Taski::Progress::Layout::Tree.build(output: output, theme: theme)
     assert_instance_of Taski::Progress::Layout::Tree::Event, layout
   end
 end

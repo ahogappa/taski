@@ -77,7 +77,7 @@ class TestProgressConfig < Minitest::Test
 
   def test_layout_rejects_instance
     config = Taski::Progress::Config.new
-    assert_raises(ArgumentError) { config.layout = Taski::Progress::Layout::Simple.new }
+    assert_raises(ArgumentError) { config.layout = Taski::Progress::Layout::Simple::Display.new }
   end
 
   def test_theme_rejects_instance
@@ -90,28 +90,28 @@ class TestProgressConfig < Minitest::Test
   def test_build_default_returns_simple_layout
     config = Taski::Progress::Config.new
     display = config.build
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 
   def test_build_with_layout_class
     config = Taski::Progress::Config.new
     config.layout = Taski::Progress::Layout::Log
     display = config.build
-    assert_instance_of Taski::Progress::Layout::Log, display
+    assert_instance_of Taski::Progress::Layout::Log::Display, display
   end
 
   def test_build_with_theme_class
     config = Taski::Progress::Config.new
     config.theme = Taski::Progress::Theme::Plain
     display = config.build
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 
-  def test_build_with_layout_module_uses_for
+  def test_build_with_layout_module_decides_variant
     config = Taski::Progress::Config.new
     config.layout = Taski::Progress::Layout::Tree
     display = config.build
-    # Non-TTY default ($stderr in test is not TTY), so Tree.for returns Event
+    # Non-TTY default ($stderr in test is not TTY), so Tree.build returns Event
     assert_instance_of Taski::Progress::Layout::Tree::Event, display
   end
 
@@ -123,11 +123,12 @@ class TestProgressConfig < Minitest::Test
     assert_instance_of Taski::Progress::Layout::Tree::Event, display
   end
 
-  def test_build_with_layout_class_still_works
+  def test_layout_rejects_internal_tree_variants
     config = Taski::Progress::Config.new
-    config.layout = Taski::Progress::Layout::Tree::Event
-    display = config.build
-    assert_instance_of Taski::Progress::Layout::Tree::Event, display
+    # Tree::Live / Tree::Event are internal; only the public Tree kind is a
+    # layout. They have no .build, so they cannot be forced as a layout directly.
+    assert_raises(ArgumentError) { config.layout = Taski::Progress::Layout::Tree::Event }
+    assert_raises(ArgumentError) { config.layout = Taski::Progress::Layout::Tree::Live }
   end
 
   def test_build_with_output
@@ -135,7 +136,7 @@ class TestProgressConfig < Minitest::Test
     io = StringIO.new
     config.output = io
     display = config.build
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 
   # === Invalidation ===
@@ -146,7 +147,7 @@ class TestProgressConfig < Minitest::Test
     config.layout = Taski::Progress::Layout::Log
     display2 = config.build
     refute_same display1, display2
-    assert_instance_of Taski::Progress::Layout::Log, display2
+    assert_instance_of Taski::Progress::Layout::Log::Display, display2
   end
 
   def test_setting_theme_invalidates_display
@@ -182,7 +183,7 @@ class TestProgressConfig < Minitest::Test
 
   def test_taski_progress_display_builds_from_config
     display = Taski.progress_display
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 
   def test_taski_progress_display_caches_instance
@@ -196,11 +197,11 @@ class TestProgressConfig < Minitest::Test
     Taski.progress.layout = Taski::Progress::Layout::Log
     display2 = Taski.progress_display
     refute_same display1, display2
-    assert_instance_of Taski::Progress::Layout::Log, display2
+    assert_instance_of Taski::Progress::Layout::Log::Display, display2
   end
 
   def test_taski_progress_display_setter_works
-    custom = Taski::Progress::Layout::Log.new
+    custom = Taski::Progress::Layout::Log::Display.new
     Taski.progress_display = custom
     assert_same custom, Taski.progress_display
   end
@@ -210,6 +211,6 @@ class TestProgressConfig < Minitest::Test
     Taski.reset_progress_display!
     assert_nil Taski.progress.layout
     display = Taski.progress_display
-    assert_instance_of Taski::Progress::Layout::Simple, display
+    assert_instance_of Taski::Progress::Layout::Simple::Display, display
   end
 end

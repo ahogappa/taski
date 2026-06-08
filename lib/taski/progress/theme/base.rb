@@ -21,7 +21,8 @@ module Taski
       #     end
       #   end
       #
-      #   layout = Taski::Progress::Layout::Log.new(theme: MyTheme.new)
+      #   Taski.progress.layout = Taski::Progress::Layout::Log
+      #   Taski.progress.theme = MyTheme
       class Base
         # === Task lifecycle templates ===
 

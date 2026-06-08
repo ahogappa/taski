@@ -14,9 +14,8 @@ module Taski
       #   └── ✗ MigrateDB: Connection refused
       #
       # @example Usage
-      #   layout = Taski::Progress::Layout::Tree.new(
-      #     theme: Taski::Progress::Theme::Detail.new
-      #   )
+      #   Taski.progress.layout = Taski::Progress::Layout::Tree
+      #   Taski.progress.theme = Taski::Progress::Theme::Detail
       class Detail < Default
         # Task pending with icon
         def task_pending

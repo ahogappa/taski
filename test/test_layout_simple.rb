@@ -12,14 +12,14 @@ class TestLayoutSimple < Minitest::Test
     @output = StringIO.new
     # Stub tty? to return true for testing
     @output.define_singleton_method(:tty?) { true }
-    @layout = Taski::Progress::Layout::Simple.new(output: @output)
+    @layout = Taski::Progress::Layout::Simple::Display.new(output: @output)
   end
 
   # === TTY detection ===
 
   def test_does_not_activate_for_non_tty
     non_tty_output = StringIO.new
-    layout = Taski::Progress::Layout::Simple.new(output: non_tty_output)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: non_tty_output)
     layout.on_start
     layout.on_stop
 
@@ -98,7 +98,7 @@ class TestLayoutSimple < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
     task_a = stub_task_class("TaskA")
     task_b = stub_task_class("TaskB")
     now = Time.now
@@ -177,10 +177,10 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
 
     # Verify custom theme is accepted by layout (no error on construction)
-    assert_instance_of Taski::Progress::Layout::Simple, layout
+    assert_instance_of Taski::Progress::Layout::Simple::Display, layout
     assert_equal %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘], custom_theme.spinner_frames
   end
 
@@ -193,10 +193,10 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
 
     # Verify custom theme is accepted by layout (no error on construction)
-    assert_instance_of Taski::Progress::Layout::Simple, layout
+    assert_instance_of Taski::Progress::Layout::Simple::Display, layout
     assert_in_delta 0.2, custom_theme.render_interval, 0.001
   end
 
@@ -213,7 +213,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
     started_at = Time.now
     layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
@@ -237,7 +237,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("FailedTask")
     now = Time.now
     layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: now)
@@ -260,7 +260,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("MyTask")
     started_at = Time.now
     layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
@@ -313,7 +313,7 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
       end
     end.new
 
-    layout = Taski::Progress::Layout::Simple.new(output: @output, theme: custom_theme)
+    layout = Taski::Progress::Layout::Simple::Display.new(output: @output, theme: custom_theme)
     task_class = stub_task_class("TestTask")
     started_at = Time.now
     layout.on_task_updated(task_class, previous_state: nil, current_state: :pending, phase: :run, timestamp: started_at)
