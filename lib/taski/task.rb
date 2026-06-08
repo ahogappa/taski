@@ -42,18 +42,35 @@ module Taski
       # @param export_methods [Array<Symbol>] The method names to export.
       def exports(*export_methods)
         export_methods.each do |method|
-          if singleton_class.method_defined?(method) || method_defined?(method)
-            warn_export_collision(method)
-          end
+          warn_export_collision(method) if export_name_collides?(method)
         end
         @exported_methods = export_methods
       end
 
       ##
-      # Returns the list of exported method names.
+      # Whether an export name is already a method (so the accessor won't be
+      # reachable). Checks public + private, on the class (singleton) and on
+      # instances, but ignores the generic Module/Class/Object/Kernel methods
+      # every class has, so we only warn about real collisions (Ruby/Taski public
+      # API and user-/Taski-defined private methods).
+      def export_name_collides?(method)
+        singleton_class.method_defined?(method) ||
+          method_defined?(method) ||
+          (singleton_class.private_method_defined?(method) && !Class.private_method_defined?(method)) ||
+          (private_method_defined?(method) && !Object.private_method_defined?(method))
+      end
+
+      ##
+      # Returns the list of exported method names, including those inherited from
+      # parent task classes. Resolution (method_missing) and several internal
+      # consumers gate on this list, so it must walk the ancestor chain — a
+      # subclass that inherits exports without re-declaring them still resolves
+      # them, and a subclass adding an export keeps the inherited ones.
       # @return [Array<Symbol>] The exported method names.
       def exported_methods
-        @exported_methods ||= []
+        own = (@exported_methods ||= [])
+        inherited = superclass.respond_to?(:exported_methods) ? superclass.exported_methods : []
+        inherited | own
       end
 
       ##
@@ -62,6 +79,10 @@ module Taski
       # export can never shadow Module#name / Task.run / etc.
       def method_missing(name, *args, **kwargs, &block)
         return super unless exported_methods.include?(name)
+        # Only the `args:` keyword (or no argument) is valid; anything else is a
+        # malformed call and should fail fast like a normal method, not silently
+        # resolve and drop the arguments.
+        return super unless args.empty? && (kwargs.keys - [:args]).empty?
 
         resolve_exported_value(name, kwargs.fetch(:args, {}))
       end

@@ -15,4 +15,37 @@ module ReservedExportFixtures
       @name = "artifact-name"
     end
   end
+
+  # Subclass inheritance of exports.
+  class BaseExport < Taski::Task
+    exports :value
+
+    def run
+      @value = "base-value"
+    end
+  end
+
+  # Inherits :value (and run) without re-declaring.
+  class InheritsExport < BaseExport
+  end
+
+  # Adds its own export on top of the inherited one.
+  class AddsExport < BaseExport
+    exports :extra
+
+    def run
+      @value = "base-value"
+      @extra = "extra-value"
+    end
+  end
+
+  # Depends on a subclass that inherits its export — exercises the
+  # public_send(:value) path through the registry/proxy resolution.
+  class ConsumesInherited < Taski::Task
+    exports :combined
+
+    def run
+      @combined = "got: #{InheritsExport.value}"
+    end
+  end
 end
