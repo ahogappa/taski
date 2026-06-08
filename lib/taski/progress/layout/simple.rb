@@ -31,120 +31,129 @@ module Taski
       #     end
       #   end
       #
-      #   layout = Taski::Progress::Layout::Simple.new(theme: MyTheme.new)
-      class Simple < Base
-        def initialize(output: $stdout, theme: nil)
-          theme ||= Theme::Compact.new
-          super
+      #   Taski.progress.layout = Taski::Progress::Layout::Simple
+      #   Taski.progress.theme = MyTheme
+      module Simple
+        # Build the single-line display (Simple has a single implementation).
+        # @return [Simple::Display]
+        def self.build(output: $stdout, theme: nil)
+          Display.new(output: output, theme: theme)
         end
 
-        protected
+        class Display < Base
+          def initialize(output: $stdout, theme: nil)
+            theme ||= Theme::Compact.new
+            super
+          end
 
-        # === Template method overrides ===
+          protected
 
-        def handle_ready
-          graph = context&.dependency_graph
-          return unless graph
+          # === Template method overrides ===
 
-          graph.all_tasks.each { |tc| register_task(tc) }
-        end
+          def handle_ready
+            graph = context&.dependency_graph
+            return unless graph
 
-        # Simple layout uses periodic status line updates instead of per-event output
-        def handle_task_update(_task_class, _current_state, _phase)
-          # No per-event output; status line is updated by render_live
-        end
+            graph.all_tasks.each { |tc| register_task(tc) }
+          end
 
-        def handle_group_started(_task_class, _group_name, _phase)
-          # No per-event output; status line is updated by render_live
-        end
+          # Simple layout uses periodic status line updates instead of per-event output
+          def handle_task_update(_task_class, _current_state, _phase)
+            # No per-event output; status line is updated by render_live
+          end
 
-        def handle_group_completed(_task_class, _group_name, _phase, _duration)
-          # No per-event output; status line is updated by render_live
-        end
+          def handle_group_started(_task_class, _group_name, _phase)
+            # No per-event output; status line is updated by render_live
+          end
 
-        def should_activate?
-          tty?
-        end
+          def handle_group_completed(_task_class, _group_name, _phase, _duration)
+            # No per-event output; status line is updated by render_live
+          end
 
-        def handle_start
-          @output.print "\e[?25l"  # Hide cursor
-          render_loop { render_status_line }
-        end
+          def should_activate?
+            tty?
+          end
 
-        def handle_stop
-          stop_render_loop
-          @output.print "\e[?25h"  # Show cursor
-          render_final
-        end
+          def handle_start
+            @output.print "\e[?25l"  # Hide cursor
+            render_loop { render_status_line }
+          end
 
-        private
+          def handle_stop
+            stop_render_loop
+            @output.print "\e[?25h"  # Show cursor
+            render_final
+          end
 
-        def render_status_line
-          line = build_status_line
-          # Truncate line to terminal width to prevent line wrap
-          max_width = terminal_width - 1  # Leave space for cursor
-          line = line[0, max_width] if line.length > max_width
-          # Clear line and write new content
-          @output.print "\r\e[K#{line}"
-          @output.flush
-        end
+          private
 
-        def terminal_width
-          @output.winsize[1]
-        rescue
-          80 # Default fallback
-        end
-
-        def render_final
-          @monitor.synchronize do
-            line = if failed_count > 0
-              render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
-            else
-              render_execution_completed(done_count: done_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
-            end
-
-            @output.print "\r\e[K#{line}\n"
+          def render_status_line
+            line = build_status_line
+            # Truncate line to terminal width to prevent line wrap
+            max_width = terminal_width - 1  # Leave space for cursor
+            line = line[0, max_width] if line.length > max_width
+            # Clear line and write new content
+            @output.print "\r\e[K#{line}"
             @output.flush
           end
-        end
 
-        def build_status_line
-          task_names = collect_current_task_names
-
-          primary_task = running_tasks.keys.last || cleaning_tasks.keys.last
-          task_stdout = build_task_stdout(primary_task)
-
-          render_execution_running(
-            done_count: done_count,
-            total_count: total_count,
-            task_names: task_names.empty? ? nil : task_names,
-            task_stdout: task_stdout
-          )
-        end
-
-        def collect_current_task_names
-          # Prioritize: cleaning > running > pending
-          # Reverse so most recently started tasks appear first
-          current_tasks = if cleaning_tasks.any?
-            cleaning_tasks.keys.reverse
-          elsif running_tasks.any?
-            running_tasks.keys.reverse
-          elsif pending_tasks.any?
-            pending_tasks.keys.reverse
-          else
-            []
+          def terminal_width
+            @output.winsize[1]
+          rescue
+            80 # Default fallback
           end
 
-          current_tasks.map { |t| task_class_name(t) }
-        end
+          def render_final
+            @monitor.synchronize do
+              line = if failed_count > 0
+                render_execution_failed(failed_count: failed_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
+              else
+                render_execution_completed(done_count: done_count, total_count: total_count, total_duration: total_duration, skipped_count: skipped_count)
+              end
 
-        def build_task_stdout(task_class)
-          return nil unless @output_capture && task_class
+              @output.print "\r\e[K#{line}\n"
+              @output.flush
+            end
+          end
 
-          last_line = @output_capture.last_line_for(task_class)
-          return nil unless last_line && !last_line.strip.empty?
+          def build_status_line
+            task_names = collect_current_task_names
 
-          last_line.strip
+            primary_task = running_tasks.keys.last || cleaning_tasks.keys.last
+            task_stdout = build_task_stdout(primary_task)
+
+            render_execution_running(
+              done_count: done_count,
+              total_count: total_count,
+              task_names: task_names.empty? ? nil : task_names,
+              task_stdout: task_stdout
+            )
+          end
+
+          def collect_current_task_names
+            # Prioritize: cleaning > running > pending
+            # Reverse so most recently started tasks appear first
+            current_tasks = if cleaning_tasks.any?
+              cleaning_tasks.keys.reverse
+            elsif running_tasks.any?
+              running_tasks.keys.reverse
+            elsif pending_tasks.any?
+              pending_tasks.keys.reverse
+            else
+              []
+            end
+
+            current_tasks.map { |t| task_class_name(t) }
+          end
+
+          def build_task_stdout(task_class)
+            return nil unless @output_capture && task_class
+
+            last_line = @output_capture.last_line_for(task_class)
+            return nil unless last_line && !last_line.strip.empty?
+
+            last_line.strip
+          end
         end
       end
     end

@@ -13,9 +13,8 @@ module Taski
       #   ✓ [5/5] All tasks completed (1.2s)
       #
       # @example Usage
-      #   layout = Taski::Progress::Layout::Simple.new(
-      #     theme: Taski::Progress::Theme::Compact.new
-      #   )
+      #   Taski.progress.layout = Taski::Progress::Layout::Simple
+      #   Taski.progress.theme = Taski::Progress::Theme::Compact
       #
       # @example Custom spinner frames
       #   class MoonTheme < Taski::Progress::Theme::Compact

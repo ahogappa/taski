@@ -173,7 +173,26 @@ module Taski
           context_vars = build_context_vars(task:, execution:, **variables)
           template = Liquid::Template.parse(template_string, environment: @liquid_environment)
           template.assigns["state"] = state
-          template.render(context_vars)
+          output = template.render(context_vars)
+          # Liquid renders in lax mode: a runtime error (bad filter/tag/drop, e.g.
+          # divide-by-zero) does NOT raise — it is recorded in template.errors and
+          # inlined into the output as literal "Liquid error: ..." text. Degrade to
+          # "" and surface it rather than leaking that into the display.
+          return warn_and_blank(template.errors.first) if template.errors.any?
+
+          output
+        rescue Liquid::Error => e
+          # A malformed/buggy theme template must not raise out of here: in the
+          # live/event render paths this runs on a background thread and an
+          # exception (here a parse-time SyntaxError) would silently kill it,
+          # freezing the display. Degrade to "" and surface the error.
+          warn_and_blank(e)
+        end
+
+        # Log a template failure and return the empty-string fallback.
+        def warn_and_blank(error)
+          Taski::Logging.warn(Taski::Logging::Events::OBSERVER_ERROR, error_message: "template render failed: #{error.message}")
+          ""
         end
 
         # Start the spinner animation timer.
@@ -190,7 +209,8 @@ module Taski
               break unless running
               sleep @theme.spinner_interval
               @monitor.synchronize do
-                @spinner_index = (@spinner_index + 1) % @theme.spinner_frames.size
+                frame_count = @theme.spinner_frames.size
+                @spinner_index = (@spinner_index + 1) % frame_count unless frame_count.zero?
               end
             end
           end

@@ -7,29 +7,30 @@ require_relative "tree/event"
 module Taski
   module Progress
     module Layout
-      # Tree layout module for hierarchical task display.
+      # Tree layout for hierarchical task display.
       # Renders tasks in a tree structure with visual connectors.
       #
-      # Contains two implementations:
+      # Tree has two implementations and picks the right one itself, so it
+      # presents the same layout factory interface as Simple/Log — `.build` —
+      # returning a Layout::Base instance:
       # - Tree::Live  — TTY periodic-update with spinner animation
       # - Tree::Event — Non-TTY event-driven incremental output
       #
-      # Use Tree.for to automatically select the appropriate implementation.
+      # Tree::Live / Tree::Event are internal; pick the layout via the Tree kind
+      # and let it decide:
       #
-      # @example Auto-select based on output TTY
-      #   layout = Taski::Progress::Layout::Tree.for
-      #
-      # @example Explicit selection
-      #   layout = Taski::Progress::Layout::Tree::Live.new   # TTY
-      #   layout = Taski::Progress::Layout::Tree::Event.new  # non-TTY
+      # @example
+      #   Taski.progress.layout = Taski::Progress::Layout::Tree
       module Tree
-        # Factory method to create the appropriate tree layout.
-        # Returns Tree::Live for TTY outputs, Tree::Event otherwise.
+        # Build the appropriate tree layout from the given options. Tree decides
+        # which concrete class to use: Tree::Live for a TTY output, Tree::Event
+        # otherwise. Matches the layout factory interface (.build) so the progress
+        # Config can treat every layout uniformly.
         #
         # @param output [IO] Output stream (default: $stderr)
         # @param theme [Theme::Base, nil] Theme instance
         # @return [Tree::Live, Tree::Event]
-        def self.for(output: $stderr, theme: nil)
+        def self.build(output: $stderr, theme: nil)
           if output.respond_to?(:tty?) && output.tty?
             Live.new(output: output, theme: theme)
           else

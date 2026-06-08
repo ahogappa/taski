@@ -2,10 +2,32 @@
 
 require "test_helper"
 require "logger"
+require_relative "fixtures/executor_tasks"
 
 class TestExecutionFacade < Minitest::Test
   def setup
     Taski::Task.reset! if defined?(Taski::Task)
+  end
+
+  # teardown_output_capture must close every pipe it created, otherwise the
+  # pipe file descriptors leak until the router is garbage-collected.
+  def test_teardown_output_capture_closes_pipes
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: ExecutorFixtures::SingleTask)
+    original_stdout = $stdout
+    facade.setup_output_capture($stdout)
+    router = facade.output_capture
+
+    pipe = nil
+    begin
+      router.start_capture(ExecutorFixtures::SingleTask)
+      pipe = router.instance_variable_get(:@pipes)[ExecutorFixtures::SingleTask]
+      refute pipe.closed?, "precondition: pipe should be open before teardown"
+    ensure
+      facade.teardown_output_capture
+    end
+
+    assert_same original_stdout, $stdout, "stdout should be restored after teardown"
+    assert pipe.closed?, "pipe should be closed after teardown_output_capture"
   end
 
   # ========================================

@@ -23,7 +23,7 @@ class TestMessage < Minitest::Test
 
   def test_progress_display_queue_message_directly
     output = StringIO.new
-    display = Taski::Progress::Layout::Simple.new(output: output)
+    display = Taski::Progress::Layout::Simple::Display.new(output: output)
 
     # Queue messages directly to the display
     display.queue_message("Message 1")
@@ -39,7 +39,7 @@ class TestMessage < Minitest::Test
 
   def test_progress_display_flush_on_stop
     output = StringIO.new
-    display = Taski::Progress::Layout::Simple.new(output: output)
+    display = Taski::Progress::Layout::Simple::Display.new(output: output)
 
     display.on_start
     display.queue_message("Test message")
@@ -85,7 +85,7 @@ class TestMessage < Minitest::Test
       $stdout = output
       $stderr = output
 
-      Taski.progress_display = Taski::Progress::Layout::Log.new(output: output)
+      Taski.progress_display = Taski::Progress::Layout::Log::Display.new(output: output)
       MessageFixtures::MessageOutputTask.run
     ensure
       $stdout = original_stdout
@@ -99,7 +99,7 @@ class TestMessage < Minitest::Test
 
   def test_message_order_preserved_direct
     output = StringIO.new
-    display = Taski::Progress::Layout::Simple.new(output: output)
+    display = Taski::Progress::Layout::Simple::Display.new(output: output)
 
     display.on_start
     display.queue_message("First")
@@ -113,7 +113,7 @@ class TestMessage < Minitest::Test
 
   def test_message_thread_safety_direct
     output = StringIO.new
-    display = Taski::Progress::Layout::Simple.new(output: output)
+    display = Taski::Progress::Layout::Simple::Display.new(output: output)
 
     display.on_start
 
@@ -139,7 +139,7 @@ class TestMessage < Minitest::Test
 
   def test_message_flushed_only_when_nest_level_zero
     output = StringIO.new
-    display = Taski::Progress::Layout::Simple.new(output: output)
+    display = Taski::Progress::Layout::Simple::Display.new(output: output)
 
     # Simulate outer executor start
     display.on_start

@@ -9,9 +9,8 @@ module Taski
       # Outputs plain text without terminal escape codes or colors.
       #
       # @example Usage
-      #   layout = Taski::Progress::Layout::Log.new(
-      #     theme: Taski::Progress::Theme::Plain.new
-      #   )
+      #   Taski.progress.layout = Taski::Progress::Layout::Log
+      #   Taski.progress.theme = Taski::Progress::Theme::Plain
       class Plain < Default
         # === Color configuration (disabled for plain output) ===
 
