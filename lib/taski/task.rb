@@ -41,10 +41,13 @@ module Taski
       # that name already exists. Colliding names are warned about here.
       # @param export_methods [Array<Symbol>] The method names to export.
       def exports(*export_methods)
-        export_methods.each do |method|
-          warn_export_collision(method) if export_name_collides?(method)
+        names = export_methods.map(&:to_sym)
+        names.each do |name|
+          warn_export_collision(name) if export_name_collides?(name)
         end
-        @exported_methods = export_methods
+        # Accumulate so repeated `exports` calls add to, rather than clobber,
+        # the set. method_missing resolves names as Symbols, so normalize here.
+        @exported_methods = (@exported_methods || []) | names
       end
 
       ##
@@ -197,14 +200,18 @@ module Taski
       end
 
       ##
-      # Warn that an export name collides with an existing method and so cannot
-      # be reached as an accessor.
+      # Warn that an export name collides with an existing method. Resolution
+      # goes through method_missing, which only fires for *undefined* names, so a
+      # public method of the same name shadows the export (the method wins) while
+      # a private one leaves resolution ambiguous (an external call reaches the
+      # export, an internal one the private method). Either way the name is
+      # unreliable, so warn.
       # @param method [Symbol] The colliding export name.
       def warn_export_collision(method)
-        warn "Taski: #{self} exports :#{method}, but :#{method} already exists as a method " \
-          "on the class or its instances. #{self}.#{method} (and instance ##{method}) keep their " \
-          "existing behavior, so the exported value is NOT reachable through that name. " \
-          "Choose a different export name."
+        warn "Taski: #{self} exports :#{method}, but a method named :#{method} already exists. " \
+          "An existing method can take precedence over the export, so #{self}.#{method} " \
+          "(and instance ##{method}) may not return the exported value. " \
+          "Choose a different export name to avoid the ambiguity."
       end
 
       ##
@@ -364,6 +371,9 @@ module Taski
     # never shadow an existing method.
     def method_missing(name, *args, &block)
       return super unless self.class.exported_methods.include?(name)
+      # The instance reader takes no arguments; a call with any (Ruby collects a
+      # trailing keyword hash into *args too) is malformed and must fail fast.
+      return super unless args.empty?
 
       instance_variable_get("@#{name}")
     end

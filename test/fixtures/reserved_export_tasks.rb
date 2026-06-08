@@ -48,4 +48,26 @@ module ReservedExportFixtures
       @combined = "got: #{InheritsExport.value}"
     end
   end
+
+  # Two `exports` calls on one class — both names must resolve (accumulate, not
+  # clobber the earlier call).
+  class TwiceExports < Taski::Task
+    exports :first
+    exports :second
+
+    def run
+      @first = "first-value"
+      @second = "second-value"
+    end
+  end
+
+  # Export name given as a String must work the same as a Symbol, because the
+  # call site (method_missing) always receives a Symbol.
+  class StringExport < Taski::Task
+    exports "strval"
+
+    def run
+      @strval = "string-export-value"
+    end
+  end
 end

@@ -68,8 +68,9 @@ class TestReservedExports < Minitest::Test
     assert_equal "got: base-value", ReservedExportFixtures::ConsumesInherited.combined
   end
 
-  # Collision detection must also catch already-defined PRIVATE methods (the
-  # accessor still won't be reachable externally).
+  # Collision detection must also catch already-defined PRIVATE methods: an
+  # external `.secret` call reaches the export via method_missing while an
+  # internal `secret` call hits the private method, so the name is ambiguous.
   def test_exports_warns_when_name_collides_with_a_private_method
     _out, err = capture_io do
       Class.new(Taski::Task) do
@@ -88,5 +89,34 @@ class TestReservedExports < Minitest::Test
   def test_export_accessor_rejects_malformed_args
     assert_raises(NoMethodError) { ReservedExportFixtures::BaseExport.value(123) }
     assert_raises(NoMethodError) { ReservedExportFixtures::BaseExport.value(bogus: 1) }
+  end
+
+  # Multiple `exports` calls on the same class accumulate; an earlier export must
+  # not be clobbered by a later one.
+  def test_multiple_exports_calls_accumulate
+    assert_equal "first-value", ReservedExportFixtures::TwiceExports.first
+    assert_equal "second-value", ReservedExportFixtures::TwiceExports.second
+  end
+
+  # An export name passed as a String resolves the same as a Symbol — exports
+  # must normalize, because method_missing always receives the name as a Symbol.
+  def test_string_export_name_resolves
+    assert_equal "string-export-value", ReservedExportFixtures::StringExport.strval
+  end
+
+  # The instance-level export reader takes no arguments; passing any must fail
+  # fast (NoMethodError) rather than silently dropping them.
+  def test_instance_export_reader_rejects_extra_args
+    inst = TaskiTestHelper.build_task_instance(ReservedExportFixtures::BaseExport)
+    assert_raises(NoMethodError) { inst.value(123) }
+  end
+
+  # Generic Kernel/Object private methods (format, gets, ...) are excluded from
+  # collision detection, so exporting such a name must not warn.
+  def test_exports_does_not_warn_for_generic_kernel_method_names
+    _out, err = capture_io do
+      Class.new(Taski::Task) { exports :format }
+    end
+    assert_empty err
   end
 end
