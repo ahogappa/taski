@@ -191,7 +191,7 @@ module Taski
 
         # Log a template failure and return the empty-string fallback.
         def warn_and_blank(error)
-          Taski::Logging.warn(Taski::Logging::Events::OBSERVER_ERROR, error_message: "template render failed: #{error.message}")
+          Taski::Logging.warn(Taski::Logging::Events::TEMPLATE_ERROR, error_message: "template render failed: #{error.message}")
           ""
         end
 

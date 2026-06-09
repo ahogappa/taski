@@ -58,6 +58,23 @@ class TestLayoutBase < Minitest::Test
     refute_includes result, "Liquid error"
   end
 
+  # A template (theme) failure must log a distinct TEMPLATE_ERROR event rather
+  # than reusing OBSERVER_ERROR, so a broken theme can be told apart from an
+  # observer-callback crash when filtering logs.
+  def test_template_failure_logs_template_error_not_observer_error
+    require "logger"
+    log_output = StringIO.new
+    original_logger = Taski.logger
+    Taski.logger = Logger.new(log_output)
+
+    @layout.send(:render_template_string, "{% if true %}never closed")
+
+    assert_match(/template\.render_error/, log_output.string)
+    refute_match(/observer\.error/, log_output.string)
+  ensure
+    Taski.logger = original_logger
+  end
+
   # === Inheritance tests ===
 
   def test_inherits_from_task_observer

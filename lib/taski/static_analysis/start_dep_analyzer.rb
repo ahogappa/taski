@@ -90,11 +90,20 @@ module Taski
         start_deps = all_dep_classes - unsafe_classes
         sync_deps = unsafe_classes
         AnalysisResult.new(start_deps: start_deps, sync_deps: sync_deps)
-      rescue
+      rescue => e
         # Prestart analysis is a pure performance optimization. If anything goes
         # wrong (missing/unreadable source file, unexpected AST shape, constant
         # resolution failure, ...) degrade to no prestart — tasks still execute
         # correctly via lazy Fiber pull. This must never crash a worker thread.
+        # Log it, though: the happy path returns EMPTY_RESULT for known-unanalyzable
+        # code without raising, so reaching here means something unexpected that a
+        # user debugging missing prestart should be able to see.
+        Taski::Logging.warn(
+          Taski::Logging::Events::ANALYSIS_ERROR,
+          task: (@task_class.name if @task_class.respond_to?(:name)),
+          error_class: e.class.name,
+          error_message: e.message
+        )
         EMPTY_RESULT
       end
 
