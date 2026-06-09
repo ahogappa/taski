@@ -29,8 +29,8 @@ class TestTaskWrapper < Minitest::Test
     fiber = Fiber.new { Fiber.yield }
 
     result = wrapper.request_value(:value, thread_queue, fiber)
-    assert_equal :completed, result[0]
-    assert_equal "completed_value", result[1]
+    assert_instance_of Taski::Execution::FiberProtocol::DepCompleted, result
+    assert_equal "completed_value", result.value
   end
 
   def test_request_value_on_failed_wrapper_returns_error
@@ -50,8 +50,8 @@ class TestTaskWrapper < Minitest::Test
     fiber = Fiber.new { Fiber.yield }
 
     result = wrapper.request_value(:value, thread_queue, fiber)
-    assert_equal :failed, result[0]
-    assert_equal error, result[1]
+    assert_instance_of Taski::Execution::FiberProtocol::DepFailed, result
+    assert_equal error, result.error
   end
 
   def test_request_value_on_running_wrapper_returns_wait
@@ -69,7 +69,7 @@ class TestTaskWrapper < Minitest::Test
     fiber = Fiber.new { Fiber.yield }
 
     result = wrapper.request_value(:value, thread_queue, fiber)
-    assert_equal :wait, result[0]
+    assert_instance_of Taski::Execution::FiberProtocol::DepWaiting, result
   end
 
   def test_request_value_on_pending_wrapper_returns_start_and_transitions_to_running
@@ -86,7 +86,7 @@ class TestTaskWrapper < Minitest::Test
     fiber = Fiber.new { Fiber.yield }
 
     result = wrapper.request_value(:value, thread_queue, fiber)
-    assert_equal :start, result[0]
+    assert_instance_of Taski::Execution::FiberProtocol::DepStarting, result
     assert_equal Taski::Execution::TaskWrapper::STATE_RUNNING, wrapper.state
   end
 
@@ -106,10 +106,10 @@ class TestTaskWrapper < Minitest::Test
     fiber_b = Fiber.new { Fiber.yield }
 
     result_a = wrapper.request_value(:value, queue_a, fiber_a)
-    assert_equal :start, result_a[0]
+    assert_instance_of Taski::Execution::FiberProtocol::DepStarting, result_a
 
     result_b = wrapper.request_value(:value, queue_b, fiber_b)
-    assert_equal :wait, result_b[0]
+    assert_instance_of Taski::Execution::FiberProtocol::DepWaiting, result_b
   end
 
   def test_mark_completed_notifies_fiber_waiters
@@ -211,11 +211,11 @@ class TestTaskWrapper < Minitest::Test
     }
     threads.each(&:join)
 
-    start_count = results.count { |r| r[0] == :start }
-    wait_count = results.count { |r| r[0] == :wait }
+    start_count = results.count { |r| r.is_a?(Taski::Execution::FiberProtocol::DepStarting) }
+    wait_count = results.count { |r| r.is_a?(Taski::Execution::FiberProtocol::DepWaiting) }
 
-    assert_equal 1, start_count, "Exactly one thread should get :start"
-    assert_equal 2, wait_count, "Other threads should get :wait"
+    assert_equal 1, start_count, "Exactly one thread should get DepStarting"
+    assert_equal 2, wait_count, "Other threads should get DepWaiting"
   end
 
   private
