@@ -52,6 +52,13 @@ module Taski
         def clear_cache!
           @cache_mutex.synchronize { @cache.clear }
         end
+
+        # Drop the cached analysis for a single task class, so it is recomputed
+        # the next time it is analyzed (used by Task.clear_dependency_cache).
+        # @param task_class [Class] The task class to evict
+        def clear_cache_for(task_class)
+          @cache_mutex.synchronize { @cache.delete(task_class) }
+        end
       end
 
       EMPTY_RESULT = AnalysisResult.new(start_deps: Set.new.freeze, sync_deps: Set.new.freeze).freeze
