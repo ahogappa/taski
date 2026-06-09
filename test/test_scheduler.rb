@@ -522,7 +522,12 @@ class TestScheduler < Minitest::Test
     assert_equal 1, scheduler.skipped_count
   end
 
-  def test_skipped_is_terminal_cannot_transition_to_running
+  # mark_skipped only transitions from pending, so a skipped task cannot be
+  # skipped again. (Run-phase ordering, including "a skipped task is never
+  # enqueued to run", is the Executor's responsibility — the Scheduler is only
+  # accessed from the Executor's serialized event loop and does not police
+  # mark_running's caller.)
+  def test_skipped_task_cannot_be_re_skipped
     task = Class.new(Taski::Task) do
       exports :value
       def run = @value = "test"
@@ -534,7 +539,6 @@ class TestScheduler < Minitest::Test
 
     scheduler.mark_skipped(task)
 
-    # A skipped task is terminal: it cannot be skipped (or transitioned) again.
     refute scheduler.mark_skipped(task), "cannot skip an already-skipped task"
   end
 
