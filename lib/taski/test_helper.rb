@@ -18,20 +18,16 @@ module Taski
   #     end
   #   end
   module TestHelper
-    # Module prepended to Task's singleton class to intercept define_class_accessor.
-    # Wraps the original accessor with a mock check.
+    # Module prepended to Task's singleton class to intercept exported-value
+    # resolution. Returns the mock value when the task is mocked, otherwise
+    # delegates to the real resolution.
     # @api private
     module TaskExtension
-      def define_class_accessor(method)
+      def resolve_exported_value(method, args)
+        mock = MockRegistry.mock_for(self)
+        return mock.get_exported_value(method) if mock
+
         super
-        original_method = self.method(method)
-
-        define_singleton_method(method) do |args: {}|
-          mock = MockRegistry.mock_for(self)
-          return mock.get_exported_value(method) if mock
-
-          original_method.call(args: args)
-        end
       end
     end
 
