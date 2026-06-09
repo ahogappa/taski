@@ -16,17 +16,17 @@ module Taski
     #
     # - Load pre-built dependency graph from Executor
     # - Track task states: pending, running, completed
-    # - Determine which tasks are ready to execute (all dependencies completed)
-    # - Provide next_ready_tasks for the Executor's event loop
     # - Build reverse dependency graph for clean operations
     # - Track clean states independently from run states
     # - Provide next_ready_clean_tasks for reverse dependency order execution
+    #
+    # Run-phase ordering is NOT scheduled here — tasks pull their dependencies on
+    # demand via the Fiber protocol (FiberProtocol::NeedDep) in the WorkerPool.
     #
     # == API
     #
     # Run operations:
     # - {#load_graph} - Load pre-built dependency graph
-    # - {#next_ready_tasks} - Get tasks ready for execution
     # - {#mark_running} - Mark task as sent to worker pool
     # - {#mark_completed} - Mark task as finished
     # - {#finished?} - Check if task is completed
@@ -94,22 +94,7 @@ module Taski
         end
       end
 
-      # Get all tasks that are ready to execute.
-      # A task is ready when it is pending and all its dependencies are completed.
-      #
-      # @return [Array<Class>] Array of task classes ready for execution
-      def next_ready_tasks
-        ready = []
-        @task_states.each_key do |task_class|
-          next unless @task_states[task_class] == STATE_PENDING
-          next unless ready_to_execute?(task_class)
-          ready << task_class
-        end
-        ready
-      end
-
-      # Mark a task as running (sent to worker pool).
-      # Prevents the task from being selected again by next_ready_tasks.
+      # Mark a task as running (driven as a Fiber on the worker pool).
       #
       # @param task_class [Class] The task class to mark
       def mark_running(task_class)
@@ -304,12 +289,6 @@ module Taski
       end
 
       private
-
-      # Check if a task is ready to execute (all dependencies completed).
-      def ready_to_execute?(task_class)
-        task_deps = @dependencies[task_class] || Set.new
-        task_deps.subset?(@finished_tasks)
-      end
 
       # Check if a task is ready to clean (all reverse dependencies completed).
       def ready_to_clean?(task_class)
