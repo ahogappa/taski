@@ -34,6 +34,11 @@ module Taski
         @execution_facade = execution_facade
         @worker_count = worker_count || Execution.default_worker_count
         @completion_queue = completion_queue
+        # Capture the calling execution's args/env now (on the caller fiber, where
+        # they are in scope) so each worker can re-establish them — fiber-local
+        # storage does not cross the caller -> worker thread boundary.
+        @run_args = Taski.args
+        @run_env = Taski.env
         @threads = []
         @thread_queues = []
         @next_thread_index = 0
@@ -313,6 +318,8 @@ module Taski
         Thread.current[:taski_current_phase] = :clean
         ExecutionFacade.current = @execution_facade
         Taski.set_current_registry(@registry)
+        Taski.set_current_args(@run_args)
+        Taski.set_current_env(@run_env)
       end
 
       def setup_run_thread_locals
@@ -320,6 +327,8 @@ module Taski
         Thread.current[:taski_current_phase] = :run
         ExecutionFacade.current = @execution_facade
         Taski.set_current_registry(@registry)
+        Taski.set_current_args(@run_args)
+        Taski.set_current_env(@run_env)
       end
 
       def teardown_thread_locals
@@ -327,6 +336,8 @@ module Taski
         Thread.current[:taski_current_phase] = nil
         ExecutionFacade.current = nil
         Taski.clear_current_registry
+        Taski.reset_args!
+        Taski.reset_env!
       end
 
       def task_duration_ms(task_class)

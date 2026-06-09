@@ -234,4 +234,24 @@ module ArgsFixtures
       @combined = "#{ExportedWithArgsDepTask.dep_greeting} + root"
     end
   end
+
+  # Concurrent-isolation probe. Blocks on a class-level barrier so two separate
+  # top-level executions overlap in their args lifecycle, then pushes the marker
+  # it observed into a class-level sink. Used to prove concurrent runs on
+  # different threads each see their own args rather than sharing one set.
+  class ConcurrentArgsTask < Taski::Task
+    exports :seen_marker
+
+    class << self
+      attr_accessor :barrier, :sink
+    end
+
+    def run
+      # Reach the barrier only after this execution's args are in scope, so both
+      # executions are live at the same time when the marker is read.
+      self.class.barrier&.call
+      @seen_marker = Taski.args[:marker]
+      self.class.sink&.push(@seen_marker)
+    end
+  end
 end
