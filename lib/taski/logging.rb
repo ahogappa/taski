@@ -46,6 +46,10 @@ module Taski
       OUTPUT_ROUTER_DRAIN_PIPE = "output_router.drain_pipe"
       OUTPUT_ROUTER_STORE_LINES = "output_router.store_lines"
       OBSERVER_ERROR = "observer.error"
+
+      # Diagnostics for silent-degradation paths
+      ANALYSIS_ERROR = "analysis.start_dep_failed" # prestart analysis hit an unexpected error
+      TEMPLATE_ERROR = "template.render_error"     # a theme's Liquid template failed to render
     end
 
     # Log severity levels matching Ruby Logger

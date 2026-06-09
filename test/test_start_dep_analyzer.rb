@@ -8,6 +8,32 @@ class TestStartDepAnalyzer < Minitest::Test
     Taski::StaticAnalysis::StartDepAnalyzer.clear_cache!
   end
 
+  # Prestart analysis degrades to "no prestart" on any internal error, but the
+  # error must be logged (not swallowed silently) so a real analysis bug is
+  # diagnosable rather than invisible.
+  def test_analyze_logs_when_analysis_unexpectedly_raises
+    require "logger"
+    require "stringio"
+    log_output = StringIO.new
+    original_logger = Taski.logger
+    Taski.logger = Logger.new(log_output)
+    original_parse = Prism.method(:parse_file)
+
+    result = begin
+      Prism.define_singleton_method(:parse_file) { |*| raise "boom in prism" }
+      Taski::StaticAnalysis::StartDepAnalyzer.analyze(StartDepAnalyzerFixtures::LeafTask)
+    ensure
+      Prism.define_singleton_method(:parse_file, original_parse)
+      Taski.logger = original_logger
+    end
+
+    # Still degrades gracefully (tasks run via the lazy pull model)...
+    assert_equal Taski::StaticAnalysis::StartDepAnalyzer::EMPTY_RESULT, result
+    # ...but the unexpected failure is surfaced in the log.
+    assert_match(/analysis\.start_dep_failed/, log_output.string)
+    assert_match(/boom in prism/, log_output.string)
+  end
+
   def test_local_variable_assignment_dep
     result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
       StartDepAnalyzerFixtures::LocalVarAssignment
