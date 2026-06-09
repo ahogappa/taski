@@ -15,10 +15,11 @@ module Taski
     # - StartDep(task_class)          → non-blocking. Starts dep on another
     #   thread and resumes the Fiber immediately. Used for speculative prestart.
     # - NeedDep(task_class, method)   → blocking. Resolves dependency via
-    #   TaskWrapper#request_value:
-    #   - :completed → resume Fiber immediately with the value
-    #   - :wait → park the Fiber (it will be resumed later via the thread's queue)
-    #   - :start → start the dependency as a nested Fiber on the same thread
+    #   TaskWrapper#request_value, which returns one of:
+    #   - DepCompleted(value) → resume Fiber immediately with the value
+    #   - DepFailed(error)    → resume the Fiber with a DepError to propagate
+    #   - DepWaiting          → park the Fiber (resumed later via the thread's queue)
+    #   - DepStarting         → start the dependency as a nested Fiber on this thread
     #
     # Worker threads process these commands (FiberProtocol Data classes):
     # - Execute(task_class, wrapper)       → create and drive a new Fiber
@@ -173,17 +174,16 @@ module Taski
       #                                      let a later queue event resume the fiber.
       def handle_dependency(dep_class, method, fiber, task_class, wrapper, queue)
         dep_wrapper = @registry.create_wrapper(dep_class, execution_facade: @execution_facade)
-        status = dep_wrapper.request_value(method, queue, fiber)
 
-        case status[0]
-        when :completed
-          FiberProtocol::ResumeWith.new(status[1])
-        when :failed
-          FiberProtocol::ResumeWith.new(FiberProtocol::DepError.new(status[1]))
-        when :wait
+        case dep_wrapper.request_value(method, queue, fiber)
+        in FiberProtocol::DepCompleted(value:)
+          FiberProtocol::ResumeWith.new(value)
+        in FiberProtocol::DepFailed(error:)
+          FiberProtocol::ResumeWith.new(FiberProtocol::DepError.new(error))
+        in FiberProtocol::DepWaiting
           store_fiber_context(fiber, task_class, wrapper)
           FiberProtocol::Parked.new
-        when :start
+        in FiberProtocol::DepStarting
           store_fiber_context(fiber, task_class, wrapper)
           # dep_wrapper is already RUNNING (set atomically by request_value)
           drive_fiber(dep_class, dep_wrapper, queue)

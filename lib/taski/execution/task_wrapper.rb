@@ -105,27 +105,26 @@ module Taski
       end
 
       # Atomically resolve the dependency value for a waiting Fiber.
-      # Returns a status tuple indicating how the caller should proceed:
-      # - [:completed, value] → dependency already done, resume immediately
-      # - [:failed, error]   → dependency failed, propagate error
-      # - [:wait]            → dependency running, Fiber parked (will be resumed via thread_queue)
-      # - [:start]           → dependency was PENDING, now RUNNING (caller must drive it)
+      # Returns a FiberProtocol value indicating how the caller should proceed:
+      # - DepCompleted(value) → dependency already done, resume immediately
+      # - DepFailed(error)    → dependency failed, propagate error
+      # - DepWaiting          → dependency running, Fiber parked (resumed via thread_queue)
+      # - DepStarting         → dependency was PENDING, now RUNNING (caller must drive it)
       def request_value(method, thread_queue, fiber)
         @monitor.synchronize do
           case @state
           when STATE_COMPLETED
-            value = @task.public_send(method)
-            [:completed, value]
+            FiberProtocol::DepCompleted.new(@task.public_send(method))
           when STATE_FAILED
-            [:failed, @error]
+            FiberProtocol::DepFailed.new(@error)
           when STATE_RUNNING
             @waiters << [thread_queue, fiber, method]
-            [:wait]
+            FiberProtocol::DepWaiting.new
           else
             # PENDING → atomically transition to RUNNING
             @state = STATE_RUNNING
             @waiters << [thread_queue, fiber, method]
-            [:start]
+            FiberProtocol::DepStarting.new
           end
         end
       end
