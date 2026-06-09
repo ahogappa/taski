@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "timeout"
 require_relative "fixtures/start_dep_analyzer_tasks"
 
 class TestStartDepAnalyzer < Minitest::Test
@@ -391,5 +392,48 @@ class TestStartDepAnalyzer < Minitest::Test
     # @data used as argument → unsafe
     assert_includes result.sync_deps, StartDepAnalyzerFixtures::LeafTask
     refute_includes result.start_deps, StartDepAnalyzerFixtures::LeafTask
+  end
+
+  # ========================================
+  # W1/W2 walls: proxy used in a truthiness (W1) or === (W2) position MUST be
+  # demoted to sync, or it silently misbehaves (truthiness/=== bypass the proxy
+  # at the C level). Classification + end-to-end runtime-result guards.
+  # ========================================
+
+  # --- classification: the dep is demoted to sync, never a start_dep proxy ---
+
+  {
+    test_wall_case_when_subject: :CaseWhenSubject,
+    test_wall_case_in_subject: :CaseInSubject,
+    test_wall_and_left_operand: :AndOperand,
+    test_wall_or_left_operand: :OrOperand,
+    test_wall_ternary_condition: :TernaryCondition,
+    test_wall_if_with_nested_and: :IfWithNestedAnd,
+    test_wall_chained_and_middle: :ChainedAndMiddle
+  }.each do |test_name, fixture|
+    define_method(test_name) do
+      result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+        StartDepAnalyzerFixtures.const_get(fixture)
+      )
+      dep = result.sync_deps.first || result.start_deps.first
+      refute_nil dep, "#{fixture}: expected a dependency to be analyzed"
+      assert_empty result.start_deps,
+        "#{fixture}: a proxy at a W1/W2 wall must be sync, never a start_dep"
+      refute_empty result.sync_deps, "#{fixture}: the wall dep must be in sync_deps"
+    end
+  end
+
+  # --- runtime: executing the task returns the correct value (no silent leak) ---
+
+  def test_wall_runtime_results_have_no_silent_leak
+    Timeout.timeout(15) do
+      assert_equal "matched-String", StartDepAnalyzerFixtures::CaseWhenSubject.value
+      assert_equal "matched-String", StartDepAnalyzerFixtures::CaseInSubject.value
+      assert_equal false, StartDepAnalyzerFixtures::AndOperand.value
+      assert_equal "fallback", StartDepAnalyzerFixtures::OrOperand.value
+      assert_equal "else-branch", StartDepAnalyzerFixtures::TernaryCondition.value
+      assert_equal "else-branch", StartDepAnalyzerFixtures::IfWithNestedAnd.value
+      assert_equal false, StartDepAnalyzerFixtures::ChainedAndMiddle.value
+    end
   end
 end

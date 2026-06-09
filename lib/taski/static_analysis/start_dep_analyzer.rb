@@ -201,8 +201,26 @@ module Taski
       # Returns a Set of dep classes whose proxy variables are used unsafely.
       # A proxy variable is a local variable assigned from a Taski::Task dep call
       # (e.g., `a = Dep.value`). If such a variable is later used in an unsafe
-      # context (as argument, condition, array element, etc.), the dep class is
-      # added to sync_dep_classes so it will be resolved synchronously.
+      # context, the dep class is demoted to sync (resolved synchronously to the
+      # real value) instead of handed back as a lazy proxy.
+      #
+      # A proxy is "unsafe" wherever the real value is consumed by an operation
+      # that bypasses TaskProxy's method dispatch:
+      #   W1 (truthiness) — if/unless/while/until/ternary predicate, && / ||
+      #      operands: `if proxy` / `proxy && x` test nil/false at the C level,
+      #      and a proxy is always truthy.
+      #   W2 (=== / pattern) — a `case` subject: `when SomeClass` / `in SomeClass`
+      #      checks the proxy's REAL class (TaskProxy), not the wrapped value.
+      #   Arguments / array elements — `foo(proxy)` / `[proxy]`: the callee may
+      #      compare the proxy with `==`/`include?`/`===`, and String#==, Array#==
+      #      (and any C-level == without a coercion fallback) silently return
+      #      false against a proxy. We cannot tell a safe dispatch-arg from an
+      #      unsafe comparison-arg statically, so arguments/elements stay sync.
+      #
+      # IMPORTANT: the argument/array-element demotion is load-bearing, NOT merely
+      # conservative — dropping it makes `["x"].include?(Dep.value)` and similar
+      # silently wrong. Receiver use (`proxy.foo`) and string interpolation are
+      # the only positions proven proxy-safe.
       def detect_unsafe_proxy_usage(body_node)
         proxy_vars = build_proxy_var_map(body_node)
 
@@ -299,6 +317,30 @@ module Taski
         when Prism::WhileNode, Prism::UntilNode
           check_predicate_unsafe(node.predicate, proxy_vars, unsafe_classes)
           scan_for_unsafe_usage(node.statements, proxy_vars, unsafe_classes) if node.statements
+
+        when Prism::AndNode, Prism::OrNode
+          # W1 wall: && / || test their operands for truthiness — a C-level test
+          # that bypasses the proxy (a live proxy is always truthy). A bare proxy
+          # operand must be resolved synchronously.
+          [node.left, node.right].each do |operand|
+            if proxy_var_read?(operand, proxy_vars)
+              unsafe_classes.add(proxy_vars[predicate_key(operand)])
+            else
+              scan_for_unsafe_usage(operand, proxy_vars, unsafe_classes)
+            end
+          end
+
+        when Prism::CaseNode, Prism::CaseMatchNode
+          # W2 wall: the case subject is === / pattern matched, which inspects the
+          # real class and bypasses the proxy. A bare proxy subject must be
+          # resolved synchronously.
+          if proxy_var_read?(node.predicate, proxy_vars)
+            unsafe_classes.add(proxy_vars[predicate_key(node.predicate)])
+          elsif node.predicate
+            scan_for_unsafe_usage(node.predicate, proxy_vars, unsafe_classes)
+          end
+          node.conditions.each { |cond| scan_for_unsafe_usage(cond, proxy_vars, unsafe_classes) }
+          scan_for_unsafe_usage(node.else_clause, proxy_vars, unsafe_classes) if node.else_clause
 
         when Prism::InterpolatedStringNode
           node.parts.each do |part|
