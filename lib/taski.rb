@@ -175,6 +175,19 @@ module Taski
     @logger_monitor.synchronize { @logger = logger }
   end
 
+  # Whether Task.tree annotates each task with its prestart plan (which deps are
+  # prestarted vs resolved synchronously, and where scanning stopped).
+  # Off by default; does not affect execution.
+  # @return [Boolean]
+  def self.prestart_debug
+    @logger_monitor.synchronize { @prestart_debug ||= false }
+  end
+
+  # @param value [Boolean]
+  def self.prestart_debug=(value)
+    @logger_monitor.synchronize { @prestart_debug = value }
+  end
+
   # Get the current runtime arguments
   # Args/env are per-execution state held in fiber-local storage, so concurrent
   # top-level runs on different threads never share or clobber each other.

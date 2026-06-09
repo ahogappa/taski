@@ -159,6 +159,7 @@ module Taski
 
       ##
       # Renders a static tree representation of the task dependencies.
+      # When Taski.prestart_debug is true, appends a per-task prestart plan.
       # @return [String] The rendered tree string.
       def tree
         output = StringIO.new
@@ -167,10 +168,51 @@ module Taski
         context = Execution::ExecutionFacade.new(root_task_class: self)
         layout.context = context
         layout.on_ready
-        layout.render_tree
+        rendered = layout.render_tree
+        return rendered unless Taski.prestart_debug
+
+        rendered + prestart_debug_annotation(context)
+      end
+
+      ##
+      # The prestart plan for this task: which dependencies are speculatively
+      # prestarted (lazy proxy / IO overlap), which are resolved synchronously,
+      # and where phase-1 stopped scanning the run body. Inspection aid for the
+      # otherwise-invisible prestart heuristic; does not run the task.
+      # @return [Hash] {task:, prestarted: [names], sync: [names], stopped_at: {line:, source:} | nil}
+      def prestart_plan
+        analysis = StaticAnalysis::StartDepAnalyzer.analyze(self)
+        {
+          task: name || inspect,
+          prestarted: analysis.start_deps.map { |c| c.name || c.inspect }.sort,
+          sync: analysis.sync_deps.map { |c| c.name || c.inspect }.sort,
+          stopped_at: analysis.stopped_at && {line: analysis.stopped_at.line, source: analysis.stopped_at.source}
+        }.freeze
       end
 
       private
+
+      ##
+      # Build the prestart-plan annotation appended to Task.tree under
+      # Taski.prestart_debug. One line per task that actually has a plan.
+      def prestart_debug_annotation(context)
+        graph = context.dependency_graph
+        tasks = graph.respond_to?(:all_tasks) ? graph.all_tasks : [self]
+        lines = ([self] + tasks).uniq.filter_map do |task_class|
+          next unless task_class.respond_to?(:prestart_plan)
+          plan = task_class.prestart_plan
+          next if plan[:prestarted].empty? && plan[:sync].empty? && plan[:stopped_at].nil?
+
+          parts = ["#{plan[:task]}:"]
+          parts << "prestart=#{plan[:prestarted].inspect}" unless plan[:prestarted].empty?
+          parts << "sync=#{plan[:sync].inspect}" unless plan[:sync].empty?
+          parts << "stopped@#{plan[:stopped_at][:line]}" if plan[:stopped_at]
+          "  #{parts.join(" ")}"
+        end
+        return "" if lines.empty?
+
+        "\nprestart plan:\n#{lines.join("\n")}\n"
+      end
 
       ##
       # Sets up execution environment and yields a fresh wrapper.

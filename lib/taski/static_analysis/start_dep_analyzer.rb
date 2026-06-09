@@ -17,7 +17,10 @@ module Taski
     # empty, tasks still work correctly via lazy Fiber pull (need_dep).
     class StartDepAnalyzer
       DepInfo = Data.define(:klass, :method_name)
-      AnalysisResult = Data.define(:start_deps, :sync_deps)
+      # Where phase-1 stopped scanning (the first non-assignment statement). nil
+      # when the whole run body was scanned. Surfaced for prestart observability.
+      StopInfo = Data.define(:line, :source)
+      AnalysisResult = Data.define(:start_deps, :sync_deps, :stopped_at)
 
       # AST node types that are known safe (not dependencies, won't stop scanning)
       SAFE_TYPES = Set[
@@ -61,11 +64,12 @@ module Taski
         end
       end
 
-      EMPTY_RESULT = AnalysisResult.new(start_deps: Set.new.freeze, sync_deps: Set.new.freeze).freeze
+      EMPTY_RESULT = AnalysisResult.new(start_deps: Set.new.freeze, sync_deps: Set.new.freeze, stopped_at: nil).freeze
 
       def initialize
         @deps = []
         @seen_classes = Set.new
+        @stopped_node = nil
       end
 
       # Analyze a task class's run method and return safe-to-prestart deps
@@ -89,7 +93,7 @@ module Taski
         all_dep_classes = Set.new(@deps.map(&:klass))
         start_deps = all_dep_classes - unsafe_classes
         sync_deps = unsafe_classes
-        AnalysisResult.new(start_deps: start_deps, sync_deps: sync_deps)
+        AnalysisResult.new(start_deps: start_deps, sync_deps: sync_deps, stopped_at: stopped_at_info)
       rescue => e
         # Prestart analysis is a pure performance optimization. If anything goes
         # wrong (missing/unreadable source file, unexpected AST shape, constant
@@ -152,10 +156,26 @@ module Taski
         nil
       end
 
-      # Scan statements, collecting deps. Stops at the first unknown pattern.
+      # Scan statements, collecting deps. Stops at the first unknown pattern,
+      # recording it so the cutoff is observable (prestart_plan / tree debug).
       def scan_statements(node)
         return unless node.is_a?(Prism::StatementsNode)
-        node.body.each { |stmt| break unless try_match(stmt) }
+        node.body.each do |stmt|
+          unless try_match(stmt)
+            @stopped_node = stmt
+            break
+          end
+        end
+      end
+
+      # Build the StopInfo for the first non-assignment statement, or nil if the
+      # whole body was scanned.
+      def stopped_at_info
+        return nil unless @stopped_node
+        StopInfo.new(
+          line: @stopped_node.location.start_line,
+          source: @stopped_node.slice.lines.first&.strip
+        )
       end
 
       # Match a statement against known patterns.

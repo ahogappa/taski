@@ -170,6 +170,27 @@ class TestStartDepAnalyzer < Minitest::Test
     assert_empty result.sync_deps
   end
 
+  # The analysis records WHERE phase-1 stopped scanning (the first non-assignment
+  # statement, past which no dep is prestarted) so the otherwise-invisible cutoff
+  # is observable.
+  def test_stopped_at_records_first_non_assignment_statement
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::UnknownPatternStops
+    )
+
+    refute_nil result.stopped_at, "expected the cutoff to be recorded"
+    assert_kind_of Integer, result.stopped_at.line
+    assert_match(/if/, result.stopped_at.source)
+  end
+
+  def test_stopped_at_is_nil_when_all_statements_scanned
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::LocalVarAssignment
+    )
+
+    assert_nil result.stopped_at
+  end
+
   # ========================================
   # Phase 2: Danger Pattern Detection
   # ========================================
