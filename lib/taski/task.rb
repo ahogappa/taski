@@ -64,10 +64,15 @@ module Taski
       end
 
       ##
-      # Clears the cached dependency analysis.
+      # Clears the cached dependency analysis for this class.
       # Useful when task code has changed and dependencies need to be re-analyzed.
+      # Invalidates every per-class memo: the dependency set, the circular-check
+      # result (so a newly-introduced cycle is caught), and the StartDepAnalyzer
+      # prestart cache.
       def clear_dependency_cache
         @dependencies_cache = nil
+        @circular_dependency_checked = false
+        StaticAnalysis::StartDepAnalyzer.clear_cache_for(self)
       end
 
       ##
