@@ -436,4 +436,18 @@ class TestStartDepAnalyzer < Minitest::Test
       assert_equal false, StartDepAnalyzerFixtures::ChainedAndMiddle.value
     end
   end
+
+  # `!proxy` is NOT a wall: it is a method call on the proxy (receiver), which
+  # TaskProxy resolves — so the dep stays a start_dep AND `!false` is correct.
+  def test_negation_is_not_a_wall
+    result = Taski::StaticAnalysis::StartDepAnalyzer.analyze(
+      StartDepAnalyzerFixtures::NegationSafe
+    )
+    assert_includes result.start_deps, StartDepAnalyzerFixtures::FalseLeaf
+    assert_empty result.sync_deps
+
+    Timeout.timeout(15) do
+      assert_equal true, StartDepAnalyzerFixtures::NegationSafe.value
+    end
+  end
 end

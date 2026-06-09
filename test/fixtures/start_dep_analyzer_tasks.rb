@@ -444,4 +444,16 @@ module StartDepAnalyzerFixtures
       @value = true && mid && "c" # standard:disable Lint/LiteralAsCondition
     end
   end
+
+  # NOT a wall: `!proxy` parses as a method call (`!`) with the proxy as the
+  # RECEIVER, which TaskProxy#! resolves. So the dep stays a start_dep (proxy)
+  # and `!false` is computed correctly — guards against wrongly demoting `!`.
+  class NegationSafe < Taski::Task
+    exports :value
+
+    def run
+      flag = FalseLeaf.value
+      @value = !flag
+    end
+  end
 end
