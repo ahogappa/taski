@@ -197,8 +197,11 @@ module Taski
       end
 
       # Resume a parked Fiber from the thread queue.
-      # Restores fiber context before resuming since teardown_thread_locals
-      # cleared thread-local state when the fiber was parked.
+      # Re-establishes the execution context (registry/args/env) on the worker
+      # thread before resuming. A parked fiber keeps its own fiber-local state
+      # across the suspend (teardown runs on completion/failure, not on park), so
+      # this is what carries the execution's context onto whichever worker thread
+      # picks the fiber up.
       def resume_fiber(fiber, value, queue)
         resume_fiber_with_value(fiber, value, queue)
       end
