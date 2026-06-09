@@ -45,11 +45,14 @@ class TestPrestartPlan < Minitest::Test
     assert_nil plan[:stopped_at]
   end
 
-  def test_tree_is_unchanged_when_prestart_debug_off
-    plain_a = StartDepAnalyzerFixtures::MultipleAssignments.tree
-    plain_b = StartDepAnalyzerFixtures::MultipleAssignments.tree
+  def test_tree_is_not_annotated_when_prestart_debug_off
+    # The off path must NOT contain the annotation block (asserting tree == tree
+    # would be vacuous — it only proves idempotency, not that the off-path is
+    # unannotated).
+    tree = StartDepAnalyzerFixtures::MultipleAssignments.tree
 
-    assert_equal plain_a, plain_b
+    refute_includes tree, "prestart plan:"
+    refute_includes tree, "prestart="
   end
 
   def test_tree_is_annotated_when_prestart_debug_on

@@ -185,7 +185,7 @@ module Taski
 
   # @param value [Boolean]
   def self.prestart_debug=(value)
-    @logger_monitor.synchronize { @prestart_debug = value }
+    @logger_monitor.synchronize { @prestart_debug = !!value }
   end
 
   # Get the current runtime arguments
