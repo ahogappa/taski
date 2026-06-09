@@ -81,13 +81,15 @@ module Taski
       # Only fires for names that are not already defined as real methods, so an
       # export can never shadow Module#name / Task.run / etc.
       def method_missing(name, *args, **kwargs, &block)
-        return super unless exported_methods.include?(name)
-        # Only the `args:` keyword (or no argument) is valid; anything else is a
-        # malformed call and should fail fast like a normal method, not silently
-        # resolve and drop the arguments.
-        return super unless args.empty? && (kwargs.keys - [:args]).empty?
-
-        resolve_exported_value(name, kwargs.fetch(:args, {}))
+        # Resolve only a known export, and only for a valid call shape: no
+        # positional args and at most the `args:` keyword. Anything else falls
+        # through to super so a malformed call fails like a normal method instead
+        # of silently resolving and dropping the arguments.
+        if exported_methods.include?(name) && args.empty? && (kwargs.keys - [:args]).empty?
+          resolve_exported_value(name, kwargs.fetch(:args, {}))
+        else
+          super
+        end
       end
 
       def respond_to_missing?(name, include_private = false)
@@ -370,12 +372,14 @@ module Taski
     # that are not already defined as real instance methods, so an export can
     # never shadow an existing method.
     def method_missing(name, *args, &block)
-      return super unless self.class.exported_methods.include?(name)
-      # The instance reader takes no arguments; a call with any (Ruby collects a
-      # trailing keyword hash into *args too) is malformed and must fail fast.
-      return super unless args.empty?
-
-      instance_variable_get("@#{name}")
+      # Resolve a known export only when called with no arguments (Ruby folds a
+      # trailing keyword hash into *args too); otherwise fall through to super so
+      # a malformed call fails fast.
+      if self.class.exported_methods.include?(name) && args.empty?
+        instance_variable_get("@#{name}")
+      else
+        super
+      end
     end
 
     def respond_to_missing?(name, include_private = false)
