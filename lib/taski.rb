@@ -160,8 +160,6 @@ module Taski
     end
   end
 
-  @args_monitor = Monitor.new
-  @env_monitor = Monitor.new
   @message_monitor = Monitor.new
   @logger_monitor = Monitor.new
 
@@ -178,15 +176,17 @@ module Taski
   end
 
   # Get the current runtime arguments
+  # Args/env are per-execution state held in fiber-local storage, so concurrent
+  # top-level runs on different threads never share or clobber each other.
   # @return [Args, nil] The current args or nil if no task is running
   def self.args
-    @args_monitor.synchronize { @args }
+    Thread.current[:taski_args]
   end
 
   # Get the current execution environment
   # @return [Env, nil] The current env or nil if no task is running
   def self.env
-    @env_monitor.synchronize { @env }
+    Thread.current[:taski_env]
   end
 
   # Output a message to the user without being captured by TaskOutputRouter.
@@ -210,22 +210,21 @@ module Taski
   # @api private
   # @return [Boolean] true if this call created the env, false if env already existed
   def self.start_env(root_task:)
-    @env_monitor.synchronize do
-      return false if @env
-      @env = Env.new(root_task: root_task)
-      true
-    end
+    return false if Thread.current[:taski_env]
+    Thread.current[:taski_env] = Env.new(root_task: root_task)
+    true
   end
 
   # Reset the execution environment (internal use only)
   # @api private
   def self.reset_env!
-    @env_monitor.synchronize { @env = nil }
+    Thread.current[:taski_env] = nil
   end
 
   # Execute a block with env lifecycle management.
-  # Creates env if it doesn't exist, and resets it only if this call created it.
-  # This prevents race conditions in concurrent execution.
+  # Creates env if it doesn't exist on this fiber, and resets it only if this
+  # call created it — so a nested execution reuses the outer env while
+  # independent (concurrent) executions each get their own.
   #
   # @param root_task [Class] The root task class
   # @yield The block to execute with env available
@@ -241,22 +240,21 @@ module Taski
   # @api private
   # @return [Boolean] true if this call created the args, false if args already existed
   def self.start_args(options:)
-    @args_monitor.synchronize do
-      return false if @args
-      @args = Args.new(options: options)
-      true
-    end
+    return false if Thread.current[:taski_args]
+    Thread.current[:taski_args] = Args.new(options: options)
+    true
   end
 
   # Reset the runtime arguments (internal use only)
   # @api private
   def self.reset_args!
-    @args_monitor.synchronize { @args = nil }
+    Thread.current[:taski_args] = nil
   end
 
   # Execute a block with args lifecycle management.
-  # Creates args if they don't exist, and resets them only if this call created them.
-  # This prevents race conditions in concurrent execution.
+  # Creates args if they don't exist on this fiber, and resets them only if this
+  # call created them — so a nested execution reuses the outer args while
+  # independent (concurrent) executions each get their own.
   #
   # @param options [Hash] User-defined options
   # @yield The block to execute with args available
@@ -338,6 +336,19 @@ module Taski
   # @api private
   def self.clear_current_registry
     Thread.current[:taski_current_registry] = nil
+  end
+
+  # Propagate an already-created Args/Env to the current fiber. Used by the
+  # worker pool to hand each worker the calling execution's args/env, since
+  # fiber-local storage does not cross the caller -> worker thread boundary.
+  # @api private
+  def self.set_current_args(args)
+    Thread.current[:taski_args] = args
+  end
+
+  # @api private
+  def self.set_current_env(env)
+    Thread.current[:taski_env] = env
   end
 end
 
