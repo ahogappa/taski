@@ -336,4 +336,124 @@ module StartDepAnalyzerFixtures
       @flag = [1, 2].include?(@value) # exported ivar used as argument → unsafe
     end
   end
+
+  # === W1/W2 wall fixtures ===
+  #
+  # The irreducible C-level walls where a live proxy silently misbehaves:
+  #   W1 truthiness — if/unless/while/until/ternary predicate, && / || operands
+  #   W2 === match  — case/when subject, case/in pattern subject
+  # A proxy reaching any of these MUST be demoted to sync (resolved to the real
+  # value). These fixtures pin that: both the classification (dep in sync_deps)
+  # and the runtime result (no silent-wrong-result).
+
+  # Leaf returning a falsy value, so &&/||/ternary leaks are observable.
+  class FalseLeaf < Taski::Task
+    exports :value
+
+    def run
+      @value = false
+    end
+  end
+
+  # Leaf returning nil, for || fallback checks.
+  class NilLeaf < Taski::Task
+    exports :value
+
+    def run
+      @value = nil
+    end
+  end
+
+  # W2: proxy as a `case ... when` subject (=== type match bypasses the proxy).
+  class CaseWhenSubject < Taski::Task
+    exports :value
+
+    def run
+      kind = LeafTask.value
+      @value = case kind
+      when String then "matched-String"
+      else "no-match"
+      end
+    end
+  end
+
+  # W2: proxy as a `case ... in` (pattern match) subject.
+  class CaseInSubject < Taski::Task
+    exports :value
+
+    def run
+      kind = LeafTask.value
+      @value = case kind
+      in String then "matched-String"
+      else "no-match"
+      end
+    end
+  end
+
+  # W1: proxy as the left operand of && (truthiness short-circuit).
+  class AndOperand < Taski::Task
+    exports :value
+
+    def run
+      flag = FalseLeaf.value
+      @value = flag && "yes"
+    end
+  end
+
+  # W1: proxy as the left operand of ||.
+  class OrOperand < Taski::Task
+    exports :value
+
+    def run
+      flag = NilLeaf.value
+      @value = flag || "fallback"
+    end
+  end
+
+  # W1: proxy as a ternary condition.
+  class TernaryCondition < Taski::Task
+    exports :value
+
+    def run
+      x = FalseLeaf.value
+      @value = x ? "then-branch" : "else-branch"
+    end
+  end
+
+  # W1 regression: proxy as the RIGHT operand of && inside an if-predicate.
+  # (The naive "flag the left operand only" rule would miss this.)
+  class IfWithNestedAnd < Taski::Task
+    exports :value
+
+    def run
+      flag = FalseLeaf.value
+      @value = if true && flag # standard:disable Lint/LiteralAsCondition
+        "then-branch"
+      else
+        "else-branch"
+      end
+    end
+  end
+
+  # W1 regression: proxy as the MIDDLE operand of a chained &&.
+  class ChainedAndMiddle < Taski::Task
+    exports :value
+
+    def run
+      mid = FalseLeaf.value
+      @value = true && mid && "c" # standard:disable Lint/LiteralAsCondition
+    end
+  end
+
+  # NOT a wall: `!proxy` parses as a method call (`!`) with the proxy as the
+  # RECEIVER, which TaskProxy#! resolves. So the dep stays a start_dep (proxy)
+  # and `!false` is computed correctly — guards against wrongly demoting `!`.
+  class NegationSafe < Taski::Task
+    exports :value
+
+    def run
+      flag = FalseLeaf.value
+      @value = !flag
+    end
+  end
 end
