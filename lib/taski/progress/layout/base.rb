@@ -543,7 +543,14 @@ module Taski
           start_spinner_timer
           @render_thread = Thread.new do
             while @render_thread_running
-              @monitor.synchronize(&block)
+              begin
+                @monitor.synchronize(&block)
+              rescue IOError, SystemCallError
+                # The terminal went away (closed stream, EPIPE). Rendering is
+                # pointless now — exit the loop cleanly instead of dying with
+                # an exception that join would re-raise during teardown.
+                break
+              end
               sleep @theme.render_interval
             end
           end
@@ -552,9 +559,23 @@ module Taski
         # Stop the periodic render loop and spinner timer.
         def stop_render_loop
           @render_thread_running = false
-          @render_thread&.join
-          @render_thread = nil
-          stop_spinner_timer
+          begin
+            # If the render thread died with an exception (anything the loop's
+            # own rescue didn't cover), join re-raises it here — it must not
+            # abort teardown, or the spinner thread leaks and keeps waking
+            # forever.
+            @render_thread&.join
+          rescue => e
+            Taski::Logging.warn(
+              Taski::Logging::Events::OBSERVER_ERROR,
+              observer_class: self.class.name,
+              method: "render_loop",
+              error_message: e.message
+            )
+          ensure
+            @render_thread = nil
+            stop_spinner_timer
+          end
         end
 
         # Check if output is a TTY

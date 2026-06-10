@@ -109,6 +109,84 @@ class TestLayoutTreeLive < Minitest::Test
     assert_includes @output.string, "└──"
   end
 
+  # ========================================
+  # Render-thread death must not leak resources
+  # ========================================
+  # If the terminal goes away mid-run (IOError/EPIPE in the render loop), the
+  # render thread dies with that exception. Thread#join re-raises it, which
+  # used to abort handle_stop BEFORE stop_spinner_timer and the cursor
+  # restore — leaking a perpetually-waking spinner thread and leaving the
+  # user's cursor hidden.
+
+  # A TTY-like output that starts failing after a given number of writes,
+  # optionally healing afterwards. Records every attempted write.
+  class FlakyOutput
+    attr_reader :writes
+
+    def initialize(fail_on: nil, fail_count: 1_000_000)
+      @writes = []
+      @count = 0
+      @fail_on = fail_on
+      @failures_left = fail_count
+    end
+
+    def record(str)
+      @writes << str.to_s
+      @count += 1
+      if @fail_on && @count >= @fail_on && @failures_left > 0
+        @failures_left -= 1
+        raise IOError, "stream closed"
+      end
+    end
+
+    def print(*args) = args.each { |a| record(a) }
+
+    def puts(*args) = (args.empty? ? record("\n") : args.each { |a| record(a) })
+
+    def write(*args) = args.each { |a| record(a) }
+
+    def flush
+    end
+
+    def tty? = true
+
+    def winsize = [24, 80]
+  end
+
+  def test_render_thread_death_does_not_leak_the_spinner_thread
+    # The hide-cursor write succeeds; everything after (the render loop's
+    # writes) raises permanently — the terminal died mid-run.
+    output = FlakyOutput.new(fail_on: 2)
+    layout = Taski::Progress::Layout::Tree::Live.new(output: output)
+    layout.context = mock_execution_facade(root_task_class: stub_task_class("DyingTTY"))
+    layout.on_ready
+    layout.on_start
+    sleep 0.25 # let the render thread wake and die on the dead output
+
+    layout.on_stop # must not raise (join used to re-raise the IOError)
+
+    timer = layout.instance_variable_get(:@spinner_timer)
+    refute layout.instance_variable_get(:@spinner_running),
+      "spinner must be stopped even when the render thread died"
+    refute timer&.alive?, "spinner thread must not keep waking forever"
+  end
+
+  def test_cursor_restore_is_attempted_after_render_thread_death
+    # Fail exactly once (killing the render thread), then heal — the terminal
+    # came back, so the cursor restore must reach it.
+    output = FlakyOutput.new(fail_on: 2, fail_count: 1)
+    layout = Taski::Progress::Layout::Tree::Live.new(output: output)
+    layout.context = mock_execution_facade(root_task_class: stub_task_class("FlakyTTY"))
+    layout.on_ready
+    layout.on_start
+    sleep 0.25
+
+    layout.on_stop
+
+    assert_includes output.writes, "\e[?25h",
+      "the cursor must be restored once the output is writable again"
+  end
+
   private
 
   def stub_task_class(name)
