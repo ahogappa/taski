@@ -234,6 +234,15 @@ module Taski
       def write_profile_report(report, destination)
         io = destination.respond_to?(:puts) ? destination : $stdout
         io.puts(report)
+      rescue => e
+        # A report-write failure (closed stream, broken pipe, ...) must not
+        # turn a successful run into a failure — the same isolation contract
+        # as report construction.
+        Taski::Logging.warn(
+          Taski::Logging::Events::PROFILE_ERROR,
+          error_class: e.class.name,
+          error_message: e.message
+        )
       end
 
       ##

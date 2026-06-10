@@ -108,7 +108,11 @@ module Taski
       # event stream. Re-runs of the same class produce additional intervals.
       def build_intervals(events)
         intervals = Hash.new { |h, k| h[k] = [] }
-        events.sort_by(&:at).each do |ev|
+        # Tie-break equal timestamps by arrival order: sort_by alone is not
+        # stable, and a :completed sorting ahead of its :running (possible on a
+        # coarse clock) would split one interval into two bogus ones. Arrival
+        # order is causally correct — the collector appends under a Monitor.
+        events.sort_by.with_index { |ev, i| [ev.at, i] }.each do |ev|
           key = [ev.task_class, ev.phase]
           case ev.state
           when :running
@@ -214,9 +218,14 @@ module Taski
   #   threads you spawn yourself are not observed.
   # - Nested profile blocks do not compose: the inner block takes over
   #   recording for its duration (the outer report omits that span).
-  # - If the block starts multiple executions, all tasks share one timeline;
-  #   the root and critical path reflect the first execution, and +total+ is
-  #   the span from first task start to last finish (including gaps).
+  # - If the block starts multiple executions, all tasks share one timeline:
+  #   the root is the first execution's root, the critical path walks that
+  #   root using each task's latest-finishing interval in the window (so
+  #   re-runs of the same class are not separated), and +total+ is the span
+  #   from first task start to last finish, including gaps between runs.
+  #   The profile: run option profiles exactly one execution and has none of
+  #   these ambiguities; per-execution sectioning here is a possible future
+  #   refinement.
   def self.profile
     collector = Profile::Collector.new
     previous = Thread.current[Profile::THREAD_LOCAL_KEY]

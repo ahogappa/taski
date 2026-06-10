@@ -192,6 +192,23 @@ class TestProfile < Minitest::Test
     refute_includes out, "Taski profile"
   end
 
+  # Destination IO that always fails — a report-WRITE failure must not turn a
+  # successful run into an exception (same isolation as report construction).
+  class RaisingIO
+    def puts(*)
+      raise IOError, "closed stream"
+    end
+  end
+
+  def test_profile_write_failure_does_not_fail_the_run
+    result = nil
+    Timeout.timeout(15) do
+      result = ProfileFixtures::ParallelRoot.run(workers: 4, profile: RaisingIO.new)
+    end
+
+    assert_equal "ab", result
+  end
+
   # Report-level unit test: events may arrive out of timestamp order (worker
   # threads); the report must sort before pairing intervals. Also pins the
   # frozen (immutable) result collections.
