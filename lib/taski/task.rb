@@ -125,10 +125,19 @@ module Taski
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
       #   Must be a positive integer or nil.
       #   Use workers: 1 for sequential execution (useful for debugging).
+      # @param profile [true, IO, nil] When set, print a timing report (per-task
+      #   start offsets, durations, critical path) after the run — to $stdout
+      #   for +true+, or to the given IO. Purely observational; the return value
+      #   is unchanged.
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution.
-      def run(args: {}, workers: nil)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run }
+      def run(args: {}, workers: nil, profile: nil)
+        execution = -> { with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run } }
+        return execution.call unless profile
+
+        report = Taski.profile { execution.call }
+        write_profile_report(report, profile)
+        report.result
       end
 
       ##
@@ -144,8 +153,13 @@ module Taski
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution
       # @yield Optional block executed between run and clean phases
-      def run_and_clean(args: {}, workers: nil, clean_on_failure: false, &block)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(clean_on_failure: clean_on_failure, &block) }
+      def run_and_clean(args: {}, workers: nil, clean_on_failure: false, profile: nil, &block)
+        execution = -> { with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(clean_on_failure: clean_on_failure, &block) } }
+        return execution.call unless profile
+
+        report = Taski.profile { execution.call }
+        write_profile_report(report, profile)
+        report.result
       end
 
       ##
@@ -212,6 +226,14 @@ module Taski
         return "" if lines.empty?
 
         "\nprestart plan:\n#{lines.join("\n")}\n"
+      end
+
+      ##
+      # Write a profile report to the destination given as the +profile:+
+      # option: $stdout for +true+, otherwise the given IO-like object.
+      def write_profile_report(report, destination)
+        io = destination.respond_to?(:puts) ? destination : $stdout
+        io.puts(report)
       end
 
       ##

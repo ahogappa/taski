@@ -280,11 +280,11 @@ When a task accesses a dependency (e.g., `SomeDep.value`), the result may be a l
 
 ### Profiling
 
-To see where the time went, wrap a run in `Taski.profile`:
+To see where the time went, pass `profile:` to `run` (or `run_and_clean`):
 
 ```ruby
-report = Taski.profile { Deploy.run }
-puts report
+Deploy.run(profile: true)               # prints the report to $stdout after the run
+Deploy.run(profile: File.open("p.txt", "w"))  # or to any IO
 ```
 
 ```
@@ -301,7 +301,7 @@ critical path:
 
 Each task shows when it started (relative to the run) and how long it ran; the critical path is the dependency chain that bounded the total time. A dependency that starts well into the run (like `Assets` above, at `+0.305s`) ran serially behind the work before its read — often a sign that the task is doing more than one job and could be split (see [Keep Tasks Small and Focused](#keep-tasks-small-and-focused)).
 
-Profiling is purely observational: it never changes how tasks execute. It observes runs started directly on the calling thread; if the block starts several runs, they share one timeline (the header's root, critical path, and `total` — the span from first task start to last finish — reflect that whole window).
+Profiling is purely observational: it never changes how tasks execute, and the run's return value is unchanged.
 
 ### Error Handling
 

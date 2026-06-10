@@ -2,6 +2,7 @@
 
 require "test_helper"
 require "timeout"
+require "stringio"
 require_relative "fixtures/profile_tasks"
 
 # Taski.profile { ... } records task state transitions during the block's
@@ -149,6 +150,46 @@ class TestProfile < Minitest::Test
 
     refute report.empty?
     assert_equal "ProfileFixtures::ParallelRoot", report.critical_path.first.name
+  end
+
+  # --- the profile: option on run / run_and_clean ---
+
+  def test_run_profile_option_writes_report_to_the_given_io
+    out = StringIO.new
+    result = nil
+    Timeout.timeout(15) do
+      result = ProfileFixtures::ParallelRoot.run(workers: 4, profile: out)
+    end
+
+    assert_includes out.string, "Taski profile"
+    assert_includes out.string, "ProfileFixtures::SlowDepB"
+    assert_includes out.string, "critical path"
+    assert_equal "ab", result, "the return contract must be unchanged (task result, not a report)"
+  end
+
+  def test_run_profile_true_prints_to_stdout
+    out, _err = capture_io do
+      Timeout.timeout(15) { ProfileFixtures::ParallelRoot.run(workers: 4, profile: true) }
+    end
+
+    assert_includes out, "critical path"
+  end
+
+  def test_run_and_clean_profile_option_includes_clean_phase
+    out = StringIO.new
+    Timeout.timeout(15) do
+      ProfileFixtures::CleanRoot.run_and_clean(workers: 2, profile: out)
+    end
+
+    assert_includes out.string, "(clean)"
+  end
+
+  def test_run_without_profile_option_prints_nothing
+    out, _err = capture_io do
+      Timeout.timeout(15) { ProfileFixtures::ParallelRoot.run(workers: 4) }
+    end
+
+    refute_includes out, "Taski profile"
   end
 
   # Report-level unit test: events may arrive out of timestamp order (worker
