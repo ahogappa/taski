@@ -20,6 +20,7 @@ require_relative "taski/progress/config"
 require_relative "taski/args"
 require_relative "taski/env"
 require_relative "taski/logging"
+require_relative "taski/profile"
 
 module Taski
   class TaskAbortException < StandardError

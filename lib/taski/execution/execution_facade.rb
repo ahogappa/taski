@@ -27,11 +27,14 @@ module Taski
         @original_stdout = nil
       end
 
-      # Build a facade with the global progress observer attached.
+      # Build a facade with the global progress observer attached, plus the
+      # profile collector when a Taski.profile block is active on this fiber.
       def self.build_default(root_task_class:)
         facade = new(root_task_class: root_task_class)
         progress = Taski.progress_display
         facade.add_observer(progress) if progress
+        profiler = Taski.current_profile_collector
+        facade.add_observer(profiler) if profiler
         facade
       end
 

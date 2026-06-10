@@ -125,10 +125,21 @@ module Taski
       # @param workers [Integer, nil] Number of worker threads for parallel execution.
       #   Must be a positive integer or nil.
       #   Use workers: 1 for sequential execution (useful for debugging).
-      # @raise [ArgumentError] If workers is not a positive integer or nil.
+      # @param profile [true, IO, nil] When set, print a timing report (per-task
+      #   start offsets, durations, critical path) after the run — to $stdout
+      #   for +true+, or to the given IO-like object (must respond to #puts).
+      #   The report is written even when the run fails (the exception is
+      #   re-raised afterwards). Purely observational; the return value is
+      #   unchanged.
+      # @raise [ArgumentError] If workers is not a positive integer or nil, or
+      #   if profile is neither true nor an IO-like object.
       # @return [Object] The result of task execution.
-      def run(args: {}, workers: nil)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run }
+      def run(args: {}, workers: nil, profile: nil)
+        validate_profile!(profile)
+        execution = -> { with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run } }
+        return execution.call unless profile
+
+        profiled_execution(execution, profile)
       end
 
       ##
@@ -144,8 +155,12 @@ module Taski
       # @raise [ArgumentError] If workers is not a positive integer or nil.
       # @return [Object] The result of task execution
       # @yield Optional block executed between run and clean phases
-      def run_and_clean(args: {}, workers: nil, clean_on_failure: false, &block)
-        with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(clean_on_failure: clean_on_failure, &block) }
+      def run_and_clean(args: {}, workers: nil, clean_on_failure: false, profile: nil, &block)
+        validate_profile!(profile)
+        execution = -> { with_execution_setup(args: args, workers: workers) { |wrapper| wrapper.run_and_clean(clean_on_failure: clean_on_failure, &block) } }
+        return execution.call unless profile
+
+        profiled_execution(execution, profile)
       end
 
       ##
@@ -212,6 +227,69 @@ module Taski
         return "" if lines.empty?
 
         "\nprestart plan:\n#{lines.join("\n")}\n"
+      end
+
+      ##
+      # Fail fast on a bogus profile: destination — a filename String (or any
+      # other non-IO truthy value) would otherwise silently print to $stdout.
+      def validate_profile!(profile)
+        return if profile.nil? || profile.equal?(true) || profile.respond_to?(:puts)
+
+        raise ArgumentError, "profile: must be true or an IO-like object responding to #puts, got #{profile.inspect}"
+      end
+
+      ##
+      # Run the execution under a profile and write the report — also when the
+      # run FAILS (a failing build is exactly when the profile matters); the
+      # original exception is re-raised unchanged afterwards.
+      def profiled_execution(execution, destination)
+        if Execution::ExecutionFacade.current
+          # A nested run joins the enclosing execution — there is no separate
+          # event stream to profile, so say that instead of confidently
+          # writing an empty report.
+          write_profile_report(
+            "taski: profile: ignored — this run joins the enclosing execution; profile the top-level entry point instead",
+            destination
+          )
+          return execution.call
+        end
+
+        error = nil
+        report = Taski.profile do
+          execution.call
+        rescue => e
+          error = e
+          nil
+        end
+        write_profile_report(report, destination)
+        raise error if error
+
+        report.result
+      end
+
+      ##
+      # Write a profile report to the destination given as the +profile:+
+      # option: $stdout for +true+, otherwise the given IO-like object.
+      def write_profile_report(report, destination)
+        io = destination.respond_to?(:puts) ? destination : $stdout
+        io.puts(report)
+      rescue StandardError, ScriptError => e
+        # A report-write failure (closed stream, broken pipe, a half-built
+        # IO-like raising NotImplementedError — a ScriptError) must not turn a
+        # successful run into a failure — the same isolation contract as
+        # report construction. The user explicitly asked for a report, so
+        # leave a last-resort note on $stderr (itself guarded: post-execution,
+        # the progress display has already been torn down).
+        Taski::Logging.warn(
+          Taski::Logging::Events::PROFILE_ERROR,
+          error_class: e.class.name,
+          error_message: e.message
+        )
+        begin
+          warn("taski: profile report could not be written (#{e.class}: #{e.message})")
+        rescue StandardError, ScriptError
+          # nothing left to report to
+        end
       end
 
       ##
