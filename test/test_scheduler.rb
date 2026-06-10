@@ -523,10 +523,11 @@ class TestScheduler < Minitest::Test
   end
 
   # mark_skipped only transitions from pending, so a skipped task cannot be
-  # skipped again. (Run-phase ordering, including "a skipped task is never
-  # enqueued to run", is the Executor's responsibility — the Scheduler is only
-  # accessed from the Executor's serialized event loop and does not police
-  # mark_running's caller.)
+  # skipped again. (The Scheduler does not police run-phase ordering:
+  # mark_running has no terminal-state guard, and under the Fiber pull model a
+  # task marked skipped can still be started later by a still-running requester
+  # via NeedDep — :skipped is advisory bookkeeping for reporting, not an
+  # execution barrier.)
   def test_skipped_task_cannot_be_re_skipped
     task = Class.new(Taski::Task) do
       exports :value
