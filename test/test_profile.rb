@@ -25,9 +25,13 @@ class TestProfile < Minitest::Test
     assert_includes names, "ProfileFixtures::SlowDepA"
     assert_includes names, "ProfileFixtures::SlowDepB"
 
+    dep_a = report.tasks.find { |t| t.name == "ProfileFixtures::SlowDepA" }
     dep_b = report.tasks.find { |t| t.name == "ProfileFixtures::SlowDepB" }
     assert_operator dep_b.duration, :>=, 0.3, "SlowDepB sleeps 0.4s"
-    assert_operator dep_b.start_offset, :<, 0.2, "prefix dep should start near t=0 (prestarted)"
+    # Relative assertion (robust to whole-VM stalls): prestarted siblings run
+    # in parallel, so B must start before A finishes.
+    assert_operator dep_b.start_offset, :<, dep_a.start_offset + dep_a.duration,
+      "prefix deps should run in parallel (B starts before A finishes)"
   end
 
   def test_profile_surfaces_late_started_dep
@@ -90,5 +94,78 @@ class TestProfile < Minitest::Test
       ProfileFixtures::ParallelRoot.run(workers: 4)
       assert_equal recorded, report.tasks.size
     end
+  end
+
+  def test_nested_profile_restores_the_outer_collector
+    inner = nil
+    outer = nil
+    Timeout.timeout(15) do
+      outer = Taski.profile do
+        inner = Taski.profile { ProfileFixtures::SlowDepA.run(workers: 2) }
+        refute_nil Taski.current_profile_collector,
+          "the outer collector must be restored after the inner block"
+        ProfileFixtures::SlowDepB.run(workers: 2)
+        nil
+      end
+    end
+
+    assert_includes inner.tasks.map(&:name), "ProfileFixtures::SlowDepA"
+    refute_includes inner.tasks.map(&:name), "ProfileFixtures::SlowDepB"
+    assert_includes outer.tasks.map(&:name), "ProfileFixtures::SlowDepB"
+    refute_includes outer.tasks.map(&:name), "ProfileFixtures::SlowDepA",
+      "the inner block's executions belong to the inner report only"
+  end
+
+  def test_failed_run_is_reported_with_failed_state
+    report = nil
+    Timeout.timeout(15) do
+      report = Taski.profile do
+        ProfileFixtures::FailingRoot.run(workers: 2)
+      rescue Taski::AggregateError
+        # The failure is the scenario under test; the report must still build.
+      end
+    end
+
+    entry = report.tasks.find { |t| t.name == "ProfileFixtures::FailingRoot" }
+    assert_equal :failed, entry.state
+    assert_includes report.to_s, "(failed)"
+  end
+
+  def test_run_and_clean_records_clean_phase_entries
+    report = nil
+    Timeout.timeout(15) do
+      report = Taski.profile { ProfileFixtures::CleanRoot.run_and_clean(workers: 2) }
+    end
+
+    assert_includes report.tasks.map(&:phase), :clean
+    assert_includes report.to_s, "(clean)"
+  end
+
+  def test_value_entry_point_is_profiled
+    report = nil
+    Timeout.timeout(15) do
+      report = Taski.profile { ProfileFixtures::ParallelRoot.value }
+    end
+
+    refute report.empty?
+    assert_equal "ProfileFixtures::ParallelRoot", report.critical_path.first.name
+  end
+
+  # Report-level unit test: events may arrive out of timestamp order (worker
+  # threads); the report must sort before pairing intervals. Also pins the
+  # frozen (immutable) result collections.
+  def test_report_handles_out_of_order_events
+    t0 = Time.now
+    events = [
+      Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :completed, phase: :run, at: t0 + 1),
+      Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :running, phase: :run, at: t0)
+    ]
+    report = Taski::Profile::Report.new(events: events, root: nil, graph: nil, result: nil)
+
+    entry = report.tasks.first
+    assert_equal :completed, entry.state
+    assert_in_delta 1.0, entry.duration, 0.01
+    assert report.tasks.frozen?
+    assert report.critical_path.frozen?
   end
 end

@@ -67,10 +67,13 @@ module Taski
         @root_name = root && (root.name || root.inspect)
         t0 = events.map(&:at).min
         intervals = build_intervals(events)
-        @tasks = build_entries(intervals, t0)
+        @tasks = build_entries(intervals, t0).freeze
         finishes = intervals.values.flatten.filter_map { |iv| iv[:finish] }
+        # total is the SPAN from the first task start to the last task finish
+        # inside the block — for a block with multiple runs it includes any
+        # time between them.
         @total = (t0 && !finishes.empty?) ? finishes.max - t0 : nil
-        @critical_path = compute_critical_path(root, graph, intervals, t0)
+        @critical_path = compute_critical_path(root, graph, intervals, t0).freeze
       end
 
       def empty?
@@ -119,7 +122,13 @@ module Taski
               intervals[key] << {start: nil, finish: ev.at, state: ev.state}
             end
           when :skipped
-            intervals[key] << {start: nil, finish: nil, state: :skipped}
+            # A :skipped event can arrive for a class that demonstrably ran —
+            # the outer executor marks graph members it never started itself,
+            # even when they ran via a nested execution on the same facade.
+            # Don't let one timeline assert both "completed" and "skipped".
+            unless intervals[key].any? { |iv| iv[:start] }
+              intervals[key] << {start: nil, finish: nil, state: :skipped}
+            end
           end
         end
         intervals
@@ -151,8 +160,11 @@ module Taski
         visited = Set.new
         current = root
         while current && visited.add?(current)
-          iv = (intervals[[current, :run]] || []).find { |i| i[:start] }
-          break unless iv
+          # Render the interval that actually bounded the wall clock (the one
+          # with the latest finish), not merely the first recorded one.
+          ivs = (intervals[[current, :run]] || []).select { |i| i[:start] }
+          break if ivs.empty?
+          iv = ivs.max_by { |i| i[:finish] || -Float::INFINITY }
 
           path << Entry.new(
             name: current.name || current.inspect,
@@ -161,11 +173,7 @@ module Taski
             duration: iv[:finish] ? iv[:finish] - iv[:start] : nil,
             state: iv[:state]
           )
-          deps = begin
-            graph.dependencies_for(current)
-          rescue
-            nil
-          end
+          deps = graph.dependencies_for(current)
           break unless deps
 
           current = deps.select { |d| (intervals[[d, :run]] || []).any? { |i| i[:finish] } }
@@ -198,12 +206,34 @@ module Taski
   # and without a profile block nothing is recorded. The block's return value
   # is available as +report.result+. If the block raises (e.g. a failing run),
   # the exception propagates and no report is returned.
+  #
+  # Scope notes:
+  # - Observes executions started directly on the calling fiber (.run/.value).
+  #   An execution started INSIDE a task body reuses the enclosing execution's
+  #   facade, so its events land in the enclosing profile; runs started on
+  #   threads you spawn yourself are not observed.
+  # - Nested profile blocks do not compose: the inner block takes over
+  #   recording for its duration (the outer report omits that span).
+  # - If the block starts multiple executions, all tasks share one timeline;
+  #   the root and critical path reflect the first execution, and +total+ is
+  #   the span from first task start to last finish (including gaps).
   def self.profile
     collector = Profile::Collector.new
     previous = Thread.current[Profile::THREAD_LOCAL_KEY]
     Thread.current[Profile::THREAD_LOCAL_KEY] = collector
     result = yield
-    Profile::Report.build(collector, result: result)
+    begin
+      Profile::Report.build(collector, result: result)
+    rescue => e
+      # The run already succeeded — a report-construction bug must not turn
+      # that into a failure. Degrade to an empty report and surface the error.
+      Taski::Logging.warn(
+        Taski::Logging::Events::PROFILE_ERROR,
+        error_class: e.class.name,
+        error_message: e.message
+      )
+      Profile::Report.new(events: [], root: nil, graph: nil, result: result)
+    end
   ensure
     Thread.current[Profile::THREAD_LOCAL_KEY] = previous
   end

@@ -47,4 +47,40 @@ module ProfileFixtures
       @value = "lazy: #{v}"
     end
   end
+
+  # Raises after a short sleep — for failed-state reporting.
+  class FailingRoot < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      raise "profile failing fixture"
+    end
+  end
+
+  # run + clean pair — for clean-phase entries in the report.
+  class CleanDep < Taski::Task
+    exports :value
+
+    def run
+      @value = "dep"
+    end
+
+    def clean
+      sleep 0.02
+    end
+  end
+
+  class CleanRoot < Taski::Task
+    exports :value
+
+    def run
+      v = CleanDep.value
+      @value = "root: #{v}"
+    end
+
+    def clean
+      sleep 0.02
+    end
+  end
 end

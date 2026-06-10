@@ -301,7 +301,7 @@ critical path:
 
 Each task shows when it started (relative to the run) and how long it ran; the critical path is the dependency chain that bounded the total time. A dependency that starts well into the run (like `Assets` above, at `+0.305s`) ran serially behind the work before its read — often a sign that the task is doing more than one job and could be split (see [Keep Tasks Small and Focused](#keep-tasks-small-and-focused)).
 
-Profiling is purely observational: it never changes how tasks execute.
+Profiling is purely observational: it never changes how tasks execute. It observes runs started directly on the calling thread; if the block starts several runs, they share one timeline (the header's root, critical path, and `total` — the span from first task start to last finish — reflect that whole window).
 
 ### Error Handling
 
