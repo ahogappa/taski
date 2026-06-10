@@ -202,11 +202,82 @@ class TestProfile < Minitest::Test
 
   def test_profile_write_failure_does_not_fail_the_run
     result = nil
-    Timeout.timeout(15) do
-      result = ProfileFixtures::ParallelRoot.run(workers: 4, profile: RaisingIO.new)
+    capture_io do
+      Timeout.timeout(15) do
+        result = ProfileFixtures::ParallelRoot.run(workers: 4, profile: RaisingIO.new)
+      end
     end
 
     assert_equal "ab", result
+  end
+
+  # NotImplementedError is a ScriptError, not a StandardError — the classic
+  # Ruby trap for "write not implemented" IO-likes. Isolation must hold.
+  class ScriptErrorIO
+    def puts(*)
+      raise NotImplementedError, "write not implemented"
+    end
+  end
+
+  def test_profile_write_script_error_does_not_fail_the_run
+    result = nil
+    capture_io do
+      Timeout.timeout(15) do
+        result = ProfileFixtures::ParallelRoot.run(workers: 4, profile: ScriptErrorIO.new)
+      end
+    end
+
+    assert_equal "ab", result
+  end
+
+  # A failing build is exactly when the profile matters most — the report must
+  # be written before the exception is re-raised.
+  def test_failing_run_with_profile_still_writes_the_report
+    out = StringIO.new
+    Timeout.timeout(15) do
+      assert_raises(Taski::AggregateError) do
+        ProfileFixtures::FailingRoot.run(workers: 2, profile: out)
+      end
+    end
+
+    assert_includes out.string, "ProfileFixtures::FailingRoot"
+    assert_includes out.string, "(failed)"
+  end
+
+  def test_run_and_clean_writes_run_profile_even_when_clean_fails
+    out = StringIO.new
+    Timeout.timeout(15) do
+      assert_raises(Taski::AggregateError) do
+        ProfileFixtures::FailingCleanRoot.run_and_clean(workers: 2, profile: out)
+      end
+    end
+
+    assert_includes out.string, "ProfileFixtures::FailingCleanRoot",
+      "the run-phase profile must survive a clean-phase failure"
+  end
+
+  # profile: "report.txt" is a plausible misreading of the IO form — it must
+  # fail fast, not silently print to $stdout.
+  def test_profile_option_rejects_non_io_destinations
+    assert_raises(ArgumentError) do
+      ProfileFixtures::ParallelRoot.run(profile: "report.txt")
+    end
+  end
+
+  # A nested run(profile:) inside a task body joins the enclosing execution —
+  # there is no separate event stream, so say that instead of confidently
+  # writing an empty report.
+  def test_nested_run_profile_writes_a_notice_instead_of_an_empty_report
+    out = StringIO.new
+    ProfileFixtures::NestedProfilingRoot.destination = out
+    Timeout.timeout(15) do
+      ProfileFixtures::NestedProfilingRoot.run(workers: 2)
+    end
+
+    assert_includes out.string, "enclosing execution"
+    refute_includes out.string, "no execution recorded"
+  ensure
+    ProfileFixtures::NestedProfilingRoot.destination = nil
   end
 
   # Report-level unit test: events may arrive out of timestamp order (worker
@@ -225,5 +296,66 @@ class TestProfile < Minitest::Test
     assert_in_delta 1.0, entry.duration, 0.01
     assert report.tasks.frozen?
     assert report.critical_path.frozen?
+  end
+
+  # Pins the arrival-order tie-break: equal timestamps (coarse clock) must not
+  # split running/completed pairs into bogus intervals (sort_by is unstable).
+  def test_equal_timestamp_events_pair_correctly
+    t = Time.now
+    events = Array.new(40) do
+      [
+        Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :running, phase: :run, at: t),
+        Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :completed, phase: :run, at: t)
+      ]
+    end.flatten
+    report = Taski::Profile::Report.new(events: events, root: nil, graph: nil, result: nil)
+
+    assert_equal 40, report.tasks.size
+    assert(report.tasks.all? { |e| e.state == :completed },
+      "every :running must pair with its :completed even on equal timestamps")
+  end
+
+  # Pins the skipped-reconciliation guard: a :skipped event for a class whose
+  # timeline already has a real interval must not add a contradictory row.
+  def test_skipped_event_after_a_real_run_is_reconciled
+    t0 = Time.now
+    events = [
+      Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :running, phase: :run, at: t0),
+      Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :completed, phase: :run, at: t0 + 1),
+      Taski::Profile::Event.new(task_class: ProfileFixtures::SlowDepA, state: :skipped, phase: :run, at: t0 + 1)
+    ]
+    report = Taski::Profile::Report.new(events: events, root: nil, graph: nil, result: nil)
+
+    assert_equal 1, report.tasks.size
+    assert_equal :completed, report.tasks.first.state
+  end
+
+  # Pins the bounding-interval critical path: for re-runs of the same root in
+  # one block, the path renders the LATEST-finishing interval, not the first.
+  def test_critical_path_renders_the_latest_finishing_interval_for_reruns
+    report = nil
+    Timeout.timeout(30) do
+      report = Taski.profile do
+        ProfileFixtures::ParallelRoot.run(workers: 4)
+        ProfileFixtures::ParallelRoot.run(workers: 4)
+      end
+    end
+
+    assert_operator report.critical_path.first.start_offset, :>, 0.4,
+      "the critical path must render the second (bounding) run's interval"
+  end
+
+  # Report-CONSTRUCTION failure must not turn a successful block into an
+  # exception (mirror of the write-path isolation tests).
+  def test_report_build_failure_degrades_to_empty_report
+    original = Taski::Profile::Report.method(:build)
+    Taski::Profile::Report.define_singleton_method(:build) { |*| raise "boom in build" }
+
+    report = Taski.profile { 42 }
+
+    assert report.empty?
+    assert_equal 42, report.result
+  ensure
+    Taski::Profile::Report.define_singleton_method(:build, original)
   end
 end

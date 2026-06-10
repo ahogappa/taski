@@ -83,4 +83,32 @@ module ProfileFixtures
       sleep 0.02
     end
   end
+
+  # Run succeeds but clean fails — the run-phase profile must still be written.
+  class FailingCleanRoot < Taski::Task
+    exports :value
+
+    def run
+      @value = "ok"
+    end
+
+    def clean
+      raise "clean fails"
+    end
+  end
+
+  # Calls a nested run(profile:) from INSIDE its own run body — a nested
+  # execution joins the enclosing one, so a separate profile cannot exist.
+  class NestedProfilingRoot < Taski::Task
+    exports :value
+
+    class << self
+      attr_accessor :destination
+    end
+
+    def run
+      CleanDep.run(profile: self.class.destination)
+      @value = "nested-done"
+    end
+  end
 end

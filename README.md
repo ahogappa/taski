@@ -283,8 +283,11 @@ When a task accesses a dependency (e.g., `SomeDep.value`), the result may be a l
 To see where the time went, pass `profile:` to `run` (or `run_and_clean`):
 
 ```ruby
-Deploy.run(profile: true)               # prints the report to $stdout after the run
-Deploy.run(profile: File.open("p.txt", "w"))  # or to any IO
+Deploy.run(profile: true)   # prints the report to $stdout after the run
+
+File.open("profile.txt", "w") do |f|
+  Deploy.run(profile: f)    # or to any IO-like object responding to #puts
+end
 ```
 
 ```
@@ -301,7 +304,7 @@ critical path:
 
 Each task shows when it started (relative to the run) and how long it ran; the critical path is the dependency chain that bounded the total time. A dependency that starts well into the run (like `Assets` above, at `+0.305s`) ran serially behind the work before its read — often a sign that the task is doing more than one job and could be split (see [Keep Tasks Small and Focused](#keep-tasks-small-and-focused)).
 
-Profiling is purely observational: it never changes how tasks execute, and the run's return value is unchanged.
+Profiling is purely observational: it never changes how tasks execute, and the run's return value is unchanged. The report is also written when the run fails — a failing build is exactly when you want it — and the exception is re-raised afterwards.
 
 ### Error Handling
 
