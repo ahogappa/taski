@@ -196,10 +196,13 @@ class TestWorkerPool < Minitest::Test
     )
 
     pool.start
+    threads = pool.instance_variable_get(:@threads)
+    assert_equal 3, threads.size
+    assert threads.all?(&:alive?), "workers should be running after start"
+
     pool.shutdown
 
-    # All threads should have terminated
-    # No errors, no hanging
+    refute threads.any?(&:alive?), "all worker threads must terminate after shutdown"
   end
 
   def test_fiber_context_restored_on_cross_thread_resume

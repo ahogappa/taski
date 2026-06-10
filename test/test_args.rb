@@ -68,49 +68,21 @@ class TestArgs < Minitest::Test
   end
 
   def test_args_is_not_dependency
-    require_relative "fixtures/parallel_tasks"
+    # ArgsOptionsCaptureTask reads Taski.args[:env] and no other task — the
+    # static analyzer must not register Taski::Args (or anything else) as a
+    # dependency. (The previous version only asserted that Args is not a Task
+    # subclass, which stayed green even when the analyzer was mutated to
+    # report Args as a dependency.)
+    deps = Taski::StaticAnalysis::Analyzer.analyze(ArgsFixtures::ArgsOptionsCaptureTask)
 
-    Taski::Task.reset!
-
-    # Args should not appear in dependencies
-    # Note: Static analysis requires actual source files, so we just verify
-    # that Args is not a Task subclass (which is how dependencies are filtered)
-    refute Taski::Args < Taski::Task
+    refute_includes deps, Taski::Args
+    assert_empty deps
   end
 
-  def test_args_thread_safety
-    # Intentionally inline: each iteration creates a unique anonymous class with
-    # a per-iteration closure. This is fundamentally incompatible with fixtures
-    # since the closure captures the loop variable `i`.
-    results = []
-    mutex = Mutex.new
-    threads = []
-
-    10.times do |i|
-      execution_values = []
-
-      task_class = Class.new(Taski::Task) do
-        exports :value
-
-        define_method(:run) do
-          execution_values << i
-          @value = i
-        end
-      end
-
-      threads << Thread.new do
-        task_class.run
-        mutex.synchronize { results << [i, execution_values.first] }
-      end
-    end
-
-    threads.each(&:join)
-
-    # Each execution should capture its own value correctly
-    results.each do |expected_value, actual_value|
-      assert_equal expected_value, actual_value, "Each execution should capture its own value"
-    end
-  end
+  # NOTE: a former test_args_thread_safety lived here, but it never read
+  # Taski.args — each thread asserted its own closure-captured loop index
+  # (i == i), so it stayed green even with args delivery entirely broken.
+  # Real concurrent-isolation coverage lives in test_concurrent_args_isolation.rb.
 
   def test_env_values_are_consistent_during_execution
     ArgsFixtures::EnvCaptureRoot.run

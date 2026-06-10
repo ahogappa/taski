@@ -417,4 +417,50 @@ module ExecutorFixtures
 
     def clean = nil
   end
+
+  # Immediate skip-cascade ordering: FastFailLeaf fails quickly while
+  # SlowSibling still runs. SkipCascadeDependent (reads the leaf; itself only
+  # conditionally read by the root, so never started) must be marked skipped
+  # IMMEDIATELY when the leaf fails — before SlowSibling completes — not in
+  # the end-of-run sweep.
+  class FastFailLeaf < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.05
+      raise "fast fail"
+    end
+  end
+
+  class SlowSibling < Taski::Task
+    exports :value
+
+    def run
+      sleep 0.6
+      @value = "slow"
+    end
+  end
+
+  class SkipCascadeDependent < Taski::Task
+    exports :value
+
+    def run
+      @value = "dep: #{FastFailLeaf.value}"
+    end
+  end
+
+  class SkipCascadeOrderingRoot < Taski::Task
+    exports :value
+
+    def run
+      f = FastFailLeaf.value
+      s = SlowSibling.value
+      @hold = f
+      if s.nil?
+        d = SkipCascadeDependent.value
+        @extra = "never: #{d}"
+      end
+      @value = "root: #{s}"
+    end
+  end
 end

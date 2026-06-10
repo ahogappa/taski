@@ -168,11 +168,15 @@ class TestLayoutBase < Minitest::Test
 
   def test_on_start_and_on_stop_manage_nest_level
     @layout.on_start
-    @layout.on_start  # Nested call
-    @layout.on_stop
-    # First stop shouldn't finalize
-    @layout.on_stop
-    # Second stop finalizes
+    @layout.on_start # nested executor opens a second level
+    @layout.queue_message("queued-marker")
+
+    @layout.on_stop # inner stop: must NOT finalize or flush
+    refute_includes @output.string, "queued-marker",
+      "messages must not flush while a nested execution is still open"
+
+    @layout.on_stop # outer stop: finalizes and flushes the queue
+    assert_includes @output.string, "queued-marker"
   end
 
   def test_on_stop_without_on_start_does_not_crash
