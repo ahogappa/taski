@@ -92,7 +92,14 @@ module Taski
         unsafe_classes = detect_unsafe_proxy_usage(run_node.body)
         all_dep_classes = Set.new(@deps.map(&:klass))
         start_deps = all_dep_classes - unsafe_classes
-        sync_deps = unsafe_classes
+        # Intersect with the phase-1 prefix deps: the unsafe-usage scan covers the
+        # WHOLE body (including never-taken branches and post-return code), but
+        # only prefix deps — the ones sequential semantics are certain to read —
+        # may be speculatively dispatched. Without this, a dep referenced only in
+        # a dead branch would be prestarted (and its failure would fail a run that
+        # sequential execution completes). Out-of-prefix deps simply resolve
+        # lazily at their actual read site.
+        sync_deps = unsafe_classes & all_dep_classes
         AnalysisResult.new(start_deps: start_deps, sync_deps: sync_deps, stopped_at: stopped_at_info)
       rescue => e
         # Prestart analysis is a pure performance optimization. If anything goes
