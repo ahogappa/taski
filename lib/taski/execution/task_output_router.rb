@@ -58,8 +58,17 @@ module Taski
 
       def start_capture(task_class)
         synchronize do
-          pipe = TaskOutputPipe.new(task_class)
-          @pipes[task_class] = pipe
+          existing = @pipes[task_class]
+          # Reuse an open pipe: a parked fiber's resume re-enters here, and
+          # replacing the pipe would orphan it with both FDs open (leaking
+          # until GC) and lose its undrained pre-park output from
+          # @recent_lines — and therefore from failure reports. A write-closed
+          # pipe (its phase finished via stop_capture) gets a fresh one. The
+          # resumed fiber may be on a different thread, so the thread_map is
+          # always re-pointed.
+          if existing.nil? || existing.write_closed?
+            @pipes[task_class] = TaskOutputPipe.new(task_class)
+          end
           @thread_map[Thread.current] = task_class
           Taski::Logging.debug(Taski::Logging::Events::OUTPUT_ROUTER_START_CAPTURE, task: task_class.name)
         end
