@@ -308,6 +308,50 @@ class TestExecutor < Minitest::Test
     terminated = failed_tasks + skipped_tasks
     assert_includes terminated, ExecutorFixtures::FailCascadeLeaf,
       "failing_leaf should be in failed set"
+    [ExecutorFixtures::FailCascadeBranchA, ExecutorFixtures::FailCascadeBranchB,
+      ExecutorFixtures::FailCascadeMiddle, ExecutorFixtures::FailCascadeRoot].each do |dependent|
+      assert_includes terminated, dependent,
+        "#{dependent} must reach a terminal state when its dependency fails"
+    end
+  end
+
+  # The skip cascade must fire IMMEDIATELY when a task fails — dependents that
+  # never started are reported :skipped while other tasks are still running,
+  # not in the end-of-run sweep. (A disabled cascade produces the same END
+  # states, so only this ordering distinguishes it.)
+  def test_failed_task_skips_pending_dependents_immediately
+    root_class = ExecutorFixtures::SkipCascadeOrderingRoot
+
+    events = []
+    observer = Object.new
+    observer.define_singleton_method(:on_task_updated) do |tc, current_state:, **_|
+      events << [tc, current_state]
+    end
+    observer.define_singleton_method(:on_ready) {}
+    observer.define_singleton_method(:on_start) {}
+    observer.define_singleton_method(:on_stop) {}
+
+    registry = Taski::Execution::Registry.new
+    facade = Taski::Execution::ExecutionFacade.new(root_task_class: root_class)
+    facade.add_observer(observer)
+
+    executor = Taski::Execution::Executor.new(
+      registry: registry,
+      execution_facade: facade,
+      worker_count: 4
+    )
+
+    Timeout.timeout(15) do
+      assert_raises(Taski::AggregateError) { executor.execute(root_class) }
+    end
+
+    skipped_at = events.index([ExecutorFixtures::SkipCascadeDependent, :skipped])
+    sibling_done_at = events.index([ExecutorFixtures::SlowSibling, :completed])
+    refute_nil skipped_at, "the never-started dependent must be reported skipped"
+    refute_nil sibling_done_at, "the slow sibling must complete"
+    assert_operator skipped_at, :<, sibling_done_at,
+      "the dependent must be skipped as soon as its dependency fails (~50ms), " \
+        "not after the slow sibling finishes (~600ms)"
   end
 
   def test_log_execution_completed_includes_skipped_count

@@ -20,7 +20,8 @@ class TestLogging < Minitest::Test
   end
 
   def test_logger_is_nil_by_default
-    Taski.logger = nil
+    # Asserts the actual default — setting nil first would make this a
+    # tautology that passes even if the default became a Logger.
     assert_nil Taski.logger
   end
 
@@ -137,6 +138,10 @@ class TestLogging < Minitest::Test
     assert_equal "something broke", error_event["data"]["error_message"]
   end
 
+  # Documents intent more than it can prove it: under MRI's GVL the race is
+  # effectively unobservable in-process. The assertions pin what IS checkable —
+  # concurrent get/set never corrupts the slot into a non-Logger value and
+  # never raises.
   def test_thread_safety_of_logger_access
     Taski.logger = nil
 
@@ -144,13 +149,16 @@ class TestLogging < Minitest::Test
       Thread.new do
         if i.even?
           Taski.logger = Logger.new(StringIO.new)
+          nil
         else
           Taski.logger
         end
       end
     end
 
-    threads.each(&:value)
+    results = threads.map(&:value)
+    results.compact.each { |seen| assert_instance_of Logger, seen }
+    assert_instance_of Logger, Taski.logger, "five setters ran — a Logger must have won"
   end
 
   private

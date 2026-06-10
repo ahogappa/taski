@@ -81,28 +81,33 @@ class TestSimpleProgressDisplay < Minitest::Test
   end
 
   def test_start_and_stop_without_tty
-    # When output is not a TTY, on_start should do nothing
+    # When output is not a TTY, the display must not activate — no cursor
+    # control sequences may be written.
     @display.on_start
     @display.on_stop
-    # No error should be raised
-    assert true
+
+    refute_includes @output.string, "\e[?25l", "non-TTY output must not hide the cursor"
   end
 
   def test_nested_start_stop_calls
     @display.on_start
-    @display.on_start
-    @display.on_stop
-    # Should still be in started state (nest_level > 0)
-    @display.on_stop
-    # Now fully stopped
-    assert true
+    @display.on_start # nested executor opens a second level
+    @display.queue_message("nested-marker")
+
+    @display.on_stop # inner stop: must NOT finalize or flush
+    refute_includes @output.string, "nested-marker",
+      "messages must not flush while a nested execution is still open"
+
+    @display.on_stop # outer stop: finalizes and flushes the queue
+    assert_includes @output.string, "nested-marker"
   end
 
   def test_update_group
     @display.on_task_updated(FixtureTaskA, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
     @display.on_group_started(FixtureTaskA, "test_group", phase: :run, timestamp: Time.now)
-    # Should not raise error
-    assert true
+
+    assert @display.task_registered?(FixtureTaskA),
+      "the task must remain registered after a group event"
   end
 end
 
