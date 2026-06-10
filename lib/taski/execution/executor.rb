@@ -101,7 +101,15 @@ module Taski
       end
 
       def run_main_loop(root_task_class)
-        until @scheduler.finished?(root_task_class)
+        # Wait for the root AND every still-running (speculatively prestarted)
+        # task. Exiting on the root alone abandons parked fibers: shutdown's
+        # :shutdown sentinel reaches a parked task's worker before the Resume
+        # its slow dep pushes on completion, so the fiber dies mid-run — its
+        # ensure never executes and its wrapper is stuck :running while run()
+        # reports success. Every task marked running is guaranteed a terminal
+        # completion-queue event (StartDepNotify is pushed before its Execute
+        # command), so waiting here cannot deadlock.
+        until @scheduler.finished?(root_task_class) && !@scheduler.running_tasks?
           break if @registry.abort_requested? && !@scheduler.running_tasks?
 
           event = @completion_queue.pop
