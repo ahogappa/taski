@@ -43,44 +43,6 @@ class TestScheduler < Minitest::Test
     assert_equal 2, scheduler.task_count
   end
 
-  def test_next_ready_tasks_returns_pending_tasks
-    task = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "test"
-      end
-    end
-
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task)
-    scheduler = Taski::Execution::Scheduler.new
-    scheduler.load_graph(graph, task)
-
-    ready = scheduler.next_ready_tasks
-
-    assert_includes ready, task
-  end
-
-  def test_mark_running_prevents_re_selection
-    task = Class.new(Taski::Task) do
-      exports :value
-      def run
-        @value = "test"
-      end
-    end
-
-    graph = Taski::StaticAnalysis::DependencyGraph.new.build_from_cached(task)
-    scheduler = Taski::Execution::Scheduler.new
-    scheduler.load_graph(graph, task)
-
-    ready1 = scheduler.next_ready_tasks
-    assert_includes ready1, task
-
-    scheduler.mark_running(task)
-
-    ready2 = scheduler.next_ready_tasks
-    refute_includes ready2, task
-  end
-
   def test_mark_completed
     task = Class.new(Taski::Task) do
       exports :value
@@ -360,8 +322,6 @@ class TestScheduler < Minitest::Test
     assert_equal 1, scheduler.skipped_count
     # No longer pending
     refute_includes scheduler.never_started_task_classes, task
-    # Not ready for execution
-    assert_empty scheduler.next_ready_tasks
   end
 
   def test_mark_skipped_returns_false_from_running
@@ -518,12 +478,10 @@ class TestScheduler < Minitest::Test
     scheduler.load_graph(graph, task)
 
     # pending
-    assert_includes scheduler.next_ready_tasks, task
     refute scheduler.finished?(task)
 
     # running
     scheduler.mark_running(task)
-    refute_includes scheduler.next_ready_tasks, task
     assert scheduler.running_tasks?
 
     # completed
@@ -562,10 +520,15 @@ class TestScheduler < Minitest::Test
 
     assert scheduler.mark_skipped(task)
     assert_equal 1, scheduler.skipped_count
-    assert_empty scheduler.next_ready_tasks
   end
 
-  def test_skipped_is_terminal_cannot_transition_to_running
+  # mark_skipped only transitions from pending, so a skipped task cannot be
+  # skipped again. (The Scheduler does not police run-phase ordering:
+  # mark_running has no terminal-state guard, and under the Fiber pull model a
+  # task marked skipped can still be started later by a still-running requester
+  # via NeedDep — :skipped is advisory bookkeeping for reporting, not an
+  # execution barrier.)
+  def test_skipped_task_cannot_be_re_skipped
     task = Class.new(Taski::Task) do
       exports :value
       def run = @value = "test"
@@ -577,10 +540,7 @@ class TestScheduler < Minitest::Test
 
     scheduler.mark_skipped(task)
 
-    # mark_running overwrites state but skipped task won't be in next_ready_tasks
-    # and mark_skipped won't transition again
     refute scheduler.mark_skipped(task), "cannot skip an already-skipped task"
-    refute_includes scheduler.next_ready_tasks, task, "skipped task should not appear as ready"
   end
 
   def test_clean_phase_pending_to_running_to_completed
