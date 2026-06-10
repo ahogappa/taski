@@ -83,6 +83,9 @@ module Taski
             stop_render_loop
             @output.print "\e[?25h"  # Show cursor
             render_final
+          rescue IOError, SystemCallError
+            # The terminal is gone — there is nothing left to restore or render
+            # to. Contain the error so on_stop still flushes queued messages.
           end
 
           private
