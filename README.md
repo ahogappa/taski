@@ -278,6 +278,31 @@ DoubleConsumer.run  # RandomTask runs once, both accesses get same value
 
 When a task accesses a dependency (e.g., `SomeDep.value`), the result may be a lightweight proxy. The actual resolution is deferred until the value is used, allowing independent dependencies to execute in parallel transparently. This is automatic and requires no changes to your task code. Dependencies used in conditions or as arguments are automatically resolved synchronously for safety.
 
+### Profiling
+
+To see where the time went, wrap a run in `Taski.profile`:
+
+```ruby
+report = Taski.profile { Deploy.run }
+puts report
+```
+
+```
+Taski profile — root: Deploy, total: 0.561s, tasks: 2
+
+  start      duration   task
+  +0.000s    0.561s     Deploy
+  +0.305s    0.255s     Assets
+
+critical path:
+  Deploy (started +0.000s, ran 0.561s)
+  └ Assets (started +0.305s, ran 0.255s)
+```
+
+Each task shows when it started (relative to the run) and how long it ran; the critical path is the dependency chain that bounded the total time. A dependency that starts well into the run (like `Assets` above, at `+0.305s`) ran serially behind the work before its read — often a sign that the task is doing more than one job and could be split (see [Keep Tasks Small and Focused](#keep-tasks-small-and-focused)).
+
+Profiling is purely observational: it never changes how tasks execute.
+
 ### Error Handling
 
 When a task fails, Taski wraps the error with task-specific context. Each task class automatically gets a `::Error` subclass for targeted rescue:
