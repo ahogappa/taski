@@ -97,7 +97,8 @@ puts "--- run_and_clean Demo ---"
 puts "The run_and_clean method executes both phases in a single operation."
 puts "Key benefits:"
 puts "  - Single progress display session for both phases"
-puts "  - Clean always runs, even if run fails (resource release)"
+puts "  - Clean is skipped if run fails by default; pass clean_on_failure: true"
+puts "    to release resources even on failure"
 puts "  - Cleaner API for the common use case"
 puts
 
@@ -137,12 +138,19 @@ puts
 Taski::Task.reset!
 
 puts "--- Error Handling Demo ---"
-puts "When run fails, clean is still executed for resource release."
+puts "By default, clean is SKIPPED when run fails. Pass clean_on_failure: true"
+puts "to release resources (temp files, connections) even on failure."
 puts
 
-# Task that fails during run
+# Task that fails during run. Task output is captured during execution, so
+# clean records visible evidence in a class-level flag instead of relying on
+# puts (which would be swallowed).
 class FailingBuild < Taski::Task
   exports :result
+
+  class << self
+    attr_accessor :cleaned
+  end
 
   def run
     puts "[FailingBuild] Starting build..."
@@ -150,15 +158,17 @@ class FailingBuild < Taski::Task
   end
 
   def clean
+    self.class.cleaned = true
     puts "[FailingBuild] Cleaning up partial build artifacts..."
   end
 end
 
 begin
-  FailingBuild.run_and_clean
+  FailingBuild.run_and_clean(clean_on_failure: true)
 rescue => e
   puts "[Error caught] #{e.message}"
 end
 
 puts
-puts "Notice: clean was still executed despite run failing!"
+puts "Did clean run despite the failure? #{FailingBuild.cleaned ? "YES" : "no"}"
+puts "(because clean_on_failure: true was passed — without it, clean is skipped)"
