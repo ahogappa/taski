@@ -50,6 +50,7 @@ module Taski
       # Diagnostics for silent-degradation paths
       ANALYSIS_ERROR = "analysis.start_dep_failed" # prestart analysis hit an unexpected error
       TEMPLATE_ERROR = "template.render_error"     # a theme's Liquid template failed to render
+      PRESTART_PLAN = "analysis.start_dep_plan"    # per-task prestart/sync/stopped classification (debug)
     end
 
     # Log severity levels matching Ruby Logger

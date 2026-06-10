@@ -112,6 +112,15 @@ module Taski
         return abort_unstarted_task(task_class, wrapper) if @registry.abort_requested?
 
         analysis = Taski::StaticAnalysis::StartDepAnalyzer.analyze(task_class)
+        if Taski.logger
+          Taski::Logging.debug(
+            Taski::Logging::Events::PRESTART_PLAN,
+            task: task_class.name,
+            prestarted: analysis.start_deps.map(&:name),
+            sync: analysis.sync_deps.map(&:name),
+            stopped_at: analysis.stopped_at&.line
+          )
+        end
         fiber = Fiber.new do
           setup_run_thread_locals
           Thread.current[:taski_start_deps] = analysis.start_deps
