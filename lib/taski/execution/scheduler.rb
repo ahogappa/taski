@@ -10,7 +10,15 @@ module Taski
     #
     # Run phase:   pending → running → completed | failed
     #              pending → skipped (when a dependency fails)
+    #              skipped → running (revival — see below)
     # Clean phase: pending → running → completed
+    #
+    # :skipped is advisory bookkeeping, not an execution barrier. Under the
+    # Fiber pull model a task marked skipped (because a dependency failed) can
+    # still be requested later by a still-running task via NeedDep — it then
+    # runs normally and reaches completed/failed. Observers may therefore see
+    # skipped → running → completed for the same task within one execution;
+    # this is a legal, intended sequence.
     #
     # == Responsibilities
     #
@@ -160,7 +168,10 @@ module Taski
         @task_states.select { |_, state| state == STATE_PENDING }.keys
       end
 
-      # Mark a task as skipped (never executed). Only transitions from pending.
+      # Mark a task as skipped (not independently scheduled). Only transitions
+      # from pending. Advisory, not terminal: a still-running task can later
+      # request this task via NeedDep, reviving it (skipped → running) — see
+      # the class-level State Transitions note.
       #
       # @param task_class [Class] The task class to mark as skipped
       # @return [Boolean] true if the state was changed

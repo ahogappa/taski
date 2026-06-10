@@ -16,6 +16,15 @@ module Taski
     # - on_task_updated(task_class, previous_state:, current_state:, phase:, timestamp:)
     # - on_group_started(task_class, group_name, phase:, timestamp:)
     # - on_group_completed(task_class, group_name, phase:, timestamp:)
+    #
+    # == Note on :skipped
+    #
+    # :skipped means "not independently scheduled", not "will never run". When
+    # a dependency fails, its pending dependents are reported :skipped — but a
+    # still-running task may later request one of them (Fiber pull model), in
+    # which case it runs normally. Observers must tolerate the sequence
+    # skipped → running → completed/failed for the same task within one
+    # execution.
     class TaskObserver
       attr_accessor :context
 
