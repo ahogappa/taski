@@ -80,7 +80,7 @@ end
 
 ### Custom Export Methods
 
-By default, `exports` generates a reader that returns the instance variable (e.g., `exports :value` reads `@value`). You can override this by defining your own instance method with the same name:
+By default, an exported name reads the instance variable of the same name (e.g., `exports :value` reads `@value`). Exports are resolved lazily via `method_missing` — no reader method is actually defined, so an export can never shadow an existing method (the name answers to `respond_to?` but does not appear in `.methods`; use `exported_methods` for introspection). If you define your own instance method with the same name, it takes precedence:
 
 **Fixed values** — no computation needed in `run`:
 
@@ -249,16 +249,21 @@ end
 # Pass options when running
 DeployTask.run(args: { env: "production", debug: true })
 
+# Control parallelism (workers: 1 runs sequentially — useful for debugging)
+DeployTask.run(args: { env: "production" }, workers: 4)
+
 # Args can also be passed to exported class methods
 Config.timeout(args: { env: "test" })
 ```
 
 **Note:** `args:` is only accepted at the top-level call that starts an execution. If `args:` is passed to a dependency access inside a running task (e.g., `DepTask.value(args: {...})`), the args are ignored and a warning is emitted.
 
-Args API (user-defined options):
-- `Taski.args[:key]` - Get option value (nil if not set)
+Args API (user-defined options, available inside a running execution):
+- `Taski.args[:key]` - Get option value (nil if the key is not set)
 - `Taski.args.fetch(:key, default)` - Get with default value
 - `Taski.args.key?(:key)` - Check if option exists
+
+**Note:** `Taski.args` and `Taski.env` are per-execution state: outside a running execution they are `nil` (so `Taski.args[:key]` would raise `NoMethodError`), and concurrent executions each see their own values.
 
 Env API (execution environment):
 - `Taski.env.working_directory` - Execution directory
@@ -383,6 +388,10 @@ DatabaseSetup.run_and_clean
 DatabaseSetup.run_and_clean do
   deploy(DatabaseSetup.connection)
 end
+
+# By default, clean is SKIPPED when run fails. Opt in to release resources
+# (temp files, connections) even on failure:
+DatabaseSetup.run_and_clean(clean_on_failure: true)
 ```
 
 See [docs/GUIDE.md](docs/GUIDE.md#lifecycle-management) for details.

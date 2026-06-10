@@ -179,6 +179,16 @@ WebServer.run_and_clean
 # => Database disconnected
 ```
 
+### Failure Semantics
+
+By default, clean is **skipped** when the run phase fails — the failure propagates immediately. Pass `clean_on_failure: true` to release resources (temp files, connections) even when run fails:
+
+```ruby
+WebServer.run_and_clean(clean_on_failure: true)
+```
+
+If clean itself fails after a successful run, the clean error propagates; if both phases fail, the original run error takes precedence and the clean failure is logged.
+
 ### run_and_clean with Block
 
 Use a block to execute code between run and clean phases. This is useful when you need to use exported values before cleanup:
