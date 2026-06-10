@@ -179,4 +179,51 @@ class TestTaskOutputRouter < Minitest::Test
 
     closer.join
   end
+
+  # ========================================
+  # Pipe reuse across park/resume
+  # ========================================
+  # A fiber that parks and resumes calls start_capture again for the same
+  # task. The open pipe must be REUSED: replacing it orphans a pipe whose two
+  # FDs leak until GC finalizes them, and any not-yet-polled output written
+  # before the park vanishes from @recent_lines (and thus from failure
+  # reports).
+
+  def test_start_capture_reuses_the_open_pipe_for_the_same_task
+    task_class = Class.new
+
+    @router.start_capture(task_class)
+    first = @router.instance_variable_get(:@pipes)[task_class]
+
+    @router.start_capture(task_class) # park -> resume re-entry
+    second = @router.instance_variable_get(:@pipes)[task_class]
+
+    assert_same first, second,
+      "re-capture must reuse the open pipe, not orphan it with both FDs open"
+  end
+
+  def test_pre_park_output_survives_recapture
+    task_class = Class.new
+
+    @router.start_capture(task_class)
+    @router.puts("PRE-PARK OUTPUT")
+
+    @router.start_capture(task_class) # resume re-entry before any poll
+    @router.poll
+
+    assert_equal "PRE-PARK OUTPUT", @router.last_line_for(task_class)
+  end
+
+  def test_start_capture_allocates_a_fresh_pipe_after_write_end_closed
+    task_class = Class.new
+
+    @router.start_capture(task_class)
+    first = @router.instance_variable_get(:@pipes)[task_class]
+    @router.stop_capture # closes the write end (e.g. run phase finished)
+
+    @router.start_capture(task_class) # e.g. clean phase for the same class
+    second = @router.instance_variable_get(:@pipes)[task_class]
+
+    refute_same first, second, "a write-closed pipe cannot be written to again"
+  end
 end
