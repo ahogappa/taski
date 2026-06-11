@@ -436,6 +436,22 @@ Taski.progress.layout = Taski::Progress::Layout::Log     # Log output (CI/logs)
 Taski.progress_display = nil                             # Disable progress output entirely
 ```
 
+**Themes** customize how each line looks — as a Ruby class (full power) or
+an inert YAML file (no code, safe to share):
+
+```ruby
+class MyTheme < Taski::Progress::Theme::Detail
+  def icon_success = "🎉"
+end
+Taski.progress.theme = MyTheme
+
+# or a data theme — validated at assignment (see examples/themes/catppuccin-mocha.yml):
+Taski.progress.theme = "examples/themes/catppuccin-mocha.yml"
+```
+
+See the [guide](docs/GUIDE.md#customizing-themes) for the template methods,
+helpers, and the YAML placeholder vocabulary.
+
 ### Tree Visualization
 
 ```ruby

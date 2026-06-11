@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "pathname"
+require_relative "theme/declarative"
+
 module Taski
   module Progress
     # Configuration for progress display.
@@ -8,6 +11,9 @@ module Taski
     # @example
     #   Taski.progress.layout = Taski::Progress::Layout::Tree
     #   Taski.progress.theme = Taski::Progress::Theme::Detail
+    #
+    # @example Data theme (YAML file, loaded and validated at assignment)
+    #   Taski.progress.theme = "themes/catppuccin-mocha.yml"
     class Config
       attr_reader :layout, :theme, :output
 
@@ -26,7 +32,15 @@ module Taski
         invalidate!
       end
 
-      def theme=(klass)
+      # Accepts a Theme::Base subclass, or a String/Pathname to a YAML data
+      # theme (loaded via Theme.load — raises Theme::LoadError here, at
+      # assignment time, never later during a run).
+      def theme=(klass_or_path)
+        klass = if klass_or_path.is_a?(String) || klass_or_path.is_a?(Pathname)
+          Theme.load(klass_or_path)
+        else
+          klass_or_path
+        end
         validate_theme!(klass) if klass
         @theme = klass
         invalidate!
