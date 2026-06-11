@@ -1,0 +1,13 @@
+# YAML re-encoding of Taski::Progress::Theme::Detail — byte-parity fixture.
+# Only the 5 task-template deltas are declared; everything else falls back to
+# the extends theme.
+name: detail-parity
+schema: 1
+extends: default
+
+templates:
+  task_pending: "%{icon} %{name}"
+  task_start:   "%{spinner} %{name}"
+  task_success: "%{icon} %{name}%{duration_part}"
+  task_fail:    "%{icon} %{name}%{error_part}"
+  task_skip:    "%{icon} %{name}"

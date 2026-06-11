@@ -1,0 +1,13 @@
+# YAML re-encoding of Taski::Progress::Theme::Plain — byte-parity fixture.
+# Plain = Default with all color codes empty; explicitly-declared "" must
+# survive (not fall back to the extends theme's ANSI codes).
+name: plain-parity
+schema: 1
+extends: default
+
+colors:
+  green:  ""
+  red:    ""
+  yellow: ""
+  dim:    ""
+  reset:  ""

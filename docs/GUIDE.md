@@ -357,6 +357,125 @@ Taski.progress.layout = Taski::Progress::Layout::Log     # Log output (CI/logs)
 Taski.progress_display = nil                             # Disable progress output entirely
 ```
 
+### Customizing Themes
+
+The layout decides *what* gets rendered when; the theme decides *how each
+line looks*. There are two ways to customize a theme: a Ruby class (full
+power) or a YAML data theme (no code — safe to share and use without
+reading).
+
+#### Ruby Themes
+
+Subclass `Taski::Progress::Theme::Base` (or a shipped theme: `Default`,
+`Detail`, `Compact`, `Plain`) and override any of the 15 template methods.
+Each receives immutable render data and returns the final display string —
+plain Ruby, so conditionals, loops, and arbitrary formatting are all
+available:
+
+```ruby
+class MyTheme < Taski::Progress::Theme::Detail
+  def spinner_frames = %w[🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘]
+  def icon_success = "🎉"
+
+  # Highlight slow tasks in red
+  def task_success(task:, execution: nil)
+    part = (task.duration && task.duration >= 1000) ? red(" (#{format_duration(task.duration)})") : duration_part(task.duration)
+    "#{icon_for(task.state)} #{short_name(task.name)}#{part}"
+  end
+end
+
+Taski.progress.theme = MyTheme
+```
+
+Task-level methods (`task_pending/start/success/fail/skip`,
+`clean_start/success/fail`, `group_start/success/fail`) have the signature
+`def m(task:, execution: nil)`; execution-level methods (`execution_start/
+running/complete/fail`) have `def m(execution:, task: nil)`. The layout
+always passes both keywords.
+
+`task` is a `TaskInfo` (`name`, `state`, `duration`, `error_message`,
+`group_name`, `stdout`); `execution` is an `ExecutionInfo` (`state`, count
+tallies, `total_duration`, `root_task_name`, `task_names`, `spinner_index`).
+
+Helpers available in every theme: `short_name`, `icon_for(state)`,
+`spinner_frame(index)`, `colorize`/`red`/`green`/`yellow`/`dim`,
+`truncate_text`/`truncate_list`, `format_count`/`format_duration`, and the
+fragment helpers `duration_part`/`error_part`/`stdout_part`/`task_names_part`
+(render `" (1.2s)"`-style suffixes only when the value is present).
+
+A buggy theme cannot break a run: any exception from a theme method is
+contained by the renderer — the line renders empty and a
+`template.render_error` warning is logged. Themes must be stateless (one
+instance is shared across threads).
+
+#### Data Themes (YAML)
+
+A data theme is an inert YAML file — no code runs, so you can use themes
+from others without auditing them:
+
+```yaml
+# my-theme.yml
+schema: 1
+extends: detail            # base | default | plain | detail | compact
+
+colors:
+  green: "\e[38;2;166;227;161m"   # truecolor works
+  reset: "\e[0m"
+
+icons:
+  success: "✔"
+
+templates:
+  task_success: "%{icon} %{name}%{duration_part}"
+  execution_running: "%{spinner} [%{done_count}/%{total_count}]%{task_names_part}"
+```
+
+```ruby
+Taski.progress.theme = "my-theme.yml"   # validated here, at assignment
+```
+
+The loaded theme is a real subclass of the `extends` theme: anything not
+declared falls back to that theme's rendering, with your declared colors,
+icons, spinner frames, formats and truncation still applied — the same
+semantics as overriding methods in a Ruby subclass. A colors-only theme
+therefore restyles every line.
+
+The file is validated fully at load (`Taski::Progress::Theme::LoadError`
+lists the offending key): unknown keys, unknown placeholders, type errors,
+and stray `%` all fail at assignment, never mid-run. Write a literal `%`
+as `%%`. Note the trust boundary precisely: a data theme cannot execute
+code, but color values are raw escape strings, so a theme does control
+what your terminal is told to display.
+
+Available placeholders (the names match the Ruby helper vocabulary):
+
+| Placeholder | Meaning |
+|---|---|
+| `%{name}` / `%{full_name}` | task class name, short / fully qualified |
+| `%{state}` | task state (`running`, `completed`, ...) |
+| `%{duration}` / `%{duration_part}` | formatted duration / `" (1.2s)"` only when present |
+| `%{error_message}` / `%{error_part}` | error text / `": msg"` only when present |
+| `%{group_name}` | current group name |
+| `%{stdout}` / `%{stdout_part}` | last output line (truncated) / `" \| line"` only when present |
+| `%{root_task_name}` | root task short name |
+| `%{done_count}` `%{total_count}` `%{failed_count}` `%{completed_count}` `%{skipped_count}` `%{pending_count}` | tallies (through `formats.count`) |
+| `%{total_duration}` | execution duration, formatted |
+| `%{task_names}` / `%{task_names_part}` | active task list (limited) / leading-space variant |
+| `%{spinner}` / `%{icon}` | current spinner frame / state-colored icon |
+| `%{green}` `%{red}` `%{yellow}` `%{dim}` `%{reset}` | raw color codes |
+
+Other sections: `spinner:` (`frames:`, `interval:`), `render_interval:`,
+`formats:` (`count:`, `duration_ms:`, `duration_s:`), `truncation:`
+(`list_limit:`, `list_separator:`, `list_suffix:`, `text_max:`,
+`text_suffix:`), and `fragments:` to restyle the `*_part` wrappers (e.g.
+`duration_part: " %{dim}(%{duration})%{reset}"` — the only-when-present
+logic stays in the engine and is not overridable).
+
+Data themes are deliberately logic-free. If a theme needs real control flow,
+write a Ruby theme — that's the upgrade path, with the same vocabulary.
+
+See `examples/themes/catppuccin-mocha.yml` for a complete truecolor example.
+
 ### File Output Mode
 
 When output is redirected, interactive spinners are automatically disabled:

@@ -1,0 +1,51 @@
+# Taski data theme — Catppuccin Mocha (truecolor)
+#
+# Use it with:
+#   Taski.progress.theme = "examples/themes/catppuccin-mocha.yml"
+#
+# A data theme is inert YAML: no code runs, so themes can be shared and used
+# without reading them. Placeholders are %{name}-style; the available names
+# match the Theme::Base helper vocabulary (see docs/GUIDE.md).
+name: catppuccin-mocha
+schema: 1
+extends: detail
+
+colors:
+  green:  "\e[38;2;166;227;161m"
+  red:    "\e[38;2;243;139;168m"
+  yellow: "\e[38;2;249;226;175m"
+  dim:    "\e[38;2;108;112;134m"
+  reset:  "\e[0m"
+
+icons:
+  success: "✔"
+  failure: "✖"
+  pending: "●"
+  skip:    "◌"
+
+spinner:
+  frames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+  interval: 0.08
+
+render_interval: 0.1
+
+truncation:
+  list_limit: 3
+  list_suffix: "…"
+  text_max: 40
+  text_suffix: "…"
+
+fragments:
+  duration_part: " %{dim}(%{duration})%{reset}"
+  error_part: ": %{red}%{error_message}%{reset}"
+
+templates:
+  task_pending:  "%{dim}%{icon} %{name}%{reset}"
+  task_start:    "%{yellow}%{spinner}%{reset} %{name}"
+  task_success:  "%{icon} %{name}%{duration_part}"
+  task_fail:     "%{icon} %{name}%{error_part}"
+  task_skip:     "%{icon} %{dim}%{name}%{reset}"
+  execution_start:    "%{dim}taski%{reset} starting %{root_task_name}"
+  execution_running:  "%{spinner} [%{done_count}/%{total_count}]%{task_names_part}%{stdout_part}"
+  execution_complete: "%{icon} %{done_count}/%{total_count} tasks%{dim} (%{total_duration})%{reset}"
+  execution_fail:     "%{icon} %{failed_count}/%{total_count} tasks failed%{dim} (%{total_duration})%{reset}"
