@@ -465,6 +465,19 @@ module Taski
 
         # === Task state query helpers ===
 
+        # Name of the task's most recently started, still-open group block
+        # (nil if none). Open groups live in @group_start_times until their
+        # on_group_completed event deletes them; with nested groups the
+        # innermost (latest start) wins. Call under @monitor.
+        #
+        # @param task_class [Class]
+        # @return [String, nil]
+        def active_group_name(task_class)
+          open_groups = @group_start_times.select { |(tc, _), _| tc == task_class }
+          entry = open_groups.max_by { |_, started_at| started_at }
+          entry&.first&.last
+        end
+
         def running_tasks
           @tasks.select { |_, p| p[:run_state] == :running }
         end
