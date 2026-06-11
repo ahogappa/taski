@@ -93,8 +93,8 @@ class TestLayoutSimple < Minitest::Test
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
       def icon_success = "✓"
 
-      def execution_complete
-        "{% icon %} [TASKI] Completed: {{ execution.done_count }}/{{ execution.total_count }} tasks ({{ execution.skipped_count }} skipped)"
+      def execution_complete(execution:, task: nil)
+        "#{icon_for(execution.state)} [TASKI] Completed: #{execution.done_count}/#{execution.total_count} tasks (#{execution.skipped_count} skipped)"
       end
     end.new
 
@@ -208,8 +208,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         "🎉"
       end
 
-      def execution_complete
-        "{% icon %} Done!"
+      def execution_complete(execution:, task: nil)
+        "#{icon_for(execution.state)} Done!"
       end
     end.new
 
@@ -232,8 +232,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         "💥"
       end
 
-      def execution_fail
-        "{% icon %} Boom! {{ execution.failed_count }}/{{ execution.total_count }}"
+      def execution_fail(execution:, task: nil)
+        "#{icon_for(execution.state)} Boom! #{execution.failed_count}/#{execution.total_count}"
       end
     end.new
 
@@ -255,8 +255,8 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
 
   def test_uses_custom_execution_complete_template
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def execution_complete
-        "{% icon %} Finished {{ execution.done_count }} tasks in {{ execution.total_duration | format_duration }}"
+      def execution_complete(execution:, task: nil)
+        "#{icon_for(execution.state)} Finished #{execution.done_count} tasks in #{format_duration(execution.total_duration)}"
       end
     end.new
 
@@ -307,9 +307,9 @@ class TestLayoutSimpleWithCustomTemplate < Minitest::Test
         ""
       end
 
-      # Override to use icon tag
-      def execution_complete
-        "{% icon %} Done!"
+      # Override to use the state icon helper
+      def execution_complete(execution:, task: nil)
+        "#{icon_for(execution.state)} Done!"
       end
     end.new
 

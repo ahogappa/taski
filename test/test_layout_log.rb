@@ -203,8 +203,8 @@ class TestLayoutLog < Minitest::Test
   end
 
   class CustomTestTheme < Taski::Progress::Theme::Base
-    def task_start
-      "CUSTOM START {{ task.name }}"
+    def task_start(task:, execution: nil)
+      "CUSTOM START #{task.name}"
     end
   end
 end

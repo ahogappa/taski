@@ -6,7 +6,6 @@ require "taski/progress/theme/base"
 require "taski/progress/theme/default"
 require "taski/progress/theme/compact"
 require "taski/progress/layout/base"
-require "taski/progress/layout/theme_drop"
 
 class TestLayoutBase < Minitest::Test
   include TaskiTestHelper
@@ -39,40 +38,96 @@ class TestLayoutBase < Minitest::Test
     layout&.send(:stop_spinner_timer)
   end
 
-  # A malformed theme template must not raise out of render_template_string
-  # (which would silently kill the background render thread). It should degrade
-  # to an empty string instead.
-  def test_render_template_string_handles_malformed_template
-    result = @layout.send(:render_template_string, "{% if true %}never closed")
+  # A raising theme method must not raise out of render_theme (which would
+  # silently kill the background render thread). It should degrade to an empty
+  # string instead. Themes are not Tasks, so inline Class.new is fine here.
+  def test_render_theme_isolates_raising_theme
+    theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start(task:, execution: nil)
+        raise "boom in theme"
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: StringIO.new, theme: theme)
+
+    result = layout.send(:render_theme, :task_start, task: Taski::Progress::TaskInfo.new(name: "T"))
 
     assert_equal "", result
   end
 
-  # A RUNTIME template error (Liquid renders in lax mode and does not raise) must
-  # also degrade to "" rather than leaking the literal "Liquid error: ..." text
-  # that Liquid inlines into the output.
-  def test_render_template_string_degrades_runtime_template_errors
-    result = @layout.send(:render_template_string, "{{ 1 | divided_by: 0 }}")
+  # A typo'd field access (TaskInfo raises NoMethodError for unknown members,
+  # unlike the old drops' silent nil) must also degrade to "" — loud in logs,
+  # safe on screen.
+  def test_render_theme_isolates_typoed_field_access
+    theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start(task:, execution: nil)
+        "Starting #{task.nmae}"
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: StringIO.new, theme: theme)
+
+    result = layout.send(:render_theme, :task_start, task: Taski::Progress::TaskInfo.new(name: "T"))
 
     assert_equal "", result
-    refute_includes result, "Liquid error"
   end
 
-  # A template (theme) failure must log a distinct TEMPLATE_ERROR event rather
-  # than reusing OBSERVER_ERROR, so a broken theme can be told apart from an
+  # An old-style zero-arg override (pre-replacement signature) receives the
+  # task:/execution: keywords and raises ArgumentError — contained the same way.
+  def test_render_theme_isolates_wrong_arity_override
+    theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start
+        "old-style template"
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: StringIO.new, theme: theme)
+
+    result = layout.send(:render_theme, :task_start, task: Taski::Progress::TaskInfo.new(name: "T"))
+
+    assert_equal "", result
+  end
+
+  # A theme failure must log a distinct TEMPLATE_ERROR event rather than
+  # reusing OBSERVER_ERROR, so a broken theme can be told apart from an
   # observer-callback crash when filtering logs.
-  def test_template_failure_logs_template_error_not_observer_error
+  def test_theme_failure_logs_template_error_not_observer_error
     require "logger"
     log_output = StringIO.new
     original_logger = Taski.logger
     Taski.logger = Logger.new(log_output)
 
-    @layout.send(:render_template_string, "{% if true %}never closed")
+    theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start(task:, execution: nil)
+        raise "boom in theme"
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: StringIO.new, theme: theme)
+    layout.send(:render_theme, :task_start, task: Taski::Progress::TaskInfo.new(name: "T"))
 
     assert_match(/template\.render_error/, log_output.string)
     refute_match(/observer\.error/, log_output.string)
   ensure
     Taski.logger = original_logger
+  end
+
+  # End to end through the background render path: a raising theme must leave
+  # the render thread alive (an escaped exception would freeze the display).
+  def test_render_loop_survives_raising_theme
+    theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start(task:, execution: nil)
+        raise "boom in theme"
+      end
+
+      def render_interval = 0.01
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: StringIO.new, theme: theme)
+    task_class = Class.new
+
+    layout.send(:render_loop) { layout.send(:render_task_started, task_class) }
+    sleep 0.05
+    thread = layout.instance_variable_get(:@render_thread)
+
+    assert thread.alive?, "render thread died — theme exception escaped render_theme"
+  ensure
+    layout&.send(:stop_render_loop)
   end
 
   # === Inheritance tests ===
@@ -263,7 +318,7 @@ class TestLayoutBase < Minitest::Test
   end
 end
 
-class TestLayoutBaseLiquidRendering < Minitest::Test
+class TestLayoutBaseThemeRendering < Minitest::Test
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
@@ -273,64 +328,61 @@ class TestLayoutBaseLiquidRendering < Minitest::Test
     @layout.stop_spinner_timer
   end
 
-  def test_initialize_creates_liquid_environment
-    assert @layout.instance_variable_get(:@liquid_environment)
-  end
-
-  def test_initialize_creates_theme_drop
-    drop = @layout.instance_variable_get(:@theme_drop)
-    assert_instance_of Taski::Progress::Layout::ThemeDrop, drop
-  end
-
-  def test_render_template_string_with_color_filter
-    result = @layout.render_template_string(
-      "{{ status | green }}",
-      status: "OK"
-    )
-
-    assert_equal "\e[32mOK\e[0m", result
-  end
-
-  def test_render_template_string_with_spinner_tag
-    result = @layout.render_template_string(
-      "{% spinner %} Loading",
-      spinner_index: 0
-    )
-
-    assert_equal "⠋ Loading", result
-  end
-
-  def test_render_template_string_passes_spinner_index
-    result = @layout.render_template_string(
-      "{% spinner %}",
-      spinner_index: 3
-    )
-
-    assert_equal "⠸", result
-  end
-
-  def test_render_template_string_with_multiple_variables
-    result = @layout.render_template_string(
-      "{% spinner %} {{ task_name | green }} - {{ status | dim }}",
-      task_name: "MyTask",
-      status: "running",
-      spinner_index: 0
-    )
-
-    assert_equal "⠋ \e[32mMyTask\e[0m - \e[2mrunning\e[0m", result
-  end
-
-  def test_render_template_string_uses_custom_theme_colors
+  def test_render_theme_dispatches_to_theme_method
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def color_red
-        "\e[91m"  # bright red
+      def task_start(task:, execution: nil)
+        "#{green("GO")} #{short_name(task.name)}"
       end
     end.new
-
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
-    result = layout.render_template_string("{{ text | red }}", text: "error")
 
-    assert_equal "\e[91merror\e[0m", result
+    result = layout.send(:render_theme, :task_start,
+      task: Taski::Progress::TaskInfo.new(name: "MyModule::MyTask"))
+
+    assert_equal "\e[32mGO\e[0m MyTask", result
+  end
+
+  def test_render_theme_coerces_result_to_string
+    custom_theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start(task:, execution: nil)
+        42
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
+
+    result = layout.send(:render_theme, :task_start, task: Taski::Progress::TaskInfo.new)
+
+    assert_equal "42", result
+  end
+
+  def test_render_theme_passes_both_keywords
+    spy_theme = Class.new(Taski::Progress::Theme::Base) do
+      def task_start(task:, execution: nil)
+        "task=#{task.name} execution=#{execution.done_count}/#{execution.total_count}"
+      end
+    end.new
+    layout = Taski::Progress::Layout::Base.new(output: @output, theme: spy_theme)
+
+    result = layout.send(:render_theme, :task_start,
+      task: Taski::Progress::TaskInfo.new(name: "T"),
+      execution: Taski::Progress::ExecutionInfo.new(done_count: 1, total_count: 3))
+
+    assert_equal "task=T execution=1/3", result
+  end
+
+  def test_execution_info_carries_current_spinner_index
+    @layout.instance_variable_set(:@spinner_index, 7)
+    info = @layout.send(:execution_info)
+
+    assert_equal 7, info.spinner_index
+  end
+
+  def test_execution_info_accepts_overrides
+    info = @layout.send(:execution_info, state: :completed, task_names: ["A"])
+
+    assert_equal :completed, info.state
+    assert_equal ["A"], info.task_names
+    assert_equal 0, info.done_count
   end
 
   def test_spinner_index_increments
@@ -483,76 +535,74 @@ class TestLayoutBaseStateTransitions < Minitest::Test
   end
 end
 
+# Pins which TaskInfo/ExecutionInfo fields the layout delivers to theme methods
+# for each event — every theme method receives BOTH task: and execution:
+# (either may be nil-fielded), so custom themes can mix task and execution data
+# freely. Spy themes (plain Ruby) replace the old Liquid template spies;
+# assertions are unchanged from the Liquid era.
 class TestLayoutBaseCommonVariables < Minitest::Test
   def setup
     @output = StringIO.new
     @layout = Taski::Progress::Layout::Base.new(output: @output)
   end
 
-  # All templates should have access to the same common variables
-  # even if the value is nil when not applicable
-
-  def test_task_start_can_use_duration_variable
-    # Create a custom template that uses duration in task_start
+  def test_task_start_can_use_duration_field
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_start
-        "{{ task.name }}{% if task.duration %} took {{ task.duration }}ms{% endif %}"
+      def task_start(task:, execution: nil)
+        "#{task.name}#{" took #{task.duration}ms" if task.duration}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
-    # duration is nil for task_start, so the if block should not render
+    # duration is nil for task_start, so the conditional must not render
     assert_equal "MyTask", result
   end
 
-  def test_task_success_can_use_task_error_message_variable
-    # Create a custom template that checks for task.error_message in task_success
+  def test_task_success_can_use_error_message_field
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_success
-        "{{ task.name }} done{% if task.error_message %} (had error){% endif %}"
+      def task_success(task:, execution: nil)
+        "#{task.name} done#{" (had error)" if task.error_message}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_succeeded, stub_task_class("MyTask"), task_duration: 100)
 
-    # error_message is nil for success, so the if block should not render
+    # error_message is nil for success, so the conditional must not render
     assert_equal "MyTask done", result
   end
 
-  def test_execution_complete_can_use_task_name_variable
-    # Create a custom template that uses task.name in execution_complete
+  def test_execution_complete_receives_nil_task
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def execution_complete
-        "Done: {{ execution.done_count }}/{{ execution.total_count }}{% if task.name %} ({{ task.name }}){% endif %}"
+      def execution_complete(execution:, task: nil)
+        "Done: #{execution.done_count}/#{execution.total_count}#{" (#{task.name})" if task&.name}"
       end
     end.new
 
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_execution_completed, done_count: 5, total_count: 5, total_duration: 1000)
 
-    # task.name is nil for execution_complete, so the if block should not render
+    # task is nil for execution_complete, so the conditional must not render
     assert_equal "Done: 5/5", result
   end
 
-  def test_task_and_execution_drops_available_in_any_template
-    # Create a template that uses task and execution drops
+  def test_task_and_execution_info_available_in_any_template
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_start
+      def task_start(task:, execution: nil)
         [
-          "task.name:{{ task.name }}",
-          "task.state:{{ task.state }}",
-          "task.duration:{{ task.duration }}",
-          "task.error_message:{{ task.error_message }}",
-          "execution.state:{{ execution.state }}",
-          "execution.pending_count:{{ execution.pending_count }}",
-          "execution.done_count:{{ execution.done_count }}",
-          "execution.completed_count:{{ execution.completed_count }}",
-          "execution.failed_count:{{ execution.failed_count }}",
-          "execution.total_count:{{ execution.total_count }}",
-          "execution.root_task_name:{{ execution.root_task_name }}"
+          "task.name:#{task.name}",
+          "task.state:#{task.state}",
+          "task.duration:#{task.duration}",
+          "task.error_message:#{task.error_message}",
+          "execution.state:#{execution.state}",
+          "execution.pending_count:#{execution.pending_count}",
+          "execution.done_count:#{execution.done_count}",
+          "execution.completed_count:#{execution.completed_count}",
+          "execution.failed_count:#{execution.failed_count}",
+          "execution.total_count:#{execution.total_count}",
+          "execution.root_task_name:#{execution.root_task_name}"
         ].join("|")
       end
     end.new
@@ -560,20 +610,18 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
     result = layout.send(:render_task_started, stub_task_class("MyTask"))
 
-    # Task drop should have name and state
     assert_includes result, "task.name:MyTask"
     assert_includes result, "task.state:running"
-    # Others should be empty but the variable names should still render (not cause errors)
-    assert_includes result, "task.duration:"
-    assert_includes result, "task.error_message:"
+    # nil fields interpolate to empty without raising
+    assert_includes result, "task.duration:|"
+    assert_includes result, "task.error_message:|"
     assert_includes result, "execution.state:running"
   end
 
-  def test_task_drop_is_available_in_template
-    # Create a template that uses task drop
+  def test_task_info_is_available_in_template
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_start
-        "{{ task.name }} ({{ task.state }})"
+      def task_start(task:, execution: nil)
+        "#{task.name} (#{task.state})"
       end
     end.new
 
@@ -583,11 +631,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     assert_equal "MyTask (running)", result
   end
 
-  def test_execution_drop_is_available_in_template
-    # Create a template that uses execution drop
+  def test_execution_info_is_available_in_template
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def execution_complete
-        "[{{ execution.done_count }}/{{ execution.total_count }}] ({{ execution.total_duration }}ms)"
+      def execution_complete(execution:, task: nil)
+        "[#{execution.done_count}/#{execution.total_count}] (#{execution.total_duration}ms)"
       end
     end.new
 
@@ -597,10 +644,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     assert_equal "[5/10] (1500ms)", result
   end
 
-  def test_task_drop_has_all_task_specific_fields
+  def test_task_info_has_all_task_specific_fields
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_fail
-        "{{ task.name }}|{{ task.state }}|{{ task.error_message }}"
+      def task_fail(task:, execution: nil)
+        "#{task.name}|#{task.state}|#{task.error_message}"
       end
     end.new
 
@@ -610,10 +657,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
     assert_equal "FailTask|failed|oops", result
   end
 
-  def test_execution_drop_has_all_execution_fields
+  def test_execution_info_has_all_execution_fields
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def execution_fail
-        "{{ execution.failed_count }}/{{ execution.total_count }} failed ({{ execution.state }})"
+      def execution_fail(execution:, task: nil)
+        "#{execution.failed_count}/#{execution.total_count} failed (#{execution.state})"
       end
     end.new
 
@@ -625,8 +672,8 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_render_task_skipped
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_skip
-        "[SKIP] {{ task.name }}"
+      def task_skip(task:, execution: nil)
+        "[SKIP] #{task.name}"
       end
     end.new
 
@@ -638,8 +685,8 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_render_execution_completed_with_skipped_count
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def execution_complete
-        "{{ execution.done_count }}/{{ execution.total_count }}{% if execution.skipped_count > 0 %} ({{ execution.skipped_count }} skipped){% endif %}"
+      def execution_complete(execution:, task: nil)
+        "#{execution.done_count}/#{execution.total_count}#{" (#{execution.skipped_count} skipped)" if execution.skipped_count > 0}"
       end
     end.new
 
@@ -651,8 +698,8 @@ class TestLayoutBaseCommonVariables < Minitest::Test
 
   def test_render_for_task_event_dispatches_skipped
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_skip
-        "[SKIP] {{ task.name }}"
+      def task_skip(task:, execution: nil)
+        "[SKIP] #{task.name}"
       end
     end.new
 
@@ -663,10 +710,10 @@ class TestLayoutBaseCommonVariables < Minitest::Test
   end
 
   def test_task_template_can_access_execution_context
-    # Task-level templates should also have access to execution context
+    # Task-level theme methods also receive the live execution tallies
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_fail
-        "[{{ execution.done_count }}/{{ execution.total_count }}] {{ task.name }}: {{ task.error_message }}"
+      def task_fail(task:, execution: nil)
+        "[#{execution.done_count}/#{execution.total_count}] #{task.name}: #{task.error_message}"
       end
     end.new
 
@@ -697,7 +744,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
   def test_render_clean_started_uses_running_state
     task = stub_task_class("CleanTask")
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def clean_start = "state={{ task.state }}"
+      def clean_start(task:, execution: nil) = "state=#{task.state}"
     end.new
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
 
@@ -708,7 +755,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
   def test_render_clean_succeeded_uses_completed_state
     task = stub_task_class("CleanTask")
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def clean_success = "state={{ task.state }}"
+      def clean_success(task:, execution: nil) = "state=#{task.state}"
     end.new
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
 
@@ -719,7 +766,7 @@ class TestLayoutBaseCommonVariables < Minitest::Test
   def test_render_clean_failed_uses_failed_state
     task = stub_task_class("CleanTask")
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def clean_fail = "state={{ task.state }}"
+      def clean_fail(task:, execution: nil) = "state=#{task.state}"
     end.new
     layout = Taski::Progress::Layout::Base.new(output: @output, theme: custom_theme)
 

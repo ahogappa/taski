@@ -1,12 +1,9 @@
 # frozen_string_literal: true
 
 require "monitor"
-require "liquid"
 require_relative "../theme/default"
+require_relative "../info"
 require_relative "../../execution/task_observer"
-require_relative "filters"
-require_relative "tags"
-require_relative "theme_drop"
 
 module Taski
   module Progress
@@ -15,7 +12,7 @@ module Taski
       # Layouts are responsible for:
       # - Receiving events from ExecutionFacade (Observer pattern)
       # - Managing task state tracking
-      # - Rendering templates using Liquid
+      # - Rendering display strings via theme methods (plain Ruby)
       # - Handling screen output
       #
       # === Observer Interface ===
@@ -35,8 +32,6 @@ module Taski
           @output = output
           @context = nil
           @theme = theme || Theme::Default.new
-          @theme_drop = ThemeDrop.new(@theme)
-          @liquid_environment = build_liquid_environment
           @monitor = Monitor.new
           @tasks = {}
           @nest_level = 0
@@ -161,42 +156,14 @@ module Taski
           @monitor.synchronize { @message_queue << text }
         end
 
-        # Render a Liquid template string with the given variables.
-        # Uses scoped Liquid environment with ColorFilter and SpinnerTag.
-        #
-        # @param template_string [String] Liquid template string
-        # @param state [Symbol, nil] State for icon tag
-        # @param task [TaskDrop, nil] Task drop
-        # @param execution [ExecutionDrop, nil] Execution drop
-        # @return [String] Rendered output
-        def render_template_string(template_string, state: nil, task: nil, execution: nil, **variables)
-          context_vars = build_context_vars(task:, execution:, **variables)
-          template = Liquid::Template.parse(template_string, environment: @liquid_environment)
-          template.assigns["state"] = state
-          output = template.render(context_vars)
-          # Liquid renders in lax mode: a runtime error (bad filter/tag/drop, e.g.
-          # divide-by-zero) does NOT raise — it is recorded in template.errors and
-          # inlined into the output as literal "Liquid error: ..." text. Degrade to
-          # "" and surface it rather than leaking that into the display.
-          return warn_and_blank(template.errors.first) if template.errors.any?
-
-          output
-        rescue Liquid::Error => e
-          # A malformed/buggy theme template must not raise out of here: in the
-          # live/event render paths this runs on a background thread and an
-          # exception (here a parse-time SyntaxError) would silently kill it,
-          # freezing the display. Degrade to "" and surface the error.
-          warn_and_blank(e)
-        end
-
-        # Log a template failure and return the empty-string fallback.
+        # Log a theme render failure and return the empty-string fallback.
         def warn_and_blank(error)
-          Taski::Logging.warn(Taski::Logging::Events::TEMPLATE_ERROR, error_message: "template render failed: #{error.message}")
+          Taski::Logging.warn(Taski::Logging::Events::TEMPLATE_ERROR, error_message: "theme render failed: #{error.message}")
           ""
         end
 
         # Start the spinner animation timer.
-        # Increments spinner_index at the template's spinner_interval.
+        # Increments spinner_index at the theme's spinner_interval.
         def start_spinner_timer
           @monitor.synchronize do
             return if @spinner_running
@@ -291,123 +258,133 @@ module Taski
           end
         end
 
-        # === Template rendering helpers ===
+        # === Theme rendering helpers ===
 
-        # Render a task-level template with task and execution drops.
-        # Uses task.state for icon tag.
+        # Render one theme method with full error isolation.
+        # A buggy custom theme must not raise out of here: in the live render
+        # paths this runs on a background thread and an exception would silently
+        # kill it, freezing the display. Degrade to "" and surface the error via
+        # a TEMPLATE_ERROR log event. The rescue covers the theme call itself,
+        # so a raising or wrongly-signatured override is contained too.
         #
-        # @param method_name [Symbol] The template method to call
-        # @param task [TaskDrop] Task-level drop
-        # @param execution [ExecutionDrop] Execution-level drop
-        # @return [String] The rendered template
-        def render_task_template(method_name, task:, execution:)
-          template_string = @theme.public_send(method_name)
-          render_template_string(template_string, state: task.invoke_drop("state"), task:, execution:)
+        # @param method_name [Symbol] The theme method to call
+        # @param task [TaskInfo, nil] Task-level render data
+        # @param execution [ExecutionInfo, nil] Execution-level render data
+        # @return [String] The rendered text, or "" on failure
+        def render_theme(method_name, task: nil, execution: nil)
+          @theme.public_send(method_name, task: task, execution: execution).to_s
+        rescue => e
+          warn_and_blank(e)
         end
 
-        # Render an execution-level template with execution drop only.
-        # Uses execution.state for icon tag.
-        #
-        # @param method_name [Symbol] The template method to call
-        # @param execution [ExecutionDrop] Execution-level drop
-        # @param task [TaskDrop, nil] Optional task drop (for stdout in execution_running)
-        # @return [String] The rendered template
-        def render_execution_template(method_name, execution:, task: nil)
-          template_string = @theme.public_send(method_name)
-          render_template_string(template_string, state: execution.invoke_drop("state"), task:, execution:)
+        # Spinner frame index snapshot for ExecutionInfo (thread-safe read).
+        def current_spinner_index
+          @monitor.synchronize { @spinner_index }
         end
 
-        # === Event-to-template rendering methods ===
-        # These methods define which template is used for each event.
-        # Subclasses call these instead of render_template directly.
+        # Build an ExecutionInfo from the layout's own tallies. Touches no theme
+        # code, so info construction cannot raise from user code — all theme
+        # execution happens inside render_theme's rescue.
         #
-        # Task-level methods pass both TaskDrop and ExecutionDrop so templates
+        # @param overrides [Hash] Member overrides (e.g. state:, task_names:)
+        # @return [ExecutionInfo]
+        def execution_info(**overrides)
+          ExecutionInfo.new(**execution_context, spinner_index: current_spinner_index, **overrides)
+        end
+
+        # === Event-to-theme rendering methods ===
+        # These methods define which theme method is used for each event.
+        # Subclasses call these instead of render_theme directly.
+        #
+        # Task-level methods pass both TaskInfo and ExecutionInfo so themes
         # can display progress like "[3/5] TaskName".
-        # Execution-level methods pass only ExecutionDrop.
 
         # Render task start event
         def render_task_started(task_class)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :running)
-          render_task_template(:task_start, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :running)
+          render_theme(:task_start, task:, execution: execution_info)
         end
 
         # Render task success event
         def render_task_succeeded(task_class, task_duration:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
-          render_task_template(:task_success, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
+          render_theme(:task_success, task:, execution: execution_info)
         end
 
         # Render task failure event
         def render_task_failed(task_class, error:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
-          render_task_template(:task_fail, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
+          render_theme(:task_fail, task:, execution: execution_info)
         end
 
         # Render task skipped event
         def render_task_skipped(task_class)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :skipped)
-          render_task_template(:task_skip, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :skipped)
+          render_theme(:task_skip, task:, execution: execution_info)
         end
 
         # Render clean start event (uses unified :running state)
         def render_clean_started(task_class)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :running)
-          render_task_template(:clean_start, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :running)
+          render_theme(:clean_start, task:, execution: execution_info)
         end
 
         # Render clean success event (uses unified :completed state)
         def render_clean_succeeded(task_class, task_duration:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
-          render_task_template(:clean_success, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :completed, duration: task_duration)
+          render_theme(:clean_success, task:, execution: execution_info)
         end
 
         # Render clean failure event (uses unified :failed state)
         def render_clean_failed(task_class, error:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
-          render_task_template(:clean_fail, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :failed, error_message: error&.message)
+          render_theme(:clean_fail, task:, execution: execution_info)
         end
 
         # Render group start event
         def render_group_started(task_class, group_name:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :running, group_name:)
-          render_task_template(:group_start, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :running, group_name:)
+          render_theme(:group_start, task:, execution: execution_info)
         end
 
         # Render group success event
         def render_group_succeeded(task_class, group_name:, task_duration:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :completed, group_name:, duration: task_duration)
-          render_task_template(:group_success, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :completed, group_name:, duration: task_duration)
+          render_theme(:group_success, task:, execution: execution_info)
         end
 
         # Render group failure event
         def render_group_failed(task_class, group_name:, error:)
-          task = TaskDrop.new(name: task_class_name(task_class), state: :failed, group_name:, error_message: error&.message)
-          render_task_template(:group_fail, task:, execution: execution_drop)
+          task = TaskInfo.new(name: task_class_name(task_class), state: :failed, group_name:, error_message: error&.message)
+          render_theme(:group_fail, task:, execution: execution_info)
         end
 
         # Render execution start event
         def render_execution_started(root_task_class)
-          execution = ExecutionDrop.new(state: :running, root_task_name: task_class_name(root_task_class), **execution_context)
-          render_execution_template(:execution_start, execution:)
+          execution = execution_info(state: :running, root_task_name: task_class_name(root_task_class))
+          render_theme(:execution_start, execution:)
         end
 
         # Render execution complete event
         def render_execution_completed(done_count:, total_count:, total_duration:, skipped_count: 0)
-          execution = ExecutionDrop.new(state: :completed, done_count:, total_count:, total_duration:, skipped_count:)
-          render_execution_template(:execution_complete, execution:)
+          execution = ExecutionInfo.new(state: :completed, done_count:, total_count:, total_duration:,
+            skipped_count:, spinner_index: current_spinner_index)
+          render_theme(:execution_complete, execution:)
         end
 
         # Render execution failure event
         def render_execution_failed(failed_count:, total_count:, total_duration:, skipped_count: 0)
-          execution = ExecutionDrop.new(state: :failed, failed_count:, total_count:, total_duration:, skipped_count:)
-          render_execution_template(:execution_fail, execution:)
+          execution = ExecutionInfo.new(state: :failed, failed_count:, total_count:, total_duration:,
+            skipped_count:, spinner_index: current_spinner_index)
+          render_theme(:execution_fail, execution:)
         end
 
         # Render execution running state (includes task for stdout display)
         def render_execution_running(done_count:, total_count:, task_names:, task_stdout:)
-          task = TaskDrop.new(stdout: task_stdout)
-          execution = ExecutionDrop.new(state: :running, done_count:, total_count:, task_names:)
-          render_execution_template(:execution_running, execution:, task:)
+          task = TaskInfo.new(stdout: task_stdout)
+          execution = ExecutionInfo.new(state: :running, done_count:, total_count:, task_names:,
+            spinner_index: current_spinner_index)
+          render_theme(:execution_running, execution:, task:)
         end
 
         # Returns current execution context as a hash
@@ -434,11 +411,6 @@ module Taski
           else
             :running
           end
-        end
-
-        # Returns current execution context as an ExecutionDrop
-        def execution_drop
-          ExecutionDrop.new(**execution_context)
         end
 
         # === State-to-render dispatchers ===
@@ -529,7 +501,7 @@ module Taski
 
         # === Utility methods ===
 
-        # Get full name of a task class (for use with short_name filter in templates)
+        # Get full name of a task class (themes shorten it via short_name)
         def task_class_name(task_class)
           return nil unless task_class
           task_class.name || task_class.to_s
@@ -584,35 +556,6 @@ module Taski
         end
 
         private
-
-        # Build the Liquid environment with filters and tags registered.
-        # Uses scoped registration (not global) per Liquid 5.x recommendations.
-        #
-        # @return [Liquid::Environment] Configured Liquid environment
-        def build_liquid_environment
-          Liquid::Environment.build do |env|
-            env.register_filter(ColorFilter)
-            env.register_tag("spinner", SpinnerTag)
-            env.register_tag("icon", IconTag)
-          end
-        end
-
-        # Build context variables hash for Liquid rendering.
-        #
-        # @param variables [Hash] User-provided variables
-        # @return [Hash] Context variables with template drop and spinner index
-        def build_context_vars(variables)
-          spinner_idx = @monitor.synchronize { @spinner_index }
-          base_vars = {
-            "template" => @theme_drop,
-            "spinner_index" => variables[:spinner_index] || spinner_idx
-          }
-          stringify_keys(variables).merge(base_vars)
-        end
-
-        def stringify_keys(hash)
-          hash.transform_keys(&:to_s)
-        end
 
         def flush_queued_messages
           messages = @monitor.synchronize { @message_queue.dup.tap { @message_queue.clear } }
