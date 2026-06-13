@@ -152,6 +152,142 @@ class TestLayoutSimple < Minitest::Test
     assert @layout.task_registered?(root_task)
   end
 
+  # === Group name in the status line ===
+  # Documented contract (GUIDE "Group Blocks"): while a group is open, the
+  # status line shows "| GroupName: output..." for the primary task — but
+  # only for output emitted under that group; lines captured BEFORE the
+  # group opened must not be captioned with the new group's name.
+
+  def test_status_line_prefixes_output_emitted_under_the_group
+    task = stub_task_class("DeployTask")
+    lines = {}
+    capture = stub_output_capture(lines)
+    @layout.context = mock_execution_facade(root_task_class: task, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_group_started(task, "Deploying", phase: :run, timestamp: now)
+    lines[task] = "Uploading files..." # captured AFTER the group opened
+
+    line = @layout.send(:build_status_line)
+
+    assert_includes line, "| Deploying: Uploading files..."
+  end
+
+  def test_status_line_shows_group_name_alone_when_no_output_yet
+    task = stub_task_class("DeployTask")
+    capture = stub_output_capture({})
+    @layout.context = mock_execution_facade(root_task_class: task, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_group_started(task, "Preparing environment", phase: :run, timestamp: now)
+
+    line = @layout.send(:build_status_line)
+
+    assert_includes line, "| Preparing environment"
+  end
+
+  def test_status_line_does_not_caption_pre_group_output_with_the_group_name
+    task = stub_task_class("DeployTask")
+    lines = {task => "line from the previous phase"}
+    capture = stub_output_capture(lines)
+    @layout.context = mock_execution_facade(root_task_class: task, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    # The group opens while the pre-group line is still the latest capture —
+    # a quiet group must show its name alone, not claim the old output.
+    @layout.on_group_started(task, "Deploying", phase: :run, timestamp: now)
+
+    line = @layout.send(:build_status_line)
+
+    assert_includes line, "| Deploying"
+    refute_includes line, "previous phase"
+  end
+
+  def test_status_line_drops_group_prefix_after_group_completes
+    task = stub_task_class("DeployTask")
+    capture = stub_output_capture(task => "Uploading files...")
+    @layout.context = mock_execution_facade(root_task_class: task, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_group_started(task, "Deploying", phase: :run, timestamp: now)
+    @layout.on_group_completed(task, "Deploying", phase: :run, timestamp: now + 1)
+
+    line = @layout.send(:build_status_line)
+
+    assert_includes line, "| Uploading files..."
+    refute_includes line, "Deploying"
+  end
+
+  # Layout-level robustness: if overlapping group events arrive (Task#group
+  # forbids nesting, but the layout must tolerate whatever events come), the
+  # most recently started open group wins, and each group only captions
+  # output emitted while it was the active one.
+  def test_status_line_uses_most_recently_started_open_group
+    task = stub_task_class("DeployTask")
+    lines = {}
+    capture = stub_output_capture(lines)
+    @layout.context = mock_execution_facade(root_task_class: task, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_group_started(task, "Outer", phase: :run, timestamp: now)
+    @layout.on_group_started(task, "Inner", phase: :run, timestamp: now + 0.1)
+    lines[task] = "inner step"
+
+    assert_includes @layout.send(:build_status_line), "| Inner: inner step"
+
+    @layout.on_group_completed(task, "Inner", phase: :run, timestamp: now + 0.2)
+    # back under Outer: the inner line is not Outer's — name alone until
+    # Outer emits something new
+    assert_includes @layout.send(:build_status_line), "| Outer"
+    refute_includes @layout.send(:build_status_line), "inner step"
+
+    lines[task] = "outer step"
+    assert_includes @layout.send(:build_status_line), "| Outer: outer step"
+  end
+
+  def test_status_line_group_prefix_is_per_task
+    grouped = stub_task_class("GroupedTask")
+    other = stub_task_class("OtherTask")
+    capture = stub_output_capture(other => "other output")
+    @layout.context = mock_execution_facade(root_task_class: grouped, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(grouped, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_group_started(grouped, "Bundling", phase: :run, timestamp: now)
+    # `other` starts later, becoming the primary task — its line must NOT get
+    # the group prefix of a different task
+    @layout.on_task_updated(other, previous_state: :pending, current_state: :running, phase: :run, timestamp: now + 0.1)
+
+    line = @layout.send(:build_status_line)
+
+    assert_includes line, "| other output"
+    refute_includes line, "Bundling"
+  end
+
+  def test_status_line_truncates_long_group_names_when_output_present
+    task = stub_task_class("DeployTask")
+    lines = {}
+    capture = stub_output_capture(lines)
+    @layout.context = mock_execution_facade(root_task_class: task, output_capture: capture)
+    @layout.on_ready
+    now = Time.now
+    @layout.on_task_updated(task, previous_state: :pending, current_state: :running, phase: :run, timestamp: now)
+    @layout.on_group_started(task, "Synchronizing all the deployment artifacts", phase: :run, timestamp: now)
+    lines[task] = "uploading"
+
+    line = @layout.send(:build_status_line)
+
+    # The label is capped (15 chars incl. suffix) so the output keeps budget
+    # within the 40-char stdout window; the full name still shows when there
+    # is no output.
+    assert_includes line, "| Synchronizin...: uploading"
+  end
+
   private
 
   def stub_task_class(name)
@@ -159,6 +295,12 @@ class TestLayoutSimple < Minitest::Test
     klass.define_singleton_method(:name) { name }
     klass.define_singleton_method(:cached_dependencies) { [] }
     klass
+  end
+
+  def stub_output_capture(lines_by_task)
+    capture = Object.new
+    capture.define_singleton_method(:last_line_for) { |tc| lines_by_task[tc] }
+    capture
   end
 end
 

@@ -475,12 +475,14 @@ module Taski
       context&.notify_group_started(self.class, name, phase: phase, timestamp: Time.now)
 
       begin
-        result = yield
+        yield
+      ensure
+        # ensure (not rescue) so completion also fires on non-local exits —
+        # break/return/throw and non-StandardError exceptions. A missed
+        # completion would leak the group open in the display bookkeeping,
+        # leaving a stale "GroupName:" caption on the status line for the
+        # rest of the run (and the clean phase).
         context&.notify_group_completed(self.class, name, phase: phase, timestamp: Time.now)
-        result
-      rescue
-        context&.notify_group_completed(self.class, name, phase: phase, timestamp: Time.now)
-        raise
       end
     end
 
