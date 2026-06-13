@@ -111,8 +111,8 @@ module Taski
             when :skipped
               render_task_skipped(task_class)
             else
-              task = TaskDrop.new(name: task_class_name(task_class), state: :pending)
-              render_task_template(:task_pending, task:, execution: execution_drop)
+              task = TaskInfo.new(name: task_class_name(task_class), state: :pending)
+              render_theme(:task_pending, task:, execution: execution_info)
             end
           end
 

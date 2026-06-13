@@ -29,8 +29,8 @@ module Taski
       #       "#{count}件"
       #     end
       #
-      #     def status_complete
-      #       '{% icon %} {{ execution.done_count | format_count }}完了 ({{ execution.total_duration | format_duration }})'
+      #     def execution_complete(execution:, task: nil)
+      #       "#{icon_for(execution.state)} #{format_count(execution.done_count)}完了 (#{format_duration(execution.total_duration)})"
       #     end
       #   end
       class Compact < Default
@@ -38,18 +38,19 @@ module Taski
         # Adds spinner and icons for TTY environments.
 
         # Execution running with spinner
-        def execution_running
-          "{% spinner %} [{{ execution.done_count }}/{{ execution.total_count }}]{% if execution.task_names %} {% for name in execution.task_names limit: 3 %}{{ name | short_name }}{% unless forloop.last %}, {% endunless %}{% endfor %}{% if execution.task_names.size > 3 %}...{% endif %}{% endif %}{% if task.stdout %} | {{ task.stdout | truncate_text: 40 }}{% endif %}"
+        def execution_running(execution:, task: nil)
+          "#{spinner_frame(execution&.spinner_index)} [#{execution.done_count}/#{execution.total_count}]" \
+            "#{task_names_part(execution.task_names)}#{stdout_part(task&.stdout)}"
         end
 
         # Execution complete with icon
-        def execution_complete
-          "{% icon %} [TASKI] Completed: {{ execution.done_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
+        def execution_complete(execution:, task: nil)
+          "#{icon_for(execution.state)} [TASKI] Completed: #{execution.done_count}/#{execution.total_count} tasks (#{format_duration(execution.total_duration)})"
         end
 
         # Execution fail with icon
-        def execution_fail
-          "{% icon %} [TASKI] Failed: {{ execution.failed_count }}/{{ execution.total_count }} tasks ({{ execution.total_duration | format_duration }})"
+        def execution_fail(execution:, task: nil)
+          "#{icon_for(execution.state)} [TASKI] Failed: #{execution.failed_count}/#{execution.total_count} tasks (#{format_duration(execution.total_duration)})"
         end
       end
     end

@@ -1,166 +1,129 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "liquid"
+require "taski/progress/info"
 require "taski/progress/theme/base"
 require "taski/progress/theme/default"
 require "taski/progress/theme/detail"
-require "taski/progress/layout/filters"
-require "taski/progress/layout/tags"
-require "taski/progress/layout/theme_drop"
 
 class TestTheme < Minitest::Test
   def setup
     @theme = Taski::Progress::Theme::Default.new
-    @theme_drop = Taski::Progress::Layout::ThemeDrop.new(@theme)
-    @environment = Liquid::Environment.build do |env|
-      env.register_filter(Taski::Progress::Layout::ColorFilter)
-      env.register_tag("spinner", Taski::Progress::Layout::SpinnerTag)
-      env.register_tag("icon", Taski::Progress::Layout::IconTag)
-    end
   end
 
   # === Task lifecycle templates ===
 
-  def test_task_start_returns_liquid_template_string
-    result = @theme.task_start
-    assert_includes result, "{{ task.name | short_name }}"
-  end
-
   def test_task_start_renders_with_task_name
-    template_string = @theme.task_start
-    rendered = render_template(template_string, "task_name" => "MyTask")
+    rendered = @theme.task_start(task: task_info(name: "MyTask"))
     assert_includes rendered, "MyTask"
     assert_includes rendered, "[START]"
   end
 
-  def test_task_success_returns_liquid_template_string
-    result = @theme.task_success
-    assert_includes result, "{{ task.name | short_name }}"
+  def test_task_start_shortens_namespaced_name
+    rendered = @theme.task_start(task: task_info(name: "MyModule::MyTask"))
+    assert_equal "[START] MyTask", rendered
   end
 
   def test_task_success_renders_without_duration
-    template_string = @theme.task_success
-    rendered = render_template(template_string, "task_name" => "MyTask", "duration" => nil)
-    assert_includes rendered, "[DONE] MyTask"
+    rendered = @theme.task_success(task: task_info(name: "MyTask", duration: nil))
+    assert_equal "[DONE] MyTask", rendered
     refute_includes rendered, "()"
   end
 
   def test_task_success_renders_with_duration
-    template_string = @theme.task_success
-    rendered = render_template(template_string, "task_name" => "MyTask", "task_duration" => 123)
-    assert_includes rendered, "[DONE] MyTask (123ms)"
-  end
-
-  def test_task_fail_returns_liquid_template_string
-    result = @theme.task_fail
-    assert_includes result, "{{ task.name | short_name }}"
+    rendered = @theme.task_success(task: task_info(name: "MyTask", duration: 123))
+    assert_equal "[DONE] MyTask (123ms)", rendered
   end
 
   def test_task_fail_renders_without_error
-    template_string = @theme.task_fail
-    rendered = render_template(template_string, "task_name" => "MyTask", "task_error_message" => nil)
-    assert_includes rendered, "[FAIL] MyTask"
+    rendered = @theme.task_fail(task: task_info(name: "MyTask", error_message: nil))
+    assert_equal "[FAIL] MyTask", rendered
     refute_includes rendered, ":"
   end
 
   def test_task_fail_renders_with_error
-    template_string = @theme.task_fail
-    rendered = render_template(template_string, "task_name" => "MyTask", "task_error_message" => "Something went wrong")
-    assert_includes rendered, "[FAIL] MyTask: Something went wrong"
+    rendered = @theme.task_fail(task: task_info(name: "MyTask", error_message: "Something went wrong"))
+    assert_equal "[FAIL] MyTask: Something went wrong", rendered
   end
 
   # === Clean lifecycle templates ===
 
-  def test_clean_start_returns_liquid_template_string
-    result = @theme.clean_start
-    assert_includes result, "{{ task.name | short_name }}"
-    assert_includes result, "[CLEAN]"
+  def test_clean_start_renders_with_prefix
+    rendered = @theme.clean_start(task: task_info(name: "MyTask"))
+    assert_equal "[CLEAN] MyTask", rendered
   end
 
   def test_clean_success_renders_with_duration
-    template_string = @theme.clean_success
-    rendered = render_template(template_string, "task_name" => "MyTask", "task_duration" => 50)
-    assert_includes rendered, "[CLEAN DONE] MyTask (50ms)"
+    rendered = @theme.clean_success(task: task_info(name: "MyTask", duration: 50))
+    assert_equal "[CLEAN DONE] MyTask (50ms)", rendered
   end
 
   def test_clean_fail_renders_with_error
-    template_string = @theme.clean_fail
-    rendered = render_template(template_string, "task_name" => "MyTask", "task_error_message" => "Cleanup failed")
-    assert_includes rendered, "[CLEAN FAIL] MyTask: Cleanup failed"
+    rendered = @theme.clean_fail(task: task_info(name: "MyTask", error_message: "Cleanup failed"))
+    assert_equal "[CLEAN FAIL] MyTask: Cleanup failed", rendered
   end
 
   # === Group lifecycle templates ===
 
-  def test_group_start_returns_liquid_template_string
-    result = @theme.group_start
-    assert_includes result, "{{ task.name | short_name }}"
-    assert_includes result, "{{ task.group_name }}"
-  end
-
   def test_group_start_renders_correctly
-    template_string = @theme.group_start
-    rendered = render_template(template_string, "task_name" => "MyTask", "group_name" => "build")
-    assert_includes rendered, "[GROUP] MyTask#build"
+    rendered = @theme.group_start(task: task_info(name: "MyTask", group_name: "build"))
+    assert_equal "[GROUP] MyTask#build", rendered
   end
 
   def test_group_success_renders_with_duration
-    template_string = @theme.group_success
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "group_name" => "build",
-      "task_duration" => 200)
-    assert_includes rendered, "[GROUP DONE] MyTask#build (200ms)"
+    rendered = @theme.group_success(task: task_info(name: "MyTask", group_name: "build", duration: 200))
+    assert_equal "[GROUP DONE] MyTask#build (200ms)", rendered
   end
 
   def test_group_fail_renders_with_error
-    template_string = @theme.group_fail
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "group_name" => "build",
-      "task_error_message" => "Build failed")
-    assert_includes rendered, "[GROUP FAIL] MyTask#build: Build failed"
+    rendered = @theme.group_fail(task: task_info(name: "MyTask", group_name: "build", error_message: "Build failed"))
+    assert_equal "[GROUP FAIL] MyTask#build: Build failed", rendered
   end
 
   # === Execution lifecycle templates ===
 
-  def test_execution_start_returns_liquid_template_string
-    result = @theme.execution_start
-    assert_includes result, "{{ execution.root_task_name | short_name }}"
-    assert_includes result, "[TASKI]"
-  end
-
   def test_execution_start_renders_correctly
-    template_string = @theme.execution_start
-    rendered = render_template(template_string, "root_task_name" => "BuildTask")
-    assert_includes rendered, "[TASKI] Starting BuildTask"
+    rendered = @theme.execution_start(execution: execution_info(root_task_name: "BuildTask"))
+    assert_equal "[TASKI] Starting BuildTask", rendered
   end
 
   def test_execution_complete_renders_with_stats
-    template_string = @theme.execution_complete
-    rendered = render_template(template_string,
-      "done_count" => 5,
-      "total_count" => 5,
-      "total_duration" => 1234)
-    assert_includes rendered, "[TASKI] Completed: 5/5 tasks (1.2s)"
+    rendered = @theme.execution_complete(
+      execution: execution_info(done_count: 5, total_count: 5, total_duration: 1234)
+    )
+    assert_equal "[TASKI] Completed: 5/5 tasks (1.2s)", rendered
   end
 
   def test_execution_fail_renders_with_stats
-    template_string = @theme.execution_fail
-    rendered = render_template(template_string,
-      "failed_count" => 2,
-      "total_count" => 5,
-      "total_duration" => 1234)
-    assert_includes rendered, "[TASKI] Failed: 2/5 tasks (1.2s)"
+    rendered = @theme.execution_fail(
+      execution: execution_info(failed_count: 2, total_count: 5, total_duration: 1234)
+    )
+    assert_equal "[TASKI] Failed: 2/5 tasks (1.2s)", rendered
+  end
+
+  def test_execution_running_renders_correctly
+    rendered = @theme.execution_running(execution: execution_info(done_count: 3, total_count: 5))
+    assert_equal "[TASKI] Running: 3/5 tasks", rendered
   end
 
   # === Theme::Base as abstract base class ===
 
   def test_base_provides_default_implementations
     base = Taski::Progress::Theme::Base.new
-    assert_kind_of String, base.task_start
-    assert_kind_of String, base.task_success
-    assert_kind_of String, base.task_fail
+    task = task_info(name: "T")
+    assert_kind_of String, base.task_start(task: task)
+    assert_kind_of String, base.task_success(task: task)
+    assert_kind_of String, base.task_fail(task: task)
+  end
+
+  def test_template_methods_accept_both_keywords
+    # The layout always passes BOTH task: and execution: (either may be nil) —
+    # every template method must tolerate the unused keyword.
+    rendered = @theme.task_start(task: task_info(name: "MyTask"), execution: execution_info)
+    assert_equal "[START] MyTask", rendered
+
+    rendered = @theme.execution_running(execution: execution_info(done_count: 1, total_count: 2), task: task_info)
+    assert_equal "[TASKI] Running: 1/2 tasks", rendered
   end
 
   # === Spinner configuration ===
@@ -232,16 +195,9 @@ class TestTheme < Minitest::Test
     assert_equal "⊘", result
   end
 
-  def test_task_skip_returns_liquid_template_string
-    result = @theme.task_skip
-    assert_includes result, "{{ task.name | short_name }}"
-  end
-
   def test_task_skip_renders_correctly
-    template_string = @theme.task_skip
-    rendered = render_template(template_string, "task_name" => "SkippedTask")
-    assert_includes rendered, "[SKIP]"
-    assert_includes rendered, "SkippedTask"
+    rendered = @theme.task_skip(task: task_info(name: "SkippedTask"))
+    assert_equal "[SKIP] SkippedTask", rendered
   end
 
   # === Color configuration (ANSI codes) ===
@@ -268,83 +224,31 @@ class TestTheme < Minitest::Test
 
   # === Task pending template ===
 
-  def test_task_pending_returns_liquid_template_string
-    result = @theme.task_pending
-    assert_includes result, "{{ task.name | short_name }}"
-  end
-
   def test_task_pending_renders_correctly
-    template_string = @theme.task_pending
-    rendered = render_template(template_string, "task_name" => "MyTask")
-    assert_includes rendered, "[PENDING]"
-    assert_includes rendered, "MyTask"
-  end
-
-  # === Execution running template ===
-
-  def test_execution_running_returns_liquid_template_string
-    result = @theme.execution_running
-    assert_includes result, "execution.done_count"
-    assert_includes result, "execution.total_count"
-  end
-
-  def test_execution_running_renders_correctly
-    template_string = @theme.execution_running
-    rendered = render_template(template_string,
-      "done_count" => 3,
-      "total_count" => 5)
-    assert_includes rendered, "[TASKI] Running: 3/5 tasks"
+    rendered = @theme.task_pending(task: task_info(name: "MyTask"))
+    assert_equal "[PENDING] MyTask", rendered
   end
 
   private
 
-  def render_template(template_string, variables)
-    task_drop = Taski::Progress::Layout::TaskDrop.new(
-      name: variables["task_name"],
-      state: variables["state"],
-      duration: variables["task_duration"],
-      error_message: variables["task_error_message"],
-      group_name: variables["group_name"],
-      stdout: variables["task_stdout"]
-    )
-    execution_drop = Taski::Progress::Layout::ExecutionDrop.new(
-      state: variables["state"],
-      pending_count: variables["pending_count"],
-      done_count: variables["done_count"],
-      completed_count: variables["completed_count"],
-      failed_count: variables["failed_count"],
-      total_count: variables["total_count"],
-      total_duration: variables["total_duration"],
-      root_task_name: variables["root_task_name"],
-      task_names: variables["task_names"]
-    )
-    context_vars = {
-      "template" => @theme_drop,
-      "task" => task_drop,
-      "execution" => execution_drop,
-      "state" => variables["state"],
-      "spinner_index" => variables["spinner_index"]
-    }
-    Liquid::Template.parse(template_string, environment: @environment).render(context_vars)
+  def task_info(**fields)
+    Taski::Progress::TaskInfo.new(**fields)
+  end
+
+  def execution_info(**fields)
+    Taski::Progress::ExecutionInfo.new(**fields)
   end
 end
 
 class TestThemeDetail < Minitest::Test
   def setup
     @theme = Taski::Progress::Theme::Detail.new
-    @theme_drop = Taski::Progress::Layout::ThemeDrop.new(@theme)
-    @environment = Liquid::Environment.build do |env|
-      env.register_filter(Taski::Progress::Layout::ColorFilter)
-      env.register_tag("spinner", Taski::Progress::Layout::SpinnerTag)
-      env.register_tag("icon", Taski::Progress::Layout::IconTag)
-    end
   end
 
   # === Task pending with icon ===
 
   def test_task_pending_renders_with_icon
-    template_string = @theme.task_pending
-    rendered = render_template(template_string, "task_name" => "MyTask", "state" => "pending")
+    rendered = @theme.task_pending(task: task_info(name: "MyTask", state: :pending))
     assert_includes rendered, "○"
     assert_includes rendered, "MyTask"
   end
@@ -352,8 +256,24 @@ class TestThemeDetail < Minitest::Test
   # === Task start with spinner ===
 
   def test_task_start_renders_with_spinner
-    template_string = @theme.task_start
-    rendered = render_template(template_string, "task_name" => "MyTask", "spinner_index" => 0)
+    rendered = @theme.task_start(
+      task: task_info(name: "MyTask", state: :running),
+      execution: execution_info(spinner_index: 0)
+    )
+    assert_includes rendered, "⠋"
+    assert_includes rendered, "MyTask"
+  end
+
+  def test_task_start_uses_spinner_index_from_execution
+    rendered = @theme.task_start(
+      task: task_info(name: "MyTask", state: :running),
+      execution: execution_info(spinner_index: 3)
+    )
+    assert_includes rendered, "⠸"
+  end
+
+  def test_task_start_tolerates_nil_execution
+    rendered = @theme.task_start(task: task_info(name: "MyTask", state: :running))
     assert_includes rendered, "⠋"
     assert_includes rendered, "MyTask"
   end
@@ -361,22 +281,14 @@ class TestThemeDetail < Minitest::Test
   # === Task success with colored icon ===
 
   def test_task_success_renders_with_icon
-    template_string = @theme.task_success
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "completed",
-      "task_duration" => 123)
+    rendered = @theme.task_success(task: task_info(name: "MyTask", state: :completed, duration: 123))
     assert_includes rendered, "✓"
     assert_includes rendered, "MyTask"
     assert_includes rendered, "(123ms)"
   end
 
   def test_task_success_renders_without_duration
-    template_string = @theme.task_success
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "completed",
-      "task_duration" => nil)
+    rendered = @theme.task_success(task: task_info(name: "MyTask", state: :completed, duration: nil))
     assert_includes rendered, "✓"
     assert_includes rendered, "MyTask"
     refute_includes rendered, "()"
@@ -385,22 +297,16 @@ class TestThemeDetail < Minitest::Test
   # === Task fail with colored icon ===
 
   def test_task_fail_renders_with_icon
-    template_string = @theme.task_fail
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "failed",
-      "task_error_message" => "Something went wrong")
+    rendered = @theme.task_fail(
+      task: task_info(name: "MyTask", state: :failed, error_message: "Something went wrong")
+    )
     assert_includes rendered, "✗"
     assert_includes rendered, "MyTask"
     assert_includes rendered, "Something went wrong"
   end
 
   def test_task_fail_renders_without_error
-    template_string = @theme.task_fail
-    rendered = render_template(template_string,
-      "task_name" => "MyTask",
-      "state" => "failed",
-      "task_error_message" => nil)
+    rendered = @theme.task_fail(task: task_info(name: "MyTask", state: :failed, error_message: nil))
     assert_includes rendered, "✗"
     assert_includes rendered, "MyTask"
     refute_includes rendered, ":"
@@ -408,33 +314,11 @@ class TestThemeDetail < Minitest::Test
 
   private
 
-  def render_template(template_string, variables)
-    task_drop = Taski::Progress::Layout::TaskDrop.new(
-      name: variables["task_name"],
-      state: variables["state"],
-      duration: variables["task_duration"],
-      error_message: variables["task_error_message"],
-      group_name: variables["group_name"],
-      stdout: variables["task_stdout"]
-    )
-    execution_drop = Taski::Progress::Layout::ExecutionDrop.new(
-      state: variables["state"],
-      pending_count: variables["pending_count"],
-      done_count: variables["done_count"],
-      completed_count: variables["completed_count"],
-      failed_count: variables["failed_count"],
-      total_count: variables["total_count"],
-      total_duration: variables["total_duration"],
-      root_task_name: variables["root_task_name"],
-      task_names: variables["task_names"]
-    )
-    context_vars = {
-      "template" => @theme_drop,
-      "task" => task_drop,
-      "execution" => execution_drop,
-      "state" => variables["state"],
-      "spinner_index" => variables["spinner_index"]
-    }
-    Liquid::Template.parse(template_string, environment: @environment).render(context_vars)
+  def task_info(**fields)
+    Taski::Progress::TaskInfo.new(**fields)
+  end
+
+  def execution_info(**fields)
+    Taski::Progress::ExecutionInfo.new(**fields)
   end
 end

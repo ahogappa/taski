@@ -8,8 +8,8 @@ module Taski
       # Default theme inheriting from Theme::Base.
       #
       # Note: Theme::Base provides ANSI color helper methods (color_red,
-      # color_green, etc.) which return escape codes by default. If Liquid
-      # templates or filters use these methods, output may contain escape codes.
+      # color_green, etc.) which return escape codes by default. Theme methods
+      # that use them (via colorize/icon_for) emit escape codes in their output.
       #
       # For guaranteed plain text output without any terminal escape codes,
       # use Theme::Plain instead, which overrides all color methods to

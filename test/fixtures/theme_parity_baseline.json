@@ -1,0 +1,3198 @@
+{
+  "generated_from": "2dd339e3a57ec7292f9a0be3a8691547bae6bdda",
+  "note": "Rendered through the pre-replacement Liquid pipeline (render_task_template / render_execution_template). Regeneration requires checking out the source commit.",
+  "cases": [
+    {
+      "id": "default/task_pending/0",
+      "theme": "default",
+      "method": "task_pending",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "pending"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[PENDING] MyTask"
+    },
+    {
+      "id": "default/task_start/1",
+      "theme": "default",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[START] MyTask"
+    },
+    {
+      "id": "default/task_start/2",
+      "theme": "default",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "[START] MyTask"
+    },
+    {
+      "id": "default/task_success/3",
+      "theme": "default",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask"
+    },
+    {
+      "id": "default/task_success/4",
+      "theme": "default",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 0
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (0ms)"
+    },
+    {
+      "id": "default/task_success/5",
+      "theme": "default",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123.4
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (123.4ms)"
+    },
+    {
+      "id": "default/task_success/6",
+      "theme": "default",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 1234
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (1.2s)"
+    },
+    {
+      "id": "default/task_success/7",
+      "theme": "default",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 2500
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (2.5s)"
+    },
+    {
+      "id": "default/task_fail/8",
+      "theme": "default",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[FAIL] MyTask"
+    },
+    {
+      "id": "default/task_fail/9",
+      "theme": "default",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Boom"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[FAIL] MyTask: Boom"
+    },
+    {
+      "id": "default/task_skip/10",
+      "theme": "default",
+      "method": "task_skip",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "skipped"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[SKIP] MyTask"
+    },
+    {
+      "id": "default/clean_start/11",
+      "theme": "default",
+      "method": "clean_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN] MyTask"
+    },
+    {
+      "id": "default/clean_success/12",
+      "theme": "default",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask"
+    },
+    {
+      "id": "default/clean_success/13",
+      "theme": "default",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask (123ms)"
+    },
+    {
+      "id": "default/clean_fail/14",
+      "theme": "default",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask"
+    },
+    {
+      "id": "default/clean_fail/15",
+      "theme": "default",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Cleanup failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask: Cleanup failed"
+    },
+    {
+      "id": "default/group_start/16",
+      "theme": "default",
+      "method": "group_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running",
+        "group_name": "build"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP] MyTask#build"
+    },
+    {
+      "id": "default/group_success/17",
+      "theme": "default",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build"
+    },
+    {
+      "id": "default/group_success/18",
+      "theme": "default",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": 200
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build (200ms)"
+    },
+    {
+      "id": "default/group_fail/19",
+      "theme": "default",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build"
+    },
+    {
+      "id": "default/group_fail/20",
+      "theme": "default",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": "Build failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build: Build failed"
+    },
+    {
+      "id": "default/execution_start/0",
+      "theme": "default",
+      "method": "execution_start",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": "MyModule::Root",
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Starting Root"
+    },
+    {
+      "id": "default/execution_running/1",
+      "theme": "default",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "default/execution_running/2",
+      "theme": "default",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "default/execution_running/3",
+      "theme": "default",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA",
+          "B::TaskB"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "default/execution_running/4",
+      "theme": "default",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::T1",
+          "B::T2",
+          "C::T3",
+          "D::T4"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "default/execution_running/5",
+      "theme": "default",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "Uploading files to the server with a very long output line here"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "default/execution_running/6",
+      "theme": "default",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "short line"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "default/execution_complete/7",
+      "theme": "default",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (1.2s)"
+    },
+    {
+      "id": "default/execution_complete/8",
+      "theme": "default",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (0ms)"
+    },
+    {
+      "id": "default/execution_complete/9",
+      "theme": "default",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 2,
+        "total_count": 5,
+        "total_duration": 65000,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (65.0s)"
+    },
+    {
+      "id": "default/execution_fail/10",
+      "theme": "default",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 2,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Failed: 2/5 tasks (1.2s)"
+    },
+    {
+      "id": "default/execution_fail/11",
+      "theme": "default",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 1,
+        "skipped_count": 0,
+        "total_count": 1,
+        "total_duration": 890,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Failed: 1/1 tasks (890ms)"
+    },
+    {
+      "id": "detail/task_pending/0",
+      "theme": "detail",
+      "method": "task_pending",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "pending"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "○ MyTask"
+    },
+    {
+      "id": "detail/task_start/1",
+      "theme": "detail",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "⠋ MyTask"
+    },
+    {
+      "id": "detail/task_start/2",
+      "theme": "detail",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "⠸ MyTask"
+    },
+    {
+      "id": "detail/task_success/3",
+      "theme": "detail",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m MyTask"
+    },
+    {
+      "id": "detail/task_success/4",
+      "theme": "detail",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 0
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m MyTask (0ms)"
+    },
+    {
+      "id": "detail/task_success/5",
+      "theme": "detail",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123.4
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m MyTask (123.4ms)"
+    },
+    {
+      "id": "detail/task_success/6",
+      "theme": "detail",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 1234
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m MyTask (1.2s)"
+    },
+    {
+      "id": "detail/task_success/7",
+      "theme": "detail",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 2500
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m MyTask (2.5s)"
+    },
+    {
+      "id": "detail/task_fail/8",
+      "theme": "detail",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[31m✗\u001b[0m MyTask"
+    },
+    {
+      "id": "detail/task_fail/9",
+      "theme": "detail",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Boom"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[31m✗\u001b[0m MyTask: Boom"
+    },
+    {
+      "id": "detail/task_skip/10",
+      "theme": "detail",
+      "method": "task_skip",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "skipped"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[2m⊘\u001b[0m MyTask"
+    },
+    {
+      "id": "detail/clean_start/11",
+      "theme": "detail",
+      "method": "clean_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN] MyTask"
+    },
+    {
+      "id": "detail/clean_success/12",
+      "theme": "detail",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask"
+    },
+    {
+      "id": "detail/clean_success/13",
+      "theme": "detail",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask (123ms)"
+    },
+    {
+      "id": "detail/clean_fail/14",
+      "theme": "detail",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask"
+    },
+    {
+      "id": "detail/clean_fail/15",
+      "theme": "detail",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Cleanup failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask: Cleanup failed"
+    },
+    {
+      "id": "detail/group_start/16",
+      "theme": "detail",
+      "method": "group_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running",
+        "group_name": "build"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP] MyTask#build"
+    },
+    {
+      "id": "detail/group_success/17",
+      "theme": "detail",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build"
+    },
+    {
+      "id": "detail/group_success/18",
+      "theme": "detail",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": 200
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build (200ms)"
+    },
+    {
+      "id": "detail/group_fail/19",
+      "theme": "detail",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build"
+    },
+    {
+      "id": "detail/group_fail/20",
+      "theme": "detail",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": "Build failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build: Build failed"
+    },
+    {
+      "id": "detail/execution_start/0",
+      "theme": "detail",
+      "method": "execution_start",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": "MyModule::Root",
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Starting Root"
+    },
+    {
+      "id": "detail/execution_running/1",
+      "theme": "detail",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "detail/execution_running/2",
+      "theme": "detail",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "detail/execution_running/3",
+      "theme": "detail",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA",
+          "B::TaskB"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "detail/execution_running/4",
+      "theme": "detail",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::T1",
+          "B::T2",
+          "C::T3",
+          "D::T4"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "detail/execution_running/5",
+      "theme": "detail",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "Uploading files to the server with a very long output line here"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "detail/execution_running/6",
+      "theme": "detail",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "short line"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "detail/execution_complete/7",
+      "theme": "detail",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (1.2s)"
+    },
+    {
+      "id": "detail/execution_complete/8",
+      "theme": "detail",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (0ms)"
+    },
+    {
+      "id": "detail/execution_complete/9",
+      "theme": "detail",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 2,
+        "total_count": 5,
+        "total_duration": 65000,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (65.0s)"
+    },
+    {
+      "id": "detail/execution_fail/10",
+      "theme": "detail",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 2,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Failed: 2/5 tasks (1.2s)"
+    },
+    {
+      "id": "detail/execution_fail/11",
+      "theme": "detail",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 1,
+        "skipped_count": 0,
+        "total_count": 1,
+        "total_duration": 890,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Failed: 1/1 tasks (890ms)"
+    },
+    {
+      "id": "compact/task_pending/0",
+      "theme": "compact",
+      "method": "task_pending",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "pending"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[PENDING] MyTask"
+    },
+    {
+      "id": "compact/task_start/1",
+      "theme": "compact",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[START] MyTask"
+    },
+    {
+      "id": "compact/task_start/2",
+      "theme": "compact",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "[START] MyTask"
+    },
+    {
+      "id": "compact/task_success/3",
+      "theme": "compact",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask"
+    },
+    {
+      "id": "compact/task_success/4",
+      "theme": "compact",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 0
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (0ms)"
+    },
+    {
+      "id": "compact/task_success/5",
+      "theme": "compact",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123.4
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (123.4ms)"
+    },
+    {
+      "id": "compact/task_success/6",
+      "theme": "compact",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 1234
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (1.2s)"
+    },
+    {
+      "id": "compact/task_success/7",
+      "theme": "compact",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 2500
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (2.5s)"
+    },
+    {
+      "id": "compact/task_fail/8",
+      "theme": "compact",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[FAIL] MyTask"
+    },
+    {
+      "id": "compact/task_fail/9",
+      "theme": "compact",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Boom"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[FAIL] MyTask: Boom"
+    },
+    {
+      "id": "compact/task_skip/10",
+      "theme": "compact",
+      "method": "task_skip",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "skipped"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[SKIP] MyTask"
+    },
+    {
+      "id": "compact/clean_start/11",
+      "theme": "compact",
+      "method": "clean_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN] MyTask"
+    },
+    {
+      "id": "compact/clean_success/12",
+      "theme": "compact",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask"
+    },
+    {
+      "id": "compact/clean_success/13",
+      "theme": "compact",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask (123ms)"
+    },
+    {
+      "id": "compact/clean_fail/14",
+      "theme": "compact",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask"
+    },
+    {
+      "id": "compact/clean_fail/15",
+      "theme": "compact",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Cleanup failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask: Cleanup failed"
+    },
+    {
+      "id": "compact/group_start/16",
+      "theme": "compact",
+      "method": "group_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running",
+        "group_name": "build"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP] MyTask#build"
+    },
+    {
+      "id": "compact/group_success/17",
+      "theme": "compact",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build"
+    },
+    {
+      "id": "compact/group_success/18",
+      "theme": "compact",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": 200
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build (200ms)"
+    },
+    {
+      "id": "compact/group_fail/19",
+      "theme": "compact",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build"
+    },
+    {
+      "id": "compact/group_fail/20",
+      "theme": "compact",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": "Build failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build: Build failed"
+    },
+    {
+      "id": "compact/execution_start/0",
+      "theme": "compact",
+      "method": "execution_start",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": "MyModule::Root",
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Starting Root"
+    },
+    {
+      "id": "compact/execution_running/1",
+      "theme": "compact",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "⠋ [3/5]"
+    },
+    {
+      "id": "compact/execution_running/2",
+      "theme": "compact",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "⠸ [3/5]"
+    },
+    {
+      "id": "compact/execution_running/3",
+      "theme": "compact",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA",
+          "B::TaskB"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "⠋ [3/5] TaskA, TaskB"
+    },
+    {
+      "id": "compact/execution_running/4",
+      "theme": "compact",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::T1",
+          "B::T2",
+          "C::T3",
+          "D::T4"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "⠋ [3/5] T1, T2, T3..."
+    },
+    {
+      "id": "compact/execution_running/5",
+      "theme": "compact",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "Uploading files to the server with a very long output line here"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "⠋ [3/5] TaskA | Uploading files to the server with a ..."
+    },
+    {
+      "id": "compact/execution_running/6",
+      "theme": "compact",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "short line"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "⠋ [3/5] | short line"
+    },
+    {
+      "id": "compact/execution_complete/7",
+      "theme": "compact",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m [TASKI] Completed: 5/5 tasks (1.2s)"
+    },
+    {
+      "id": "compact/execution_complete/8",
+      "theme": "compact",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m [TASKI] Completed: 5/5 tasks (0ms)"
+    },
+    {
+      "id": "compact/execution_complete/9",
+      "theme": "compact",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 2,
+        "total_count": 5,
+        "total_duration": 65000,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[32m✓\u001b[0m [TASKI] Completed: 5/5 tasks (65.0s)"
+    },
+    {
+      "id": "compact/execution_fail/10",
+      "theme": "compact",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 2,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[31m✗\u001b[0m [TASKI] Failed: 2/5 tasks (1.2s)"
+    },
+    {
+      "id": "compact/execution_fail/11",
+      "theme": "compact",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 1,
+        "skipped_count": 0,
+        "total_count": 1,
+        "total_duration": 890,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "\u001b[31m✗\u001b[0m [TASKI] Failed: 1/1 tasks (890ms)"
+    },
+    {
+      "id": "plain/task_pending/0",
+      "theme": "plain",
+      "method": "task_pending",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "pending"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[PENDING] MyTask"
+    },
+    {
+      "id": "plain/task_start/1",
+      "theme": "plain",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[START] MyTask"
+    },
+    {
+      "id": "plain/task_start/2",
+      "theme": "plain",
+      "method": "task_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "[START] MyTask"
+    },
+    {
+      "id": "plain/task_success/3",
+      "theme": "plain",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask"
+    },
+    {
+      "id": "plain/task_success/4",
+      "theme": "plain",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 0
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (0ms)"
+    },
+    {
+      "id": "plain/task_success/5",
+      "theme": "plain",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123.4
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (123.4ms)"
+    },
+    {
+      "id": "plain/task_success/6",
+      "theme": "plain",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 1234
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (1.2s)"
+    },
+    {
+      "id": "plain/task_success/7",
+      "theme": "plain",
+      "method": "task_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 2500
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[DONE] MyTask (2.5s)"
+    },
+    {
+      "id": "plain/task_fail/8",
+      "theme": "plain",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[FAIL] MyTask"
+    },
+    {
+      "id": "plain/task_fail/9",
+      "theme": "plain",
+      "method": "task_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Boom"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[FAIL] MyTask: Boom"
+    },
+    {
+      "id": "plain/task_skip/10",
+      "theme": "plain",
+      "method": "task_skip",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "skipped"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[SKIP] MyTask"
+    },
+    {
+      "id": "plain/clean_start/11",
+      "theme": "plain",
+      "method": "clean_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN] MyTask"
+    },
+    {
+      "id": "plain/clean_success/12",
+      "theme": "plain",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask"
+    },
+    {
+      "id": "plain/clean_success/13",
+      "theme": "plain",
+      "method": "clean_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "duration": 123
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN DONE] MyTask (123ms)"
+    },
+    {
+      "id": "plain/clean_fail/14",
+      "theme": "plain",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask"
+    },
+    {
+      "id": "plain/clean_fail/15",
+      "theme": "plain",
+      "method": "clean_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "error_message": "Cleanup failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[CLEAN FAIL] MyTask: Cleanup failed"
+    },
+    {
+      "id": "plain/group_start/16",
+      "theme": "plain",
+      "method": "group_start",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "running",
+        "group_name": "build"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP] MyTask#build"
+    },
+    {
+      "id": "plain/group_success/17",
+      "theme": "plain",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build"
+    },
+    {
+      "id": "plain/group_success/18",
+      "theme": "plain",
+      "method": "group_success",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "completed",
+        "group_name": "build",
+        "duration": 200
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP DONE] MyTask#build (200ms)"
+    },
+    {
+      "id": "plain/group_fail/19",
+      "theme": "plain",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build"
+    },
+    {
+      "id": "plain/group_fail/20",
+      "theme": "plain",
+      "method": "group_fail",
+      "kind": "task",
+      "task": {
+        "name": "MyModule::MyTask",
+        "state": "failed",
+        "group_name": "build",
+        "error_message": "Build failed"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[GROUP FAIL] MyTask#build: Build failed"
+    },
+    {
+      "id": "plain/execution_start/0",
+      "theme": "plain",
+      "method": "execution_start",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 0,
+        "total_duration": 0,
+        "root_task_name": "MyModule::Root",
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Starting Root"
+    },
+    {
+      "id": "plain/execution_running/1",
+      "theme": "plain",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "plain/execution_running/2",
+      "theme": "plain",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 3,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "plain/execution_running/3",
+      "theme": "plain",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA",
+          "B::TaskB"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "plain/execution_running/4",
+      "theme": "plain",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": null
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::T1",
+          "B::T2",
+          "C::T3",
+          "D::T4"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "plain/execution_running/5",
+      "theme": "plain",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "Uploading files to the server with a very long output line here"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": [
+          "A::TaskA"
+        ]
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "plain/execution_running/6",
+      "theme": "plain",
+      "method": "execution_running",
+      "kind": "execution",
+      "task": {
+        "stdout": "short line"
+      },
+      "execution": {
+        "state": "running",
+        "pending_count": 0,
+        "done_count": 3,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Running: 3/5 tasks"
+    },
+    {
+      "id": "plain/execution_complete/7",
+      "theme": "plain",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (1.2s)"
+    },
+    {
+      "id": "plain/execution_complete/8",
+      "theme": "plain",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 0,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (0ms)"
+    },
+    {
+      "id": "plain/execution_complete/9",
+      "theme": "plain",
+      "method": "execution_complete",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "completed",
+        "pending_count": 0,
+        "done_count": 5,
+        "completed_count": 0,
+        "failed_count": 0,
+        "skipped_count": 2,
+        "total_count": 5,
+        "total_duration": 65000,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Completed: 5/5 tasks (65.0s)"
+    },
+    {
+      "id": "plain/execution_fail/10",
+      "theme": "plain",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 2,
+        "skipped_count": 0,
+        "total_count": 5,
+        "total_duration": 1234,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Failed: 2/5 tasks (1.2s)"
+    },
+    {
+      "id": "plain/execution_fail/11",
+      "theme": "plain",
+      "method": "execution_fail",
+      "kind": "execution",
+      "task": null,
+      "execution": {
+        "state": "failed",
+        "pending_count": 0,
+        "done_count": 0,
+        "completed_count": 0,
+        "failed_count": 1,
+        "skipped_count": 0,
+        "total_count": 1,
+        "total_duration": 890,
+        "root_task_name": null,
+        "task_names": null
+      },
+      "spinner_index": 0,
+      "expected": "[TASKI] Failed: 1/1 tasks (890ms)"
+    }
+  ]
+}

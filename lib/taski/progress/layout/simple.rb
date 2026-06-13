@@ -26,8 +26,8 @@ module Taski
       #       "#{count}件"
       #     end
       #
-      #     def execution_complete
-      #       '{% icon %} Done! {{ execution.completed_count | format_count }} tasks in {{ execution.total_duration | format_duration }}'
+      #     def execution_complete(execution:, task: nil)
+      #       "#{icon_for(execution.state)} Done! #{format_count(execution.done_count)} tasks in #{format_duration(execution.total_duration)}"
       #     end
       #   end
       #

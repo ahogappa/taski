@@ -369,8 +369,8 @@ class TestLayoutTreeEventWithCustomTemplate < Minitest::Test
 
   def test_uses_custom_theme_task_start
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_start
-        "[BEGIN] {{ task.name }}"
+      def task_start(task:, execution: nil)
+        "[BEGIN] #{task.name}"
       end
     end.new
 
@@ -386,8 +386,8 @@ class TestLayoutTreeEventWithCustomTemplate < Minitest::Test
 
   def test_tree_prefix_with_custom_theme
     custom_theme = Class.new(Taski::Progress::Theme::Base) do
-      def task_start
-        "=> {{ task.name }}"
+      def task_start(task:, execution: nil)
+        "=> #{task.name}"
       end
     end.new
 
