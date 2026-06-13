@@ -13,6 +13,16 @@ module Taski
     class TaskWrapper
       attr_reader :task, :result, :error, :clean_error
 
+      # Monotonic timestamps of when run/clean failure was recorded. In the
+      # RUN phase a dependency failure re-raises the same error object in
+      # every waiter, and a waiter can only fail AFTER its dependency's
+      # mark_failed (the notification happens-after the stamp) — so the
+      # chronologically first wrapper for a given error is its origin. The
+      # clean phase has no such propagation ordering; there the stamp only
+      # makes the failure report chronological. Used by the Executor to
+      # attribute deduplicated failures.
+      attr_reader :failed_order, :clean_failed_order
+
       STATE_PENDING = :pending
       STATE_RUNNING = :running
       STATE_COMPLETED = :completed
@@ -154,6 +164,7 @@ module Taski
         waiters_to_notify = nil
         @monitor.synchronize do
           @error = error
+          @failed_order = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           @state = STATE_FAILED
           @condition.broadcast
           waiters_to_notify = @waiters.dup
@@ -193,6 +204,7 @@ module Taski
       def mark_clean_failed(error)
         @monitor.synchronize do
           @clean_error = error
+          @clean_failed_order = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           @clean_state = STATE_FAILED
           @clean_condition.broadcast
         end

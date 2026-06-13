@@ -259,41 +259,64 @@ module Taski
       def raise_if_any_failures
         raise_if_any_failures_from(
           @registry.failed_wrappers,
-          error_accessor: ->(w) { w.error }
+          error_accessor: ->(w) { w.error },
+          order_accessor: ->(w) { w.failed_order || Float::INFINITY }
         )
       end
 
       def raise_if_any_clean_failures
         raise_if_any_failures_from(
           @registry.failed_clean_wrappers,
-          error_accessor: ->(w) { w.clean_error }
+          error_accessor: ->(w) { w.clean_error },
+          order_accessor: ->(w) { w.clean_failed_order || Float::INFINITY }
         )
       end
 
-      def raise_if_any_failures_from(failed_wrappers, error_accessor:)
+      def raise_if_any_failures_from(failed_wrappers, error_accessor:, order_accessor:)
         return if failed_wrappers.empty?
 
         abort_wrapper = failed_wrappers.find { |w| error_accessor.call(w).is_a?(TaskAbortException) }
         raise error_accessor.call(abort_wrapper) if abort_wrapper
 
-        failures = flatten_failures_from(failed_wrappers, error_accessor: error_accessor)
-        unique_failures = failures.uniq { |f| error_identity(f.error) }
+        # Attribute each unique error to its ORIGIN: a dependency failure
+        # re-raises the same error object in every waiter up the requester
+        # chain, and the dedup below keeps the first occurrence — so order
+        # the wrappers chronologically (in the run phase a waiter can only
+        # fail AFTER its dependency's mark_failed, so the origin stamps
+        # first; clean-phase failures have no such propagation ordering, but
+        # there a shared error object means both attributions are true).
+        # Registry order would attribute the error to whichever wrapper was
+        # created first, typically the root.
+        #
+        # Failures spliced from a nested executor's AggregateError are
+        # already origin-attributed by that executor — prefer them over a
+        # wrapper-level entry for the same error regardless of stamp order.
+        ordered = failed_wrappers.sort_by { |w| order_accessor.call(w) }
+        unique = {}
+        flatten_failures_from(ordered, error_accessor: error_accessor) do |failure, origin_attributed|
+          key = error_identity(failure.error)
+          existing = unique[key]
+          unique[key] = [failure, origin_attributed] if existing.nil? || (origin_attributed && !existing[1])
+        end
 
-        raise AggregateError.new(unique_failures)
+        raise AggregateError.new(unique.values.map(&:first))
       end
 
+      # Yields [TaskFailure, origin_attributed] for each failure entry.
+      # origin_attributed is true for failures spliced from a nested
+      # AggregateError (the nested executor already named the origin task).
       def flatten_failures_from(failed_wrappers, error_accessor:)
         output_capture = @saved_output_capture
 
-        failed_wrappers.flat_map do |wrapper|
+        failed_wrappers.each do |wrapper|
           error = error_accessor.call(wrapper)
           case error
           when AggregateError
-            error.errors
+            error.errors.each { |failure| yield failure, true }
           else
             wrapped_error = wrap_with_task_error(wrapper.task.class, error)
             output_lines = output_capture&.read(wrapper.task.class) || []
-            [TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines)]
+            yield TaskFailure.new(task_class: wrapper.task.class, error: wrapped_error, output_lines: output_lines), false
           end
         end
       end

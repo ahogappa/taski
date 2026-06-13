@@ -83,8 +83,9 @@ begin
   AppTask.run
 rescue DatabaseTask::Error => e
   puts "Database task failed: #{e.message}"
-  # e.task_class returns DatabaseTask
-  # e.cause returns the original error
+  # e is the AggregateError that contained the DatabaseTask::Error;
+  # e.cause returns that DatabaseTask::Error (whose #task_class is
+  # DatabaseTask, and whose #cause is the original exception)
 end
 ```
 
