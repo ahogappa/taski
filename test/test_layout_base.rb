@@ -260,6 +260,40 @@ class TestLayoutBase < Minitest::Test
     refute_includes @output.string, "Integer"
   end
 
+  # The clean phase of run_and_clean re-readies on the SAME facade after it
+  # tore down the run-phase output router and built a fresh one. The layout
+  # must re-adopt the fresh router, or the status line keeps reading the dead
+  # run-phase router during clean (showing stale/blank output).
+  def test_on_ready_readopts_capture_when_same_facade_re_readies
+    facade = stub_facade(root: String, capture: :run_router)
+    @layout.context = facade
+    @layout.on_ready
+    assert_equal :run_router, current_output_capture
+
+    facade.define_singleton_method(:output_capture) { :clean_router }
+    @layout.on_ready
+
+    assert_equal :clean_router, current_output_capture,
+      "the fresh clean-phase router must be re-adopted"
+    assert_equal String, @layout.instance_variable_get(:@root_task_class),
+      "the root task must not change across phases"
+  end
+
+  # A nested execution runs on a DIFFERENT facade. It does not own the
+  # display, so a re-ready from it must not retarget the capture (nor rebuild
+  # the tree / overwrite the root — the existing once-guard).
+  def test_on_ready_does_not_retarget_capture_for_a_different_facade
+    @layout.context = stub_facade(root: String, capture: :run_router)
+    @layout.on_ready
+
+    @layout.context = stub_facade(root: Integer, capture: :nested_router)
+    @layout.on_ready
+
+    assert_equal :run_router, current_output_capture,
+      "a different (nested) facade must not retarget the display's capture"
+    assert_equal String, @layout.instance_variable_get(:@root_task_class)
+  end
+
   # === Message queue ===
 
   def test_queue_message_stores_message
@@ -315,6 +349,21 @@ class TestLayoutBase < Minitest::Test
     end
     threads.each(&:join)
     # No error raised
+  end
+
+  private
+
+  # A minimal facade stub whose output_capture can be swapped to simulate a
+  # phase rebuilding its router.
+  def stub_facade(root:, capture:)
+    facade = Object.new
+    facade.define_singleton_method(:root_task_class) { root }
+    facade.define_singleton_method(:output_capture) { capture }
+    facade
+  end
+
+  def current_output_capture
+    @layout.instance_variable_get(:@output_capture)
   end
 end
 

@@ -38,6 +38,7 @@ module Taski
           @start_time = nil
           @root_task_class = nil
           @output_capture = nil
+          @display_facade = nil
           @message_queue = []
           @group_start_times = {}
           @spinner_index = 0
@@ -50,10 +51,23 @@ module Taski
 
         # Event 1: Facade is ready (root task set, output capture available).
         # Pulls root_task_class and output_capture from context.
-        # Only sets root_task_class once (prevents nested executor overwrite).
+        #
+        # root_task_class and the tree build (handle_ready) happen once — a
+        # nested executor must not overwrite the displayed root. The output
+        # capture, however, is re-adopted when the owning execution re-readies
+        # on the SAME facade: the clean phase of run_and_clean tears down the
+        # run-phase output router and builds a fresh one, and the status line
+        # must follow it or it reads the dead run-phase router during clean.
+        # The facade-identity guard means a nested execution (a different
+        # facade) cannot retarget the display's capture, while normal nesting
+        # (which reuses the current facade and router) is a harmless no-op.
         def on_ready
           @monitor.synchronize do
-            return if @root_task_class
+            if @root_task_class
+              @output_capture = @context.output_capture if @context.equal?(@display_facade)
+              return
+            end
+            @display_facade = @context
             @root_task_class = @context&.root_task_class
             @output_capture = @context&.output_capture
             handle_ready
