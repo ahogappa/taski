@@ -1,0 +1,24 @@
+# YAML re-encoding of Taski::Progress::Theme::Default — byte-parity fixture.
+# All 15 templates spelled out so every format string goes through the
+# data-theme pipeline (extends base would behave identically; the point is
+# exercising the placeholders).
+name: default-parity
+schema: 1
+extends: base
+
+templates:
+  task_pending:  "[PENDING] %{name}"
+  task_start:    "[START] %{name}"
+  task_success:  "[DONE] %{name}%{duration_part}"
+  task_fail:     "[FAIL] %{name}%{error_part}"
+  task_skip:     "[SKIP] %{name}"
+  clean_start:   "[CLEAN] %{name}"
+  clean_success: "[CLEAN DONE] %{name}%{duration_part}"
+  clean_fail:    "[CLEAN FAIL] %{name}%{error_part}"
+  group_start:   "[GROUP] %{name}#%{group_name}"
+  group_success: "[GROUP DONE] %{name}#%{group_name}%{duration_part}"
+  group_fail:    "[GROUP FAIL] %{name}#%{group_name}%{error_part}"
+  execution_start:    "[TASKI] Starting %{root_task_name}"
+  execution_running:  "[TASKI] Running: %{done_count}/%{total_count} tasks"
+  execution_complete: "[TASKI] Completed: %{done_count}/%{total_count} tasks (%{total_duration})"
+  execution_fail:     "[TASKI] Failed: %{failed_count}/%{total_count} tasks (%{total_duration})"

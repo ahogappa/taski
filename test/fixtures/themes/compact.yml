@@ -1,0 +1,10 @@
+# YAML re-encoding of Taski::Progress::Theme::Compact — byte-parity fixture.
+# The old Liquid {% for %}/forloop loop collapses into %{task_names_part}.
+name: compact-parity
+schema: 1
+extends: default
+
+templates:
+  execution_running:  "%{spinner} [%{done_count}/%{total_count}]%{task_names_part}%{stdout_part}"
+  execution_complete: "%{icon} [TASKI] Completed: %{done_count}/%{total_count} tasks (%{total_duration})"
+  execution_fail:     "%{icon} [TASKI] Failed: %{failed_count}/%{total_count} tasks (%{total_duration})"
