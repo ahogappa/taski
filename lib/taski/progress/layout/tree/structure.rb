@@ -24,8 +24,7 @@ module Taski
 
           def init_tree_structure
             @tree_nodes = {}
-            @node_depths = {}
-            @node_is_last = {}
+            @node_prefixes = {}
           end
 
           def build_ready_tree
@@ -64,9 +63,17 @@ module Taski
 
             task_class = node[:task_class]
             @tasks[task_class] ||= new_task_progress
-            @tree_nodes[task_class] = node
-            @node_depths[task_class] = depth
-            @node_is_last[task_class] = {is_last: is_last, ancestors_last: ancestors_last.dup}
+            @tree_nodes[task_class] ||= node
+
+            # A shared dependency is registered once per occurrence in the
+            # tree. The prefix belongs to the OCCURRENCE (stored on the node),
+            # not to the task class — a class-keyed prefix would be clobbered
+            # by the last occurrence and corrupt every earlier row. The
+            # class-keyed map keeps only the FIRST occurrence, as the one
+            # canonical prefix for per-event output lines.
+            prefix = compute_tree_prefix(depth: depth, is_last: is_last, ancestors_last: ancestors_last)
+            node[:prefix] = prefix
+            @node_prefixes[task_class] ||= prefix
 
             children = node[:children]
             children.each_with_index do |child, index|
@@ -88,9 +95,8 @@ module Taski
           def build_node_lines(node, lines)
             return unless node
 
-            task_class = node[:task_class]
-            prefix = build_tree_prefix(task_class)
-            content = build_task_content(task_class)
+            prefix = node[:prefix] || ""
+            content = build_task_content(node[:task_class])
             lines << "#{prefix}#{content}"
 
             node[:children].each do |child|
@@ -116,15 +122,14 @@ module Taski
             end
           end
 
+          # Canonical (first-occurrence) prefix for a task class, used by
+          # per-event output lines in Tree::Event.
           def build_tree_prefix(task_class)
-            depth = @node_depths[task_class]
-            return "" if depth.nil? || depth == 0
+            @node_prefixes[task_class] || ""
+          end
 
-            last_info = @node_is_last[task_class]
-            return "" unless last_info
-
-            ancestors_last = last_info[:ancestors_last]
-            is_last = last_info[:is_last]
+          def compute_tree_prefix(depth:, is_last:, ancestors_last:)
+            return "" if depth.zero?
 
             prefix = ""
             # Skip the first ancestor (root) since root has no visual prefix
@@ -132,8 +137,7 @@ module Taski
               prefix += ancestor_is_last ? SPACE : VERTICAL
             end
 
-            prefix += is_last ? LAST_BRANCH : BRANCH
-            prefix
+            prefix + (is_last ? LAST_BRANCH : BRANCH)
           end
         end
       end

@@ -283,6 +283,65 @@ class TestLayoutTreeEventPrefix < Minitest::Test
     refute_includes @output.string, "└── ⠋ RootTask"
   end
 
+  # A shared dependency (diamond: Root -> Left -> Shared, Root -> Shared)
+  # appears once per occurrence in the rendered tree — each occurrence with
+  # the prefix of ITS OWN position. Prefix data must be per-node, not keyed
+  # by task class (a later registration must not clobber an earlier one).
+  def test_render_tree_with_shared_dependency_renders_each_occurrence_with_its_own_prefix
+    shared = stub_task_class("SharedTask")
+    left = stub_task_class_with_deps("LeftTask", [shared])
+    root = stub_task_class_with_deps("RootTask", [left, shared])
+
+    ctx = mock_execution_facade(root_task_class: root)
+    @layout.context = ctx
+    @layout.on_ready
+
+    assert_equal [
+      "○ RootTask",
+      "├── ○ LeftTask",
+      "│   └── ○ SharedTask",
+      "└── ○ SharedTask"
+    ], @layout.render_tree.lines.map(&:chomp)
+  end
+
+  # Event-mode per-event lines use one canonical prefix for a shared task:
+  # its first occurrence in the tree (the position it is first printed at).
+  def test_event_output_for_shared_dependency_uses_first_occurrence_prefix
+    shared = stub_task_class("SharedTask")
+    left = stub_task_class_with_deps("LeftTask", [shared])
+    root = stub_task_class_with_deps("RootTask", [left, shared])
+
+    ctx = mock_execution_facade(root_task_class: root)
+    @layout.context = ctx
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_task_updated(shared, previous_state: :pending, current_state: :running, phase: :run, timestamp: Time.now)
+    @layout.on_stop
+
+    assert_includes @output.string, "│   └── ⠋ SharedTask"
+  end
+
+  # A circular graph renders the cycle as a childless leaf occurrence. When
+  # the ROOT class reappears (Root -> A -> Root), the class-keyed node map
+  # must keep the ROOT occurrence (the first registration), not the circular
+  # leaf — otherwise build_tree_lines walks the leaf and the whole tree
+  # collapses to a single orphan line.
+  def test_render_tree_with_root_cycle_renders_full_tree_from_root_occurrence
+    a = stub_task_class("ATask")
+    root = stub_task_class_with_deps("RootTask", [a])
+    a.define_singleton_method(:cached_dependencies) { [root] }
+
+    ctx = mock_execution_facade(root_task_class: root)
+    @layout.context = ctx
+    @layout.on_ready
+
+    assert_equal [
+      "○ RootTask",
+      "└── ○ ATask",
+      "    └── ○ RootTask"
+    ], @layout.render_tree.lines.map(&:chomp)
+  end
+
   private
 
   def stub_task_class(name)
