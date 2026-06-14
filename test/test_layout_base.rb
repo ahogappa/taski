@@ -248,16 +248,95 @@ class TestLayoutBase < Minitest::Test
     assert_includes @output.string, "String"
   end
 
-  def test_on_ready_only_sets_root_task_once
+  # A nested executor readies on its own facade WHILE an execution is active
+  # (@nest_level > 0). It must not overwrite the displayed root or rebuild the
+  # tree.
+  def test_nested_on_ready_does_not_overwrite_root
     @layout.context = mock_execution_facade(root_task_class: String)
     @layout.on_ready
+    @layout.on_start # now inside an execution (@nest_level == 1)
 
     @layout.context = mock_execution_facade(root_task_class: Integer)
+    @layout.on_ready # nested ready on a different facade
+
+    assert_equal String, @layout.instance_variable_get(:@root_task_class)
+  end
+
+  # When the outermost execution stops, per-execution state is cleared so the
+  # display does not carry the root/tasks/spinner into the next top-level
+  # execution.
+  def test_on_stop_clears_per_execution_state
+    @layout.context = stub_facade(root: String, capture: :cap_a)
+    @layout.on_ready
+    @layout.on_start
+    leftover = Class.new
+    @layout.on_task_updated(leftover, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    assert @layout.task_registered?(leftover)
+    @layout.instance_variable_set(:@spinner_index, 7)
+
+    @layout.on_stop
+
+    assert_nil @layout.instance_variable_get(:@root_task_class)
+    assert_nil current_output_capture
+    refute @layout.task_registered?(leftover)
+    assert_equal 0, @layout.spinner_index,
+      "the spinner animation must restart from frame 0 for the next execution"
+  end
+
+  # The reset runs in an ensure, so a raising final render (e.g. a broken
+  # terminal) still clears state — otherwise (dispatch swallows observer
+  # errors) a failed render would silently leak this run's root + task count
+  # into the next top-level execution.
+  def test_on_stop_resets_even_when_the_final_render_raises
+    layout = Taski::Progress::Layout::Base.new(output: @output)
+    layout.context = stub_facade(root: String, capture: :cap_a)
+    layout.on_ready
+    layout.on_start
+    tc = Class.new
+    layout.on_task_updated(tc, previous_state: nil, current_state: :pending, phase: :run, timestamp: Time.now)
+    def layout.handle_stop = raise("render boom") # final render fails
+
+    assert_raises(RuntimeError) { layout.on_stop }
+
+    assert_nil layout.instance_variable_get(:@root_task_class),
+      "reset must run from the ensure even when the final render raises"
+    refute layout.task_registered?(tc)
+  end
+
+  # After the first execution stops, a second top-level execution adopts its
+  # own root + capture (the cleared state makes on_ready take the fresh-adopt
+  # path).
+  def test_second_top_level_execution_adopts_its_own_state
+    @layout.context = stub_facade(root: String, capture: :cap_a)
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_stop # first execution fully finishes — state cleared
+
+    @layout.context = stub_facade(root: Integer, capture: :cap_b)
     @layout.on_ready
 
+    assert_equal Integer, @layout.instance_variable_get(:@root_task_class)
+    assert_equal :cap_b, current_output_capture
+  end
+
+  # run_and_clean calls notify_start (raising nest level) BEFORE its first
+  # on_ready, so a second run_and_clean readies at nest_level 1 — it must still
+  # adopt its own state, because the reset already happened when the first
+  # execution stopped (not lazily at on_ready).
+  def test_second_execution_adopts_even_when_readying_at_raised_nest_level
+    @layout.context = stub_facade(root: String, capture: :cap_a)
+    @layout.on_ready
     @layout.on_start
-    assert_includes @output.string, "String"
-    refute_includes @output.string, "Integer"
+    @layout.on_stop # first execution finished — state cleared
+
+    @layout.on_start # run_and_clean's pre-increment, before its first on_ready
+    @layout.context = stub_facade(root: Integer, capture: :cap_b)
+    @layout.on_ready
+
+    assert_equal Integer, @layout.instance_variable_get(:@root_task_class)
+    assert_equal :cap_b, current_output_capture
+  ensure
+    @layout.on_stop
   end
 
   # The clean phase of run_and_clean re-readies on the SAME facade after it
@@ -279,18 +358,19 @@ class TestLayoutBase < Minitest::Test
       "the root task must not change across phases"
   end
 
-  # A nested execution runs on a DIFFERENT facade. It does not own the
-  # display, so a re-ready from it must not retarget the capture (nor rebuild
-  # the tree / overwrite the root — the existing once-guard).
-  def test_on_ready_does_not_retarget_capture_for_a_different_facade
+  # A nested execution on a DIFFERENT facade (active execution, @nest_level > 0)
+  # does not own the display, so it must not retarget the capture nor overwrite
+  # the root.
+  def test_on_ready_does_not_retarget_capture_for_a_nested_different_facade
     @layout.context = stub_facade(root: String, capture: :run_router)
     @layout.on_ready
+    @layout.on_start # inside an execution (@nest_level == 1)
 
     @layout.context = stub_facade(root: Integer, capture: :nested_router)
     @layout.on_ready
 
     assert_equal :run_router, current_output_capture,
-      "a different (nested) facade must not retarget the display's capture"
+      "a nested different facade must not retarget the display's capture"
     assert_equal String, @layout.instance_variable_get(:@root_task_class)
   end
 

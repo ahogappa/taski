@@ -50,17 +50,22 @@ module Taski
         # === Observer Interface (called by ExecutionFacade) ===
 
         # Event 1: Facade is ready (root task set, output capture available).
-        # Pulls root_task_class and output_capture from context.
         #
-        # root_task_class and the tree build (handle_ready) happen once — a
-        # nested executor must not overwrite the displayed root. The output
-        # capture, however, is re-adopted when the owning execution re-readies
-        # on the SAME facade: the clean phase of run_and_clean tears down the
-        # run-phase output router and builds a fresh one, and the status line
-        # must follow it or it reads the dead run-phase router during clean.
-        # The facade-identity guard means a nested execution (a different
-        # facade) cannot retarget the display's capture, while normal nesting
-        # (which reuses the current facade and router) is a harmless no-op.
+        # The root/tree are adopted once per execution; a re-ready on the SAME
+        # facade (the clean phase of run_and_clean, or a normal nested
+        # execution which reuses the current facade) keeps the displayed
+        # root/tree and only re-adopts the live output router — the clean phase
+        # tears down the run-phase router and builds a fresh one, and the status
+        # line must follow it. A re-ready on a DIFFERENT facade is a nested
+        # executor on its own facade and is ignored.
+        #
+        # A NEW top-level execution always sees @root_task_class == nil here,
+        # because the previous execution cleared it when it stopped (see
+        # on_stop / reset_after_execution) — so it falls through and adopts its
+        # own root/capture. (Doing the reset at stop rather than here is what
+        # makes run_and_clean correct: it calls notify_start BEFORE its first
+        # on_ready, so a reset deferred to on_ready would come too late for the
+        # start line.)
         def on_ready
           @monitor.synchronize do
             if @root_task_class
@@ -104,8 +109,20 @@ module Taski
           end
 
           return unless should_stop
-          handle_stop if was_active
-          flush_queued_messages
+          begin
+            handle_stop if was_active
+            flush_queued_messages
+          ensure
+            # The outermost execution has fully stopped. Clear per-execution
+            # state so the next top-level execution reusing this persistent
+            # display (Config memoizes it) starts fresh, instead of showing this
+            # execution's root and an accumulated task count. In an ensure so a
+            # raising final render or message flush still clears state —
+            # dispatch swallows observer errors, so a leak here would silently
+            # corrupt the next run. Safe: handle_stop already stopped the render
+            # thread.
+            @monitor.synchronize { reset_after_execution }
+          end
         end
 
         # Event 4: Task state transition.
@@ -211,6 +228,28 @@ module Taski
         # Called when facade is ready (root task and output capture available).
         # Override to build tree structure.
         def handle_ready
+          # Default: no-op
+        end
+
+        # Clear all per-execution state when the outermost execution stops, so
+        # the next top-level execution reusing this persistent display adopts
+        # its own root/capture via the normal on_ready path (which keys off
+        # @root_task_class being nil). Subclasses reset their own per-execution
+        # structures via handle_reset.
+        def reset_after_execution
+          @tasks.clear
+          @group_start_times.clear
+          @start_time = nil
+          @root_task_class = nil
+          @display_facade = nil
+          @output_capture = nil
+          @spinner_index = 0
+          handle_reset
+        end
+
+        # Hook for subclasses to reset their own per-execution state (e.g. the
+        # tree node maps, group baselines). Default: no-op.
+        def handle_reset
           # Default: no-op
         end
 

@@ -92,6 +92,24 @@ class TestLayoutTreeLive < Minitest::Test
     assert_includes @output.string, "[TASKI] Failed: 1/1 tasks"
   end
 
+  # @last_line_count must reset when an execution stops, so the next top-level
+  # execution's first live frame does not move the cursor up and erase the
+  # previous execution's final output (clear_previous_output keys off it).
+  def test_last_line_count_is_reset_after_an_execution_stops
+    parent = stub_task_class_with_deps("Parent", [stub_task_class("A"), stub_task_class("B")])
+    @layout.context = mock_execution_facade(root_task_class: parent)
+    @layout.on_ready
+    @layout.on_start
+    # Simulate the render loop having drawn a multi-line frame, so the reset is
+    # actually exercised (otherwise @last_line_count is already 0 and the test
+    # is vacuous).
+    @layout.instance_variable_set(:@last_line_count, 5)
+    @layout.on_stop
+
+    assert_equal 0, @layout.instance_variable_get(:@last_line_count),
+      "the next execution's first frame must not erase the previous execution's final output"
+  end
+
   def test_tree_prefix_for_children
     child1 = stub_task_class("Child1")
     child2 = stub_task_class("Child2")

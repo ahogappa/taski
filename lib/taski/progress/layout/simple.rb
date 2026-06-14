@@ -60,6 +60,13 @@ module Taski
             graph.all_tasks.each { |tc| register_task(tc) }
           end
 
+          # Drop the previous execution's group baselines when a new top-level
+          # execution reuses this display.
+          def handle_reset
+            @group_baselines.clear
+            super
+          end
+
           # Simple layout uses periodic status line updates instead of per-event output
           def handle_task_update(_task_class, _current_state, _phase)
             # No per-event output; status line is updated by render_live
