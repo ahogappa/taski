@@ -27,6 +27,13 @@ module Taski
             @node_prefixes = {}
           end
 
+          # Drop the previous execution's tree when a new top-level execution
+          # reuses this display; handle_ready then rebuilds it for the new root.
+          def handle_reset
+            init_tree_structure
+            super
+          end
+
           def build_ready_tree
             graph = context&.dependency_graph
             root = context&.root_task_class

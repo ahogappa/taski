@@ -27,6 +27,14 @@ module Taski
             build_ready_tree
           end
 
+          # Drop the live-frame line count when an execution ends, so the next
+          # top-level execution's first frame does not erase the previous
+          # execution's final output (clear_previous_output keys off it).
+          def handle_reset
+            @last_line_count = 0
+            super
+          end
+
           # TTY mode: skip per-event output, tree is updated by render_loop
           def handle_task_update(_task_class, _current_state, _phase)
           end

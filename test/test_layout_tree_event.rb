@@ -342,6 +342,31 @@ class TestLayoutTreeEventPrefix < Minitest::Test
     ], @layout.render_tree.lines.map(&:chomp)
   end
 
+  # A second top-level execution reuses the persistent display; its tree node
+  # map must be rebuilt for the new root, not retain the previous execution's
+  # nodes (handle_reset re-inits the structure when the first execution stops).
+  def test_tree_node_map_is_rebuilt_for_a_second_execution
+    shared = stub_task_class("Shared")
+    first_root = stub_task_class_with_deps("FirstRoot", [shared])
+    @layout.context = mock_execution_facade(root_task_class: first_root)
+    @layout.on_ready
+    @layout.on_start
+    @layout.on_stop # first execution stops -> tree node map cleared
+
+    second_root = stub_task_class_with_deps("SecondRoot", [shared])
+    @layout.context = mock_execution_facade(root_task_class: second_root)
+    @layout.on_ready
+
+    nodes = @layout.instance_variable_get(:@tree_nodes).keys
+    assert_equal 2, nodes.size
+    assert_includes nodes, second_root
+    assert_includes nodes, shared
+    refute_includes nodes, first_root,
+      "the first execution's root must not leak into the second tree"
+    refute_includes @layout.render_tree, "FirstRoot",
+      "the rendered tree must show only the second execution's tasks"
+  end
+
   private
 
   def stub_task_class(name)

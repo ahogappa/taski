@@ -66,18 +66,39 @@ class TestSimpleProgressDisplay < Minitest::Test
     assert @display.task_registered?(FixtureTaskA)
   end
 
-  def test_set_root_task_is_idempotent
+  def test_nested_on_ready_does_not_change_the_registered_set
     ctx = mock_execution_facade(root_task_class: FixtureTaskB)
     @display.context = ctx
     @display.on_ready
+    @display.on_start # inside an execution (@nest_level == 1)
 
     ctx2 = mock_execution_facade(root_task_class: FixtureTaskA)
     @display.context = ctx2
-    @display.on_ready # Should be ignored (root already set)
+    @display.on_ready # nested ready — must be ignored
 
-    # Only the first root task's dependencies should be registered
+    # The first root task's graph stays registered
     assert @display.task_registered?(FixtureTaskB)
     assert @display.task_registered?(FixtureTaskA)
+  end
+
+  def test_new_top_level_execution_re_registers_for_its_own_root
+    # FixtureTaskB depends on FixtureTaskA; FixtureTaskA is a leaf.
+    ctx = mock_execution_facade(root_task_class: FixtureTaskB)
+    @display.context = ctx
+    @display.on_ready
+    @display.on_start
+    assert @display.task_registered?(FixtureTaskB)
+    @display.on_stop # first execution fully finishes
+
+    # A second top-level execution rooted at the leaf must reset and register
+    # only its own graph.
+    ctx2 = mock_execution_facade(root_task_class: FixtureTaskA)
+    @display.context = ctx2
+    @display.on_ready
+
+    assert @display.task_registered?(FixtureTaskA)
+    refute @display.task_registered?(FixtureTaskB),
+      "the previous execution's tasks must be cleared for a new top-level run"
   end
 
   def test_start_and_stop_without_tty
