@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-14
+
+### Added
+- Ruby-native progress themes: customize output with plain Ruby `Theme` subclasses and helper methods ([#235](https://github.com/ahogappa/taski/pull/235))
+- Data themes: shareable, code-free YAML progress themes loaded via `Taski.progress.theme = "theme.yml"` ([#241](https://github.com/ahogappa/taski/pull/241))
+- `Taski.profile` and the `profile:` option on `run`/`run_and_clean` for a per-task timing report with critical path ([#228](https://github.com/ahogappa/taski/pull/228))
+- Show the active `group` name in the Simple status line ([#238](https://github.com/ahogappa/taski/pull/238))
+- Per-execution isolation of `Taski.args` / `Taski.env` so concurrent executions no longer share them ([#221](https://github.com/ahogappa/taski/pull/221))
+- Prestart-plan observability via `Taski.prestart_debug` and `Task.tree` annotations ([#225](https://github.com/ahogappa/taski/pull/225))
+- Log silent-degradation paths (dependency analysis and theme render failures) as dedicated events ([#222](https://github.com/ahogappa/taski/pull/222))
+
+### Changed
+- **BREAKING:** Progress themes are plain Ruby instead of Liquid templates; custom Liquid themes no longer work (see the "Customizing Themes" guide) ([#235](https://github.com/ahogappa/taski/pull/235))
+- **BREAKING:** Exported names resolve via `method_missing` and no longer appear in `.methods` / `.instance_methods`; use `.exported_methods` for introspection ([#218](https://github.com/ahogappa/taski/pull/218))
+- `AggregateError` attributes each failure to the task that raised it, so `rescue SomeTask::Error` matches propagated failures ([#239](https://github.com/ahogappa/taski/pull/239))
+- Document the skipped → running → completed task revival as a legal transition ([#234](https://github.com/ahogappa/taski/pull/234))
+
+### Removed
+- **BREAKING:** `liquid` and `base64` runtime dependencies; runtime dependencies are now `prism` and `tsort` ([#235](https://github.com/ahogappa/taski/pull/235))
+
+### Fixed
+- Render shared (diamond) dependencies correctly in the tree display ([#237](https://github.com/ahogappa/taski/pull/237))
+- Show clean-phase output in the progress display during `run_and_clean` ([#240](https://github.com/ahogappa/taski/pull/240))
+- Reset the progress display between sequential top-level executions, so a second run no longer shows the first run's root or an accumulated task count ([#242](https://github.com/ahogappa/taski/pull/242))
+- Reuse the output-capture pipe across speculative park/resume, fixing a file-descriptor leak and lost pre-park output ([#230](https://github.com/ahogappa/taski/pull/230))
+- Contain render-thread death on a closed terminal, restoring the cursor and stopping the spinner ([#231](https://github.com/ahogappa/taski/pull/231))
+- `clear_dependency_cache` now also resets the circular-dependency check and prestart caches ([#220](https://github.com/ahogappa/taski/pull/220))
+- Do not execute (or fail a run on) a dependency referenced only in a never-taken branch ([#226](https://github.com/ahogappa/taski/pull/226))
+- Complete speculatively-started tasks on shutdown instead of abandoning parked fibers ([#227](https://github.com/ahogappa/taski/pull/227))
+- Harden execution against deadlocks, hangs, and resource leaks ([#212](https://github.com/ahogappa/taski/pull/212), [#213](https://github.com/ahogappa/taski/pull/213), [#217](https://github.com/ahogappa/taski/pull/217))
+
 ## [0.10.0] - 2026-02-19
 
 ### Added
