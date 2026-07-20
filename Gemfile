@@ -14,7 +14,7 @@ group :development, :test do
   gem "debug"
   gem "minitest", "~> 6.0"
   gem "standard", "~> 1.54"
-  gem "simplecov", "~> 0.22"
+  gem "simplecov", "~> 1.0"
   gem "simplecov-lcov", "~> 0.8"
   gem "steep", "~> 2.0"
 end
