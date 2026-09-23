@@ -74,9 +74,10 @@ module Taski
       # them, and a subclass adding an export keeps the inherited ones.
       # @return [Array<Symbol>] The exported method names.
       def exported_methods
-        # No `||=`: only the Ractor that owns a class may set its instance
-        # variables, so writing here would make this reader raise when a task
-        # class is inspected from any other Ractor.
+        # No `||=`: only the main Ractor (from Ruby 4.1, the Ractor that
+        # created the class) may set a class's instance variables, so writing
+        # here would make this reader raise when a task class is inspected from
+        # any other Ractor.
         own = @exported_methods || []
         inherited = superclass.respond_to?(:exported_methods) ? superclass.exported_methods : []
         inherited | own
