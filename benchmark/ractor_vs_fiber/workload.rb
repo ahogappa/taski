@@ -4,7 +4,7 @@
 #
 #   ruby benchmark/ractor_vs_fiber/workload.rb \
 #     --graph tree --kind cpu_alloc --workers 4 --repeat 5 \
-#     --executors serial,threads,taski,ractor_pool,ractor_per_task [--json]
+#     --executors serial,threads,taski,taski_offload,ractor_pool,ractor_per_task [--json]
 #
 # Executors:
 #   serial          one thread, topological order (the 1x baseline)
@@ -12,6 +12,8 @@
 #   taski           the real Taski::Task classes (Fiber pull model on threads)
 #   ractor_pool     push-model pool of worker Ractors fed through Ractor::Port
 #   ractor_per_task one Ractor spawned per task once its deps are done
+#   taski_offload   taski as is, but each task's own work runs in a Ractor the
+#                   task spawns and waits on (opt-in offload, no taski change)
 #
 # Every task first reads its dependencies' values, then does its own work, and
 # exports (work + sum of deps). The push-model executors therefore do exactly
@@ -33,6 +35,15 @@ module BenchExec
     dep_sum = 0
     deps.each { |v| dep_sum += v.to_i }
     (Work.call(kind, param) + dep_sum) & 0xFFFFFFFF
+  end
+
+  # Same result as task_value, but the work runs in a Ractor while the calling
+  # thread (a taski worker) blocks in Ractor#value, which releases the GVL.
+  def offloaded_task_value(kind, param, deps)
+    dep_sum = 0
+    deps.each { |v| dep_sum += v.to_i }
+    work = Ractor.new(kind, param) { |k, p| Work.call(k, p) }.value
+    (work + dep_sum) & 0xFFFFFFFF
   end
 end
 
@@ -153,8 +164,11 @@ module Executors
   end
 
   def taski(graph, kind, param, workers)
-    root = TaskiTasks.root_for(graph, kind, param)
-    root.run(workers: workers)
+    TaskiTasks.root_for(graph, kind, param, :task_value).run(workers: workers)
+  end
+
+  def taski_offload(graph, kind, param, workers)
+    TaskiTasks.root_for(graph, kind, param, :offloaded_task_value).run(workers: workers)
   end
 end
 
@@ -166,23 +180,23 @@ module TaskiTasks
 
   module_function
 
-  def root_for(graph, kind, param)
-    @roots[[graph, kind, param]] ||= generate(graph, kind, param)
+  def root_for(graph, kind, param, body)
+    @roots[[graph, kind, param, body]] ||= generate(graph, kind, param, body)
   end
 
-  def generate(graph, kind, param)
+  def generate(graph, kind, param, body)
     require_relative "../../lib/taski"
     Taski.progress_display = nil
 
     ns = "TaskiBench#{@roots.size}"
-    src = +"module #{ns}\n"
+    src = "module #{ns}\n"
     graph.each_with_index do |deps, i|
       reads = deps.each_with_index.map { |d, j| "      d#{j} = #{ns}::T#{d}.value\n" }.join
       src << "  class T#{i} < Taski::Task\n"
       src << "    exports :value\n"
       src << "    def run\n"
       src << reads
-      src << "      @value = BenchExec.task_value(#{kind.inspect}, #{param}, [#{deps.each_index.map { |j| "d#{j}" }.join(", ")}])\n"
+      src << "      @value = BenchExec.#{body}(#{kind.inspect}, #{param}, [#{deps.each_index.map { |j| "d#{j}" }.join(", ")}])\n"
       src << "    end\n"
       src << "  end\n"
     end
@@ -199,7 +213,7 @@ end
 DEFAULT_PARAMS = {cpu_int: 460_000, cpu_alloc: 300, io: 20}.freeze
 
 options = {graph: "tree", kind: :cpu_alloc, workers: 4, repeat: 5, json: false,
-           executors: %w[serial threads taski ractor_pool ractor_per_task], param: nil,
+           executors: %w[serial threads taski taski_offload ractor_pool ractor_per_task], param: nil,
            depth: 5, width: 32}
 OptionParser.new do |o|
   o.on("--graph NAME", %w[tree wide]) { |v| options[:graph] = v }

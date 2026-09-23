@@ -60,7 +60,7 @@ main.group_by { |r| r.values_at(:graph, :kind) }.each do |(graph, kind), group|
 end
 
 scaling = rows.select { |r| r[:graph] == "wide" && r[:kind] == "cpu_alloc" && %w[threads taski ractor_pool].include?(r[:executor]) }
-                .uniq { |r| r.values_at(:ruby, :workers, :executor) }
+  .uniq { |r| r.values_at(:ruby, :workers, :executor) }
 unless scaling.empty?
   workers = scaling.map { |r| r[:workers] }.uniq.sort
   puts "## Scaling: wide / cpu_alloc by worker count — median wall time"
