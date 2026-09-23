@@ -81,30 +81,39 @@ Measured on 4 vCPUs (Intel Xeon @ 2.10GHz, Ubuntu 24.04), no YJIT, Ruby
    ~0.5-1.0 ms on 4.1-dev (major GCs fire during the copy), a 10k-entry Hash
    2.4-2.7 ms vs 4.1-4.3 ms. Threads hand over a reference for ~0.1 us. This
    is a development snapshot, so the copy cost may still change before release.
-6. **The Task API cannot run in a non-main Ractor.** `taski_in_ractor.rb` on
-   both versions:
+6. **The Task API needed small changes to be read from a non-main Ractor.**
+   Originally `taski_in_ractor.rb` failed on the export list and the
+   dependency cache: both were unshareable class instance variables, and
+   `exported_methods` even wrote `@exported_methods ||= []` while reading.
+   With both made shareable and the reader no longer writing
+   (`lib/taski/task.rb`), both versions now give:
 
    ```
-   read Task.exported_methods         Ractor::IsolationError (@exported_methods is an unshareable Array)
-   read Task.cached_dependencies      Ractor::IsolationError (@dependencies_cache is an unshareable Set)
+   read Task.exported_methods         ok
+   read Task.cached_dependencies      ok
    instantiate a task and call #run   ok
-   read an export off that instance   Ractor::IsolationError (goes through exported_methods)
-   Leaf.run / Root.run                Ractor::IsolationError
+   read an export off that instance   ok
+   Leaf.run / Root.run                Ractor::IsolationError (Taski::PROGRESS_MONITOR and other main-Ractor state)
    ```
 
-   4.1 tightens this: a class may only be modified by the Ractor that created
-   it (Feature #22226), so the lazy `@x ||= ...` class-level caches taski uses
-   can never be filled from a worker Ractor, and neither can any user task
-   that memoizes into its class.
+   A whole execution still cannot start inside a Ractor, which a design that
+   schedules on the main Ractor and moves only `#run` bodies does not need.
+   4.1 tightens ownership: a class may only be modified by the Ractor that
+   created it (Feature #22226), so no class-level `@x ||= ...`, in taski or in
+   a user's task, can be filled from a worker Ractor.
 
 ### What this means for taski
 
 Replacing the Thread + Fiber executor with Ractors would speed up only
-CPU-bound Ruby tasks, and only if every task were Ractor-safe: no unshareable
-constants or class-level state, no globals, Ractor-safe C extensions, and
-exports that are copied or deep-frozen instead of shared by reference. That
-rules out much of what tasks do today (exporting connections or IO objects,
-mutating shared config, using gems that are not Ractor-aware), while the
+CPU-bound Ruby tasks, and only if every task body were Ractor-safe. The
+standard library a task typically uses works inside a Ractor on both versions
+(`system`, backticks, `Open3`, `IO.popen`, File/FileUtils/Tempfile, JSON,
+YAML, Digest, ERB, Timeout, threads). What breaks is shared state: unfrozen
+constants (`CONFIG = {...}`), objects such as a Logger held in a constant,
+class-level memoization and global variables all raise
+`Ractor::IsolationError`, and an export that cannot be copied (IO, Proc,
+Mutex, ...; 4.0 still copies IO and Mutex without complaint, 4.1 refuses)
+cannot reach a dependent running in another Ractor. Meanwhile the
 common taski workload (shelling out, network, disk) is IO-bound and already
 runs in parallel on threads.
 
@@ -116,11 +125,16 @@ class Checksums < Taski::Task
   exports :digests
 
   def run
-    files = FileList.paths.to_a # hand the Ractor a plain Array, not taski's lazy proxy
+    files = FileList.paths
     @digests = Ractor.new(files) { |paths| paths.to_h { |p| [p, Digest::SHA256.file(p).hexdigest] } }.value
   end
 end
 ```
+
+Passing a dependency's value straight to `Ractor.new` is safe: the prestart
+analyzer treats a value used as an argument as unsafe for a lazy proxy and
+resolves that dependency synchronously, so the Ractor receives the real value
+(`Checksums.prestart_plan` lists `FileList` under `sync`).
 
 Inside the Ractor, `puts` goes to that Ractor's own `$stdout` and bypasses
 taski's per-task output capture, and `Taski.args`/`Taski.env` must be passed
