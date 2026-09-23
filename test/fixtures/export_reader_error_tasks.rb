@@ -8,13 +8,14 @@ require "taski"
 # on it. Either way an exception from the reader belongs to the requester.
 module ExportReaderErrorFixtures
   class RaisingReader < Taski::Task
-    exports :value
+    exports :value, :done
 
     def value
       raise "reader boom"
     end
 
     def run
+      @done = true
     end
   end
 
@@ -26,13 +27,13 @@ module ExportReaderErrorFixtures
     end
   end
 
-  # Prestarts RaisingReader and reads it only after it completed, so the
-  # value is read inside request_value.
+  # Reads RaisingReader's non-raising export first, which only returns once
+  # RaisingReader has completed, so the raising export is then read inside
+  # request_value.
   class LateRequester < Taski::Task
     def run
-      value = RaisingReader.value
-      sleep 0.3
-      value.to_s
+      RaisingReader.done
+      RaisingReader.value
     end
   end
 
