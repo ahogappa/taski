@@ -47,7 +47,10 @@ module Taski
         end
         # Accumulate so repeated `exports` calls add to, rather than clobber,
         # the set. method_missing resolves names as Symbols, so normalize here.
-        @exported_methods = (@exported_methods || []) | names
+        # Replace the list rather than mutate it, and make it shareable: a
+        # non-main Ractor may read a class's instance variable only when its
+        # value is shareable.
+        @exported_methods = Ractor.make_shareable((@exported_methods || []) | names)
       end
 
       ##
@@ -71,7 +74,10 @@ module Taski
       # them, and a subclass adding an export keeps the inherited ones.
       # @return [Array<Symbol>] The exported method names.
       def exported_methods
-        own = (@exported_methods ||= [])
+        # No `||=`: only the Ractor that owns a class may set its instance
+        # variables, so writing here would make this reader raise when a task
+        # class is inspected from any other Ractor.
+        own = @exported_methods || []
         inherited = superclass.respond_to?(:exported_methods) ? superclass.exported_methods : []
         inherited | own
       end
@@ -103,7 +109,9 @@ module Taski
       # Dependencies are analyzed from the run method body using static analysis.
       # @return [Set<Class>] The set of task classes this task depends on.
       def cached_dependencies
-        @dependencies_cache ||= StaticAnalysis::Analyzer.analyze(self)
+        # Shareable, so the cache filled on the main Ractor can be read from
+        # any Ractor.
+        @dependencies_cache ||= Ractor.make_shareable(StaticAnalysis::Analyzer.analyze(self))
       end
 
       ##
