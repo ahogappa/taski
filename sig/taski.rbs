@@ -410,6 +410,7 @@ module Taski
       def notify_state_change: (previous_state: Symbol?, current_state: Symbol, phase: Symbol) -> void
       def notify_fiber_waiters_completed: (Array[Array[untyped]] waiters) -> void
       def notify_fiber_waiters_failed: (Array[Array[untyped]] waiters, Exception error) -> void
+      def read_export_for_requester: (Symbol method) -> untyped
     end
   end
 

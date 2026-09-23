@@ -124,7 +124,7 @@ module Taski
         @monitor.synchronize do
           case @state
           when STATE_COMPLETED
-            FiberProtocol::DepCompleted.new(@task.public_send(method))
+            read_export_for_requester(method)
           when STATE_FAILED
             FiberProtocol::DepFailed.new(@error)
           when STATE_RUNNING
@@ -330,9 +330,24 @@ module Taski
 
       def notify_fiber_waiters_completed(waiters)
         waiters.each do |thread_queue, fiber, method|
-          value = @task.public_send(method)
-          thread_queue.push(FiberProtocol::Resume.new(fiber, value))
+          case read_export_for_requester(method)
+          in FiberProtocol::DepCompleted(value:)
+            thread_queue.push(FiberProtocol::Resume.new(fiber, value))
+          in FiberProtocol::DepFailed(error:)
+            thread_queue.push(FiberProtocol::ResumeError.new(fiber, error))
+          end
         end
+      end
+
+      # A user-defined export reader can raise. Its error belongs to the
+      # requesting task, so it is handed to that task's fiber. Raising here
+      # instead would abort mark_completed after @waiters was cleared: the
+      # completed task would be re-marked failed and the waiters not yet
+      # resumed would stay parked forever.
+      def read_export_for_requester(method)
+        FiberProtocol::DepCompleted.new(@task.public_send(method))
+      rescue => e
+        FiberProtocol::DepFailed.new(e)
       end
 
       def notify_fiber_waiters_failed(waiters, error)
